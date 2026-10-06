@@ -14,16 +14,17 @@ which file to open — what each one owns, and where the seams between them run.
   types here and its header says why.
 - `backend_win32.c` — the Windows backend, and the seven Windows typedefs
   `vulkan_win32.h` expects `windows.h` to have made. Its header says why each.
-- `device_internal.h` — the device struct the files below share, where the split runs, and the
-  constants the whole folder reads.
+- `device_internal.h` — the device struct the files below share, where the split runs, the
+  constants the whole folder reads, and the guard that keeps another thread's uploads out of an
+  open frame.
 - `device_calls.h` — the calls one file here makes into another, grouped by the file that owns
-  each; included only through the end of `device_internal.h`.
+  each, the guard's take and give among them; included only through the end of `device_internal.h`.
 - `device_parts.h` — the records the device is built of: buffers, pools, slots, targets, the
   one-frame record and a pass's blocker region with its kinds; included only through
   `device_internal.h`.
 - `device.c` — opening, and the one place its order is: the surface, the logical device, the
   format, timing, present modes, frame objects, the layout and element pipeline but no mesh
-  pipeline, and close-down, plus the headless device the tests run on.
+  pipeline, the guard's take and give, and close-down, plus the headless device the tests run on.
 - `startup.h` — the startup steps that live beside device.c, why open_device calls them in the
   order it does, and the card facts and ranking a test can call with no card.
 - `instance.c` — the Vulkan instance, its extensions with debug-utils whenever offered, and in a
@@ -103,7 +104,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `frame_internal.h` — the calls frame.c, pass.c, depth_copy.c, draw.c, present.c, point_shadow.c,
   bounce_capture.c and bounce_shadow.c make across one another; included by those eight only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured and
-  its passes through `pass_timing.c`, rebuild on resize, end, submit and present.
+  its passes through `pass_timing.c`, rebuild on resize, end, submit and present, both ends under
+  the device's guard.
 - `pass.c` — a pass: one rendering block onto the window or a target, its camera block with probe
   volume, point lights, light blockers and further lights, the clear colour, the
   first-clears-later-load rule, the one Y flip, and each pass's name, timed by `pass_timing.c`.

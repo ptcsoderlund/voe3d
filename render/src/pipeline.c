@@ -453,9 +453,13 @@ static bool prepared(const voe_render_device *device)
 }
 
 // The first step not yet taken, in the order the public header gives. The solid
-// one first, because every draw that is not see-through goes through it.
+// one first, because every draw that is not see-through goes through it. Only
+// the relight's startup takes the device's guard (ADR-0370 point 5): it
+// allocates and writes sets, where a pipeline build writes only its own handle.
 static bool take_step(voe_render_device *device)
 {
+	bool started;
+
 	if (device->pipeline == VK_NULL_HANDLE)
 		return create_pipeline(device, MESH_SOLID, &device->pipeline);
 	if (device->pipeline_blended == VK_NULL_HANDLE)
@@ -470,7 +474,10 @@ static bool take_step(voe_render_device *device)
 	if (device->pipeline_capture == VK_NULL_HANDLE)
 		return create_pipeline(device, MESH_CAPTURE,
 				       &device->pipeline_capture);
-	return voe_render_bounce_relight_startup(device);
+	voe_render_device_guard_take(device);
+	started = voe_render_bounce_relight_startup(device);
+	voe_render_device_guard_give(device);
+	return started;
 }
 
 voe_render_prepare voe_render_device_prepare(voe_render_device *device)

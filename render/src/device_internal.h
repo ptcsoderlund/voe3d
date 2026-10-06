@@ -28,6 +28,15 @@
 // convention is actually spelled out — the second one is in another folder now,
 // because building a projection matrix is 3d's job and this folder only ever
 // receives one.
+//
+// ONE OTHER THREAD MAY UPLOAD WHILE THE OWNER DRAWS FRAMES, AND THE GUARD IS
+// WHAT MAKES THAT SAFE (ADR-0370 point 5). It excludes every call that creates,
+// frees or writes a pool, the texture or shading table, a target or a descriptor
+// set, or uses the queue outside a frame, from a frame open on another thread:
+// a set may not change while a recorded frame binds it, so a guard per queue
+// call would not do. Frame begin and end hold it for their own work too. The
+// owner's own calls inside its own frame never wait. It is not fair: a waiter
+// gets in between one frame's end and the next begin, or after the owner stops.
 #pragma once
 
 #include "loader.h"
@@ -37,6 +46,8 @@
 #include <math/float4x4.h>
 #include <platform/window.h>
 #include <render/device.h>
+
+#include <threads.h>
 
 // The most images a swapchain here may have. Three or four on every driver
 // measured, in both present modes; the number exists so that the per-image
@@ -498,6 +509,17 @@ struct voe_render_device {
 	bool vendor_checks;
 	uint32_t vendor_id;
 	uint32_t new_messages;
+
+	// ---- the guard; see the top of this file.
+
+	// Held by voe_render_device_guard_take to _give. `frame_open` is true
+	// from a begin that answered drawing to its end, the frame opened on
+	// `frame_thread`; a take on any other thread waits on `frame_closed`
+	// while it is. Both are written only with `guard` held.
+	mtx_t guard;
+	cnd_t frame_closed;
+	bool frame_open;
+	thrd_t frame_thread;
 };
 
 #include "device_calls.h"

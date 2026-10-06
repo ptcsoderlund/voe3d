@@ -35,21 +35,21 @@
 //     }
 //     voe_render_device_destroy(gpu);
 //
-// NOTHING IN HERE KNOWS ABOUT A SCENE, AN ENTITY OR A FILE, AND THAT IS THE
-// BOUNDARY THIS FOLDER IS FOR. It holds buffers, images, a pipeline and a frame;
-// what a thing is, where it came from and why it is being drawn is `3d`'s. Every
-// function below exists because a line in `3d` calls it, and a gap in this API
-// is filled here rather than reached around.
+// NOTHING IN HERE KNOWS ABOUT A SCENE, AN ENTITY OR A FILE: what a thing is and
+// why it is drawn is `3d`'s, and a gap in this API is filled here, not reached
+// around.
 //
 // EVERY COLOUR THAT CROSSES THIS BOUNDARY IS LINEAR, AND sRGB LIVES AT THE TWO
-// ENDS. A picture full of colour is uploaded as VOE_RENDER_TEXTURE_COLOUR and
-// the hardware decodes it on every read; the frame is drawn in linear light and
-// encoded once, by the target's own format, on the way to the window. So a
-// factor, a light's colour and a clear colour are all linear numbers, and the
-// only two places an sRGB curve is applied are inside the GPU where nobody has
-// to write it down. A picture that holds numbers rather than colour —
-// metalness, roughness, occlusion, a normal map — is uploaded as
-// VOE_RENDER_TEXTURE_DATA and is read exactly as it was written.
+// ENDS. A picture of colour is uploaded as VOE_RENDER_TEXTURE_COLOUR and decoded
+// on every read; the frame is drawn in linear light and encoded once, by the
+// target's format. So factors, lights' colours and clear colours are linear. A
+// picture of numbers — metalness, roughness, occlusion, a normal map — is
+// uploaded as VOE_RENDER_TEXTURE_DATA and read exactly as written.
+//
+// ONE OTHER THREAD MAY CALL voe_render_device_prepare AND THE geometry, texture,
+// shading AND target CREATE, DESTROY, RESIZE AND READ WHILE THE OWNER DRAWS
+// FRAMES (ADR-0370). Each that uploads waits while a frame is open on another
+// thread; the owner's own never wait. Everything else is the owner's alone.
 //
 // Passes onto the window or a target follow the sun's cascades and captures,
 // lit by the sun and the pass's point lights (range, falloff; shadows per

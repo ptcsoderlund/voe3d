@@ -196,10 +196,9 @@ static bool build_target_images(voe_render_device *device,
 	return true;
 }
 
-bool voe_render_target_create(voe_render_device *device, uint32_t width,
-			      uint32_t height, voe_render_target *out_target,
-			      voe_render_texture *out_texture,
-			      voe_base_error *error)
+static bool create_target(voe_render_device *device, uint32_t width,
+			  uint32_t height, voe_render_target *out_target,
+			  voe_render_texture *out_texture, voe_base_error *error)
 {
 	struct voe_render_target_slot *target = NULL;
 	struct voe_render_texture_slot *texture = NULL;
@@ -290,6 +289,23 @@ refused:
 	return false;
 }
 
+// Under the device's guard (ADR-0370), as is the resize.
+bool voe_render_target_create(voe_render_device *device, uint32_t width,
+			      uint32_t height, voe_render_target *out_target,
+			      voe_render_texture *out_texture,
+			      voe_base_error *error)
+{
+	bool created;
+
+	VOE_BASE_ASSERT(device != NULL, "making a target on no device");
+
+	voe_render_device_guard_take(device);
+	created = create_target(device, width, height, out_target, out_texture,
+				error);
+	voe_render_device_guard_give(device);
+	return created;
+}
+
 void voe_render_target_resize(voe_render_device *device,
 			      voe_render_target target, uint32_t width,
 			      uint32_t height)
@@ -300,6 +316,7 @@ void voe_render_target_resize(voe_render_device *device,
 	VOE_BASE_ASSERT(width > 0 && height > 0,
 			"resizing a target to no pixels at all");
 
+	voe_render_device_guard_take(device);
 	slot = voe_render_target_at(device, target);
 	VOE_BASE_ASSERT(slot != NULL,
 			"resizing a target id that names no target — the window's is resized by the size handed to voe_render_frame_begin");
@@ -307,6 +324,7 @@ void voe_render_target_resize(voe_render_device *device,
 	// Recorded, not applied: see voe_render_targets_apply_resizes. The size
 	// it already has makes `wanted` equal `extent`, which is nothing to do.
 	slot->wanted = (VkExtent2D){ width, height };
+	voe_render_device_guard_give(device);
 }
 
 // A RESIZE IS APPLIED AT THE TOP OF A FRAME AND IT WAITS FOR THE CARD. Every

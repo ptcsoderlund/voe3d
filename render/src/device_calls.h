@@ -205,6 +205,13 @@ void voe_render_frame_set_viewport(voe_render_device *device,
 [[nodiscard]] bool voe_render_device_choose_format(voe_render_device *device,
 						   voe_base_arena *arena);
 
+// device.c. The guard (device_internal.h): _take locks it, first waiting while
+// a frame is open on a thread other than the caller's; _give wakes every waiter
+// and unlocks. A frame open on the caller's own thread does not wait. Each take
+// has its give on every path out, and neither nests.
+void voe_render_device_guard_take(voe_render_device *device);
+void voe_render_device_guard_give(voe_render_device *device);
+
 // The frame's own pair of timestamps: one as its command buffer starts and one
 // as it finishes, at 0 and 1 of the slot's pool. Named so the read, the buffer
 // read into and the first pass's index say the same 2.

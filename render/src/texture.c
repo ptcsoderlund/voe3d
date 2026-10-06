@@ -364,11 +364,11 @@ void voe_render_texture_write_descriptors(voe_render_device *device,
 	voe_render_vk.update_descriptor_sets(device->device, 1, &write, 0, NULL);
 }
 
-bool voe_render_texture_create(voe_render_device *device,
-			       voe_render_texture_kind kind,
-			       voe_render_sampling sampling, uint32_t width,
-			       uint32_t height, const uint8_t *rgba,
-			       voe_render_texture *out, voe_base_error *error)
+static bool create_texture(voe_render_device *device,
+			   voe_render_texture_kind kind,
+			   voe_render_sampling sampling, uint32_t width,
+			   uint32_t height, const uint8_t *rgba,
+			   voe_render_texture *out, voe_base_error *error)
 {
 	struct voe_render_buffer staging = { 0 };
 	struct voe_render_texture_slot *slot = NULL;
@@ -477,8 +477,26 @@ refused:
 	return false;
 }
 
-bool voe_render_texture_destroy(voe_render_device *device,
-				voe_render_texture texture)
+// Under the device's guard (ADR-0370), as is the destroy: both rewrite the sets.
+bool voe_render_texture_create(voe_render_device *device,
+			       voe_render_texture_kind kind,
+			       voe_render_sampling sampling, uint32_t width,
+			       uint32_t height, const uint8_t *rgba,
+			       voe_render_texture *out, voe_base_error *error)
+{
+	bool created;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "creating a texture with no device");
+
+	voe_render_device_guard_take(device);
+	created = create_texture(device, kind, sampling, width, height, rgba,
+				 out, error);
+	voe_render_device_guard_give(device);
+	return created;
+}
+
+static bool destroy_texture(voe_render_device *device,
+			    voe_render_texture texture)
 {
 	struct voe_render_texture_slot *slot;
 
@@ -520,6 +538,19 @@ bool voe_render_texture_destroy(voe_render_device *device,
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
 		voe_render_texture_write_descriptors(device, i);
 	return true;
+}
+
+bool voe_render_texture_destroy(voe_render_device *device,
+				voe_render_texture texture)
+{
+	bool destroyed;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "destroying a texture on no device");
+
+	voe_render_device_guard_take(device);
+	destroyed = destroy_texture(device, texture);
+	voe_render_device_guard_give(device);
+	return destroyed;
 }
 
 bool voe_render_texture_startup(voe_render_device *device)

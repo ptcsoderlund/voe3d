@@ -16,6 +16,8 @@ by reading the offscreen colour image back.
 - `transient.c` — geometry that lives one frame: an id refused by the frame after, the same slot
   drawing different contents, a static and a transient range in one frame, and an overrun refused
   without corrupting the frame. Headless.
+- `worker_guard.c` — a thread creating and destroying 100 textures and 100 geometries while the
+  main thread runs 100 element-only frames, every call true and the thread joined. Headless.
 - `elements.c` — rectangles from records: the colours, the clip rectangle, paint order both ways
   round, the blend, the capacity refused, a mesh after them, an empty frame and two ranges with two
   matrices. Headless.
