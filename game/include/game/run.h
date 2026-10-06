@@ -14,38 +14,38 @@
 // can be resized to any shape; the world is drawn at the window's aspect,
 // never stretched.
 //
-// THE ORDER: four arenas, a start log begun (app/start_log.h), voe_app_new
-// with `window` and `title`, the interface (game/interface.h), splashscreen.png
-// read from the program's folder (the plain screen and a stderr line when it
-// will not read), then voe_game_starting_wait (game/starting.h) showing the
-// progress on it while one worker, in its own scratch (0370 point 4), runs
-// voe_game_starting_shaders with the game's pipeline cache
-// (app/pipeline_cache.h, "pipelines_game.cache"), makes the world
-// (game/world.h) in an arena of its own with the project's
+// THE ORDER: four arenas, a start log begun (app/start_log.h),
+// voe_app_new with `window` and `title`, the interface (game/interface.h),
+// splashscreen.png read from the program's folder (the plain screen
+// and a stderr line when it will not read), then voe_game_starting_wait
+// (game/starting.h) showing the progress on it while one worker, in its
+// own scratch (0370 point 4), runs voe_game_starting_shaders with the
+// game's pipeline cache (app/pipeline_cache.h, "pipelines_game.cache"),
+// makes the world (game/world.h) in an arena of its own with the project's
 // voe_game_project_register (game/project.h) and voe_game_scene_build
-// (game/scene.h) as "Loading scene", uploads the built-in shapes, and makes
-// the model store (3d/models.h) and runs voe_game_models_update (game/models.h)
-// from the program's folder with the progress. A window closed during the wait
-// ends the run as a close does, whatever the worker made released. After it,
-// on the main thread: the splash's texture given back, the mixer
-// (audio/mixer.h) on the program's folder and the sound device
-// (platform/sound.h), then once a frame, skipping a
-// minimised window, until it is closing: on a restart asked, the world's
-// arena cleared and the world, register and scene made again, the bank zeroed
-// and the models read, both asks false; unless paused, the frame's elapsed
-// seconds and the cooked prefabs (game/prefabs.h) into voe_game_steps_run,
-// which runs voe_game_project_systems_run and
-// voe_game_project_systems_after_move once per fixed step (game/steps.h), then
-// voe_game_models_update again for paths the step named, then
-// voe_game_interface_run with voe_game_project_interface and the asks in the
-// cleared scratch, the mixer paused as the asks say and pumped into an open
-// device, then voe_game_frame with the lag (the last one while paused), the
-// store and the interface's context; after the first, the log's steps
-// ("window and device", "interface", "preparing shaders", "world and scene",
-// "shapes and models", "sound", "first frame"; the middle three taken by the
-// worker) go to stderr as program "game". The
-// store is cleared and destroyed before the window closes. A game with no sound device, or whose device
-// fails, runs silent; a model that will not read draws as nothing.
+// (game/scene.h) as "Loading scene", uploads the built-in shapes, and
+// makes the model store (3d/models.h) and runs voe_game_models_update
+// (game/models.h) from the program's folder with the progress. A window closed
+// during the wait ends the run as a close does, whatever the worker made
+// released. After it, on the main thread: the splash's texture given back,
+// the mixer (audio/mixer.h) on the program's folder and the sound device
+// (platform/sound.h), then once a frame, skipping a minimised window,
+// until it is closing: on a restart asked, the world's arena cleared and
+// the world, register and scene made again, the bank zeroed and the models
+// read, both asks false; unless paused, the frame's elapsed seconds and
+// the cooked prefabs (game/prefabs.h) into voe_game_steps_run, which runs
+// voe_game_project_systems_run and voe_game_project_systems_after_move once
+// per fixed step (game/steps.h), then voe_game_models_update again for paths
+// the step named, then voe_game_interface_run with voe_game_project_interface
+// and the asks in the cleared scratch, the mixer paused as the asks
+// say and pumped into an open device, then voe_game_frame with the lag
+// (the last one while paused), the store and the interface's context;
+// after the first, the log's steps ("window and device", "interface",
+// "preparing shaders", "world and scene", "shapes and models", "sound",
+// "first frame"; the middle three taken by the worker) go to stderr as
+// program "game". The store is cleared and destroyed before the window
+// closes. A game with no sound device, or whose device fails, runs silent;
+// a model that will not read draws as nothing.
 //
 // NO QUIT KEY (0234), BUT THE PROJECT'S INTERFACE MAY END THE RUN (0259).
 // Escape is the game's own, for its menus; the window's close, the system's
@@ -53,11 +53,10 @@
 // ends the run. The interface may also pause the run and start the level
 // again (0333, game/project.h).
 //
-// Constraints: links only in a tree that has a cooked scene.c defining
+// Constraints: links only in a tree with a cooked scene.c defining
 // voe_game_scene_build, a cooked prefabs.c defining voe_game_prefabs_cooked,
-// and a project defining the four entry points of
-// game/project.h (register, systems_run, systems_after_move, interface);
-// run.c is the one file that names them.
+// and a project defining game/project.h's four entry points (register,
+// systems_run, systems_after_move, interface), which only run.c names.
 #pragma once
 
 #include <stdbool.h>
