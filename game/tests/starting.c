@@ -10,15 +10,23 @@
 // beside (above) the picture is red, the centre blue, and the bottom middle
 // 10 mm up the ground of the line's panel.
 //
+// The wait runs the shaders step on a fresh device's worker: the device ends
+// PREPARED and the cache is written under the working directory, removed at
+// the end; a work answering false makes the wait false. The progress line is
+// checked for total 0 and for 3/7 with no device.
+//
 // A machine with no usable Vulkan skips and says so.
 #include <game/frame.h>
 #include <game/interface.h>
+#include <game/progress.h>
 #include <game/starting.h>
 
 #include <app/app.h>
 
 #include <base/arena.h>
 #include <base/error.h>
+
+#include <platform/file.h>
 
 #include <text/font.h>
 
@@ -31,10 +39,14 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define WIDE 640
 #define HIGH 360
 #define LINE "Starting - preparing shaders..."
+#define CACHE_ROOT "game_starting_test"
+#define CACHE_FOLDER CACHE_ROOT "/voe3d"
+#define CACHE_PATH CACHE_FOLDER "/pipelines_test.cache"
 
 static const int red[3] = { 255, 0, 0 };
 static const int blue[3] = { 0, 0, 255 };
@@ -187,6 +199,65 @@ static void splash_fits_a_tall_window(voe_app *app, voe_ui_context *ui,
 	splash_check(app, ui, arena, scratch, 160, 100);
 }
 
+// The shaders step's context, as a program's work would hold it.
+struct shaders_work {
+	voe_render_device *device;
+	const char *cache_path;
+	voe_base_arena *scratch;
+};
+
+static bool shaders_run(void *context, voe_game_progress *progress)
+{
+	struct shaders_work *work = context;
+
+	return voe_game_starting_shaders(work->device, work->cache_path,
+					 work->scratch, progress);
+}
+
+static bool refusing_run(void *context, voe_game_progress *progress)
+{
+	(void)context;
+	voe_game_progress_set(progress, "Refusing", 1, 1);
+	return false;
+}
+
+// On a fresh device: the wait around the shaders step leaves it PREPARED and
+// the cache written; a work answering false makes the wait false.
+static void wait_cases(voe_app *app, voe_ui_context *ui, voe_base_arena *arena,
+		       voe_base_arena *scratch)
+{
+	voe_base_arena *worker_scratch = voe_base_arena_new(1 << 20);
+	struct shaders_work work = { voe_app_device(app), CACHE_PATH,
+				     worker_scratch };
+
+	(void)arena;
+	VOE_TEST_CHECK(voe_game_starting_wait(app, ui, scratch, NULL,
+					      shaders_run, &work));
+	VOE_TEST_CHECK(voe_render_device_prepare(voe_app_device(app)) ==
+		       VOE_RENDER_PREPARED);
+	VOE_TEST_CHECK(voe_platform_file_exists(CACHE_PATH));
+	VOE_TEST_CHECK(!voe_game_starting_wait(app, ui, scratch, NULL,
+					       refusing_run, NULL));
+	voe_base_arena_destroy(worker_scratch);
+	voe_base_arena_clear(scratch);
+}
+
+static void progress_lines(void)
+{
+	voe_game_progress progress = { 0 };
+	char line[64];
+
+	voe_game_progress_set(&progress, "Starting", 0, 0);
+	voe_game_progress_line(&progress, line, sizeof(line));
+	VOE_TEST_CHECK(strcmp(line, "Starting") == 0);
+	voe_game_progress_set(&progress, "Preparing shaders", 3, 7);
+	voe_game_progress_line(&progress, line, sizeof(line));
+	VOE_TEST_CHECK(strcmp(line, "Preparing shaders 3/7") == 0);
+	VOE_TEST_CHECK(!voe_game_progress_stopped(&progress));
+	VOE_TEST_CHECK(!voe_game_progress_stopped(NULL));
+	voe_game_progress_set(NULL, "Nothing", 1, 2);
+}
+
 static void plain_cases(voe_app *app, voe_ui_context *ui,
 			voe_base_arena *arena, voe_base_arena *scratch)
 {
@@ -241,9 +312,14 @@ static bool on_device(int width, int height,
 
 int main(void)
 {
+	progress_lines();
 	if (on_device(WIDE, HIGH, plain_cases)) {
 		(void)on_device(1280, 320, splash_fits_a_wide_window);
 		(void)on_device(320, 640, splash_fits_a_tall_window);
+		(void)on_device(WIDE, HIGH, wait_cases);
 	}
+	remove(CACHE_PATH);
+	remove(CACHE_FOLDER);
+	remove(CACHE_ROOT);
 	return voe_test_result();
 }

@@ -1,11 +1,13 @@
-// The starting frame and the prepare loop, as game/include/game/starting.h
-// gives. The element records reach the pass as frame.c's interface draw sends
+// The starting frame, the prepare loop, the wait on a worker and the shaders
+// step, as game/include/game/starting.h gives. The element records reach the pass as frame.c's interface draw sends
 // them, less the depth clear: a pass with no camera has no depth to clear.
 // The splash is three layers under one surface-sized column: the edge image in
 // the flow, then two anchored containers painting over it in call order.
 #include <game/starting.h>
 
 #include <game/interface.h>
+
+#include <app/pipeline_cache.h>
 
 #include <base/assert.h>
 
@@ -16,7 +18,9 @@
 #include <ui/widgets.h>
 
 #include <math.h>
+#include <stdatomic.h>
 #include <stdint.h>
+#include <threads.h>
 
 // The window polled and its size, or the headless app's frame opened for the
 // settings' size. False when the window is closing.
@@ -187,4 +191,112 @@ bool voe_game_starting_prepare(voe_app *app, voe_ui_context *ui,
 			return false;
 		}
 	}
+}
+
+// What the worker is handed and hands back: the work, its answer, and whether
+// it has ended, which the main thread reads.
+struct starting_worker {
+	voe_game_starting_work *work;
+	void *context;
+	voe_game_progress *progress;
+	bool answer;
+	atomic_bool ended;
+};
+
+static int starting_worker_run(void *argument)
+{
+	struct starting_worker *worker = argument;
+
+	VOE_BASE_ASSERT(worker != NULL && worker->work != NULL,
+			"a starting worker with no work");
+	worker->answer = worker->work(worker->context, worker->progress);
+	atomic_store(&worker->ended, true);
+	return 0;
+}
+
+// One frame of the line, the arena rewound after it; a window not visible
+// draws none and waits on the window instead. False when the window is closing
+// or the frame was false.
+static bool starting_shown(voe_app *app, voe_ui_context *ui,
+			   voe_base_arena *frame_arena,
+			   const voe_app_picture *splash, const char *line)
+{
+	voe_platform_window *window = voe_app_window(app);
+	struct voe_base_arena_mark mark;
+	bool shown;
+
+	if (window != NULL && !voe_platform_window_visible(window)) {
+		voe_platform_window_wait(window, 0.05);
+		voe_platform_window_poll(window);
+		return !voe_platform_window_should_close(window);
+	}
+	mark = voe_base_arena_mark(frame_arena);
+	shown = voe_game_starting_frame(app, ui, frame_arena, splash, line);
+	voe_base_arena_rewind(frame_arena, mark);
+	return shown;
+}
+
+bool voe_game_starting_wait(voe_app *app, voe_ui_context *ui,
+			    voe_base_arena *frame_arena,
+			    const voe_app_picture *splash,
+			    voe_game_starting_work *work, void *context)
+{
+	voe_game_progress progress = { 0 };
+	struct starting_worker worker = { .work = work,
+					  .context = context,
+					  .progress = &progress };
+	char line[96];
+	thrd_t thread;
+
+	VOE_BASE_ASSERT(app != NULL && ui != NULL && frame_arena != NULL &&
+				work != NULL,
+			"a starting wait with no app, context, arena or work");
+
+	voe_game_progress_set(&progress, "Starting", 0, 0);
+	// No thread to be had: the work runs here, the window unanswered until
+	// it ends, which is slow but still a start.
+	if (thrd_create(&thread, starting_worker_run, &worker) != thrd_success)
+		return work(context, &progress);
+	while (!atomic_load(&worker.ended)) {
+		voe_game_progress_line(&progress, line, sizeof(line));
+		if (!starting_shown(app, ui, frame_arena, splash, line)) {
+			atomic_store(&progress.stop, true);
+			(void)thrd_join(thread, NULL);
+			return false;
+		}
+	}
+	(void)thrd_join(thread, NULL);
+	return worker.answer;
+}
+
+bool voe_game_starting_shaders(voe_render_device *device,
+			       const char *cache_path, voe_base_arena *scratch,
+			       voe_game_progress *progress)
+{
+	uint32_t steps;
+
+	VOE_BASE_ASSERT(device != NULL && scratch != NULL,
+			"a shaders step with no device or scratch");
+
+	steps = voe_render_device_prepare_steps(device);
+	voe_app_pipeline_cache_load(device, cache_path, scratch);
+	// One more call than the steps: the bound, should the last step answer
+	// PREPARING and only the next one PREPARED.
+	for (uint32_t done = 0; done <= steps; done++) {
+		voe_game_progress_set(progress, "Preparing shaders",
+				      done < steps ? done : steps, steps);
+		if (voe_game_progress_stopped(progress))
+			return false;
+		switch (voe_render_device_prepare(device)) {
+		case VOE_RENDER_PREPARING:
+			break;
+		case VOE_RENDER_PREPARED:
+			voe_app_pipeline_cache_save(device, cache_path, scratch);
+			return true;
+		case VOE_RENDER_PREPARE_FAILED:
+			return false;
+		}
+	}
+	VOE_BASE_ASSERT(false, "prepare took more steps than it counts");
+	return false;
 }
