@@ -65,9 +65,8 @@ that carries it out. The pictures and the model it embeds sit here too.
 - `model.h` — the model exhibit: the embedded `.glb` and the call that reads it in and moves it.
 - `model.c` — that import, the intents that move it aside, and what is wrong if it looks wrong.
 - `shrink.h` — a decoded picture halved until neither side is longer than
-  1920, `dev`'s own and not a rule about textures. Its header says why this is
-  not mipmapping and cannot be, what it buys in numbers, and what it does not
-  fix.
+  1920, `dev`'s own and not a rule about textures. Its header says why the
+  top level is shrunk though the engine mips, and what that buys in numbers.
 - `shrink.c` — the halving. Its header says why the average is taken in
   linear light and what the number is if it is not, why alpha is left out of
   that, and why writing over the picture being read is safe.
