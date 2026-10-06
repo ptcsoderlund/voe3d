@@ -2,8 +2,7 @@
 // one, at 640x360 so the line is some pixels tall. After one plain frame the
 // window target read back holds the default theme's ground, sRGB-encoded, near
 // a corner (inset past the panel's hairline border), and the middle row holds a
-// pixel unlike it: the line. After the prepare loop the device answers
-// PREPARED.
+// pixel unlike it: the line.
 //
 // The splash cases open a device of their own, much wider and then much taller
 // than a 4x2 picture whose top-left texel is red and the rest blue: the margin
@@ -118,15 +117,6 @@ static void starting_frame_draws_line(voe_app *app, voe_ui_context *ui,
 	for (uint32_t x = 0; x < WIDE && !line_seen; x++)
 		line_seen = distance(&picture, x, HIGH / 2, ground) > 40;
 	VOE_TEST_CHECK(line_seen);
-	voe_base_arena_clear(scratch);
-}
-
-static void starting_prepare_prepares(voe_app *app, voe_ui_context *ui,
-				      voe_base_arena *scratch)
-{
-	VOE_TEST_CHECK(voe_game_starting_prepare(app, ui, scratch, NULL, LINE));
-	VOE_TEST_CHECK(voe_render_device_prepare(voe_app_device(app)) ==
-		       VOE_RENDER_PREPARED);
 	voe_base_arena_clear(scratch);
 }
 
@@ -262,7 +252,6 @@ static void plain_cases(voe_app *app, voe_ui_context *ui,
 			voe_base_arena *arena, voe_base_arena *scratch)
 {
 	starting_frame_draws_line(app, ui, arena, scratch);
-	starting_prepare_prepares(app, ui, scratch);
 }
 
 // `cases` run on a headless device of `width` by `height` with an interface.

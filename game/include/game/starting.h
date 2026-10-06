@@ -35,8 +35,8 @@
 // size, read every frame, so a resize keeps the splash whole and centred.
 //
 // Constraints: the frame lays out in `frame_arena` and keeps its records there
-// until the caller rewinds it; the prepare loop rewinds it to where it found it
-// after each frame. `line` is read at the ui frame's end and must be in the
+// until the caller rewinds it; the wait rewinds it to where it found it after
+// each frame. `line` is read at the ui frame's end and must be in the
 // font's characters (text/font.h), which hold no em dash and no ellipsis. The
 // splash is the caller's and its texture must outlive the frame.
 #pragma once
@@ -66,13 +66,6 @@ typedef bool voe_game_starting_work(void *context, voe_game_progress *progress);
 					   voe_base_arena *frame_arena,
 					   const voe_app_picture *splash,
 					   const char *line);
-
-// A starting frame, then voe_render_device_prepare once, repeated until the
-// device answers PREPARED. False when a frame was false or the prepare FAILED.
-[[nodiscard]] bool voe_game_starting_prepare(voe_app *app, voe_ui_context *ui,
-					     voe_base_arena *frame_arena,
-					     const voe_app_picture *splash,
-					     const char *line);
 
 // `work` run with `context` on one worker while starting frames show its
 // progress line, "Starting" until it sets one. The work's answer once it has

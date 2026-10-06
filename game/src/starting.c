@@ -1,6 +1,6 @@
-// The starting frame, the prepare loop, the wait on a worker and the shaders
-// step, as game/include/game/starting.h gives. The element records reach the pass as frame.c's interface draw sends
-// them, less the depth clear: a pass with no camera has no depth to clear.
+// The starting frame, the wait on a worker and the shaders step, as
+// game/include/game/starting.h gives. The element records reach the pass as
+// frame.c's interface draw sends them, less the depth clear: a pass with no camera has no depth to clear.
 // The splash is three layers under one surface-sized column: the edge image in
 // the flow, then two anchored containers painting over it in call order.
 #include <game/starting.h>
@@ -165,32 +165,6 @@ bool voe_game_starting_frame(voe_app *app, voe_ui_context *ui,
 	// expects.
 	drawn = starting_draw(voe_app_device(app), ui, size);
 	return voe_app_draw_close(app) && drawn;
-}
-
-bool voe_game_starting_prepare(voe_app *app, voe_ui_context *ui,
-			       voe_base_arena *frame_arena,
-			       const voe_app_picture *splash, const char *line)
-{
-	VOE_BASE_ASSERT(app != NULL && frame_arena != NULL,
-			"a starting prepare with no app or arena");
-
-	while (true) {
-		struct voe_base_arena_mark mark = voe_base_arena_mark(frame_arena);
-		bool shown = voe_game_starting_frame(app, ui, frame_arena,
-						     splash, line);
-
-		voe_base_arena_rewind(frame_arena, mark);
-		if (!shown)
-			return false;
-		switch (voe_render_device_prepare(voe_app_device(app))) {
-		case VOE_RENDER_PREPARING:
-			break;
-		case VOE_RENDER_PREPARED:
-			return true;
-		case VOE_RENDER_PREPARE_FAILED:
-			return false;
-		}
-	}
 }
 
 // What the worker is handed and hands back: the work, its answer, and whether
