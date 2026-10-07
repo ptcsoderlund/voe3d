@@ -49,6 +49,7 @@ typedef struct {
 	voe_editor_project_panel *project_panel;
 	voe_editor_views *views;
 	voe_editor_undo *undo;
+	voe_editor_models *models;
 	voe_editor_gizmo *gizmo;
 	voe_ui_context *ui;
 	// This frame's undo and redo edges, acted on at the top of the next

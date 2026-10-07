@@ -43,7 +43,8 @@ void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 					      commands->scene->world);
 	} else if ((commands->step_back || commands->step_forward) &&
 		   voe_editor_undo_take(commands->undo, session->project,
-					commands->scene, &session->notice,
+					commands->scene, commands->models,
+					&session->notice,
 					commands->step_forward)) {
 		voe_editor_session_edited(session);
 	}

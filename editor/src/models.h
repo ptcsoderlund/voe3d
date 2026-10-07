@@ -99,5 +99,10 @@ void voe_editor_models_revert(voe_editor_models *models, const char *folder,
 			      voe_render_device *device,
 			      voe_base_arena *scratch);
 
+// `rect`'s heights, row-major, written into `path`'s landscape: an undo step's
+// stroke put back (strokes.h). Nothing for a path that is no loaded landscape.
+void voe_editor_models_put(voe_editor_models *models, const char *path,
+			   voe_3d_landscape_rect rect, const float *values);
+
 // The store to read, for what draws, picks and outlines.
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models);

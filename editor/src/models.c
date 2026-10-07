@@ -253,6 +253,16 @@ void voe_editor_models_revert(voe_editor_models *models, const char *folder,
 	}
 }
 
+void voe_editor_models_put(voe_editor_models *models, const char *path,
+			   voe_3d_landscape_rect rect, const float *values)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"putting heights into no store");
+	VOE_BASE_ASSERT(path != NULL && values != NULL,
+			"putting no heights or onto no path");
+	voe_3d_models_landscape_put(models->store, path, rect, values);
+}
+
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models)
 {
 	VOE_BASE_ASSERT(models != NULL, "reading no model store");

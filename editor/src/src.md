@@ -265,7 +265,8 @@ carries it out.
   blockers, every place marked and every blocker lined, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, progress passed on during a
-  splash wait, handed to picking and the view passes, and its landscapes drawn, saved and reverted.
+  splash wait, handed to picking and the view passes, and its landscapes drawn, saved, reverted
+  and put back by a stroke.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed; landscapes drawn transient,
   settled, written on Save and read again on a New or Open.
@@ -285,11 +286,15 @@ carries it out.
 - `gizmo.c` — the hover, the grab and the move or turn, each against a gizmo built from the view's
   own camera, measured from the press in world space and submitted as a whole transform, a child's
   written back relative to its parent.
-- `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), with
-  the level's line set aside while a prefab is open.
+- `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), a state
+  carrying a sculpting stroke beside its text, with the level's line set aside while a prefab is open.
 - `undo.c` — the states pushed once, the two lines swapped, the compare a settled edit makes against
-  the state the world is, a reveal's amend of it, the throwing away of what could have been redone, and
-  the selection re-found by its authored id after a step.
+  the state the world is, a reveal's amend of it, a stroke pushed, the throwing away of what could
+  have been redone with its strokes, and a step writing the stroke it passes and re-finding the
+  selection by its authored id.
+- `strokes.h` — one sculpting stroke: a landscape's path, the rectangle touched and its heights
+  before and after, its own memory beside the undo line's text, and why.
+- `strokes.c` — the copies made and freed, and the heights written either way through the store.
 - `entities.h` — Add entity, a dropped model's thing or prefab's copy, duplicating and deleting
   entities with their trees, and giving or taking components, all through the world's structural
   queue. Its header says the id and name rules.

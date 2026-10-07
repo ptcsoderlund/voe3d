@@ -399,7 +399,8 @@ int main(int argc, char *argv[])
 	commands = (voe_editor_frame_commands){
 		.session = &session, .scene = &scene, .browser = &browser,
 		.preferences = &preferences, .project_panel = &project_panel,
-		.views = &views, .undo = &undo, .gizmo = &gizmo, .ui = ui };
+		.views = &views, .undo = &undo, .models = models,
+		.gizmo = &gizmo, .ui = ui };
 	reads = (voe_editor_frame_pointer){
 		.commands = &commands, .session = &session, .scene = &scene,
 		.browser = &browser, .preferences = &preferences,

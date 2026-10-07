@@ -4,65 +4,60 @@
 //     voe_editor_undo_create(&undo, arena);
 //     voe_editor_undo_edited(&undo);              // an edit reached the project
 //     voe_editor_undo_settle(&undo, project, scratch, at_rest);
-//     if (voe_editor_undo_take(&undo, project, scene, &why, false))
+//     if (voe_editor_undo_take(&undo, project, scene, models, &why, false))
 //             ...                                 // the world is a step back
 //
-// A STEP IS THE WHOLE SCENE, AS THE TEXT A SAVE WRITES, and it is bounded by
-// rest. Nothing here records what changed: an edit that reaches the project
-// says so with voe_editor_undo_edited, and the world is written out and
-// compared only on a later frame the caller calls at rest — the pointer's
-// primary button up, nothing holding the keyboard (voe_ui_typing), the colour
-// picker and the dropdown closed and the browser hidden. So one drag, one
-// typed commit and one visit to the colour picker are one step each. THE COST
-// OF THAT RULE: Tab from one field to the next never lets the keyboard go, so
-// a row of numbers filled that way undoes as one step.
+// A STEP IS THE WHOLE SCENE, AS THE TEXT A SAVE WRITES, bounded by rest. An
+// edit says so with voe_editor_undo_edited, and the world is written out and
+// compared only on a later frame the caller calls at rest — the primary button
+// up, nothing holding the keyboard (voe_ui_typing), the picker and dropdown
+// closed, the browser hidden. So one drag, typed commit or picker visit is one
+// step. THE COST: Tab between fields never lets the keyboard go, so a row of
+// numbers filled that way undoes as one step.
 //
-// A STEP IS TAKEN AT THE TOP OF A FRAME, before the world's structural queue is
-// applied and the systems run, so the rows put back get their meshes before
-// anything draws them (voe_editor_project_scene_set, from the other side).
+// OR A STEP IS A STROKE (0379 point 5): voe_editor_undo_stroke pushes a state
+// whose text equals the one before it, carrying a sculpting stroke
+// (strokes.h). Back from it writes the stroke's `before` into the store,
+// forward onto it its `after`. Each stroke is its own malloced memory, up to
+// some 2 MB at 512 cells, so a line of 64 strokes may hold over 100 MB; every
+// state dropped frees its stroke.
 //
-// SELECTING IS NOT AN EDIT, and no entity handle survives a step: the whole
-// scene is destroyed and read back. So a take notes the selected entity's
-// authored voe_scene_identity id before it moves and selects whichever entity
-// carries that id afterwards, clearing the selection when the scene put back
-// has no such row.
+// A STEP IS TAKEN AT THE TOP OF A FRAME, before the structural queue is applied
+// and the systems run, so rows put back get meshes before anything draws them.
 //
-// AN UNDO DOES NOT CLEAR THE PROJECT'S UNSAVED FLAG. Going back to the text
-// that was last saved is not a save, and this file never writes project.unsaved
-// either way; marking the project edited after a step is the caller's, as is
-// calling voe_editor_undo_edited for the next step.
+// SELECTING IS NOT AN EDIT, and no entity handle survives a step: the scene is
+// destroyed and read back. So a take notes the selection's authored
+// voe_scene_identity id and selects whichever entity carries it afterwards,
+// clearing the selection when none does.
 //
-// THE LINE BELONGS TO THE PROJECT BEING WORKED ON. voe_editor_undo_forget
-// empties both lines when a different project is opened or made, and the first
-// settle after that records the fresh project as the line's one state.
+// AN UNDO DOES NOT CLEAR THE UNSAVED FLAG: going back to the saved text is no
+// save. Marking the project edited after a step is the caller's.
 //
-// A REVEAL'S UNFOLD IS NO STEP (0355) BUT IS REAL, so it rides in the state the
-// world is at: after voe_editor_undo_revealed the next settle at rest rewrites
-// that state, so the next edit's step differs from it only by the edit. THE
-// COST: a state stepped to that predates the reveal folds those parents again
-// until the selection is revealed anew.
+// THE LINE BELONGS TO THE PROJECT. voe_editor_undo_forget empties both lines
+// when a different one is opened or made; the next settle records it afresh.
+//
+// A REVEAL'S UNFOLD IS NO STEP (0355) BUT IS REAL: after voe_editor_undo_revealed
+// the next settle at rest rewrites the state the world is at. THE COST: a state
+// stepped to that predates the reveal folds those parents again.
 //
 // TWO LINES, ONE IN FORCE (0283 point 8). Opening a prefab sets the level's
-// line aside (voe_editor_undo_aside) and the prefab gets an empty one; Back
-// swaps the level's in again and drops the prefab's (_restore). The level keeps
-// its own because its states are texts, and a text re-expands every placed
-// copy from the prefab files as they are when it is read.
+// line aside (_aside) and the prefab gets an empty one; Back swaps the level's
+// in again and drops the prefab's (_restore). The level's texts re-expand every
+// placed copy from the prefab files as they are when read.
 //
 // CONSTRAINTS. Each line is VOE_EDITOR_UNDO_STEPS states of VOE_EDITOR_UNDO_TEXT
-// bytes, both pushed once out of the arena voe_editor_undo_create is handed —
-// four megabytes each, eight in all — and a project's world holds at most
-// VOE_EDITOR_SCENE_ROWS (128) authored entities, at about 300 bytes an entity
-// some 38 KB, which one state holds. A scene text too long for a state empties
-// the line rather than recording half of it; lifting that takes a different
-// structure, not a larger number. Once the line is full, dropping the oldest state shifts the
-// whole array down one — one memmove of those four megabytes per step, which is
-// the price of an array that a take can index straight into; a base index
-// turning it into a ring would lift it.
+// bytes, pushed once out of the arena _create is handed — eight megabytes in
+// all; 128 authored entities at about 300 bytes are some 38 KB. A text too
+// long for a state empties the line rather than recording half of it. Once
+// full, dropping the oldest state is one memmove of four megabytes per step;
+// a base index turning the array into a ring would lift it.
 #pragma once
 
 #include "notice.h"
 #include "project.h"
+#include "models.h"
 #include "scene.h"
+#include "strokes.h"
 
 #include <base/arena.h>
 
@@ -74,10 +69,12 @@
 #define VOE_EDITOR_UNDO_STEPS 64
 #define VOE_EDITOR_UNDO_TEXT (64u * 1024u)
 
-// One state of the line: a scene text, `size` bytes of `text` long.
+// One state of the line: a scene text, `size` bytes of `text` long, and the
+// stroke it carries, the state's own, NULL for none.
 typedef struct {
 	size_t size;
 	char text[VOE_EDITOR_UNDO_TEXT];
+	voe_editor_stroke *stroke;
 } voe_editor_undo_state;
 
 // The line and where in it the world is. Zeroed is a line with no states,
@@ -137,12 +134,21 @@ void voe_editor_undo_forget(voe_editor_undo *undo);
 void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 			    voe_base_arena *scratch, bool at_rest);
 
+// Takes `stroke`, which the line now owns: records the scene first when the
+// line is empty, then pushes a state with the text at `at` and this stroke,
+// throwing away what could be redone. A scene that will not record as a state
+// drops the stroke instead. `scratch` is rewound.
+void voe_editor_undo_stroke(voe_editor_undo *undo, voe_editor_project *project,
+			    voe_base_arena *scratch, voe_editor_stroke *stroke);
+
 // Takes a step back, or forward when `forward`: the project's world is made
-// the neighbouring state and the selection re-found by its authored id. False
-// and nothing done when there is no state that way, and false with `why`
-// filled and the line emptied when the text was refused, which leaves the
-// world half-loaded (voe_editor_project_scene_set).
+// the neighbouring state and the selection re-found by its authored id; back
+// from a state with a stroke writes its `before` into `models`, forward onto
+// one its `after`. False and nothing done when there is no state that way, and
+// false with `why` filled and the line emptied when the text was refused,
+// which leaves the world half-loaded (voe_editor_project_scene_set).
 [[nodiscard]] bool voe_editor_undo_take(voe_editor_undo *undo,
 					voe_editor_project *project,
 					voe_editor_scene *scene,
+					voe_editor_models *models,
 					voe_editor_notice *why, bool forward);
