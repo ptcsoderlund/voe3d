@@ -4,8 +4,10 @@
 // whole, and a path that cannot be opened fails without creating anything.
 // A move renames a file, carries a folder whole, refuses a taken name with
 // both left as they were, and is UNAVAILABLE with nothing to move; those four
-// are functions of their own, run before the rest. Needs no window and no display, so it runs under ctest on a machine with
-// neither.
+// are functions of their own, run before the rest. No .partial outlives a
+// write, and a stamp holds until a rewrite of another length and is false for
+// a folder or nothing. Needs no window and no display, so it runs under ctest
+// on a machine with neither.
 //
 // PLATFORM IS ALLOWED OS HEADERS EVERYWHERE IN IT, TESTS INCLUDED
 // (check.cmake step 5), so this file makes and removes a scratch folder with
@@ -164,7 +166,7 @@ static bool is_folder(const char *path)
 static void move_renames_a_file(void)
 {
 	static const unsigned char bytes[] = { 0x10, 0x20, 0x30 };
-	unsigned char got[8];
+	unsigned char got[8] = { 0 };
 	voe_base_error error = VOE_BASE_ERROR_REFUSED;
 
 	(void)remove(MOVE_FROM);
@@ -182,7 +184,7 @@ static void move_renames_a_file(void)
 static void move_carries_a_folder_whole(void)
 {
 	static const unsigned char bytes[] = { 0x42 };
-	unsigned char got[8];
+	unsigned char got[8] = { 0 };
 	voe_base_error error = VOE_BASE_ERROR_REFUSED;
 
 	(void)remove(MOVE_FOLDER_INNER);
@@ -206,7 +208,7 @@ static void move_refuses_a_taken_name(void)
 {
 	static const unsigned char first[] = { 0x01, 0x02 };
 	static const unsigned char second[] = { 0x03, 0x04, 0x05 };
-	unsigned char got[8];
+	unsigned char got[8] = { 0 };
 	voe_base_error error = VOE_BASE_OK;
 
 	VOE_TEST_CHECK(write_oracle(MOVE_FROM, first, sizeof first));
