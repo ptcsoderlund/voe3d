@@ -1,4 +1,4 @@
-# 085 — A sky lights the hill
+# 086 — A sky lights the hill
 
 ## What
 A scene can have a sky. The sky is drawn behind everything, follows the sun's direction and colour, and

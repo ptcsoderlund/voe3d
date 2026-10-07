@@ -1,4 +1,4 @@
-# 082 — The terrain reaches the horizon
+# 083 — The terrain reaches the horizon
 
 ## What
 A terrain can be large, several kilometres a side, and is seen all the way to its edge. Near ground is
@@ -16,5 +16,5 @@ The view from the lookout tower is the game's finish (0374). It needs a valley o
    detail changes.
 4. Fly fast over the whole terrain on my laptop. It stays smooth. The frame breakdown names the terrain's
    share of the frame.
-5. Sculpt near the edge and in the middle. Both work as in 081.
+5. Sculpt near the edge and in the middle. Both work as in 082.
 6. Press Play, and ship the project: the same view in both.

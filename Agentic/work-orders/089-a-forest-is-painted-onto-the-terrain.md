@@ -1,4 +1,4 @@
-# 088 — A forest is painted onto the terrain
+# 089 — A forest is painted onto the terrain
 
 ## What
 A foliage brush paints models onto the terrain: trees, rocks, bushes. I pick one or more models, a
@@ -18,5 +18,5 @@ A forest placed one tree at a time is not a forest. 0376 makes foliage painted, 
 3. Erase a clearing for the house. The trees go under the brush.
 4. Raise the ground under some trees. They stay standing on it.
 5. Undo and redo the clearing.
-6. Look from the hilltop to the far valley. Far trees are there, drawn with their simple levels (087).
+6. Look from the hilltop to the far valley. Far trees are there, drawn with their simple levels (088).
 7. Save, close and reopen. Press Play, and ship: the same forest in all three.

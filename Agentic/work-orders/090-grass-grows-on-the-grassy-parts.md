@@ -1,7 +1,7 @@
-# 089 — Grass grows on the grassy parts
+# 090 — Grass grows on the grassy parts
 
 ## What
-Grass blades grow wherever the grass layer (084) is painted, thick where it is strong and thin where it
+Grass blades grow wherever the grass layer (085) is painted, thick where it is strong and thin where it
 fades out. Repainting the layer changes the grass at once. The grass fades out with distance, and the far
 slopes keep their green from the ground's own colour, so there is no hard line where the grass ends.
 Grass is lit and shadowed like the rest. A field of it stays smooth to fly over.

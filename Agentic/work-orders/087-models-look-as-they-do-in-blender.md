@@ -1,4 +1,4 @@
-# 086 — Models look as they do in Blender
+# 087 — Models look as they do in Blender
 
 ## What
 A model I export from Blender, or download, looks in the editor as it does in Blender's material
@@ -6,7 +6,7 @@ preview. Its textures sit, repeat and are read as the file says: colour textures
 roughness and metal maps as data. Normal maps give the right bumps, also on mirrored halves. Metal,
 roughness, emission and vertex colours show. Cut-out parts, like leaves on a card, have hard edges that
 stay solid when far away. A surface marked double-sided is seen from both sides. A model's materials
-come in as materials from 083 that I can open and edit, and models from different files that share a
+come in as materials from 084 that I can open and edit, and models from different files that share a
 shader do not each cost their own draws (0375).
 
 ## Why

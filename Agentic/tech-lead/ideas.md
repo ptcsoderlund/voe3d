@@ -95,9 +95,11 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - Revisit 058 (several directional lights) once a real game needs a sun and moon or a lit cave; it was accepted on theory, without a concrete use to judge it by.
 - **F with nothing selected frames the whole scene** (sponsor, 2026-10-05): left out of 065, which frames only a selection.
 - **Wind in the foliage** (2026-10-07, from 0376's road): grass and leaves sway in a wind that has a
-  direction and strength. Left out of 088/089 to keep them testable in one sitting.
+  direction and strength. Left out of 089/090 to keep them testable in one sitting.
 - **Backlit leaves** (2026-10-07, was work order 077): thin leaves glow on their shaded side when the sun
   is behind them. Cheap, and what makes trees read as trees from the tower.
 - **The rest of glTF** (2026-10-07, was work orders 067, 073–080): `.gltf` with side files, every
   primitive mode, a model's own and spot lights, specular, clearcoat, sheen, glass, iridescence,
   anisotropy, variants. Each waits until a game needs it. The loghouse's lamps may want spot lights.
+- **A project's own shaders, made in the editor** (2026-10-07, from 0377): Create → Shader in the
+  Assets panel. 0.3's materials use the engine's shaders; this waits for a work order of its own.
