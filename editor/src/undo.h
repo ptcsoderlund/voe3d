@@ -79,7 +79,7 @@ typedef struct {
 
 // The line and where in it the world is. Zeroed is a line with no states,
 // which voe_editor_undo_create makes room for.
-typedef struct {
+typedef struct voe_editor_undo {
 	// VOE_EDITOR_UNDO_STEPS states, pushed once by _create.
 	voe_editor_undo_state *states;
 	// How many states are in the line, 0 for none recorded yet.

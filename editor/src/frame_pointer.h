@@ -20,13 +20,15 @@
 //    they have takes `ui`'s pointer and the left button too. Then the right
 //    button's down edge over the Assets panel opens its menu (assets_menu.h).
 // 4. The middle drag (view.h), the views' and never the interface's.
-// 5. The gizmo (gizmo.h), so a press on an arrow selects nothing.
-// 6. The Assets drag (assets_drag.h), blocked while the gizmo takes the press.
-// 7. The pick (pick.h), last: a press the gizmo or a drag took selects nothing.
+// 5. The brush (sculpt.h): a press on the selection's ground sculpts, and
+//    while it takes the press or a stroke is held, 6 to 8 are blocked.
+// 6. The gizmo (gizmo.h), so a press on an arrow selects nothing.
+// 7. The Assets drag (assets_drag.h), blocked while the gizmo takes the press.
+// 8. The pick (pick.h), last: a press the gizmo or a drag took selects nothing.
 //
-// Constraints: the parts pointed at are main.c's and outlive the loop; none of
-// this allocates. `flew`, `right_was`, `resize` and `pick` are this file's to write; main.c
-// sets them once in the fill and reads none of them.
+// Constraints: the parts pointed at are main.c's and outlive the loop; only a
+// stroke allocates (sculpt.h). `flew`, `right_was`, `resize` and `pick` are
+// this file's to write; main.c sets them once in the fill and reads none.
 #pragma once
 
 #include "assets_drag.h"
@@ -38,6 +40,7 @@
 #include "pick.h"
 #include "resize.h"
 #include "scene.h"
+#include "sculpt.h"
 #include "session.h"
 #include "topbar.h"
 #include "view.h"
@@ -66,6 +69,8 @@ typedef struct {
 	voe_editor_topbar *bar;
 	const voe_3d_shape_geometries *geometries;
 	voe_editor_models *models;
+	// Rewound working memory for the brush's stamps and its undo step.
+	voe_base_arena *scratch;
 	// NULL in a capture: no lock, no cursor.
 	voe_platform_window *window;
 	// Whether a view flew last frame, so the pointer's lock is asked for
@@ -105,7 +110,7 @@ typedef struct {
 	voe_ui_keyboard keyboard;
 } voe_editor_frame_pointer_result;
 
-// The seven reads above, in that order, against `root->pointer` as main.c
+// The eight reads above, in that order, against `root->pointer` as main.c
 // divided it; writes the root's pointer clears and `lit`, not its keyboard.
 voe_editor_frame_pointer_result
 voe_editor_frame_pointer_read(voe_editor_frame_pointer *frame,

@@ -253,6 +253,20 @@ void voe_editor_models_revert(voe_editor_models *models, const char *folder,
 	}
 }
 
+voe_3d_landscape_rect voe_editor_models_brush(voe_editor_models *models,
+					      const char *path,
+					      const voe_3d_brush *brush,
+					      float x, float z, float seconds,
+					      voe_base_arena *scratch)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"stamping a brush into no store");
+	VOE_BASE_ASSERT(path != NULL && brush != NULL && scratch != NULL,
+			"stamping no brush, onto no path or with no scratch");
+	return voe_3d_models_landscape_brush(models->store, path, brush, x, z,
+					     seconds, scratch);
+}
+
 void voe_editor_models_put(voe_editor_models *models, const char *path,
 			   voe_3d_landscape_rect rect, const float *values)
 {

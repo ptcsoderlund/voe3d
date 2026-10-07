@@ -19,9 +19,10 @@ carries it out.
   Escape choosing no brush after the lists) and `ui`'s keyboard, and Delete, Ctrl+D, R, the edit
   and a reveal's unfold marked after the interface has drawn.
 - `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
-  borders, the middle drag, the gizmo, the Assets drag and the pick, and what main.c reads after.
+  borders, the middle drag, the brush, the gizmo, the Assets drag and the pick, and what main.c
+  reads after.
 - `frame_pointer.c` — the fly with its lock edge, the borders with their clears and remember, and
-  the three left-press readers under one shared block.
+  the brush then the three left-press readers under one shared block a stroke joins.
 - `frame_selection.h` — F: the view under the pointer glides to the selection's size from `3d`, or
   to a sizeless thing's place at a fixed 3 m, nothing saved or undone.
 - `frame_selection.c` — the selection and view checked, the bounds or world position, the distance
@@ -227,9 +228,11 @@ carries it out.
   section's heading, Remove and "Needs" line, a row per field, each control's record, Add component
   and its menu, the open list, a part shown read-only, and the Sculpt section on a landscape.
 - `sculpt.h` — the brush a person holds: chosen or not, its kind, radius, strength and softness
-  with their ranges, never saved or undone, and whether a thing wears a landscape.
-- `sculpt.c` — the defaults set, the brush put down, and the model path's `.landscape` ending
-  matched in any case on a thing that is not a prefab's part.
+  with their ranges, never saved or undone, whether a thing wears a landscape, and the held drag
+  that sculpts it as one undo step.
+- `sculpt.c` — the defaults set, the brush put down, the `.landscape` ending matched on a thing
+  not a prefab's part, the ground under the pointer, the press's copy, the stamps along the drag
+  and the release's stroke.
 - `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
   chosen one lit, and Radius, Strength and Softness sliders, read after the frame.
 - `inspector_sculpt.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and

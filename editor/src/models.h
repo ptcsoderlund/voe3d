@@ -99,6 +99,15 @@ void voe_editor_models_revert(voe_editor_models *models, const char *folder,
 			      voe_render_device *device,
 			      voe_base_arena *scratch);
 
+// One stamp of `brush` at (x, z) in `path`'s grid's own space over `seconds`
+// (3d/models.h): the rect of heights it changed, empty for a path that is no
+// loaded landscape. `scratch` is rewound.
+voe_3d_landscape_rect voe_editor_models_brush(voe_editor_models *models,
+					      const char *path,
+					      const voe_3d_brush *brush,
+					      float x, float z, float seconds,
+					      voe_base_arena *scratch);
+
 // `rect`'s heights, row-major, written into `path`'s landscape: an undo step's
 // stroke put back (strokes.h). Nothing for a path that is no loaded landscape.
 void voe_editor_models_put(voe_editor_models *models, const char *path,

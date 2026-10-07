@@ -407,7 +407,8 @@ int main(int argc, char *argv[])
 		.browser = &browser, .preferences = &preferences,
 		.project_panel = &project_panel, .views = &views, .undo = &undo,
 		.gizmo = &gizmo, .drag = &drag, .root = &roots[0], .bar = &bar,
-		.geometries = &geometries, .models = models, .window = window,
+		.geometries = &geometries, .models = models, .scratch = arena,
+		.window = window,
 		.resize = { .held = UINT32_MAX } };
 
 	voe_editor_startup_say_descriptions();
@@ -586,7 +587,7 @@ int main(int argc, char *argv[])
 		};
 
 		// The fly, the shortcuts, the borders, the middle drag, the
-		// gizmo, the Assets drag and the pick, in that order
+		// brush, the gizmo, the Assets drag and the pick, in that order
 		// (frame_pointer.h); `ui`'s keyboard comes back.
 		roots[0].keyboard =
 			voe_editor_frame_pointer_read(
@@ -613,7 +614,10 @@ int main(int argc, char *argv[])
 		// The files this frame's rows name, before the draw opens (models.h).
 		voe_editor_models_update(models, &session, gpu, arena,
 					 opened.tick.now, NULL);
-		voe_editor_models_settle(models, gpu, scratch);
+		// Static again only between strokes: a held one draws transient
+		// each frame instead (0379 point 4).
+		if (!scene.sculpt.stroking)
+			voe_editor_models_settle(models, gpu, scratch);
 		voe_editor_assets_update(&scene.assets, session.project->folder,
 					 opened.tick.now);
 		if (!voe_app_draw_open(app, opened.size, &drawing)) {

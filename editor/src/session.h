@@ -93,7 +93,7 @@ typedef enum {
 // Zeroed is a session with no project yet and nothing armed — the caller sets
 // `project` before the first voe_editor_session_do, exactly as scene.world is
 // set from outside (scene.h).
-typedef struct {
+typedef struct voe_editor_session {
 	voe_editor_project *project;
 	voe_editor_notice notice;
 	voe_editor_command armed;
