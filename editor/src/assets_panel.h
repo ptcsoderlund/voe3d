@@ -51,12 +51,12 @@
 // long for VOE_EDITOR_ASSETS_PATH with a whole field's name after it, which a
 // longer buffer would lift.
 //
-// THE ROWS SCROLL IN THE LEAF'S OWN SCROLL AREA (dock.c), and the empty space
-// under them is a node of its own, so a read can test a press there. THE RIGHT
-// BUTTON (0378 point 8): `ui` knows one button, so the read keeps each row's,
-// the empty part's, Up's and the whole panel's visible rectangles from the
-// last frame, and menu_at opens `menu` (assets_menu.h) and the drag finds its
-// target from them.
+// THE ROWS SCROLL IN THE LEAF'S OWN SCROLL AREA (dock.c), wheel and scrollbar:
+// `body` is natural along so the area measures them; a grow body adds nothing
+// to it and never scrolls. The empty part is a fixed strip under the rows plus
+// `fill`, growing after the body into what is left. THE RIGHT BUTTON (0378
+// point 8): the read keeps each row's, Up's, the empty part's (strip and fill)
+// and the panel's (body and fill) last rectangles, for menu_at and the drag.
 #pragma once
 
 #include "assets_menu.h"
@@ -153,17 +153,20 @@ typedef struct {
 	const char *selected;
 	bool keyboard;
 	// The naming in progress, its field focused at the next draw while
-	// `naming_focus`, the field drawn, and the space under the rows.
+	// `naming_focus`, the field drawn, the fixed strip under the rows, and
+	// the filler after the body taking what the rows leave of the area.
 	voe_editor_assets_naming naming;
 	bool naming_focus;
 	voe_ui_node naming_field;
 	voe_ui_node empty;
+	voe_ui_node fill;
 	// The column round everything the panel draws, and where it, the
-	// empty space and Up showed at the last read, for the right button and
-	// the drag.
+	// strip, the filler and Up showed at the last read, for the right
+	// button and the drag.
 	voe_ui_node body;
 	voe_ui_rect body_seen;
 	voe_ui_rect empty_seen;
+	voe_ui_rect fill_seen;
 	voe_ui_rect up_seen;
 	// The right button's menu, opened by menu_at; interface.c draws it.
 	voe_editor_assets_menu menu;
@@ -187,8 +190,9 @@ void voe_editor_assets_list_due(voe_editor_assets *assets);
 
 // Up (not at `Assets/`) beside Import (only when the project has a folder),
 // the shown folder's path, then a new folder's field, one row per entry, the
-// renamed one a field, and the space under them; or the line saying there is
-// no `Assets/`. Records every node for the read.
+// renamed one a field, and a fixed strip under them, then the filler after the
+// body; or the line saying there is no `Assets/`. Records every node for the
+// read.
 void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 
 // After voe_ui_frame_end: the naming's field read into `request`, then a

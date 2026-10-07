@@ -31,6 +31,8 @@
 #define ASSETS_GAP (2.0f * VOE_EDITOR_SPACING)
 #define NEW_FOLDER_NAME "New folder"
 #define NEW_LANDSCAPE_NAME "New landscape"
+// The empty strip under the rows, in millimetres.
+#define EMPTY_STRIP 6.0f
 
 static char *copy_string(voe_base_arena *arena, const char *text)
 {
@@ -248,6 +250,7 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 		assets->import_button = VOE_UI_NODE_NONE;
 		assets->naming_field = VOE_UI_NODE_NONE;
 		assets->empty = VOE_UI_NODE_NONE;
+		assets->fill = VOE_UI_NODE_NONE;
 		assets->body = VOE_UI_NODE_NONE;
 	}
 	if (!assets->listed_once ||
@@ -293,11 +296,11 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 	assets->import_button = VOE_UI_NODE_NONE;
 	assets->naming_field = VOE_UI_NODE_NONE;
 	assets->empty = VOE_UI_NODE_NONE;
-	// Round everything, spaced as the leaf's scroll area spaces it (dock.c),
-	// so the read knows the whole panel's rectangle.
+	assets->fill = VOE_UI_NODE_NONE;
+	// Round everything, spaced as the leaf's scroll area spaces it (dock.c).
+	// Natural along, so the area measures the rows and scrolls them.
 	assets->body = voe_ui_column_begin(
 		ui, (voe_ui_container){
-			    .size = { .along = { VOE_UI_SIZE_GROW, 1.0f } },
 			    .across = VOE_UI_ACROSS_FILL,
 			    .gap = ASSETS_GAP });
 	// Import needs a folder to copy into, so an untitled project has none;
@@ -352,11 +355,17 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 	    (assets->row_count == 0 ||
 	     assets->rows[assets->row_count - 1].folder))
 		naming_field_draw(ui, assets, NEW_LANDSCAPE_NAME);
+	// A strip under the rows, so a scrolled-to-end list still has an
+	// empty part to right press; the filler takes what the rows leave.
 	assets->empty = voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .size = { .along = { VOE_UI_SIZE_FIXED, EMPTY_STRIP } } });
+	voe_ui_end(ui);
+	voe_ui_end(ui); // body
+	assets->fill = voe_ui_column_begin(
 		ui, (voe_ui_container){
 			    .size = { .along = { VOE_UI_SIZE_GROW, 1.0f } } });
 	voe_ui_end(ui);
-	voe_ui_end(ui); // body
 }
 
 // `folder` and `name` joined with `/` into `out`, or `name` alone at
@@ -483,10 +492,12 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 	// button, no size for one not drawn.
 	assets->body_seen = seen(ui, assets->body);
 	assets->empty_seen = seen(ui, assets->empty);
+	assets->fill_seen = seen(ui, assets->fill);
 	assets->up_seen = seen(ui, assets->up_button);
 	assets->up_button = VOE_UI_NODE_NONE;
 	assets->import_button = VOE_UI_NODE_NONE;
 	assets->empty = VOE_UI_NODE_NONE;
+	assets->fill = VOE_UI_NODE_NONE;
 	assets->body = VOE_UI_NODE_NONE;
 	assets->held = NULL;
 	assets->held_model = false;
@@ -617,14 +628,17 @@ voe_editor_assets_at voe_editor_assets_row_at(const voe_editor_assets *assets,
 	VOE_BASE_ASSERT(assets != NULL, "asking what is under a point in no panel");
 	VOE_BASE_ASSERT(assets->row_count <= VOE_EDITOR_BROWSER_ROWS,
 			"more Assets rows than the panel holds");
-	if (!voe_editor_inspector_rect_contains(assets->body_seen, at))
+	// The panel's whole visible rectangle is the body plus the filler.
+	if (!voe_editor_inspector_rect_contains(assets->body_seen, at) &&
+	    !voe_editor_inspector_rect_contains(assets->fill_seen, at))
 		return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_OUTSIDE, 0 };
 	if (voe_editor_inspector_rect_contains(assets->up_seen, at))
 		return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_UP, 0 };
 	for (uint32_t i = 0; i < assets->row_count; i++)
 		if (voe_editor_inspector_rect_contains(assets->rows[i].seen, at))
 			return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_ROW, i };
-	if (voe_editor_inspector_rect_contains(assets->empty_seen, at))
+	if (voe_editor_inspector_rect_contains(assets->empty_seen, at) ||
+	    voe_editor_inspector_rect_contains(assets->fill_seen, at))
 		return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_EMPTY, 0 };
 	return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_NONE, 0 };
 }
