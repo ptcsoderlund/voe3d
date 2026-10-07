@@ -13,7 +13,8 @@
 // editor names what it wants framed and calls this.
 //
 // WHAT HAS A SIZE: shapes, by their kind's triangles, and models, by their
-// loaded entry's (3d/shape_geometry.h, 3d/models.h), on the entity and on every
+// loaded entry's (3d/shape_geometry.h, 3d/models.h), a landscape by its heights'
+// box (3d/landscape.h), on the entity and on every
 // entity under it (scene/parent_component.h). Water, particles, markers and
 // colliders have none; a row with no transform is nowhere and has none either.
 // A NULL store, a model with no loaded entry, a kind with no geometry and a

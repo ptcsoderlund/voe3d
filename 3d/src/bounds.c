@@ -2,8 +2,10 @@
 // its sphere — see the header for what counts and why a sphere.
 //
 // One box about one double origin is grown by every counted geometry, shapes
-// first, then models; the origin is fixed by the first one counted.
+// first, then models, a landscape by its box's eight corners; the origin is
+// fixed by the first one counted.
 #include <3d/bounds.h>
+#include <3d/landscape.h>
 #include <3d/model_component.h>
 #include <3d/shape_component.h>
 
@@ -51,11 +53,38 @@ static bool counts(const voe_ecs_world *world, voe_ecs_entity entity,
 	       voe_scene_transform_get(world, entity) != NULL;
 }
 
+// `entity`'s world matrix about the box's origin, fixing that origin at the
+// entity's place when nothing has been counted yet.
+static voe_math_float4x4 placed_about(struct box *box,
+				      const voe_ecs_world *world,
+				      voe_ecs_entity entity)
+{
+	voe_scene_transform placed = voe_scene_transform_world(world, entity);
+
+	if (!box->counted)
+		box->origin = placed.position;
+	return voe_scene_transform_matrix(placed, box->origin);
+}
+
+// Grows `box` by one own-space `point` carried by `matrix`.
+static void take(struct box *box, voe_math_float4x4 matrix,
+		 voe_math_float3 point)
+{
+	point = voe_math_float4x4_transform_point(matrix, point);
+	if (!box->counted) {
+		box->min = point;
+		box->max = point;
+		box->counted = true;
+		return;
+	}
+	box->min = voe_math_float3_min(box->min, point);
+	box->max = voe_math_float3_max(box->max, point);
+}
+
 // Grows `box` by every vertex of `geometry` placed at `entity`'s world place.
 static void grow(struct box *box, const voe_ecs_world *world,
 		 voe_ecs_entity entity, const voe_3d_shape_geometry *geometry)
 {
-	voe_scene_transform placed = voe_scene_transform_world(world, entity);
 	voe_math_float4x4 matrix;
 
 	VOE_BASE_ASSERT(box != NULL && geometry != NULL,
@@ -63,22 +92,27 @@ static void grow(struct box *box, const voe_ecs_world *world,
 
 	if (geometry->vertex_count == 0)
 		return;
-	if (!box->counted)
-		box->origin = placed.position;
-	matrix = voe_scene_transform_matrix(placed, box->origin);
-	for (uint32_t i = 0; i < geometry->vertex_count; i++) {
-		voe_math_float3 point = voe_math_float4x4_transform_point(
-			matrix, geometry->vertices[i].position);
+	matrix = placed_about(box, world, entity);
+	for (uint32_t i = 0; i < geometry->vertex_count; i++)
+		take(box, matrix, geometry->vertices[i].position);
+}
 
-		if (!box->counted) {
-			box->min = point;
-			box->max = point;
-			box->counted = true;
-			continue;
-		}
-		box->min = voe_math_float3_min(box->min, point);
-		box->max = voe_math_float3_max(box->max, point);
-	}
+// Grows `box` by the eight corners of `landscape`'s own box (0379 point 2)
+// placed at `entity`'s world place, as a model's vertices are.
+static void grow_landscape(struct box *box, const voe_ecs_world *world,
+			   voe_ecs_entity entity,
+			   const voe_assets_landscape *landscape)
+{
+	voe_math_float4x4 matrix = placed_about(box, world, entity);
+	voe_math_float3 low;
+	voe_math_float3 high;
+
+	voe_3d_landscape_box(landscape, &low, &high);
+	for (uint32_t corner = 0; corner < 8; corner++)
+		take(box, matrix,
+		     (voe_math_float3){ corner & 1 ? high.x : low.x,
+					corner & 2 ? high.y : low.y,
+					corner & 4 ? high.z : low.z });
 }
 
 bool voe_3d_bounds(const voe_ecs_world *world,
@@ -117,8 +151,13 @@ bool voe_3d_bounds(const voe_ecs_world *world,
 			const voe_3d_model_entry *entry =
 				voe_3d_models_find(models, worn[i].path);
 
-			if (entry != NULL && entry->loaded &&
-			    counts(world, owners[i], root))
+			if (entry == NULL || !entry->loaded ||
+			    !counts(world, owners[i], root))
+				continue;
+			if (entry->landscape != NULL)
+				grow_landscape(&box, world, owners[i],
+					       entry->landscape);
+			else
 				grow(&box, world, owners[i], &entry->shape);
 		}
 	}

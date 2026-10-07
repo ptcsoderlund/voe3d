@@ -8,7 +8,7 @@
 // it, a water met on its plane and missed beyond it, a ray through the frustum
 // and not the box picking nothing, and the entities skipped are all checkable
 // on a build box with no Vulkan, and so is a child hit at its world place as
-// its parent moves. A model's case needs one to load the model.
+// its parent moves. A model's and a landscape's cases need one to load it.
 //
 // THE DRAWN HALF CANNOT BE DONE WITHOUT ONE, AND IT IS THE CHECK THAT MATTERS
 // MOST. The arithmetic half cannot catch a flipped Y: it works the pixel out the
@@ -31,6 +31,7 @@
 #include <3d/shape_geometry.h>
 #include <3d/shape_system.h>
 #include <3d/water_component.h>
+#include <assets/landscape.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <ecs/component.h>
@@ -704,6 +705,145 @@ destroy:
 	voe_render_device_destroy(device);
 }
 
+// Room for one 16-chunk landscape of 8 cells: 9 vertices and 24 indices a
+// chunk, its ground and the ground's twin.
+static const voe_render_capacities LANDSCAPE_CAPACITIES = {
+	.vertices = 16 * 9,
+	.indices = 16 * 24,
+	.geometries = 16,
+	.objects = 1,
+	.shadings = 2,
+	.passes = 1,
+};
+
+#define HILL "Assets/hill.landscape"
+
+// A headless device, or NULL after saying why it skips.
+static voe_render_device *a_landscape_device(voe_base_arena *arena)
+{
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_device *device = voe_render_device_new_headless(
+		arena, (voe_platform_size){ 4, 4 }, LANDSCAPE_CAPACITIES, &error);
+
+	if (device == NULL) {
+		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
+		    error == VOE_BASE_ERROR_UNSUPPORTED)
+			printf("skip: %s\n", voe_base_error_string(error));
+		else
+			VOE_TEST_CHECK(device != NULL);
+	}
+	return device;
+}
+
+// A store holding HILL: 16 m of 8 cells, every height 1 m.
+static voe_3d_models *a_hill(voe_base_arena *arena, voe_render_device *device)
+{
+	voe_assets_landscape land = voe_assets_landscape_flat(16.0f, 8, arena);
+	voe_3d_models *models = voe_3d_models_new();
+	voe_base_error error = VOE_BASE_OK;
+
+	for (uint32_t i = 0; i < 9 * 9; i++)
+		land.heights[i] = 1.0f;
+	VOE_TEST_CHECK(voe_3d_models_load_landscape(models, device, HILL, 1,
+						    &land, &error));
+	return models;
+}
+
+// A thing wearing HILL placed by `transform`.
+static voe_ecs_entity add_a_hill(voe_ecs_world *world,
+				 voe_scene_transform transform)
+{
+	voe_ecs_entity entity = { 0 };
+	voe_3d_model model = { 0 };
+
+	snprintf(model.path, sizeof(model.path), "%s", HILL);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, transform));
+	VOE_TEST_CHECK(voe_3d_model_add(world, entity, model));
+	return entity;
+}
+
+// A LANDSCAPE IS MET BY ITS HEIGHTS, its shape being empty (0379 point 2). The
+// hill at (10, 0, 0), its ground 1 m up, is met 10 m down a ray from 11 m; the
+// same ray 20 m aside, past the grid's 8 m half side, meets nothing, and with
+// no store the first meets nothing either.
+static void pick_meets_a_landscape(voe_base_arena *arena,
+				   const voe_3d_shape_geometries *geometries)
+{
+	voe_render_device *device = a_landscape_device(arena);
+	voe_3d_models *models;
+	voe_ecs_world *world;
+	voe_ecs_entity thing;
+	voe_3d_ray ray = { .origin = { 10.0, 11.0, 0.0 },
+			   .direction = { 0.0f, -1.0f, 0.0f } };
+	float distance = -1.0f;
+	voe_ecs_entity hit;
+
+	if (device == NULL)
+		return;
+	models = a_hill(arena, device);
+	world = a_world(arena);
+	thing = add_a_hill(world, at(10.0f, 0.0f, 0.0f));
+
+	hit = voe_3d_pick(world, geometries, models, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.index, thing.index);
+	VOE_TEST_CHECK_INT(hit.generation, thing.generation);
+	VOE_TEST_CHECK_FLOAT(distance, 10.0f, 1e-3f);
+
+	VOE_TEST_CHECK_INT(
+		voe_3d_pick(world, geometries, NULL, ray, NULL).generation, 0);
+
+	ray.origin.x += 20.0;
+	distance = -1.0f;
+	hit = voe_3d_pick(world, geometries, models, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.generation, 0);
+	VOE_TEST_CHECK_FLOAT(distance, -1.0f, 1e-6f);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+	voe_render_device_destroy(device);
+}
+
+// THE HIT IS IN THE GRID'S OWN SPACE (0379 point 1). The hill scaled 2 at
+// (100, 0, -50) is 2 m up; a ray down from world (104, 11, -44) meets it 9 m
+// along at own (2, 3). A cube is no landscape, and a miss leaves `hit` alone.
+static void pick_landscape_answers_its_own_space(voe_base_arena *arena)
+{
+	voe_render_device *device = a_landscape_device(arena);
+	voe_scene_transform placed = at(100.0f, 0.0f, -50.0f);
+	voe_3d_landscape_hit hit = { -1.0f, -1.0f, -1.0f };
+	voe_3d_models *models;
+	voe_ecs_world *world;
+	voe_ecs_entity thing;
+	voe_ecs_entity cube;
+	voe_3d_ray ray = { .origin = { 104.0, 11.0, -44.0 },
+			   .direction = { 0.0f, -1.0f, 0.0f } };
+
+	if (device == NULL)
+		return;
+	models = a_hill(arena, device);
+	world = a_world(arena);
+	placed.scale = (voe_math_float3){ 2.0f, 2.0f, 2.0f };
+	thing = add_a_hill(world, placed);
+	cube = add_a_cube(world, 104.0f, 0.0f, -44.0f);
+
+	VOE_TEST_CHECK(voe_3d_pick_landscape(world, models, thing, ray, &hit));
+	VOE_TEST_CHECK_FLOAT(hit.x, 2.0f, 1e-3f);
+	VOE_TEST_CHECK_FLOAT(hit.z, 3.0f, 1e-3f);
+	VOE_TEST_CHECK_FLOAT(hit.distance, 9.0f, 1e-3f);
+
+	hit = (voe_3d_landscape_hit){ -1.0f, -1.0f, -1.0f };
+	VOE_TEST_CHECK(!voe_3d_pick_landscape(world, models, cube, ray, &hit));
+	VOE_TEST_CHECK(!voe_3d_pick_landscape(world, NULL, thing, ray, &hit));
+	ray.origin.x += 40.0;
+	VOE_TEST_CHECK(!voe_3d_pick_landscape(world, models, thing, ray, &hit));
+	VOE_TEST_CHECK_FLOAT(hit.distance, -1.0f, 0.0f);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+	voe_render_device_destroy(device);
+}
+
 // A cube 5 m along +X under a parent at (0, 0, -10) that has no shape: the ray
 // finds it at its world place, and follows it when the parent moves 3 m up.
 static void a_child_is_hit_at_its_world_place(
@@ -764,6 +904,8 @@ int main(void)
 	a_pixel_the_cube_covers_picks_the_cube(arena, &geometries);
 	a_model_is_hit_at_its_distance_and_missed_beside_it(arena, &geometries);
 	a_child_is_hit_at_its_world_place(arena, &geometries);
+	pick_meets_a_landscape(arena, &geometries);
+	pick_landscape_answers_its_own_space(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

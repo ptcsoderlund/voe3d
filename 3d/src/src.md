@@ -52,9 +52,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
   this folder, and why its rim is built three times.
 - `cylinder.c` — the cylinder's side as two rows and each cap as a fan.
 - `pick.c` — the pixel's ray from the view's two matrices inverted, and the walk that tests
-  it against each shape's and loaded model's triangles, then the cameras' boxes and suns' cubes.
+  it against each shape's and loaded model's triangles or a landscape's heights, then the cameras'
+  boxes and suns' cubes, and the landscape's own-space hit a brush stamps at.
 - `bounds.c` — one float box about the first counted entity's double position, grown by every
-  shape's and loaded model's vertices on the tree, and the framing distance from the half angle.
+  shape's and loaded model's vertices or landscape box's corners on the tree, and the framing
+  distance from the half angle.
 - `outline.c` — the walk over one shape's or loaded model's edges that keeps the ones the eye
   is on two sides of, and the quad each of them becomes, a half width per vertex from that
   vertex's own depth.

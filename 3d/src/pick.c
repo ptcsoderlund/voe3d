@@ -3,12 +3,14 @@
 //
 // The view's two matrices are inverted once per pick. The walk carries the ray
 // into each shape's, model's or water's own space, from its world place, and
-// tests its triangles or, for a water, its plane; the triangle test is written
+// tests its triangles, for a landscape its heights (3d/landscape.h), or for a
+// water its plane; the triangle test is written
 // out once, its derivation in a comment above it. The markers — cameras' boxes,
 // suns', point lights' and place markers' cubes — are tested as one group, and
 // its nearest hit wins over any mesh hit; the meshes are walked only when no
 // marker is met.
 #include <3d/camera_marker.h>
+#include <3d/landscape.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
 #include <3d/pick.h>
@@ -251,6 +253,28 @@ static bool geometry_hit(voe_scene_transform transform,
 	return hit;
 }
 
+// Where `ray` first goes below `landscape`'s heights placed by `transform`, in
+// the grid's own space and as a parameter along the ray that is the same in
+// both spaces, as geometry_hit's is. False when missed or scaled away.
+static bool landscape_hit(voe_scene_transform transform,
+			  const voe_assets_landscape *landscape, voe_3d_ray ray,
+			  voe_3d_landscape_hit *hit)
+{
+	struct local_ray local;
+	float t;
+
+	VOE_BASE_ASSERT(landscape != NULL && hit != NULL,
+			"a landscape hit measured into nothing");
+
+	if (!carried_into(transform, ray, &local) ||
+	    !voe_3d_landscape_ray(landscape, local.origin, local.direction, &t))
+		return false;
+	hit->x = local.origin.x + t * local.direction.x;
+	hit->z = local.origin.z + t * local.direction.z;
+	hit->distance = t;
+	return true;
+}
+
 // The nearest hit of one group so far: zeroed until something is met.
 struct nearest_hit {
 	voe_ecs_entity entity;
@@ -293,7 +317,8 @@ static struct nearest_hit mesh_hit(const voe_ecs_world *world,
 	}
 
 	// A model row is tested on its loaded entry's own triangles, exactly as
-	// a shape is on its kind's (ADR-0277 point 3).
+	// a shape is on its kind's (ADR-0277 point 3); a landscape's shape is
+	// empty, so it is tested on its heights (0379 point 2).
 	if (models != NULL && has_store(world, &voe_3d_model_key)) {
 		uint32_t wearers = voe_3d_model_count(world);
 		const voe_3d_model *worn = voe_3d_model_rows(world);
@@ -302,14 +327,22 @@ static struct nearest_hit mesh_hit(const voe_ecs_world *world,
 		for (uint32_t i = 0; i < wearers; i++) {
 			const voe_3d_model_entry *entry =
 				voe_3d_models_find(models, worn[i].path);
+			voe_scene_transform placed;
+			voe_3d_landscape_hit ground;
 			float t;
 
-			if (voe_scene_transform_get(world, owners[i]) != NULL &&
-			    entry != NULL && entry->loaded &&
-			    geometry_hit(voe_scene_transform_world(world,
-								   owners[i]),
-					 &entry->shape, ray, &t))
+			if (voe_scene_transform_get(world, owners[i]) == NULL ||
+			    entry == NULL || !entry->loaded)
+				continue;
+			placed = voe_scene_transform_world(world, owners[i]);
+			if (entry->landscape != NULL) {
+				if (landscape_hit(placed, entry->landscape, ray,
+						  &ground))
+					keep_nearer(&best, owners[i],
+						    ground.distance);
+			} else if (geometry_hit(placed, &entry->shape, ray, &t)) {
 				keep_nearer(&best, owners[i], t);
+			}
 		}
 	}
 
@@ -428,4 +461,27 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 	if (answer.entity.generation != 0 && distance != NULL)
 		*distance = answer.distance;
 	return answer.entity;
+}
+
+bool voe_3d_pick_landscape(const voe_ecs_world *world,
+			   const voe_3d_models *models, voe_ecs_entity entity,
+			   voe_3d_ray ray, voe_3d_landscape_hit *hit)
+{
+	const voe_3d_model *worn;
+	const voe_3d_model_entry *entry;
+
+	VOE_BASE_ASSERT(world != NULL && hit != NULL,
+			"a landscape picked into nothing");
+
+	if (models == NULL || !has_store(world, &voe_3d_model_key) ||
+	    voe_scene_transform_get(world, entity) == NULL)
+		return false;
+	worn = voe_3d_model_get(world, entity);
+	if (worn == NULL)
+		return false;
+	entry = voe_3d_models_find(models, worn->path);
+	if (entry == NULL || !entry->loaded || entry->landscape == NULL)
+		return false;
+	return landscape_hit(voe_scene_transform_world(world, entity),
+			     entry->landscape, ray, hit);
 }
