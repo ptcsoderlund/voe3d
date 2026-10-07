@@ -222,6 +222,15 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 	}
 }
 
+void voe_editor_assets_list_due(voe_editor_assets *assets)
+{
+	VOE_BASE_ASSERT(assets != NULL, "marking no Assets panel due");
+
+	// The frame clock is never below 0, so a second has always passed.
+	assets->listed = -LIST_SECONDS;
+	VOE_BASE_ASSERT(assets->listed < 0.0, "a listing marked due in the future");
+}
+
 void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing the Assets panel into no interface");

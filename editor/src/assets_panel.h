@@ -110,6 +110,10 @@ typedef struct {
 void voe_editor_assets_update(voe_editor_assets *assets,
 			      const char *project_folder, double now);
 
+// The next update lists again at once, in the same shown folder: a file
+// command (assets_manage.h) changed what is there.
+void voe_editor_assets_list_due(voe_editor_assets *assets);
+
 // Up (not at `Assets/`) beside Import (only when the project has a folder),
 // the shown folder's path, then one row per entry, or the line saying there
 // is no `Assets/`. Records every node for the read.

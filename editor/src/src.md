@@ -170,8 +170,8 @@ carries it out.
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
-  entered and Up but never above it, listed again once a second, a fired prefab row left to open,
-  and Import.
+  entered and Up but never above it, listed again once a second or at once when marked due, a fired
+  prefab row left to open, and Import.
 - `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
   the panel's one frame of `ui` calls, the read of its rows, a fired prefab's path, Up and Import
   afterwards, and the import.
@@ -185,6 +185,10 @@ carries it out.
   Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
   the match, and the follow with its room check and write.
+- `assets_manage.h` — the Assets panel's file commands: a folder made, a rename or move followed on
+  disk and in the open scene, a duplicate, the trash, each refused with a notice and nothing changed.
+- `assets_manage.c` — the shared checks, the move's check, move, write and memory with the undo line
+  forgotten, the next free copy name, and the trash's refusals worded.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
