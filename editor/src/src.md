@@ -270,10 +270,12 @@ carries it out.
   selection's outline colour, dimmed for a gizmo handle at rest and fainter still for a blocker's box.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
   passes, lit by every light, with the world, its models, the selection's outline, collider and
-  gizmo, every blocker's box, the markers, every meshless place's too, and the device capacities.
+  gizmo, every blocker's box, the markers, every meshless place's too, the brush circle, and the
+  device capacities.
 - `view_passes.c` — the preview's pass while the selected entity has a camera, then each shown
   view's shadow passes and pass, lit by every directional and point light and kept out of the light
-  blockers, every place marked and every blocker lined, stopping at the first refused pass.
+  blockers, every place marked and every blocker lined, the brush's rings on the hovered ground with
+  the gizmo hidden while brushing a landscape, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, progress passed on during a
   splash wait, handed to picking and the view passes, and its landscapes drawn, saved, reverted

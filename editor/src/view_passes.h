@@ -5,7 +5,9 @@
 // the world and its models (voe_3d_draw_system_run), the selection's outline,
 // a model's too (ADR-0203), its collider as lines (0253), its move gizmo
 // (ADR-0205), the scene camera's marker (0223), every sun's (0360) and every
-// point light's (0320) and every meshless place's (0365), and every light
+// point light's (0320) and every meshless place's (0365), the brush's two
+// rings where the pointer meets the ground, the gizmo hidden while a brush is
+// chosen on a landscape (0379 point 3), and every light
 // blocker's box, faint but the selected one (0347, 0365). Before
 // those, the preview's shadow passes and one pass with the world's own camera
 // (view.h). Every directional and point light lights every pass; the light
@@ -31,7 +33,7 @@
 // twice the room for drawn entities (VOE_GAME_WORLD_MAX_DRAWN, game/world.h's,
 // the room every project's world is registered with), one more for the
 // selection's outline, two for the gizmo's handles at rest and its marked one,
-// one for the camera's marker and the selection's collider, and two each for
+// one for the camera's marker, the selection's collider and the brush, and two each for
 // the suns', point lights' and places' markers and the blockers' boxes, times
 // the room for views, and the drawn entities once more for the preview's pass,
 // which draws the world alone; and every caster once per cascade of each of
@@ -120,7 +122,8 @@
 // in two ranges likewise (0320 point 9); the places', in two ranges, sized by
 // VOE_GAME_WORLD_AUTHORED because the editor's world holds only authored
 // entities (0365); and the other blockers' boxes,
-// VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more. On top,
+// VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more; and the
+// brush's rings, one range (VOE_3D_BRUSH_MARKER_*, 0379 point 3). On top,
 // once a frame and not per view, a whole landscape's chunks drawn transient
 // while a stroke is held (VOE_3D_LANDSCAPE_TRANSIENT_*, 0379 point 4): they are
 // made once after the draw opens and every pass draws the same ones.
@@ -131,7 +134,7 @@
 		.indices = VOE_3D_SHAPES_INDICES + VOE_3D_MODELS_INDICES,      \
 		.geometries =                                                  \
 			VOE_3D_SHAPES_GEOMETRIES + VOE_3D_MODELS_GEOMETRIES,  \
-		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 13) *               \
+		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 14) *               \
 				   VOE_EDITOR_VIEWS +                          \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
@@ -165,7 +168,8 @@
 				       VOE_3D_PLACE_MARKER_VERTICES *          \
 					       VOE_GAME_WORLD_AUTHORED +       \
 				       VOE_3D_COLLIDER_MARKER_VERTICES *       \
-					       VOE_GAME_WORLD_LIGHT_BLOCKERS) * \
+					       VOE_GAME_WORLD_LIGHT_BLOCKERS + \
+				       VOE_3D_BRUSH_MARKER_VERTICES) *         \
 					      VOE_EDITOR_VIEWS +                \
 				      VOE_3D_LANDSCAPE_TRANSIENT_VERTICES,     \
 		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
@@ -179,10 +183,11 @@
 				      VOE_3D_PLACE_MARKER_INDICES *            \
 					      VOE_GAME_WORLD_AUTHORED +        \
 				      VOE_3D_COLLIDER_MARKER_INDICES *         \
-					      VOE_GAME_WORLD_LIGHT_BLOCKERS) * \
+					      VOE_GAME_WORLD_LIGHT_BLOCKERS +  \
+				      VOE_3D_BRUSH_MARKER_INDICES) *           \
 					     VOE_EDITOR_VIEWS +                 \
 				     VOE_3D_LANDSCAPE_TRANSIENT_INDICES,       \
-		.transient_geometries = 13 * VOE_EDITOR_VIEWS +                \
+		.transient_geometries = 14 * VOE_EDITOR_VIEWS +                \
 					VOE_3D_LANDSCAPE_TRANSIENT_RANGES      \
 	}
 
