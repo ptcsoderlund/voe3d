@@ -5,6 +5,8 @@
 // failure one line on stderr and counted. Scratch is rewound to where it stood after each
 // file, so a caller's own scratch data survives the call. With a progress, the
 // distinct unread paths are counted first and the stop flag asked before each.
+// A cooked landscape's millimetres become metres in scratch, rewound after it,
+// and the watch passes over every landscape entry.
 #include <game/models.h>
 
 #include <3d/emitter_component.h>
@@ -159,6 +161,41 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 	return failures;
 }
 
+voe_game_models_failures
+voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
+			   const voe_game_landscapes *landscapes,
+			   voe_base_arena *scratch)
+{
+	voe_game_models_failures failures = { 0 };
+
+	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
+	VOE_BASE_ASSERT(landscapes != NULL && scratch != NULL,
+			"no landscapes or scratch");
+	for (uint32_t i = 0; i < landscapes->count; i++) {
+		const voe_game_landscape *cooked = &landscapes->landscapes[i];
+		struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+		uint32_t heights = (cooked->cells + 1) * (cooked->cells + 1);
+		voe_assets_landscape landscape = {
+			.size = cooked->size,
+			.cells = cooked->cells,
+			.heights = voe_base_arena_push(scratch,
+						       heights * sizeof(float)),
+		};
+		voe_base_error error = VOE_BASE_OK;
+
+		// As assets/landscape.c reads them, so Play meets the editor's
+		// heights to the bit.
+		for (uint32_t h = 0; h < heights; h++)
+			landscape.heights[h] =
+				(float)((double)cooked->millimetres[h] / 1000.0);
+		if (!voe_3d_models_load_landscape(models, device, cooked->path,
+						  0, &landscape, &error))
+			count_failure(&failures, models, cooked->path, error);
+		voe_base_arena_rewind(scratch, mark);
+	}
+	return failures;
+}
+
 voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 					       voe_render_device *device,
 					       const char *folder,
@@ -173,6 +210,9 @@ voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 		const voe_3d_model_entry *entry = voe_3d_models_at(models, i);
 		voe_base_error error;
 
+		// A landscape is never re-read by stamp (0379 point 2).
+		if (entry->landscape != NULL)
+			continue;
 		if (!load_changed(models, device, folder, entry->path,
 				  entry->stamp, scratch, &error))
 			count_failure(&failures, models,

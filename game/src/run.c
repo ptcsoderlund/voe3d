@@ -15,6 +15,7 @@
 
 #include <game/frame.h>
 #include <game/interface.h>
+#include <game/landscapes.h>
 #include <game/models.h>
 #include <game/prefabs.h>
 #include <game/progress.h>
@@ -111,7 +112,8 @@ struct run_start {
 };
 
 // The start's work, on the wait's worker (0370 point 4): the shaders with the
-// game's cache, the world and scene, the shapes and the scene's models, each
+// game's cache, the world and scene, the shapes, the cooked landscapes and the
+// scene's models, each
 // part's log step taken where it ends. False once stopped, or with `failed`
 // set on a failed step. Only the worker's own scratch is used, kept empty.
 static bool run_start_work(void *context, voe_game_progress *progress)
@@ -148,7 +150,11 @@ static bool run_start_work(void *context, voe_game_progress *progress)
 		return false;
 	}
 	start->store = voe_3d_models_new();
-	// Failures are on stderr and kept as failed entries.
+	// Failures are on stderr and kept as failed entries. The cooked
+	// landscapes go first, so the scene's landscape rows find them held.
+	(void)voe_game_models_landscapes(start->store, start->device,
+					 &voe_game_landscapes_cooked,
+					 start->scratch);
 	(void)voe_game_models_update(start->world, start->store, start->device,
 				     start->folder, start->scratch, progress);
 	if (voe_game_progress_stopped(progress))

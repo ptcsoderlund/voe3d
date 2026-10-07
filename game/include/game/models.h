@@ -27,7 +27,12 @@
 // replaces the parts, a failure keeps them (3d/models.h). A failed entry whose
 // file now has a stamp differs from its 0, so it is tried again; a loaded file
 // that has gone is kept, failed at 0, and tried again when it comes back. The
-// dot is made in code and not watched.
+// dot is made in code and not watched, and nor is a landscape (0379 point 2).
+//
+// LANDSCAPES come from a table, never a file (game/landscapes.h, 0236): each
+// one's millimetres turned into metres in scratch and loaded at stamp 0, a
+// failure counted as an update counts one. The game loads its cooked table so
+// before its first update, so a scene's landscape rows find their entries.
 //
 // BOTH RETURN how many paths failed in the call and the first one's path, the
 // store's own copy, valid until that entry is loaded again or the store is
@@ -53,6 +58,7 @@
 
 #include <ecs/world.h>
 
+#include <game/landscapes.h>
 #include <game/progress.h>
 
 #include <render/device.h>
@@ -75,7 +81,15 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_base_arena *scratch,
 						voe_game_progress *progress);
 
-// Reads and loads again every entry whose file's stamp changed. See the header.
+// Loads every landscape of `landscapes` into the store at stamp 0. See the
+// header.
+voe_game_models_failures
+voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
+			   const voe_game_landscapes *landscapes,
+			   voe_base_arena *scratch);
+
+// Reads and loads again every entry whose file's stamp changed, landscapes
+// aside. See the header.
 voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 					       voe_render_device *device,
 					       const char *folder,

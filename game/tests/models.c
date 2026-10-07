@@ -21,6 +21,10 @@
 // with a progress to total 1 and done 1; with stop already asked an update
 // reads nothing, and a second one without a progress loads the file.
 //
+// THE LANDSCAPES, on a fifth store: a 4-cell table loads at stamp 0 with its
+// millimetres as metres; with a text file at its path a watch reports nothing
+// and leaves it loaded at 0.
+//
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include <game/models.h>
@@ -58,13 +62,26 @@
 #define PICTURE "puff.png"
 #define NO_PICTURE "missing.png"
 #define PICTURE_ON_DISK FOLDER "/" PICTURE
+#define LANDSCAPE "hill.landscape"
+#define LANDSCAPE_ON_DISK FOLDER "/" LANDSCAPE
 
 // Room for the triangle twice over a reload, the pictures' quad, and the
 // shadings of the triangle, the picture and the dot, plus two blended twins:
 // one for each triangle part held at once over the reload (ADR-0336 point 2).
+// Then a 4-cell landscape's 16 chunks, its ground and its twin.
 static const voe_render_capacities CAPACITIES = {
-	.vertices = 16, .indices = 16, .geometries = 4,
-	.objects = 1,   .shadings = 10, .passes = 1,
+	.vertices = 16 + 16 * 9, .indices = 16 + 16 * 24, .geometries = 4 + 16,
+	.objects = 1,		 .shadings = 10 + 2,	   .passes = 1,
+};
+
+// A 4-cell, 64 m landscape: a 1.5 m bump in the middle, -0.25 m at a corner.
+static const int32_t HILL[25] = {
+	-250, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1500,
+	0,    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+};
+
+static const voe_game_landscapes HILLS = {
+	(const voe_game_landscape[]){ { LANDSCAPE, 64.0f, 4, HILL } }, 1
 };
 
 // A 1x1 white RGBA PNG: signature, IHDR, one zlib IDAT row, IEND.
@@ -248,6 +265,49 @@ static void check_progress(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
+// The table's landscape held, loaded at stamp 0, heights in metres.
+static void check_hill(const voe_3d_models *models)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, LANDSCAPE);
+
+	VOE_TEST_CHECK(entry != NULL && entry->loaded &&
+		       entry->landscape != NULL);
+	if (entry == NULL || entry->landscape == NULL)
+		return;
+	VOE_TEST_CHECK_INT(entry->stamp, 0);
+	VOE_TEST_CHECK_INT(entry->landscape->cells, 4);
+	VOE_TEST_CHECK(entry->landscape->size == 64.0f);
+	VOE_TEST_CHECK(entry->landscape->heights[0] == -0.25f);
+	VOE_TEST_CHECK(entry->landscape->heights[12] == 1.5f);
+	VOE_TEST_CHECK(entry->landscape->heights[24] == 0.0f);
+}
+
+static void landscapes_load_from_a_table(voe_3d_models *models,
+					 voe_render_device *device,
+					 voe_base_arena *scratch)
+{
+	voe_game_models_failures failures =
+		voe_game_models_landscapes(models, device, &HILLS, scratch);
+
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(failures.first == NULL);
+	check_hill(models);
+}
+
+// A text file at the landscape's path would fail a watch that read it.
+static void watch_leaves_a_landscape_alone(voe_3d_models *models,
+					   voe_render_device *device,
+					   voe_base_arena *scratch)
+{
+	voe_game_models_failures failures;
+
+	VOE_TEST_CHECK(voe_platform_file_write(LANDSCAPE_ON_DISK, NOT_A_GLB,
+					       sizeof(NOT_A_GLB), NULL));
+	failures = voe_game_models_watch(models, device, FOLDER, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	check_hill(models);
+}
+
 static void check_files(voe_ecs_world *world, voe_render_device *device,
 			voe_base_arena *scratch, const uint8_t *glb,
 			uint32_t size)
@@ -302,6 +362,7 @@ int main(void)
 	voe_platform_size size = { 16, 16 };
 	voe_base_error error = VOE_BASE_OK;
 	voe_render_device *device;
+	voe_3d_models *landscapes;
 	uint8_t glb[512];
 	uint32_t length = glb_build(glb, sizeof(glb));
 
@@ -317,6 +378,7 @@ int main(void)
 	// A folder left by a run that crashed goes first.
 	remove(GOOD_ON_DISK);
 	remove(PICTURE_ON_DISK);
+	remove(LANDSCAPE_ON_DISK);
 	remove(FOLDER);
 	VOE_TEST_CHECK(voe_platform_folder_create(FOLDER, NULL));
 	VOE_TEST_CHECK(voe_platform_file_write(GOOD_ON_DISK, glb, length, NULL));
@@ -326,8 +388,14 @@ int main(void)
 	check_pictures(voe_game_world_new(arena), device, scratch);
 	check_water(voe_game_world_new(arena), device, scratch);
 	check_progress(voe_game_world_new(arena), device, scratch);
+	landscapes = voe_3d_models_new();
+	landscapes_load_from_a_table(landscapes, device, scratch);
+	watch_leaves_a_landscape_alone(landscapes, device, scratch);
+	voe_3d_models_clear(landscapes, device);
+	voe_3d_models_destroy(landscapes);
 	remove(GOOD_ON_DISK);
 	remove(PICTURE_ON_DISK);
+	remove(LANDSCAPE_ON_DISK);
 	remove(FOLDER);
 	voe_render_device_destroy(device);
 released:
