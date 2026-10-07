@@ -59,6 +59,7 @@
 // reads and clears it (main.c empties the undo history on it).
 #pragma once
 
+#include "assets_ask.h"
 #include "browser.h"
 #include "errors.h"
 #include "notice.h"
@@ -112,6 +113,9 @@ typedef struct {
 	uint32_t loads;
 	// Shown by a failed build, hidden by a refresh, Play or Ship that starts.
 	voe_editor_errors errors;
+	// The Assets panel's Delete question (assets_ask.h), opened and
+	// answered by interface.c, closed first by Escape (frame_commands.c).
+	voe_editor_assets_ask asking;
 	// A different project is in session->project, set by whichever call
 	// put it there and cleared by whoever acts on it.
 	bool replaced;

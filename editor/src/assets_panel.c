@@ -508,6 +508,29 @@ void voe_editor_assets_folder_begin(voe_editor_assets *assets)
 	VOE_BASE_ASSERT(assets->naming_focus, "a folder naming never focused");
 }
 
+void voe_editor_assets_delete_begin(voe_editor_assets *assets)
+{
+	int length;
+
+	VOE_BASE_ASSERT(assets != NULL, "deleting in no Assets panel");
+	assets->deleting[0] = '\0';
+	if (assets->selected == NULL || !assets->listed_once || assets->missing)
+		return;
+	length = assets->shown[0] == '\0' ?
+			 snprintf(assets->deleting, sizeof assets->deleting,
+				  "%s", assets->selected) :
+			 snprintf(assets->deleting, sizeof assets->deleting,
+				  "%s/%s", assets->shown, assets->selected);
+	if (length < 0 || (size_t)length >= sizeof assets->deleting) {
+		assets->deleting[0] = '\0';
+		return;
+	}
+	for (char *c = assets->deleting; *c != '\0'; c++)
+		if (*c == '\\')
+			*c = '/';
+	VOE_BASE_ASSERT(assets->deleting[0] != '\0', "a delete asked about nothing");
+}
+
 // Makes `<project>/Assets/` when the project's listing has none. False with
 // why naming the folder when the listing or the make fails.
 static bool assets_made(const char *project, voe_base_arena *scratch,

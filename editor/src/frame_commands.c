@@ -1,6 +1,7 @@
 // The three per-frame command stretches of main.c's loop, in the order main.c
 // calls them: the history's step, the keyboard's read and acts (F2's rename
-// among them, the Assets panel's keyboard a guard), and the acts
+// and Delete's question among them, the Assets panel's keyboard a guard,
+// Escape closing that question first), and the acts
 // that wait for the interface to have drawn, a reveal's unfold marked among
 // them. See frame_commands.h.
 #include "frame_commands.h"
@@ -86,6 +87,9 @@ voe_editor_frame_commands_read(voe_editor_frame_commands *commands,
 	// the keyboard; its field is drawn from this frame (assets_panel.h).
 	if (shortcuts.rename && scene->assets.keyboard)
 		voe_editor_assets_rename_begin(&scene->assets);
+	// Delete asks about it first; interface.c opens the question.
+	if (shortcuts.delete_asset)
+		voe_editor_assets_delete_begin(&scene->assets);
 
 	// Ctrl+N, Ctrl+O and Ctrl+S are the bar's three commands.
 	if (shortcuts.new_project)
@@ -107,10 +111,14 @@ voe_editor_frame_commands_read(voe_editor_frame_commands *commands,
 	commands->step_forward = shortcuts.redo;
 
 	// ESCAPE'S ORDER IS THIS FILE'S, out of the free edge that read
-	// leaves: a Scene list drag under way is cancelled first, then
-	// the picker closes and goes no further, otherwise it is the
-	// browser's Cancel or Preferences' Close.
+	// leaves: an open Delete question is cancelled first, then a Scene
+	// list drag under way, then the picker closes and goes no further,
+	// otherwise it is the browser's Cancel or Preferences' Close.
 	commands->escape_free = shortcuts.escape_free;
+	if (commands->escape_free && session->asking.open) {
+		voe_editor_assets_ask_close(&session->asking);
+		commands->escape_free = false;
+	}
 	if (commands->escape_free && voe_editor_scene_list_cancel(scene))
 		commands->escape_free = false;
 	if (commands->escape_free && scene->picking.open) {

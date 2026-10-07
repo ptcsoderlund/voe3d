@@ -43,6 +43,9 @@
 // A PREFAB ROW FIRED IN THE ASSETS PANEL OPENS IT (session.h), beside where
 // Import shows the browser; the panel's naming request is carried out through
 // assets_manage.h in the frame's arena, a rename's typed `/` refused here.
+// Its Delete request opens the session's question (assets_ask.h), drawn over
+// the dock and read here: Delete trashes through assets_manage.h, and it or
+// Cancel or a press outside closes it.
 //
 // THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
 // FILE'S. It is drawn inside that panel so that it moves and disappears with the
@@ -56,6 +59,7 @@
 // panel header's × goes through the same toggle on its root.
 #include "interface.h"
 
+#include "assets_ask.h"
 #include "assets_manage.h"
 #include "browser.h"
 #include "errors.h"
@@ -233,6 +237,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// The frame breakdown, under all four, the dock still live.
 		bool framing = breakdown->showing && !browsing && !erroring &&
 			       !preferring && !projecting;
+		// The Assets panel's Delete question, over all of those but
+		// the browser, whose showing closes it.
+		bool asking;
 		// The Panels list, closed by Escape or the browser showing.
 		bool menuing;
 		// The picker, when it shows, and what it edits: the target as
@@ -250,6 +257,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 
 		if (browsing || preferring || erroring || projecting)
 			voe_editor_scene_picker_close(scene);
+		if (browsing)
+			voe_editor_assets_ask_close(&session->asking);
+		asking = session->asking.open;
 		picking = voe_editor_scene_picker_showing(scene, &colour);
 		picked = scene->picking;
 		// The open list and Add component's are the Inspector's own
@@ -264,7 +274,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		menuing = bar->menu.open;
 
 		below_bar.size.y -= voe_editor_topbar_high(bar, root->size.y);
-		if (browsing || preferring || erroring || projecting || menuing)
+		if (browsing || preferring || erroring || projecting ||
+		    menuing || asking)
 			below_bar.pointer.over = false;
 
 		// The tree lives in the arena only until its records have been
@@ -350,6 +361,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 					PICKER_GAP,
 					voe_editor_topbar_high(bar, root->size.y) +
 						PICKER_GAP });
+		if (asking)
+			voe_editor_assets_ask_draw(
+				ui, &session->asking,
+				voe_editor_topbar_high(bar, root->size.y));
 		// Its right edge PICKER_GAP short of the Inspector's content,
 		// its top PICKER_GAP under the bar; the column around it only
 		// carries the anchor, the picker being a panel of its own.
@@ -446,6 +461,31 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 						VOE_EDITOR_BROWSER_IMPORT, NULL,
 						&session->notice);
 		assets_request_do(session, scene, undo, arena);
+		// The question as it was drawn answered before a new one opens,
+		// so a question opened this frame is not read against nodes it
+		// never had.
+		if (asking) {
+			voe_editor_assets_ask_answer answer =
+				voe_editor_assets_ask_read(ui, &session->asking,
+							   root->pointer.down,
+							   root->pointer.at);
+
+			// A false has said why in the notice.
+			if (answer == VOE_EDITOR_ASSETS_ASK_DELETE)
+				(void)voe_editor_assets_trash(
+					session, scene, undo, arena,
+					session->asking.path);
+			if (answer != VOE_EDITOR_ASSETS_ASK_NONE)
+				voe_editor_assets_ask_close(&session->asking);
+		}
+		if (scene->assets.deleting[0] != '\0') {
+			if (!session->asking.open)
+				voe_editor_assets_ask_open(&session->asking,
+							   session->project->folder,
+							   scene->assets.deleting,
+							   arena);
+			scene->assets.deleting[0] = '\0';
+		}
 		if (scene->assets.opened[0] != '\0') {
 			voe_editor_session_prefab_open(session, scene,
 						       scene->assets.opened);

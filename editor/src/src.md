@@ -15,7 +15,7 @@ carries it out.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
 - `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
-- `frame_commands.c` — the history step, the read with its acts (F2's rename) and `ui`'s keyboard, and Delete,
+- `frame_commands.c` — the history step, the read with its acts (F2's rename, an asset's Delete) and `ui`'s keyboard, and Delete,
   Ctrl+D, R, the edit and a reveal's unfold marked after the interface has drawn.
 - `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
   borders, the middle drag, the gizmo, the Assets drag and the pick, and what main.c reads after.
@@ -176,6 +176,10 @@ carries it out.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
   fired prefab's path, Up and Import afterwards, and the import.
+- `assets_ask.h` — the question Delete asks about the Assets panel's selected row: its name, up to
+  four users and "and N more" walked once on opening, Delete and Cancel, as an anchored panel.
+- `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
+  the read of its buttons and a press outside afterwards.
 - `assets_drag.h` — a held model, prefab or picture row from the Assets panel: released over a
   scene view it places a new thing or a copy where the ray lands, over the Inspector it swaps the
   selected thing's model or its emitter's texture, elsewhere nothing.
@@ -204,8 +208,8 @@ carries it out.
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
   Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
-  commands they fire are carried out, the Assets panel's rename or new folder among them, then the
-  selection's reveal.
+  commands they fire are carried out, the Assets panel's rename, new folder and Delete question
+  among them, then the selection's reveal.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

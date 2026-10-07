@@ -35,6 +35,8 @@
 // its name selected. Enter or a press elsewhere leaves a `request` the caller
 // carries out through assets_manage.h and clears; Escape leaves none. Either
 // ends the naming, as do entering a folder, Up, or a listing without the row.
+// delete_begin leaves the selected row's path in `deleting`, which the caller
+// asks about (assets_ask.h) and clears.
 //
 // A FAILED LISTING KEEPS THE OLD ROWS for the same project, as browser.h's
 // does, and says why on stderr through platform/folder.h. A project without
@@ -133,6 +135,9 @@ typedef struct {
 	// Left by a committed field; the caller carries it out and sets `kind`
 	// back to NONE.
 	voe_editor_assets_request request;
+	// Left by delete_begin: the selected row's path relative to `Assets/`,
+	// `/` between, "" for none. The caller asks about it and clears it.
+	char deleting[VOE_EDITOR_ASSETS_PATH];
 } voe_editor_assets;
 
 // Lists again when `project_folder` (NULL for untitled) differs from the one
@@ -168,6 +173,10 @@ void voe_editor_assets_rename_begin(voe_editor_assets *assets);
 
 // A pending "New folder" row drawn as a field first among the folders.
 void voe_editor_assets_folder_begin(voe_editor_assets *assets);
+
+// The selected row's path left in `deleting` for the caller to ask about;
+// nothing without a selected row or when the path does not fit.
+void voe_editor_assets_delete_begin(voe_editor_assets *assets);
 
 // Copies the file at `source` into the shown folder under its own name, read
 // whole and written atomically over any file of that name, making `Assets/`
