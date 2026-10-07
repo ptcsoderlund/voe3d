@@ -135,3 +135,5 @@ here is included from outside the folder — `include/3d/` is the whole public s
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow
   materials on one COLOUR texture, blended already so needing no twin.
+- `landscape.c` — the bilinear height, the marched and bisected ray, the brush's stamp and the
+  chunk meshes.
