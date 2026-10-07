@@ -110,3 +110,16 @@ bool voe_platform_file_exists(const char *path);
 [[nodiscard]] bool voe_platform_file_write(const char *path,
 					   const uint8_t *bytes, size_t count,
 					   voe_base_error *error);
+
+// MOVING. voe_platform_file_move renames or moves a file, or a folder with
+// all it holds, from one path to another in one step, and never replaces:
+// VOE_BASE_ERROR_REFUSED is a target already taken, file or folder.
+// VOE_BASE_ERROR_UNAVAILABLE is anything else: nothing at from, a target
+// folder that is not there, another file system, permission refused. The
+// real reason is reported at the site, as everywhere in this file. On
+// failure nothing moved. A NULL from or to is the caller's bug and aborts.
+//
+// Moves from to to, never over something already there. Returns false on
+// failure, with the category in error when error is not NULL.
+[[nodiscard]] bool voe_platform_file_move(const char *from, const char *to,
+					  voe_base_error *error);

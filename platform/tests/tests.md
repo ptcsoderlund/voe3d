@@ -8,7 +8,8 @@ that module's promises from outside. None of them needs a window or a display.
   why nothing in it measures a duration against a duration.
 - `file.c` — that bytes round-trip, a shorter file replaces a longer one, a failed read or
   write fails as it says, no `.partial` outlives a write, a stamp holds until a rewrite of
-  another length and is false for a folder or nothing, and a non-ASCII name round-trips.
+  another length and is false for a folder or nothing, a non-ASCII name round-trips, and a
+  move renames a file, carries a folder whole, refuses a taken name and fails on nothing.
 - `folder.c` — that listings are byte-sorted with folder and hidden right, failures are
   UNAVAILABLE or REFUSED, settings honours `XDG_CONFIG_HOME`, and non-ASCII names list exactly.
 - `input.c` — a poll drains motion, wheel and typed text and keeps held keys and the pointer;

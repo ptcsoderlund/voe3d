@@ -2,7 +2,9 @@
 // back byte for byte on both sides of the API, a file is replaced rather than
 // overwritten in place, a crash before the final rename leaves the old file
 // whole, and a path that cannot be opened fails without creating anything.
-// Needs no window and no display, so it runs under ctest on a machine with
+// A move renames a file, carries a folder whole, refuses a taken name with
+// both left as they were, and is UNAVAILABLE with nothing to move; those four
+// are functions of their own, run before the rest. Needs no window and no display, so it runs under ctest on a machine with
 // neither.
 //
 // PLATFORM IS ALLOWED OS HEADERS EVERYWHERE IN IT, TESTS INCLUDED
@@ -59,6 +61,12 @@
 #define FOLDER_PARTIAL "voe_platform_file_test_folder.partial"
 #define WORLD "Åsa 李 värld"
 #define WORLD_SCENE WORLD "/Min scen ÅÄÖ 李.txt"
+#define MOVE_FROM "voe_platform_file_test_move_from.bin"
+#define MOVE_TO "voe_platform_file_test_move_to.bin"
+#define MOVE_FOLDER "voe_platform_file_test_move_folder"
+#define MOVE_FOLDER_INNER MOVE_FOLDER "/inner.bin"
+#define MOVE_FOLDER_TO "voe_platform_file_test_move_folder_to"
+#define MOVE_FOLDER_TO_INNER MOVE_FOLDER_TO "/inner.bin"
 
 // Reads the whole file into buffer and hands back its length, or -1 if it is
 // not there. room is the size of buffer; a file that does not fit reads as
@@ -153,6 +161,79 @@ static bool is_folder(const char *path)
 #endif
 }
 
+static void move_renames_a_file(void)
+{
+	static const unsigned char bytes[] = { 0x10, 0x20, 0x30 };
+	unsigned char got[8];
+	voe_base_error error = VOE_BASE_ERROR_REFUSED;
+
+	(void)remove(MOVE_FROM);
+	(void)remove(MOVE_TO);
+	VOE_TEST_CHECK(write_oracle(MOVE_FROM, bytes, sizeof bytes));
+	VOE_TEST_CHECK(voe_platform_file_move(MOVE_FROM, MOVE_TO, &error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_OK);
+	VOE_TEST_CHECK(!voe_platform_file_exists(MOVE_FROM));
+	VOE_TEST_CHECK_INT(read_back(MOVE_TO, got, sizeof got),
+			   (long)sizeof bytes);
+	VOE_TEST_CHECK(memcmp(got, bytes, sizeof bytes) == 0);
+	(void)remove(MOVE_TO);
+}
+
+static void move_carries_a_folder_whole(void)
+{
+	static const unsigned char bytes[] = { 0x42 };
+	unsigned char got[8];
+	voe_base_error error = VOE_BASE_ERROR_REFUSED;
+
+	(void)remove(MOVE_FOLDER_INNER);
+	(void)remove(MOVE_FOLDER_TO_INNER);
+	remove_folder(MOVE_FOLDER);
+	remove_folder(MOVE_FOLDER_TO);
+	VOE_TEST_CHECK(make_folder(MOVE_FOLDER));
+	VOE_TEST_CHECK(write_oracle(MOVE_FOLDER_INNER, bytes, sizeof bytes));
+	VOE_TEST_CHECK(voe_platform_file_move(MOVE_FOLDER, MOVE_FOLDER_TO,
+					      &error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_OK);
+	VOE_TEST_CHECK(!is_folder(MOVE_FOLDER));
+	VOE_TEST_CHECK(is_folder(MOVE_FOLDER_TO));
+	VOE_TEST_CHECK_INT(read_back(MOVE_FOLDER_TO_INNER, got, sizeof got), 1);
+	VOE_TEST_CHECK_INT(got[0], bytes[0]);
+	(void)remove(MOVE_FOLDER_TO_INNER);
+	remove_folder(MOVE_FOLDER_TO);
+}
+
+static void move_refuses_a_taken_name(void)
+{
+	static const unsigned char first[] = { 0x01, 0x02 };
+	static const unsigned char second[] = { 0x03, 0x04, 0x05 };
+	unsigned char got[8];
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_TEST_CHECK(write_oracle(MOVE_FROM, first, sizeof first));
+	VOE_TEST_CHECK(write_oracle(MOVE_TO, second, sizeof second));
+	VOE_TEST_CHECK(!voe_platform_file_move(MOVE_FROM, MOVE_TO, &error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_REFUSED);
+	VOE_TEST_CHECK_INT(read_back(MOVE_FROM, got, sizeof got),
+			   (long)sizeof first);
+	VOE_TEST_CHECK(memcmp(got, first, sizeof first) == 0);
+	VOE_TEST_CHECK_INT(read_back(MOVE_TO, got, sizeof got),
+			   (long)sizeof second);
+	VOE_TEST_CHECK(memcmp(got, second, sizeof second) == 0);
+	(void)remove(MOVE_FROM);
+	(void)remove(MOVE_TO);
+}
+
+static void move_of_nothing_is_unavailable(void)
+{
+	voe_base_error error = VOE_BASE_OK;
+
+	(void)remove(MOVE_FROM);
+	(void)remove(MOVE_TO);
+	VOE_TEST_CHECK(!voe_platform_file_move(MOVE_FROM, MOVE_TO, &error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_UNAVAILABLE);
+	VOE_TEST_CHECK(!voe_platform_file_exists(MOVE_TO));
+}
+
 int main(void)
 {
 	// Deliberately includes a zero byte and a 0xff, so a writer that stopped
@@ -165,6 +246,11 @@ int main(void)
 	voe_base_error error = VOE_BASE_OK;
 	long length;
 	voe_base_arena *arena = voe_base_arena_new(4096);
+
+	move_renames_a_file();
+	move_carries_a_folder_whole();
+	move_refuses_a_taken_name();
+	move_of_nothing_is_unavailable();
 
 	// The bytes that went in come back, on both sides of the API: stdio
 	// reads back what voe_platform_file_write wrote, and

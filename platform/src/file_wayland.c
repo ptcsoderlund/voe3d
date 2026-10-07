@@ -1,5 +1,5 @@
-// The Linux half of platform/file.h: open, read/write, close, and the
-// rename that makes a write atomic. Read the header first — what the path
+// The Linux half of platform/file.h: open, read/write, close, the rename
+// that makes a write atomic, and the move that never replaces. Read the header first — what the path
 // means and which failure is which is written there.
 //
 // LINUX AND NOT WAYLAND, DESPITE THE NAME, AND THE NAME IS THE BUILD'S. A source
@@ -10,10 +10,14 @@
 // platform/src/clock_wayland.c carry the same name for the same reason. Nothing
 // in here knows there is a compositor.
 //
-// _POSIX_C_SOURCE is what makes <fcntl.h> and <unistd.h> declare open, read,
-// write and close under -std=c23, which the engine builds with. It is a
-// feature-test macro and not a use of any extension; 200809L is the revision
-// this engine assumes.
+// _GNU_SOURCE is what makes <fcntl.h> and <unistd.h> declare open, read, write
+// and close, and <stdio.h> renameat2, under -std=c23, which the engine builds
+// with. It is a feature-test macro and not a use of a language extension.
+//
+// A MOVE IS renameat2 WITH RENAME_NOREPLACE, NOT rename. rename replaces what
+// is at the target without a word, and a check before it races whatever lands
+// in between; the kernel refusing a taken name in the same step is the one
+// test that cannot be stale. EEXIST and ENOTEMPTY are that refusal.
 //
 // 0644 is the mode a new file is created with — readable by anyone, writable by
 // its owner — and the process umask narrows it further. It is what an ordinary
@@ -51,7 +55,7 @@
 // a path longer than PARTIAL_PATH_MAX is a call-site mistake, not a runtime
 // condition, and asserts rather than returning a failure a caller would have to
 // plan for.
-#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 
 #include <platform/file.h>
 
@@ -243,6 +247,26 @@ bool voe_platform_file_write(const char *path, const uint8_t *bytes,
 			       path, partial, strerror(errno));
 		report(error, VOE_BASE_ERROR_REFUSED);
 		(void)unlink(partial);
+		return false;
+	}
+
+	report(error, VOE_BASE_OK);
+	return true;
+}
+
+bool voe_platform_file_move(const char *from, const char *to,
+			    voe_base_error *error)
+{
+	VOE_BASE_ASSERT(from != NULL, "moving no path");
+	VOE_BASE_ASSERT(to != NULL, "moving to no path");
+
+	if (renameat2(AT_FDCWD, from, AT_FDCWD, to, RENAME_NOREPLACE) != 0) {
+		bool taken = errno == EEXIST || errno == ENOTEMPTY;
+
+		VOE_BASE_ERROR("platform", "moving %s to %s failed: %s", from,
+			       to, strerror(errno));
+		report(error, taken ? VOE_BASE_ERROR_REFUSED
+				    : VOE_BASE_ERROR_UNAVAILABLE);
 		return false;
 	}
 
