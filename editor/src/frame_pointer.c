@@ -133,8 +133,8 @@ static void presses(voe_editor_frame_pointer *frame,
 				      input->pixels_per_millimetre,
 			      at, down, panel);
 
-	// A held model row, released over a view or the Inspector
-	// (assets_drag.h), under the pick's own `blocked`.
+	// A held Assets row, released over a view, the Inspector, a folder
+	// row or Up (assets_drag.h), under the pick's own `blocked`.
 	voe_editor_assets_drag_read(
 		frame->drag, frame->session, frame->undo, frame->scene,
 		frame->views, frame->root, frame->bar, frame->geometries,

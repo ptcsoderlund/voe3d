@@ -1,7 +1,7 @@
 // The Assets panel's listing with the selected row kept, its one frame of `ui`
 // calls with the naming's field, and the read of its rows, the selection and
 // `keyboard`, the field's request, a fired prefab row's path and Up afterwards,
-// with the rectangles the right button's menu is opened from.
+// with the rectangles the right button's menu and the drag are read from.
 // See the header for the arena, the once a second and what a missing
 // `Assets/` or a failed listing leaves.
 #include "assets_panel.h"
@@ -452,6 +452,9 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 		      voe_ui_button_action(ui, assets->import_button).fired;
 	const char *entered = NULL;
 	bool pressed = false;
+	// A dragged row's release over itself, or over a row the move's listing
+	// put at its index, is not a click.
+	const bool dragged = assets->dragged;
 
 	// Before the rows: a press on another row commits the rename of the
 	// one still selected.
@@ -461,13 +464,16 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 	// button, no size for one not drawn.
 	assets->body_seen = seen(ui, assets->body);
 	assets->empty_seen = seen(ui, assets->empty);
+	assets->up_seen = seen(ui, assets->up_button);
 	assets->up_button = VOE_UI_NODE_NONE;
 	assets->import_button = VOE_UI_NODE_NONE;
 	assets->empty = VOE_UI_NODE_NONE;
 	assets->body = VOE_UI_NODE_NONE;
 	assets->held = NULL;
+	assets->held_model = false;
 	assets->held_prefab = false;
 	assets->held_picture = false;
+	assets->dragged = false;
 	for (uint32_t i = 0; i < assets->row_count; i++) {
 		voe_editor_assets_row *row = &assets->rows[i];
 		bool held = row->node != VOE_UI_NODE_NONE &&
@@ -476,17 +482,16 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 		if (held) {
 			assets->selected = row->name;
 			pressed = true;
-		}
-		if ((row->model || row->prefab || row->picture) && held) {
 			assets->held = row->name;
+			assets->held_model = row->model;
 			assets->held_prefab = row->prefab;
 			assets->held_picture = row->picture;
 		}
-		if (entered == NULL && row->folder &&
+		if (entered == NULL && row->folder && !dragged &&
 		    row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
 			entered = row->name;
-		if (row->prefab && row->node != VOE_UI_NODE_NONE &&
+		if (row->prefab && !dragged && row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
 			opened_set(assets, row->name);
 		row->seen = seen(ui, row->node);
@@ -567,6 +572,13 @@ void voe_editor_assets_delete_begin(voe_editor_assets *assets)
 	VOE_BASE_ASSERT(assets->deleting[0] != '\0', "a delete asked about nothing");
 }
 
+void voe_editor_assets_held_dragged(voe_editor_assets *assets)
+{
+	VOE_BASE_ASSERT(assets != NULL, "dragging in no Assets panel");
+	assets->dragged = true;
+	VOE_BASE_ASSERT(assets->dragged, "a drag not marked");
+}
+
 voe_editor_assets_at voe_editor_assets_row_at(const voe_editor_assets *assets,
 					      voe_math_float2 at)
 {
@@ -575,6 +587,8 @@ voe_editor_assets_at voe_editor_assets_row_at(const voe_editor_assets *assets,
 			"more Assets rows than the panel holds");
 	if (!voe_editor_inspector_rect_contains(assets->body_seen, at))
 		return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_OUTSIDE, 0 };
+	if (voe_editor_inspector_rect_contains(assets->up_seen, at))
+		return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_UP, 0 };
 	for (uint32_t i = 0; i < assets->row_count; i++)
 		if (voe_editor_inspector_rect_contains(assets->rows[i].seen, at))
 			return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_ROW, i };

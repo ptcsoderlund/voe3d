@@ -19,11 +19,13 @@
 // the disk is the browser's (browser.h).
 //
 // EVERY ROW IS DRAWN ALIKE, a choice in the theme's text colour, its kind told
-// by the name's ending alone (0194). A MODEL (`.glb`), PREFAB (`.prefab`) or
-// PICTURE (`.png`, `.jpg`, `.jpeg`) row, in any case, is held so assets_drag.h
-// places it or makes it a texture (0270, 0283, 0298). A prefab row pressed and
+// by the name's ending alone (0194). EVERY ROW IS HELD for assets_drag.h,
+// which moves it onto a folder row or Up (0377 point 3) and places a MODEL
+// (`.glb`), PREFAB (`.prefab`) or PICTURE (`.png`, `.jpg`, `.jpeg`) row, in any
+// case, or makes it a texture (0270, 0283, 0298). A prefab row pressed and
 // released on the row fires: its project-relative path, `/` between, is left
-// in `opened` for the caller to read and clear; one too long for it is not.
+// in `opened` for the caller to read and clear; one too long for it is not. A
+// row marked dragged (held_dragged) enters no folder and opens nothing.
 //
 // THE SELECTED ROW (0378 point 6) is the last row pressed, drawn selected,
 // kept across a listing while its name is still there, cleared on entering a
@@ -121,13 +123,18 @@ typedef struct {
 	uint32_t row_count;
 	voe_ui_node up_button;
 	voe_ui_node import_button;
-	// The model, prefab or picture row the pointer went down on and still
-	// holds, as the last read found it, NULL for none: its name in `arena`,
-	// valid until the next listing, and whether it is a prefab or a
-	// picture. What assets_drag.h starts a drag from.
+	// The row the pointer went down on and still holds, as the last read
+	// found it, NULL for none: its name in `arena`, valid until the next
+	// listing, and whether it is a model, a prefab or a picture; none of
+	// the three is a folder or a file that only lists. What assets_drag.h
+	// starts a drag from.
 	const char *held;
+	bool held_model;
 	bool held_prefab;
 	bool held_picture;
+	// Set by held_dragged while the held row is dragged; the next read
+	// clears it.
+	bool dragged;
 	// The prefab row fired at the last read, `Assets/...` under the
 	// project, "" for none. The caller clears it once it has opened it.
 	char opened[VOE_SCENE_PREFAB_PATH];
@@ -141,11 +148,13 @@ typedef struct {
 	bool naming_focus;
 	voe_ui_node naming_field;
 	voe_ui_node empty;
-	// The column round everything the panel draws, and where it and the
-	// empty space showed at the last read, for the right button.
+	// The column round everything the panel draws, and where it, the
+	// empty space and Up showed at the last read, for the right button and
+	// the drag.
 	voe_ui_node body;
 	voe_ui_rect body_seen;
 	voe_ui_rect empty_seen;
+	voe_ui_rect up_seen;
 	// The right button's menu, opened by menu_at; interface.c draws it.
 	voe_editor_assets_menu menu;
 	// Left by a committed field; the caller carries it out and sets `kind`
@@ -175,22 +184,28 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 // After voe_ui_frame_end: the naming's field read into `request`, then a
 // folder row fired is entered, Up fired goes up a level; either lists at once.
 // A row held is selected and takes `keyboard`; `pointer_down` while the
-// pointer is not `over` the panel gives it back. `held` is set to the model,
-// prefab or picture row held, if any, and `opened` to a prefab row fired.
+// pointer is not `over` the panel gives it back. `held` is set to the row
+// held, if any, and `opened` to a prefab row fired; a row `dragged` fires
+// neither a folder nor a prefab.
 // True when Import fired, which the caller answers by showing the browser in
 // IMPORT mode.
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 				   voe_editor_assets *assets, bool pointer_down,
 				   bool over);
 
+// The held row is being dragged, so this frame's read fires no folder or
+// prefab row (assets_drag.h calls it each frame of a drag, the release's too).
+void voe_editor_assets_held_dragged(voe_editor_assets *assets);
+
 // What is under `at`, by the last read's rectangles: outside the panel,
-// NONE (on the panel but on no row nor the empty part: Up, the path, a
-// field), the EMPTY part under the rows, or a ROW and its index.
+// NONE (on the panel but on no row, Up nor the empty part: Import, the path,
+// a field), the EMPTY part under the rows, UP, or a ROW and its index.
 typedef enum {
 	VOE_EDITOR_ASSETS_AT_OUTSIDE = 0,
 	VOE_EDITOR_ASSETS_AT_NONE,
 	VOE_EDITOR_ASSETS_AT_EMPTY,
 	VOE_EDITOR_ASSETS_AT_ROW,
+	VOE_EDITOR_ASSETS_AT_UP,
 } voe_editor_assets_at_kind;
 
 typedef struct {

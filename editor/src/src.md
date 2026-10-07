@@ -172,11 +172,11 @@ carries it out.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
   entered and Up but never above it, listed again once a second or when due, a selected row holding
-  the keyboard, a rename or new folder named in place as a request, a prefab to open, Import, and
-  the right button's menu opened from last frame's rectangles.
+  the keyboard, a rename or new folder named in place as a request, a prefab to open, Import, any
+  row held for a drag, and the menu and the drag read from last frame's rectangles, Up's among them.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
-  fired prefab's path, Up and Import afterwards, and the import.
+  fired prefab's path unless dragged, Up and Import afterwards, and the import.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
   over a row, Create with its Folder submenu over the empty part, anchored at the pointer.
 - `assets_menu.c` — the menu's one frame of `ui` calls, the read of its rows with its own closing,
@@ -185,12 +185,12 @@ carries it out.
   four users and "and N more" walked once on opening, Delete and Cancel, as an anchored panel.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
-- `assets_drag.h` — a held model, prefab or picture row from the Assets panel: released over a
-  scene view it places a new thing or a copy where the ray lands, over the Inspector it swaps the
-  selected thing's model or its emitter's texture, elsewhere nothing.
+- `assets_drag.h` — a held row from the Assets panel: released over a folder row or Up it moves
+  there; a model, prefab or picture over a scene view places a new thing or a copy where the ray
+  lands, over the Inspector swaps the selected thing's model or emitter's texture; elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the drop point, the Inspector's rectangle, the texture swap, and the
-  one undo step.
+  the release and the ghost, the move's target, the drop point, the Inspector's rectangle, the
+  texture swap, and the one undo step.
 - `assets_walk.h` — the project's `.scene` and `.prefab` texts walked: who names a path before a
   Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
