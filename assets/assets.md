@@ -17,6 +17,8 @@ way out: a decoder takes a buffer and an encoder hands one back, since
   `[Section]` headers and `key=value` lines, handed back as text and never
   interpreted. Its header says why it is layer one of three and why comments
   are `//`.
+- `include/assets/landscape.h` — a `.landscape` file's text to a grid of
+  heights in whole millimetres, and back.
 - `include/assets/sound.h` — sounds: 16-bit PCM and 32-bit float WAV decoded
   to interleaved float. Its header says what is unsupported, what is malformed,
   and why only WAV.

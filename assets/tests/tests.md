@@ -22,6 +22,8 @@ belongs to.
   input a tolerant reader would let past.
 - `sectioned.c` — the principal's sketch read back as its text, one test
   per decision the format left open, and every shape of broken line.
+- `landscape.c` — a flat grid round-tripped, heights rounded to the
+  millimetre, and each refusal with its category.
 - `model.c` — a hand-built `.glb` in and its arrays out, the two textures
   over one picture that the deduplication depends on, and one byte of a working
   file changed at a time. Its header says why the files are built rather than
