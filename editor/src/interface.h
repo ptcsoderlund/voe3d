@@ -339,8 +339,17 @@
 // each line at most VOE_EDITOR_ASSETS_ASK_LINE (320) characters, 640; each
 // button's border and fill, four, and "Delete" and "Cancel", twelve.
 // 50649 + 658 = 51307 elements. No scroll area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2538
-#define VOE_EDITOR_INTERFACE_ELEMENTS 51307
+//
+// THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) ADDS TWELVE NODES: the
+// panel's own column round what it draws, one; and at most a row's menu, its
+// anchored column and panel, two, and Rename, Duplicate and Delete, each a
+// button, the row in it and a label, nine — Create, its ">" and its Folder
+// submenu come to eleven too. 2538 + 12 = 2550 nodes. AND TWENTY-NINE
+// ELEMENTS: the panel's border and fill, two; each button's, six; and
+// "Rename", "Duplicate" and "Delete", twenty-one — Create's and Folder's
+// come to twenty-one. 51307 + 29 = 51336 elements. No scroll area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2550
+#define VOE_EDITOR_INTERFACE_ELEMENTS 51336
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
@@ -473,7 +482,11 @@ void voe_editor_interface_surface(voe_platform_size target,
 // through assets_manage.h with a new folder's make; a refusal is said in the
 // session's notice. THE SESSION'S DELETE QUESTION (assets_ask.h) opens from
 // the Assets panel's `deleting`, is drawn over the dock while the browser is
-// not, and its Delete trashes through assets_manage.h with `undo`.
+// not, and its Delete trashes through assets_manage.h with `undo`. THE ASSETS
+// PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn last, over everything,
+// while open; its Rename, Delete and Create's Folder begin on the panel and its
+// Duplicate goes through assets_manage.h. `escape` closes it before anything
+// else, and any panel over the dock closes it.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,

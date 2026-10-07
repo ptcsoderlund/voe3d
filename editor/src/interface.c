@@ -56,11 +56,15 @@
 // other panel, while the bar's `menu` is open; Panels flips it, a fired row
 // goes through panels.h's voe_editor_panels_toggle and closes it, and Escape,
 // a press off the list and Panels, or the browser showing close it. A fired
-// panel header's × goes through the same toggle on its root.
+// panel header's × goes through the same toggle on its root. THE ASSETS
+// PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn after it and read after
+// the panel: Rename, Delete and Folder begin on the panel, Duplicate goes
+// through assets_manage.h; Escape closes it first, as do the dock's covers.
 #include "interface.h"
 
 #include "assets_ask.h"
 #include "assets_manage.h"
+#include "assets_menu.h"
 #include "browser.h"
 #include "errors.h"
 #include "inspector.h"
@@ -119,6 +123,31 @@ static void assets_request_do(voe_editor_session *session,
 						    request->name);
 	}
 	request->kind = VOE_EDITOR_ASSETS_NAMING_NONE;
+}
+
+// A fired row of the Assets menu carried out on the selected row or the shown
+// folder (assets_panel.h, assets_manage.h).
+static void assets_menu_do(voe_editor_session *session, voe_editor_scene *scene,
+			   voe_editor_undo *undo, voe_base_arena *arena,
+			   voe_editor_assets_menu_item item)
+{
+	char path[VOE_EDITOR_ASSETS_PATH];
+
+	VOE_BASE_ASSERT(session != NULL && scene != NULL && undo != NULL,
+			"an Assets menu row with no session, scene or undo");
+	VOE_BASE_ASSERT(arena != NULL, "an Assets menu row with no scratch");
+	if (item == VOE_EDITOR_ASSETS_MENU_RENAME)
+		voe_editor_assets_rename_begin(&scene->assets);
+	else if (item == VOE_EDITOR_ASSETS_MENU_DELETE)
+		voe_editor_assets_delete_begin(&scene->assets);
+	else if (item == VOE_EDITOR_ASSETS_MENU_FOLDER)
+		voe_editor_assets_folder_begin(&scene->assets);
+	else if (item == VOE_EDITOR_ASSETS_MENU_DUPLICATE &&
+		 voe_editor_assets_selected_path(&scene->assets, path,
+						 sizeof path))
+		// A false has said why in the notice.
+		(void)voe_editor_assets_duplicate(session, scene, undo, arena,
+						  path);
 }
 
 voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
@@ -242,6 +271,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		bool asking;
 		// The Panels list, closed by Escape or the browser showing.
 		bool menuing;
+		// The Assets panel's right-button menu (assets_menu.h).
+		bool assets_menuing;
 		// The picker, when it shows, and what it edits: the target as
 		// it was when drawn, whatever this frame's clicks do to it.
 		voe_math_float3 colour;
@@ -260,6 +291,15 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		if (browsing)
 			voe_editor_assets_ask_close(&session->asking);
 		asking = session->asking.open;
+		// Any panel over the dock closes the Assets menu; Escape closes
+		// it first and goes no further.
+		if (browsing || preferring || erroring || projecting || asking)
+			voe_editor_assets_menu_close(&scene->assets.menu);
+		if (escape && scene->assets.menu.open) {
+			voe_editor_assets_menu_close(&scene->assets.menu);
+			escape = false;
+		}
+		assets_menuing = scene->assets.menu.open;
 		picking = voe_editor_scene_picker_showing(scene, &colour);
 		picked = scene->picking;
 		// The open list and Add component's are the Inspector's own
@@ -399,6 +439,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_panels_menu_draw(ui, &bar->menu,
 						    bar->panels_under, open);
 		}
+		// The Assets menu over everything too; it is never open beside
+		// the Panels list, a press on either closing the other.
+		if (assets_menuing)
+			voe_editor_assets_menu_draw(ui, &scene->assets.menu);
 		voe_ui_end(ui);
 
 		if (!voe_ui_frame_end(ui)) {
@@ -461,6 +505,15 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 						VOE_EDITOR_BROWSER_IMPORT, NULL,
 						&session->notice);
 		assets_request_do(session, scene, undo, arena);
+		// After the panel's read, so a naming begun here is not ended by
+		// a field it has not drawn yet, and before the question opens
+		// from `deleting`.
+		if (assets_menuing)
+			assets_menu_do(session, scene, undo, arena,
+				       voe_editor_assets_menu_read(
+					       ui, &scene->assets.menu,
+					       root->pointer.at,
+					       root->pointer.down, root->size));
 		// The question as it was drawn answered before a new one opens,
 		// so a question opened this frame is not read against nodes it
 		// never had.

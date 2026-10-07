@@ -172,10 +172,15 @@ carries it out.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
   entered and Up but never above it, listed again once a second or when due, a selected row holding
-  the keyboard, a rename or new folder named in place as a request, a prefab to open, and Import.
+  the keyboard, a rename or new folder named in place as a request, a prefab to open, Import, and
+  the right button's menu opened from last frame's rectangles.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
   fired prefab's path, Up and Import afterwards, and the import.
+- `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
+  over a row, Create with its Folder submenu over the empty part, anchored at the pointer.
+- `assets_menu.c` — the menu's one frame of `ui` calls, the read of its rows with its own closing,
+  and where it and the submenu go next frame.
 - `assets_ask.h` — the question Delete asks about the Assets panel's selected row: its name, up to
   four users and "and N more" walked once on opening, Delete and Cancel, as an anchored panel.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
@@ -209,7 +214,7 @@ carries it out.
   Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
   commands they fire are carried out, the Assets panel's rename, new folder and Delete question
-  among them, then the selection's reveal.
+  among them, the Assets menu's rows, then the selection's reveal.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

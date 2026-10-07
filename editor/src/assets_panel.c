@@ -1,10 +1,12 @@
 // The Assets panel's listing with the selected row kept, its one frame of `ui`
 // calls with the naming's field, and the read of its rows, the selection and
-// `keyboard`, the field's request, a fired prefab row's path and Up afterwards.
+// `keyboard`, the field's request, a fired prefab row's path and Up afterwards,
+// with the rectangles the right button's menu is opened from.
 // See the header for the arena, the once a second and what a missing
 // `Assets/` or a failed listing leaves.
 #include "assets_panel.h"
 
+#include "inspector_place.h"
 #include "themes.h"
 
 #include <base/arena.h>
@@ -240,6 +242,7 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 		assets->import_button = VOE_UI_NODE_NONE;
 		assets->naming_field = VOE_UI_NODE_NONE;
 		assets->empty = VOE_UI_NODE_NONE;
+		assets->body = VOE_UI_NODE_NONE;
 	}
 	if (!assets->listed_once ||
 	    !same_folder(project_folder, assets->project)) {
@@ -284,6 +287,13 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 	assets->import_button = VOE_UI_NODE_NONE;
 	assets->naming_field = VOE_UI_NODE_NONE;
 	assets->empty = VOE_UI_NODE_NONE;
+	// Round everything, spaced as the leaf's scroll area spaces it (dock.c),
+	// so the read knows the whole panel's rectangle.
+	assets->body = voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .size = { .along = { VOE_UI_SIZE_GROW, 1.0f } },
+			    .across = VOE_UI_ACROSS_FILL,
+			    .gap = ASSETS_GAP });
 	// Import needs a folder to copy into, so an untitled project has none;
 	// a missing `Assets/` still has it, since importing makes one.
 	if (assets->listed_once && assets->project != NULL) {
@@ -303,6 +313,7 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 	}
 	if (!assets->listed_once || assets->missing) {
 		voe_ui_label(ui, MISSING_LINE);
+		voe_ui_end(ui); // body
 		return;
 	}
 	voe_ui_label(ui, assets->path);
@@ -329,6 +340,7 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 		ui, (voe_ui_container){
 			    .size = { .along = { VOE_UI_SIZE_GROW, 1.0f } } });
 	voe_ui_end(ui);
+	voe_ui_end(ui); // body
 }
 
 // `folder` and `name` joined with `/` into `out`, or `name` alone at
@@ -416,6 +428,15 @@ static void opened_set(voe_editor_assets *assets, const char *name)
 			*c = '/';
 }
 
+// Where `node` showed this frame, no size for one not drawn.
+static voe_ui_rect seen(const voe_ui_context *ui, voe_ui_node node)
+{
+	VOE_BASE_ASSERT(ui != NULL, "a rectangle from no interface");
+	if (node == VOE_UI_NODE_NONE)
+		return (voe_ui_rect){ 0 };
+	return voe_ui_node_visible(ui, node);
+}
+
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 				   voe_editor_assets *assets, bool pointer_down,
 				   bool over)
@@ -436,10 +457,14 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 	// one still selected.
 	naming_read(ui, assets);
 	// Every node is forgotten once read, so a frame that does not draw
-	// the panel asks nothing stale.
+	// the panel asks nothing stale; where it showed is kept for the right
+	// button, no size for one not drawn.
+	assets->body_seen = seen(ui, assets->body);
+	assets->empty_seen = seen(ui, assets->empty);
 	assets->up_button = VOE_UI_NODE_NONE;
 	assets->import_button = VOE_UI_NODE_NONE;
 	assets->empty = VOE_UI_NODE_NONE;
+	assets->body = VOE_UI_NODE_NONE;
 	assets->held = NULL;
 	assets->held_prefab = false;
 	assets->held_picture = false;
@@ -464,6 +489,7 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 		if (row->prefab && row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
 			opened_set(assets, row->name);
+		row->seen = seen(ui, row->node);
 		row->node = VOE_UI_NODE_NONE;
 	}
 	// A row's own press takes the keyboard; one outside the panel, not a
@@ -508,27 +534,71 @@ void voe_editor_assets_folder_begin(voe_editor_assets *assets)
 	VOE_BASE_ASSERT(assets->naming_focus, "a folder naming never focused");
 }
 
-void voe_editor_assets_delete_begin(voe_editor_assets *assets)
+bool voe_editor_assets_selected_path(const voe_editor_assets *assets, char *out,
+				     size_t size)
 {
 	int length;
 
-	VOE_BASE_ASSERT(assets != NULL, "deleting in no Assets panel");
-	assets->deleting[0] = '\0';
+	VOE_BASE_ASSERT(assets != NULL, "a path in no Assets panel");
+	VOE_BASE_ASSERT(out != NULL && size > 0, "a path into nowhere");
+	out[0] = '\0';
 	if (assets->selected == NULL || !assets->listed_once || assets->missing)
-		return;
+		return false;
 	length = assets->shown[0] == '\0' ?
-			 snprintf(assets->deleting, sizeof assets->deleting,
-				  "%s", assets->selected) :
-			 snprintf(assets->deleting, sizeof assets->deleting,
-				  "%s/%s", assets->shown, assets->selected);
-	if (length < 0 || (size_t)length >= sizeof assets->deleting) {
-		assets->deleting[0] = '\0';
-		return;
+			 snprintf(out, size, "%s", assets->selected) :
+			 snprintf(out, size, "%s/%s", assets->shown,
+				  assets->selected);
+	if (length < 0 || (size_t)length >= size) {
+		out[0] = '\0';
+		return false;
 	}
-	for (char *c = assets->deleting; *c != '\0'; c++)
+	for (char *c = out; *c != '\0'; c++)
 		if (*c == '\\')
 			*c = '/';
+	return true;
+}
+
+void voe_editor_assets_delete_begin(voe_editor_assets *assets)
+{
+	VOE_BASE_ASSERT(assets != NULL, "deleting in no Assets panel");
+	if (!voe_editor_assets_selected_path(assets, assets->deleting,
+					     sizeof assets->deleting))
+		return;
 	VOE_BASE_ASSERT(assets->deleting[0] != '\0', "a delete asked about nothing");
+}
+
+voe_editor_assets_at voe_editor_assets_row_at(const voe_editor_assets *assets,
+					      voe_math_float2 at)
+{
+	VOE_BASE_ASSERT(assets != NULL, "asking what is under a point in no panel");
+	VOE_BASE_ASSERT(assets->row_count <= VOE_EDITOR_BROWSER_ROWS,
+			"more Assets rows than the panel holds");
+	if (!voe_editor_inspector_rect_contains(assets->body_seen, at))
+		return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_OUTSIDE, 0 };
+	for (uint32_t i = 0; i < assets->row_count; i++)
+		if (voe_editor_inspector_rect_contains(assets->rows[i].seen, at))
+			return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_ROW, i };
+	if (voe_editor_inspector_rect_contains(assets->empty_seen, at))
+		return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_EMPTY, 0 };
+	return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_NONE, 0 };
+}
+
+bool voe_editor_assets_menu_at(voe_editor_assets *assets, voe_math_float2 at)
+{
+	voe_editor_assets_at under;
+
+	VOE_BASE_ASSERT(assets != NULL, "a right press on no Assets panel");
+	under = voe_editor_assets_row_at(assets, at);
+	if (under.kind == VOE_EDITOR_ASSETS_AT_ROW)
+		assets->selected = assets->rows[under.row].name;
+	if (under.kind != VOE_EDITOR_ASSETS_AT_ROW &&
+	    under.kind != VOE_EDITOR_ASSETS_AT_EMPTY)
+		return false;
+	assets->keyboard = true;
+	voe_editor_assets_menu_open(&assets->menu, at,
+				    under.kind == VOE_EDITOR_ASSETS_AT_ROW);
+	VOE_BASE_ASSERT(assets->menu.open, "a right press that opened no menu");
+	return true;
 }
 
 // Makes `<project>/Assets/` when the project's listing has none. False with

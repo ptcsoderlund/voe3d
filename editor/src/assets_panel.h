@@ -47,24 +47,33 @@
 // longer buffer would lift.
 //
 // THE ROWS SCROLL IN THE LEAF'S OWN SCROLL AREA (dock.c), and the empty space
-// under them is a node of its own, so a read can test a press there.
+// under them is a node of its own, so a read can test a press there. THE RIGHT
+// BUTTON (0378 point 8): `ui` knows one button, so the read keeps each row's,
+// the empty part's and the whole panel's visible rectangles, and menu_at opens
+// `menu` (assets_menu.h) from them.
 #pragma once
 
+#include "assets_menu.h"
 #include "browser.h"
 
 #include <base/arena.h>
+
+#include <math/float2.h>
 
 #include <scene/prefab_component.h>
 
 #include <ui/widgets.h>
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 // One listed entry: its name in the panel's arena, whether it is a folder,
-// whether it is a model, a prefab or a picture, and the row drawn for it.
+// whether it is a model, a prefab or a picture, the row drawn for it, and
+// where it showed at the last read, no size when it was not drawn.
 typedef struct {
 	voe_ui_node node;
+	voe_ui_rect seen;
 	const char *name;
 	bool folder;
 	bool model;
@@ -132,6 +141,13 @@ typedef struct {
 	bool naming_focus;
 	voe_ui_node naming_field;
 	voe_ui_node empty;
+	// The column round everything the panel draws, and where it and the
+	// empty space showed at the last read, for the right button.
+	voe_ui_node body;
+	voe_ui_rect body_seen;
+	voe_ui_rect empty_seen;
+	// The right button's menu, opened by menu_at; interface.c draws it.
+	voe_editor_assets_menu menu;
 	// Left by a committed field; the caller carries it out and sets `kind`
 	// back to NONE.
 	voe_editor_assets_request request;
@@ -166,6 +182,34 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 				   voe_editor_assets *assets, bool pointer_down,
 				   bool over);
+
+// What is under `at`, by the last read's rectangles: outside the panel,
+// NONE (on the panel but on no row nor the empty part: Up, the path, a
+// field), the EMPTY part under the rows, or a ROW and its index.
+typedef enum {
+	VOE_EDITOR_ASSETS_AT_OUTSIDE = 0,
+	VOE_EDITOR_ASSETS_AT_NONE,
+	VOE_EDITOR_ASSETS_AT_EMPTY,
+	VOE_EDITOR_ASSETS_AT_ROW,
+} voe_editor_assets_at_kind;
+
+typedef struct {
+	voe_editor_assets_at_kind kind;
+	uint32_t row;
+} voe_editor_assets_at;
+
+voe_editor_assets_at voe_editor_assets_row_at(const voe_editor_assets *assets,
+					      voe_math_float2 at);
+
+// The right button gone down at `at`: on a row it selects it and opens the
+// row's menu, on the empty part Create; either takes `keyboard`. True when a
+// menu opened.
+bool voe_editor_assets_menu_at(voe_editor_assets *assets, voe_math_float2 at);
+
+// The selected row's path relative to `Assets/`, `/` between, into `out` of
+// `size` bytes; false, `out` "", without one or when it does not fit.
+bool voe_editor_assets_selected_path(const voe_editor_assets *assets, char *out,
+				     size_t size);
 
 // The selected row drawn as a field holding its name from the next draw;
 // nothing without a selected row.
