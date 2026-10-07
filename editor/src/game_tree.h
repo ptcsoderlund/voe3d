@@ -1,11 +1,10 @@
 // What Play and Ship write and run: a project's game tree and the argument
 // lists that configure it, build it, start the game and install it (ADR-0235,
-// ADR-0237 point 3, ADR-0264).
-// Nothing here starts a process; the caller hands these lists to
-// platform/process.h.
+// ADR-0237 point 3, ADR-0264). Nothing here starts a process; the caller
+// hands these lists to platform/process.h.
 //
-// THE LAYOUT. `<project>/Build/game/` holds CMakeLists.txt, main.c, scene.c and
-// prefabs.c; `<project>/Code/` is the project's own code, `.c` and `.h` (0242).
+// THE LAYOUT. `<project>/Build/game/` holds CMakeLists.txt, main.c, scene.c,
+// prefabs.c and landscapes.c; `<project>/Code/` is the project's own code, `.c` and `.h` (0242).
 // Every configure and build step writes to `<project>/Build/build.log`.
 // Everything generated lives in whole top-level folders git ignores — `Build/`
 // here, `Cache/` for any other generated data — so a project's .gitignore lists
@@ -41,12 +40,13 @@
 // scene.c IS THE WORLD AS IT IS NOW, unsaved edits included (ADR-0188), cooked
 // by authoring/scene_cook.h; project->unsaved is left as it was.
 //
-// prefabs.c IS EVERY `.prefab` UNDER Assets/ AS SAVED (0283 point 9), any case,
-// hidden entries skipped, in byte order of path: each read into a fresh world
-// from voe_editor_project_world_new and cooked by authoring/prefab.h as
-// prefab_<n>, after game/prefabs.h and Code/'s includes, then
-// voe_game_prefabs_cooked naming each by its path under Assets/ less .prefab.
-// More than VOE_GAME_PREFAB_ENTITIES entities is refused like a bad read.
+// prefabs.c IS EVERY `.prefab` UNDER Assets/ AS SAVED (0283 point 9), as
+// game_tree_find.h finds them: each read into a fresh project world and cooked
+// as prefab_<n> after Code/'s includes, then voe_game_prefabs_cooked naming
+// each by its path under Assets/ less .prefab; more than
+// VOE_GAME_PREFAB_ENTITIES entities is refused like a bad read. landscapes.c
+// IS EVERY `.landscape` AS SAVED (0379 point 7), cooked as landscape_<n> and
+// named by its `Assets/…` path, size and cells; a bad file is refused.
 //
 // THE TOOLS COME FROM THE EDITOR'S OWN BUILD (0237): toolchain.h names the
 // engine source, CMake, the compiler, Ninja, pkg-config, slangc and
@@ -67,13 +67,28 @@
 
 #include <stdbool.h>
 
-// Makes <folder>/Build/game/ as needed and writes its four files, then a
+// Makes <folder>/Build/game/ as needed and writes its five files, then a
 // .gitignore listing /Build/ and /Cache/ when the project has none. False with
 // why naming the file or folder on a refused cook, folder or write; the report
 // is cleared first. project->folder must be set.
 [[nodiscard]] bool voe_editor_game_tree_write(const voe_editor_project *project,
 					      voe_base_arena *arena,
 					      voe_editor_notice *why);
+
+// landscapes.c's text for the project at folder (game_tree_landscapes.c), in
+// arena. NULL with why naming the file on one that will not find, read or
+// parse.
+const char *voe_editor_game_tree_landscapes_source(const char *folder,
+						   voe_base_arena *arena,
+						   voe_editor_notice *why);
+
+// Formats into arena, measured first, for the game tree's own files.
+[[gnu::format(printf, 2, 3)]]
+const char *voe_editor_game_tree_format(voe_base_arena *arena, const char *pattern, ...);
+
+// text escaped for inside a C string literal, in arena: `"` and `\`
+// escaped, every byte outside printable ASCII as three octal digits.
+const char *voe_editor_game_tree_c_string(voe_base_arena *arena, const char *text);
 
 typedef enum {
 	VOE_EDITOR_GAME_TREE_GAME,
