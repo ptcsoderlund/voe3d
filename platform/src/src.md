@@ -12,10 +12,7 @@ header.
 - `clock_win32.c` — the performance counter, the frequency asked for once, and the launch from the process's creation time.
   Its header says why not the millisecond tick counts.
 - `file_wayland.c` — open, read/write, close, the rename that makes a write
-  atomic, and renameat2 for a move that never replaces. Its header says why the name says
-  wayland, why a move is not `rename`, why the read and write
-  loops and the checked fsync and close are not optional, and why the
-  `.partial` path is a stack buffer.
+  atomic, and renameat2 for a move that never replaces, on Linux.
 - `file_win32.c` — CreateFileW, GetFileAttributesW, ReadFile/WriteFile, CloseHandle, and the
   MoveFileExW that makes a write atomic, a UTF-8 path converted on the way in. Its header says why
   a 64-bit count is moved in steps, and why a path too long for its stack buffer fails as an open.
