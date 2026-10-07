@@ -246,10 +246,12 @@ static voe_base_error send_to_trash(voe_base_arena *scratch, const char *path,
 		return VOE_BASE_ERROR_UNAVAILABLE;
 	}
 	if (rename(path, file_path) != 0) {
+		int moved = errno; // the report and the unlink may change errno
+
 		VOE_BASE_ERROR("platform", "could not move %s to %s: %s", path,
-			       file_path, strerror(errno));
+			       file_path, strerror(moved));
 		(void)unlink(info_path);
-		return errno == EXDEV ? VOE_BASE_ERROR_UNSUPPORTED
+		return moved == EXDEV ? VOE_BASE_ERROR_UNSUPPORTED
 				      : VOE_BASE_ERROR_UNAVAILABLE;
 	}
 	return VOE_BASE_OK;
