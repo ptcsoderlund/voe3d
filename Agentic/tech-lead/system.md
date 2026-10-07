@@ -15,7 +15,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
-- **authoring** — scene, prefab and project text read, written, its paths followed; cooked to C.
+- **authoring** — scene, prefab and project text (game window too) read and written, paths followed; cooked to C.
 - **render** — all of Vulkan: card, resources, mip chains, passes, light, bounce, a pipeline cache.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
@@ -57,4 +57,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0333–0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0361, 0363, 0364 — Block kinds; sun, moon; fields; panels closed; √.
 - 0358, 0359, 0362, 0370, 0371 — GPU ms per pass; Best Practices; far mips; splash; F.
-- 0374–0378 — 0.3 is the loghouse world; bindless, instanced; hill sculpted; Assets panel; trash.
+- 0374–0378 — 0.3 is the loghouse world; bindless, instanced; hill sculpted, painted; Assets panel, trash.
