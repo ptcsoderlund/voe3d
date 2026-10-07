@@ -10,12 +10,12 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, tables, intent and structural queues; a type's menu, unsaid row, former names.
-- **platform** — the one OS-aware folder: window, input, pads, files, trash, clock, processes, libs, sound.
+- **platform** — the one OS-aware folder: window, input, pads, files, trash, clock, process, sound.
 - **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, blockers.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
-- **authoring** — scene, prefab and project text (game window too) read and written, paths followed; cooked to C.
+- **authoring** — scene, prefab and project text read and written, paths followed; cooked to C.
 - **render** — all of Vulkan: card, resources, mip chains, passes, light, bounce, a pipeline cache.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
@@ -24,7 +24,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash worker.
-- **editor** — top bar, Project, Scene list, Assets managed, prefabs, views, gizmo, Inspector, Play, GPU ms.
+- **editor** — top bar, Project, Scene list, Assets, prefabs, views, gizmo, Inspector, Play, GPU ms.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
@@ -57,4 +57,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0333–0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0361, 0363, 0364 — Block kinds; sun, moon; fields; panels closed; √.
 - 0358, 0359, 0362, 0370, 0371 — GPU ms per pass; Best Practices; far mips; splash; F.
-- 0374–0378 — 0.3 is the loghouse world; bindless, instanced; hill sculpted, painted; Assets panel, trash.
+- 0374–0379 — 0.3 is the loghouse world; bindless; hill sculpted, painted; Assets panel; landscape.
