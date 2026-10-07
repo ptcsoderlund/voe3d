@@ -25,6 +25,7 @@ header.
 - `folder_win32.c` — FindFirstFileW/FindNextFileW, CreateDirectoryW, and
   GetEnvironmentVariableW for %USERPROFILE%/%APPDATA%, each name made UTF-8. Its header says why a
   directory symlink needs no extra call here, unlike the Linux side.
+- `trash_wayland.c` — realpath, an exclusive `.trashinfo` create, and rename into the home trash.
 - `wide_win32.h` — UTF-8 to UTF-16 into a caller's buffer and UTF-16 to UTF-8 into an arena, for
   the Windows files here only. Its header says why the "W" calls and not a manifest, and why a path
   that does not fit is the caller's ordinary failure.

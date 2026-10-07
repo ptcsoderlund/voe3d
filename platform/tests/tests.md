@@ -12,6 +12,7 @@ that module's promises from outside. None of them needs a window or a display.
   move renames a file, carries a folder whole, refuses a taken name and fails on nothing.
 - `folder.c` — that listings are byte-sorted with folder and hidden right, failures are
   UNAVAILABLE or REFUSED, settings honours `XDG_CONFIG_HOME`, and non-ASCII names list exactly.
+- `trash.c` — that a file and a folder reach the trash with their info, and a taken name is numbered.
 - `input.c` — a poll drains motion, wheel and typed text and keeps held keys and the pointer;
   focus loss releases keys, pointer loss buttons; an overflowing or control code point types
   nothing; the pointer's shape survives a poll and both losses.
