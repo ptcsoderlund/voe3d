@@ -35,6 +35,8 @@ and read through the description its own folder registered.
   first and writes the spawning function.
 - `project.c` — the project file reader and writer. Its header says how a scene
   path is checked the same way on both sides.
+- `paths.c` — the one walk behind following and finding paths in scene text.
+  Its header says why it walks twice and how a match keeps the escapes after it.
 - `key_span.h` — each key's own trimmed bytes in a sectioned document, which
   `scene_read.c` writes a kept section back out from; a line is the parser's.
 - `key_span.c` — the second walk of the same text that fills those spans.
