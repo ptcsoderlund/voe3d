@@ -388,6 +388,7 @@ int main(int argc, char *argv[])
 	// project.h on why every project owns its own world. NEW replaces it
 	// later, and session.c keeps this in step when it does (session.h).
 	scene.world = session.project->world;
+	voe_editor_sculpt_start(&scene.sculpt);
 
 	// The views open where the scene's camera is, not at the origin (0255).
 	voe_editor_views_focus_camera(&views, scene.world);

@@ -61,6 +61,7 @@
 #include <base/describe.h>
 
 #include "add_menu.h"
+#include "sculpt.h"
 
 #include <ecs/component.h>
 #include <ecs/world.h>
@@ -331,8 +332,11 @@ bool voe_editor_inspector_is_part(const voe_ecs_world *world,
 // Puts the selected entity's components on the panel. Called from inside the
 // Inspector panel, so everything it emits is a child of it; an entity that is
 // not alive — including nothing selected at all — is one line saying so.
-// `kept` holds `kept_count` types whose sections have no Remove button.
+// `kept` holds `kept_count` types whose sections have no Remove button. After
+// the sections, a thing that wears a landscape gets `sculpt`'s Sculpt section
+// (inspector_sculpt.h).
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
-			       const voe_ecs_type *kept, uint32_t kept_count);
+			       const voe_ecs_type *kept, uint32_t kept_count,
+			       voe_editor_sculpt *sculpt);

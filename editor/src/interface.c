@@ -63,6 +63,7 @@
 #include "inspector.h"
 #include "inspector_edit.h"
 #include "inspector_place.h"
+#include "inspector_sculpt.h"
 #include "notice.h"
 #include "panels.h"
 #include "panels_menu.h"
@@ -343,6 +344,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// so it is opened here beside the frame and not inside the walk.
 		voe_editor_inspector_frame_begin(&scene->inspector, arena,
 						 &scene->dropdown);
+		voe_editor_inspector_sculpt_forget(&scene->sculpt);
 
 		// ONE COLUMN IS THIS FRAME'S ROOT, AND THE BAR AND THE TREE ARE
 		// ITS TWO CHILDREN. voe_ui_frame_begin requires the very first
@@ -485,6 +487,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_inspector_buttons_read(&scene->inspector, ui, scene,
 						  root->pointer.down,
 						  root->pointer.at);
+		voe_editor_inspector_sculpt_read(ui, &scene->sculpt);
 		if (!voe_editor_scene_clicks_read(scene, ui))
 			voe_editor_notice_set(&session->notice,
 					      "The scene is full.");

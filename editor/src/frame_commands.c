@@ -126,6 +126,14 @@ voe_editor_frame_commands_read(voe_editor_frame_commands *commands,
 		voe_editor_scene_picker_close(scene);
 		commands->escape_free = false;
 	}
+	// A chosen brush is put down once no Inspector list or Assets menu is
+	// open to take the edge first (interface.c closes those on it).
+	if (commands->escape_free && scene->sculpt.chosen &&
+	    !scene->dropdown.open && !scene->inspector.adding &&
+	    !scene->assets.menu.open) {
+		voe_editor_sculpt_choose_none(&scene->sculpt);
+		commands->escape_free = false;
+	}
 	// THE BROWSER KEEPS ESCAPE WHILE IT SHOWS; otherwise it hides
 	// Preferences and the Errors panel, which it does nothing else
 	// to. Neither while a person is typing: then it cancels that

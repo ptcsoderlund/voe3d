@@ -15,9 +15,9 @@ carries it out.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
 - `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
-- `frame_commands.c` — the history step, the read with its acts (F2's rename, an asset's Delete)
-  and `ui`'s keyboard, and Delete, Ctrl+D, R, the edit and a reveal's unfold marked after the
-  interface has drawn.
+- `frame_commands.c` — the history step, the read with its acts (F2's rename, an asset's Delete,
+  Escape choosing no brush after the lists) and `ui`'s keyboard, and Delete, Ctrl+D, R, the edit
+  and a reveal's unfold marked after the interface has drawn.
 - `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
   borders, the middle drag, the gizmo, the Assets drag and the pick, and what main.c reads after.
 - `frame_pointer.c` — the fly with its lock edge, the borders with their clears and remember, and
@@ -219,13 +219,21 @@ carries it out.
   Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
   commands they fire are carried out, the Assets panel's rename, new folder and Delete question
-  among them, the Assets menu's rows, then the selection's reveal.
+  among them, the Sculpt section's read, the Assets menu's rows, then the selection's reveal.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
 - `inspector.c` — the Duplicate and Delete row, the walk over described component types, each
   section's heading, Remove and "Needs" line, a row per field, each control's record, Add component
-  and its menu, the open list, and a part shown read-only.
+  and its menu, the open list, a part shown read-only, and the Sculpt section on a landscape.
+- `sculpt.h` — the brush a person holds: chosen or not, its kind, radius, strength and softness
+  with their ranges, never saved or undone, and whether a thing wears a landscape.
+- `sculpt.c` — the defaults set, the brush put down, and the model path's `.landscape` ending
+  matched in any case on a thing that is not a prefab's part.
+- `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
+  chosen one lit, and Radius, Strength and Softness sliders, read after the frame.
+- `inspector_sculpt.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
+  the read: a fired button chooses its kind or none, each slider's value taken.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
   frame from the types' registered menu paths (ADR-0217, 0221), and each level drawn as a list.
 - `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under
