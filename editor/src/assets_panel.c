@@ -1,6 +1,7 @@
 // The Assets panel's listing with the selected row kept, its one frame of `ui`
 // calls with the naming's field, and the read of its rows, the selection and
-// `keyboard`, the field's request, a fired prefab row's path and Up afterwards,
+// `keyboard`, the field's request, a fired prefab or landscape row's path and
+// Up afterwards,
 // with the rectangles the right button's menu and the drag are read from.
 // See the header for the arena, the once a second and what a missing
 // `Assets/` or a failed listing leaves.
@@ -159,6 +160,8 @@ static void rows_fill(voe_editor_assets *assets,
 				.prefab = !e->folder &&
 					  name_ends(e->name, ".prefab"),
 				.picture = !e->folder && names_picture(e->name),
+				.landscape = !e->folder &&
+					     name_ends(e->name, ".landscape"),
 			};
 		}
 	}
@@ -418,25 +421,28 @@ static void naming_read(const voe_ui_context *ui, voe_editor_assets *assets)
 			"a naming field left standing after its read");
 }
 
-// `name` in the shown folder as `Assets/...` into `opened`, `\` from a joined
-// subfolder made `/`; left "" when it does not fit, as assets_drag.c refuses.
-static void opened_set(voe_editor_assets *assets, const char *name)
+// `name` in the shown folder as `Assets/...` into `out` of VOE_SCENE_PREFAB_PATH
+// bytes, `\` from a joined subfolder made `/`; left "" when it does not fit, as
+// assets_drag.c refuses.
+static void opened_set(const voe_editor_assets *assets, const char *name,
+		       char *out)
 {
 	int length;
 
 	VOE_BASE_ASSERT(assets != NULL && assets->shown != NULL,
-			"opening a prefab from no listed panel");
-	VOE_BASE_ASSERT(name != NULL, "opening a prefab with no name");
+			"opening a row from no listed panel");
+	VOE_BASE_ASSERT(name != NULL && out != NULL,
+			"opening a row with no name or into nowhere");
 	length = assets->shown[0] == '\0' ?
-			 snprintf(assets->opened, sizeof assets->opened,
-				  "Assets/%s", name) :
-			 snprintf(assets->opened, sizeof assets->opened,
-				  "Assets/%s/%s", assets->shown, name);
-	if (length < 0 || (size_t)length >= sizeof assets->opened) {
-		assets->opened[0] = '\0';
+			 snprintf(out, VOE_SCENE_PREFAB_PATH, "Assets/%s",
+				  name) :
+			 snprintf(out, VOE_SCENE_PREFAB_PATH, "Assets/%s/%s",
+				  assets->shown, name);
+	if (length < 0 || length >= VOE_SCENE_PREFAB_PATH) {
+		out[0] = '\0';
 		return;
 	}
-	for (char *c = assets->opened; *c != '\0'; c++)
+	for (char *c = out; *c != '\0'; c++)
 		if (*c == '\\')
 			*c = '/';
 }
@@ -504,9 +510,12 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 		    row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
 			entered = row->name;
-		if (row->prefab && !dragged && row->node != VOE_UI_NODE_NONE &&
+		if ((row->prefab || row->landscape) && !dragged &&
+		    row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
-			opened_set(assets, row->name);
+			opened_set(assets, row->name,
+				   row->prefab ? assets->opened :
+						 assets->landscape_opened);
 		row->seen = seen(ui, row->node);
 		row->node = VOE_UI_NODE_NONE;
 	}

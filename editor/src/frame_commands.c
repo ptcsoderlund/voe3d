@@ -1,7 +1,8 @@
 // The three per-frame command stretches of main.c's loop, in the order main.c
 // calls them: the history's step, the keyboard's read and acts (F2's rename
 // and Delete's question among them, the Assets panel's keyboard a guard,
-// Escape closing that question first), and the acts
+// Escape closing that question first and hiding the Landscape panel with the
+// Project panel), and the acts
 // that wait for the interface to have drawn, a reveal's unfold marked among
 // them. See frame_commands.h.
 #include "frame_commands.h"
@@ -26,8 +27,10 @@ void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 	// unsaved and is never itself an edit to record.
 	// A prefab opened sets the level's line aside, and Back puts it
 	// back (0283 point 8).
+	// The Landscape panel's path is the old project's, so it closes too.
 	if (session->replaced) {
 		session->replaced = false;
+		voe_editor_landscape_panel_hide(commands->landscape_panel);
 		voe_editor_undo_forget(commands->undo);
 		voe_editor_views_focus_camera(commands->views,
 					      commands->scene->world);
@@ -141,6 +144,7 @@ voe_editor_frame_commands_read(voe_editor_frame_commands *commands,
 	if (commands->escape_free && !browser->showing) {
 		voe_editor_preferences_hide(commands->preferences);
 		voe_editor_project_panel_hide(commands->project_panel);
+		voe_editor_landscape_panel_hide(commands->landscape_panel);
 		voe_editor_errors_hide(&session->errors);
 	}
 

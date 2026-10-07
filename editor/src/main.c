@@ -204,6 +204,9 @@ int main(int argc, char *argv[])
 	voe_editor_preferences preferences = { 0 };
 	// Shown by the bar's Project, hidden the same ways (project_panel.h).
 	voe_editor_project_panel project_panel = { 0 };
+	// Shown by a `.landscape` row or Create's, hidden the same ways
+	// (landscape_panel.h).
+	voe_editor_landscape_panel landscape_panel = { 0 };
 	// Shown from the Panels list, hidden by it or its ×; never shown in a
 	// capture, so its take there copies nothing (frame_breakdown.h).
 	voe_editor_frame_breakdown breakdown = { 0 };
@@ -400,6 +403,7 @@ int main(int argc, char *argv[])
 	commands = (voe_editor_frame_commands){
 		.session = &session, .scene = &scene, .browser = &browser,
 		.preferences = &preferences, .project_panel = &project_panel,
+		.landscape_panel = &landscape_panel,
 		.views = &views, .undo = &undo, .models = models,
 		.gizmo = &gizmo, .ui = ui };
 	reads = (voe_editor_frame_pointer){
@@ -656,7 +660,8 @@ int main(int argc, char *argv[])
 				(uint32_t)(sizeof roots / sizeof roots[0]),
 				&scene, &drag, &views, &undo, models, &session, &bar,
 				&browser,
-				&preferences, &project_panel, &themes,
+				&preferences, &project_panel, &landscape_panel,
+				&themes,
 				&breakdown, commands.escape_free);
 			// The acts that wait for the draw (frame_commands.h).
 			voe_editor_frame_commands_after_draw(&commands);

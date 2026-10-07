@@ -26,7 +26,8 @@
 // (0270, 0283, 0298). A prefab row pressed and
 // released on the row fires: its project-relative path, `/` between, is left
 // in `opened` for the caller to read and clear; one too long for it is not. A
-// row marked dragged (held_dragged) enters no folder and opens nothing.
+// `.landscape` row fires the same way into `landscape_opened`. A row marked
+// dragged (held_dragged) enters no folder and opens nothing.
 //
 // THE SELECTED ROW (0378 point 6) is the last row pressed, drawn selected,
 // kept across a listing while its name is still there, cleared on entering a
@@ -84,6 +85,7 @@ typedef struct {
 	bool model;
 	bool prefab;
 	bool picture;
+	bool landscape;
 } voe_editor_assets_row;
 
 // A request's paths, `/` between: room for the shown folder and a field's name.
@@ -143,6 +145,9 @@ typedef struct {
 	// The prefab row fired at the last read, `Assets/...` under the
 	// project, "" for none. The caller clears it once it has opened it.
 	char opened[VOE_SCENE_PREFAB_PATH];
+	// The `.landscape` row fired at the last read, the same way; the caller
+	// opens the Landscape panel on it and clears it.
+	char landscape_opened[VOE_SCENE_PREFAB_PATH];
 	// The selected row's name, one of the rows' own in `arena`, NULL for
 	// none; and whether F2 and Delete are the panel's.
 	const char *selected;
@@ -190,8 +195,8 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 // folder row fired is entered, Up fired goes up a level; either lists at once.
 // A row held is selected and takes `keyboard`; `pointer_down` while the
 // pointer is not `over` the panel gives it back. `held` is set to the row
-// held, if any, and `opened` to a prefab row fired; a row `dragged` fires
-// neither a folder nor a prefab.
+// held, if any, `opened` to a prefab row fired and `landscape_opened` to a
+// landscape row fired; a row `dragged` fires none of them.
 // True when Import fired, which the caller answers by showing the browser in
 // IMPORT mode.
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,

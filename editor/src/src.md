@@ -16,8 +16,8 @@ carries it out.
 - `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
 - `frame_commands.c` — the history step, the read with its acts (F2's rename, an asset's Delete,
-  Escape choosing no brush after the lists) and `ui`'s keyboard, and Delete, Ctrl+D, R, the edit
-  and a reveal's unfold marked after the interface has drawn.
+  Escape choosing no brush after the lists and hiding the Landscape panel) and `ui`'s keyboard, and
+  Delete, Ctrl+D, R, the edit and a reveal's unfold marked after the interface has drawn.
 - `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
   borders, the middle drag, the brush, the gizmo, the Assets drag and the pick, and what main.c
   reads after.
@@ -141,6 +141,11 @@ carries it out.
   out nothing.
 - `project_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
   a number rounded and clamped to the project file's range.
+- `landscape_panel.h` — the Landscape panel: a title row with the file's name and its ×, and the
+  size as a number box written at once, never unsaved or undone, as an anchored panel over the dock,
+  carrying out nothing.
+- `landscape_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
+  a drag handed back once on release, a number rounded and clamped to the file's range.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
@@ -179,11 +184,11 @@ carries it out.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, never above
   it, asking for a create, rename, delete or move: a new folder, landscape or rename named in place,
-  a selected row's Delete, a row held for a drag (a `.landscape` as a model), a prefab to open, and
-  Import.
+  a selected row's Delete, a row held for a drag (a `.landscape` as a model), a prefab or landscape
+  to open, and Import.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
-  fired prefab's path unless dragged, Up and Import afterwards, and the import.
+  fired prefab's or landscape's path unless dragged, Up and Import afterwards, and the import.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
   over a row, Create with its Folder and Landscape submenu over the empty part, anchored at the
   pointer.
@@ -224,7 +229,8 @@ carries it out.
   Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
   commands they fire are carried out, the Assets panel's rename, new folder, new landscape and Delete
-  question among them, the Sculpt section's read, the Assets menu's rows, then the selection's reveal.
+  question among them, the Landscape panel opened and its size written, the Sculpt section's read,
+  the Assets menu's rows, then the selection's reveal.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
@@ -282,11 +288,11 @@ carries it out.
   the gizmo hidden while brushing a landscape, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, progress passed on during a
-  splash wait, handed to picking and the view passes, and its landscapes drawn, saved, reverted
-  and put back by a stroke.
+  splash wait, handed to picking and the view passes, and its landscapes drawn, saved, reverted,
+  put back by a stroke and resized.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed; landscapes drawn transient,
-  settled, written on Save and read again on a New or Open.
+  settled, written on Save, read again on a New or Open, and a size written and re-read.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode and the reveal of a selection made elsewhere.
 - `scene.c` — the selection, Delete and Duplicate, the gizmo's switch, the colour picker and

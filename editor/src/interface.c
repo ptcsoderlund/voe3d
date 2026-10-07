@@ -20,7 +20,8 @@
 // the two is ever read in a given frame — see voe_editor_interface_draw's own
 // header on `browsing`. Preferences' Choose is carried out here too, through
 // themes.h, and its palette set on the context for the next frame; the
-// Project panel's changed window is written through project.h.
+// Project panel's window is written through project.h, the Landscape panel's
+// size through models.h, which a landscape row or Create's make opens.
 //
 // THE COLOUR PICKER IS DRAWN HERE TOO, AND ITS RESULT READ HERE, for the same
 // reason: it is a `ui` widget answering after voe_ui_frame_end. While scene.h's
@@ -65,6 +66,7 @@
 #include "inspector_edit.h"
 #include "inspector_place.h"
 #include "inspector_sculpt.h"
+#include "landscape_panel.h"
 #include "notice.h"
 #include "panels.h"
 #include "panels_menu.h"
@@ -84,24 +86,57 @@
 #include <ui/colour.h>
 #include <ui/theme.h>
 
+#include <ctype.h>
+#include <stdio.h>
 #include <string.h>
 
 // Between the picker and the Inspector column, and below the bar. Millimetres.
 #define PICKER_GAP (1.0f * VOE_EDITOR_SPACING)
 
+#define LANDSCAPE_ENDING ".landscape"
+
+// The file Create -> Landscape made of `folder` and `name`, as
+// assets_manage.c names it — `.landscape` appended unless `name` ends so in
+// any case — written `Assets/...` into `out` of VOE_SCENE_PREFAB_PATH bytes,
+// "" when it does not fit.
+static void landscape_made_path(char *out, const char *folder,
+				const char *name)
+{
+	size_t length = strlen(name);
+	size_t tail = sizeof LANDSCAPE_ENDING - 1;
+	bool ends = length >= tail;
+	int written;
+
+	VOE_BASE_ASSERT(out != NULL && folder != NULL,
+			"a landscape's path into nowhere or from no folder");
+	for (size_t i = 0; ends && i < tail; i++)
+		ends = tolower((unsigned char)name[length - tail + i]) ==
+		       LANDSCAPE_ENDING[i];
+	written = snprintf(out, VOE_SCENE_PREFAB_PATH, "Assets/%s%s%s%s",
+			   folder, folder[0] != '\0' ? "/" : "", name,
+			   ends ? "" : LANDSCAPE_ENDING);
+	if (written < 0 || written >= VOE_SCENE_PREFAB_PATH)
+		out[0] = '\0';
+}
+
 // The Assets panel's request carried out and cleared. A rename's `to` is the
 // shown folder joined with the typed name, so a `/` in it would move the file
 // into a folder rather than rename it (assets_manage.h's constraint); it is
 // refused here in the words assets_manage.c uses for the other separators.
+// A landscape made leaves its `Assets/...` path in `made`, of
+// VOE_SCENE_PREFAB_PATH bytes, "" otherwise or when it does not fit.
 static void assets_request_do(voe_editor_session *session,
 			      voe_editor_scene *scene, voe_editor_undo *undo,
-			      voe_editor_models *models, voe_base_arena *arena)
+			      voe_editor_models *models, voe_base_arena *arena,
+			      char *made)
 {
 	voe_editor_assets_request *request = &scene->assets.request;
 
 	VOE_BASE_ASSERT(session != NULL && scene != NULL && undo != NULL,
 			"an Assets request with no session, scene or undo");
-	VOE_BASE_ASSERT(arena != NULL, "an Assets request with no scratch");
+	VOE_BASE_ASSERT(arena != NULL && made != NULL,
+			"an Assets request with no scratch or no made path");
+	made[0] = '\0';
 	if (request->kind == VOE_EDITOR_ASSETS_NAMING_RENAME) {
 		if (strchr(request->name, '/') != NULL)
 			voe_editor_notice_set(&session->notice,
@@ -122,8 +157,37 @@ static void assets_request_do(voe_editor_session *session,
 						    request->folder,
 						    request->name)) {
 		voe_editor_assets_list_due(&scene->assets);
+		landscape_made_path(made, request->folder, request->name);
 	}
 	request->kind = VOE_EDITOR_ASSETS_NAMING_NONE;
+}
+
+// Opens the Landscape panel on `path` (`Assets/...`) at the size its store
+// entry or file holds, hiding Preferences and the Project panel in its place.
+// A file that will not read is said in the notice and opens nothing.
+static void landscape_open(voe_editor_session *session,
+			   voe_editor_models *models, voe_base_arena *arena,
+			   voe_editor_landscape_panel *panel,
+			   voe_editor_preferences *preferences,
+			   voe_editor_project_panel *project_panel,
+			   const char *path)
+{
+	float size;
+
+	VOE_BASE_ASSERT(session != NULL && models != NULL && arena != NULL,
+			"opening a landscape with no session, store or scratch");
+	VOE_BASE_ASSERT(panel != NULL && path != NULL,
+			"opening no landscape panel or no path");
+	if (session->project->folder == NULL ||
+	    !voe_editor_models_landscape_size_found(models,
+						    session->project->folder,
+						    path, arena, &size,
+						    &session->notice))
+		return;
+	if (!voe_editor_landscape_panel_show(panel, path, size))
+		return;
+	voe_editor_preferences_hide(preferences);
+	voe_editor_project_panel_hide(project_panel);
 }
 
 // A fired row of the Assets menu carried out on the selected row or the shown
@@ -222,6 +286,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_editor_browser *browser,
 			       voe_editor_preferences *preferences,
 			       voe_editor_project_panel *project_panel,
+			       voe_editor_landscape_panel *landscape_panel,
 			       voe_editor_themes *themes,
 			       voe_editor_frame_breakdown *breakdown, bool escape)
 {
@@ -244,6 +309,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			"drawing an interface with no preferences");
 	VOE_BASE_ASSERT(project_panel != NULL,
 			"drawing an interface with no project panel");
+	VOE_BASE_ASSERT(landscape_panel != NULL,
+			"drawing an interface with no landscape panel");
 	VOE_BASE_ASSERT(themes != NULL, "drawing an interface with no themes");
 	VOE_BASE_ASSERT(breakdown != NULL,
 			"drawing an interface with no frame breakdown");
@@ -284,9 +351,17 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// The Project panel, in the same place, under all three.
 		bool projecting = project_panel->showing && !browsing &&
 				  !erroring && !preferring;
-		// The frame breakdown, under all four, the dock still live.
+		// The Landscape panel, in the same place, under all four.
+		bool landscaping = landscape_panel->showing && !browsing &&
+				   !erroring && !preferring && !projecting;
+		// The frame breakdown, under all five, the dock still live.
 		bool framing = breakdown->showing && !browsing && !erroring &&
-			       !preferring && !projecting;
+			       !preferring && !projecting && !landscaping;
+		// A landscape Create made this frame, `Assets/...`.
+		char made[VOE_SCENE_PREFAB_PATH];
+		// Any of the panels drawn over the dock.
+		bool covered = browsing || preferring || erroring ||
+			       projecting || landscaping;
 		// The Assets panel's Delete question, over all of those but
 		// the browser, whose showing closes it.
 		bool asking;
@@ -307,14 +382,14 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// list's drop and the Assets panel's keyboard.
 		bool over_assets;
 
-		if (browsing || preferring || erroring || projecting)
+		if (covered)
 			voe_editor_scene_picker_close(scene);
 		if (browsing)
 			voe_editor_assets_ask_close(&session->asking);
 		asking = session->asking.open;
 		// Any panel over the dock closes the Assets menu; Escape closes
 		// it first and goes no further.
-		if (browsing || preferring || erroring || projecting || asking)
+		if (covered || asking)
 			voe_editor_assets_menu_close(&scene->assets.menu);
 		if (escape && scene->assets.menu.open) {
 			voe_editor_assets_menu_close(&scene->assets.menu);
@@ -335,8 +410,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		menuing = bar->menu.open;
 
 		below_bar.size.y -= voe_editor_topbar_high(bar, root->size.y);
-		if (browsing || preferring || erroring || projecting ||
-		    menuing || asking)
+		if (covered || menuing || asking)
 			below_bar.pointer.over = false;
 
 		// The tree lives in the arena only until its records have been
@@ -408,6 +482,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		if (projecting)
 			voe_editor_project_panel_draw(
 				ui, project_panel, session->project->file.window,
+				voe_editor_topbar_high(bar, root->size.y),
+				below_bar.size);
+		if (landscaping)
+			voe_editor_landscape_panel_draw(
+				ui, landscape_panel,
 				voe_editor_topbar_high(bar, root->size.y),
 				below_bar.size);
 		if (erroring)
@@ -527,7 +606,17 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_browser_show(browser,
 						VOE_EDITOR_BROWSER_IMPORT, NULL,
 						&session->notice);
-		assets_request_do(session, scene, undo, models, arena);
+		assets_request_do(session, scene, undo, models, arena, made);
+		// A landscape made or a landscape row fired opens its panel.
+		if (made[0] != '\0')
+			landscape_open(session, models, arena, landscape_panel,
+				       preferences, project_panel, made);
+		if (scene->assets.landscape_opened[0] != '\0') {
+			landscape_open(session, models, arena, landscape_panel,
+				       preferences, project_panel,
+				       scene->assets.landscape_opened);
+			scene->assets.landscape_opened[0] = '\0';
+		}
 		// After the panel's read, so a naming begun here is not ended by
 		// a field it has not drawn yet, and before the question opens
 		// from `deleting`.
@@ -625,10 +714,12 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			// One of the Project panel and Preferences at a time.
 			if (voe_editor_topbar_project_read(ui, bar)) {
 				voe_editor_preferences_hide(preferences);
+				voe_editor_landscape_panel_hide(landscape_panel);
 				voe_editor_project_panel_show(project_panel);
 			}
 			if (voe_editor_topbar_preferences_read(ui, bar)) {
 				voe_editor_project_panel_hide(project_panel);
+				voe_editor_landscape_panel_hide(landscape_panel);
 				voe_editor_preferences_show(preferences);
 			}
 			// Panels flips its list as it was drawn this frame.
@@ -650,6 +741,25 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 					&session->notice);
 			if (result.closed)
 				voe_editor_project_panel_hide(project_panel);
+		}
+
+		// THE LANDSCAPE PANEL, WHEN IT WAS DRAWN: a new size is written
+		// at once (models.h) and shown, a refusal said in the notice.
+		if (landscaping) {
+			voe_editor_landscape_panel_result result =
+				voe_editor_landscape_panel_clicks_read(
+					ui, landscape_panel);
+
+			if (result.changed && session->project->folder != NULL &&
+			    voe_editor_models_landscape_size(
+				    models, session->project->folder,
+				    landscape_panel->path, result.size, arena,
+				    &session->notice))
+				(void)voe_editor_landscape_panel_show(
+					landscape_panel, landscape_panel->path,
+					result.size);
+			if (result.closed)
+				voe_editor_landscape_panel_hide(landscape_panel);
 		}
 
 		// THE ERRORS PANEL, WHEN IT WAS DRAWN: Close hides it.

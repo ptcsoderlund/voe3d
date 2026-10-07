@@ -1,7 +1,8 @@
 // The editor's one model store models.h describes: made empty, emptied on a
 // different folder, filled and re-read through game/models.h once a frame,
 // cleared through the device and destroyed, and handed out read-only; its
-// landscapes drawn transient, settled, written on Save and read again.
+// landscapes drawn transient, settled, written on Save and read again, and one
+// resized, written at once and loaded again at the next update.
 #include "models.h"
 
 #include <base/assert.h>
@@ -26,7 +27,14 @@ struct voe_editor_models {
 	char *folder;
 	// The frame clock's reading at the last watch.
 	double looked;
+	// A landscape whose size was written, to load again at the next
+	// update, the store's own copy; NULL for none.
+	char *resized;
 };
+
+static void reread(voe_3d_models *store, voe_render_device *device,
+		   const char *folder, const char *path,
+		   voe_base_arena *scratch);
 
 voe_editor_models *voe_editor_models_new(void)
 {
@@ -47,6 +55,7 @@ void voe_editor_models_destroy(voe_editor_models *models,
 	voe_3d_models_clear(models->store, device);
 	voe_3d_models_destroy(models->store);
 	free(models->folder);
+	free(models->resized);
 	free(models);
 }
 
@@ -63,6 +72,8 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 	voe_3d_models_clear(models->store, device);
 	free(models->folder);
 	models->folder = NULL;
+	free(models->resized);
+	models->resized = NULL;
 	if (folder != NULL) {
 		size_t size = strlen(folder) + 1;
 
@@ -109,6 +120,15 @@ void voe_editor_models_update(voe_editor_models *models,
 	follow_folder(models, session->project->folder, device);
 	if (models->folder == NULL)
 		return;
+	if (models->resized != NULL) {
+		struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+
+		reread(models->store, device, models->folder, models->resized,
+		       scratch);
+		voe_base_arena_rewind(scratch, mark);
+		free(models->resized);
+		models->resized = NULL;
+	}
 	voe_base_report_error_clear();
 	say_failure(&session->notice,
 		    voe_game_models_update(session->project->world,
@@ -284,6 +304,103 @@ void voe_editor_models_rename(voe_editor_models *models, const char *from,
 			"renaming in no store");
 	VOE_BASE_ASSERT(from != NULL && to != NULL, "renaming no path");
 	voe_3d_models_rename(models->store, from, to);
+}
+
+// `path`'s grid into `out`: the loaded entry's own, else read from its file
+// into `scratch`. False with `why` naming the file when it will not read.
+static bool landscape_got(const voe_editor_models *models, const char *folder,
+			  const char *path, voe_base_arena *scratch,
+			  voe_assets_landscape *out, voe_editor_notice *why)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models->store, path);
+	voe_base_error error = VOE_BASE_OK;
+	const uint8_t *bytes;
+	size_t count = 0;
+
+	VOE_BASE_ASSERT(folder != NULL && path != NULL && out != NULL,
+			"a landscape from no folder or path, or into nowhere");
+	if (entry != NULL && entry->landscape != NULL) {
+		*out = *entry->landscape;
+		return true;
+	}
+	bytes = voe_platform_file_read(voe_platform_path_join(scratch, folder,
+							      path),
+				       scratch, &count, &error);
+	if (bytes == NULL ||
+	    !voe_assets_landscape_read((const char *)bytes, count, scratch, out,
+				       &error)) {
+		voe_editor_notice_set(why, "Could not read %s: %s", path,
+				      voe_base_error_string(error));
+		return false;
+	}
+	return true;
+}
+
+bool voe_editor_models_landscape_size_found(voe_editor_models *models,
+					    const char *folder,
+					    const char *path,
+					    voe_base_arena *scratch,
+					    float *size, voe_editor_notice *why)
+{
+	struct voe_base_arena_mark mark;
+	voe_assets_landscape grid;
+	bool found;
+
+	VOE_BASE_ASSERT(models != NULL && scratch != NULL && size != NULL,
+			"a landscape's size from no store, scratch or out");
+	VOE_BASE_ASSERT(why != NULL, "a landscape's size with no notice");
+	mark = voe_base_arena_mark(scratch);
+	found = landscape_got(models, folder, path, scratch, &grid, why);
+	if (found)
+		*size = grid.size;
+	voe_base_arena_rewind(scratch, mark);
+	return found;
+}
+
+bool voe_editor_models_landscape_size(voe_editor_models *models,
+				      const char *folder, const char *path,
+				      float size, voe_base_arena *scratch,
+				      voe_editor_notice *why)
+{
+	const voe_3d_model_entry *entry;
+	struct voe_base_arena_mark mark;
+	voe_assets_landscape grid;
+	voe_assets_landscape_text text;
+	voe_base_error error = VOE_BASE_OK;
+	bool written = false;
+
+	VOE_BASE_ASSERT(models != NULL && scratch != NULL && why != NULL,
+			"sizing a landscape with no store, scratch or notice");
+	VOE_BASE_ASSERT(size >= VOE_ASSETS_LANDSCAPE_SIZE_MIN &&
+				size <= VOE_ASSETS_LANDSCAPE_SIZE_MAX,
+			"a landscape's size out of range");
+	mark = voe_base_arena_mark(scratch);
+	if (!landscape_got(models, folder, path, scratch, &grid, why))
+		goto rewind;
+	grid.size = size;
+	text = voe_assets_landscape_write(&grid, scratch);
+	written = voe_platform_file_write(
+		voe_platform_path_join(scratch, folder, path),
+		(const uint8_t *)text.text, text.size, &error);
+	if (!written) {
+		voe_editor_notice_set(why, "Could not save %s: %s", path,
+				      voe_base_error_string(error));
+		goto rewind;
+	}
+	entry = voe_3d_models_find(models->store, path);
+	if (entry != NULL && entry->landscape != NULL) {
+		size_t length = strlen(path) + 1;
+
+		voe_3d_models_landscape_saved(models->store, path);
+		free(models->resized);
+		models->resized = malloc(length);
+		VOE_BASE_ASSERT(models->resized != NULL,
+				"out of memory keeping a resized landscape");
+		memcpy(models->resized, path, length);
+	}
+rewind:
+	voe_base_arena_rewind(scratch, mark);
+	return written;
 }
 
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models)

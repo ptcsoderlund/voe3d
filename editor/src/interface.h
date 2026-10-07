@@ -22,6 +22,7 @@
 #include "browser.h"
 #include "dock.h"
 #include "frame_breakdown.h"
+#include "landscape_panel.h"
 #include "preferences.h"
 #include "project_panel.h"
 #include "session.h"
@@ -445,6 +446,13 @@ void voe_editor_interface_surface(voe_platform_size target,
 // hiding Project. It shows the session's project's window; a changed one goes
 // to voe_editor_project_window_set, a failure into the notice; its × hides it.
 //
+// `landscape_panel` IS DRAWN IN THE SAME PLACE, UNDER THE PROJECT PANEL, and
+// opens on the Assets panel's `landscape_opened` or after Create -> Landscape's
+// make, at the size models.h finds, hiding Preferences and Project, which the
+// bar's two hide in turn. A new size goes to voe_editor_models_landscape_size,
+// a refusal into the notice; its × hides it. It counts nothing above: never
+// beside the browser, it costs less than the Project panel.
+//
 // THE SESSION'S ERRORS PANEL (errors.h) IS DRAWN THE SAME WAY, WHEN IT IS
 // SHOWING AND THE BROWSER IS NOT, and covers Preferences, which is then not
 // drawn or read; its × hides it.
@@ -503,6 +511,7 @@ void voe_editor_interface_surface(voe_platform_size target,
 					     voe_editor_browser *browser,
 					     voe_editor_preferences *preferences,
 					     voe_editor_project_panel *project_panel,
+					     voe_editor_landscape_panel *landscape_panel,
 					     voe_editor_themes *themes,
 					     voe_editor_frame_breakdown *breakdown,
 					     bool escape);

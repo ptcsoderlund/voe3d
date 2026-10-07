@@ -14,7 +14,8 @@
 // through scene.h unless the Assets panel holds the keyboard, F2 through
 // assets_panel.h, Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y through undo.h, whose step
 // is taken at the top of the next frame, before the structural queue is
-// applied. Escape's order is this file's (at the picker's close).
+// applied. Escape's order is this file's (at the picker's close); the panels
+// it hides include the Landscape panel, which a different project hides too.
 // Escape, Backspace, Enter, Tab and the text read since the last poll are the
 // interface's besides (dock.h, keys.h). A flying view keeps every key it reads
 // from the interface and the shortcuts, and the pointer from both (view.h).
@@ -27,6 +28,7 @@
 #include "browser.h"
 #include "gizmo.h"
 #include "keys.h"
+#include "landscape_panel.h"
 #include "preferences.h"
 #include "project_panel.h"
 #include "scene.h"
@@ -47,6 +49,7 @@ typedef struct {
 	voe_editor_browser *browser;
 	voe_editor_preferences *preferences;
 	voe_editor_project_panel *project_panel;
+	voe_editor_landscape_panel *landscape_panel;
 	voe_editor_views *views;
 	voe_editor_undo *undo;
 	voe_editor_models *models;

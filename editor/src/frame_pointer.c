@@ -58,6 +58,7 @@ static bool borders(voe_editor_frame_pointer *frame, bool flying)
 		&frame->resize, frame->root, frame->bar,
 		!frame->browser->showing && !frame->preferences->showing &&
 			!frame->project_panel->showing &&
+			!frame->commands->landscape_panel->showing &&
 			!frame->session->errors.showing &&
 			!frame->scene->picking.open &&
 			!frame->scene->dropdown.open &&
@@ -94,6 +95,7 @@ static void assets_right(voe_editor_frame_pointer *frame,
 	const bool covered = frame->browser->showing ||
 			     frame->preferences->showing ||
 			     frame->project_panel->showing ||
+			     frame->commands->landscape_panel->showing ||
 			     frame->session->errors.showing ||
 			     frame->session->asking.open || frame->bar->menu.open;
 
@@ -118,6 +120,7 @@ static void presses(voe_editor_frame_pointer *frame,
 	const bool down = left && input->pointer.over;
 	bool panel = frame->browser->showing || frame->preferences->showing ||
 		     frame->project_panel->showing ||
+		     frame->commands->landscape_panel->showing ||
 		     frame->session->errors.showing ||
 		     frame->scene->picking.open || frame->bar->menu.open ||
 		     frame->scene->assets.menu.open;
