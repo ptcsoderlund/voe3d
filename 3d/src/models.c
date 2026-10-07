@@ -298,11 +298,11 @@ static void hold_upload(const voe_3d_model_upload *upload, entry_held *held)
 	size_t textures = upload->texture_count * sizeof(*held->textures);
 	size_t shadings = upload->shading_count * sizeof(*held->shadings);
 
-	if (textures > 0) {
+	if (upload->texture_count > 0) {
 		held->textures = voe_base_arena_push(held->memory, textures);
 		memcpy(held->textures, upload->textures, textures);
 	}
-	if (shadings > 0) {
+	if (upload->shading_count > 0) {
 		held->shadings = voe_base_arena_push(held->memory, shadings);
 		memcpy(held->shadings, upload->shadings, shadings);
 	}
