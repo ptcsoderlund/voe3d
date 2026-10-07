@@ -21,13 +21,13 @@ program's own arguments, and the sound device.
   monotonic and not the time of day, why it is seconds as a double, and that
   the wait is on the window.
 - `include/platform/file.h` — reading a whole file into an arena, testing whether a
-  path is a regular file, its stamp, and writing a whole file in one call. The file says
-  which failure means what, what a stamp tells, and how a write is made atomic by a
-  `.partial` sibling and a rename.
+  path is a regular file, its stamp, writing a whole file atomically, and moving a file or
+  folder without replacing. The file says which failure means what and what a stamp tells.
 - `include/platform/folder.h` — listing a folder's entries into an arena, making
   one folder, and finding the person's home and this engine's settings folders.
   Its header says what folder and hidden answer, which failure means what, and
   that no path it hands back carries a trailing separator.
+- `include/platform/trash.h` — sending a file or folder to the freedesktop home trash, Linux only.
 - `include/platform/path.h` — joining a folder and a name, a path's parent, its last
   name, resolving it to an absolute one, and the running program's own path. Its header says which separator
   each platform reads and writes, and why a name is a pointer into the path

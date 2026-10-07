@@ -11,6 +11,8 @@ stays on `platform/platform.md`.
   forward.
 - `file.h` — reading a whole file into an arena, testing a path, and writing a
   whole file atomically.
+- `trash.h` — a file or folder sent to the freedesktop home trash, where a file
+  manager can restore it; Linux only.
 - `folder.h` — listing a folder into an arena, making one, and finding the home
   and settings folders.
 - `path.h` — joining, a path's parent, its last name, and resolving one to an

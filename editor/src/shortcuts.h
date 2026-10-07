@@ -7,7 +7,8 @@
 // the selection, Ctrl+Shift+Z and Ctrl+Y are both Redo, and each is decided
 // here and nowhere else, so no two callers can disagree about what a person
 // pressed. keys.h answers whether a key went down; this file answers what that
-// edge was for.
+// edge was for. F2 alone is Rename; while the Assets panel holds the keyboard,
+// Delete is the asset's and Ctrl+D is nothing (0378 point 6).
 //
 // A GUARD IS A FACT THE CALLER HOLDS AND NEVER SOMETHING THIS FILE ASKS A PANEL
 // FOR. Whether the browser shows, whether a field holds the keyboard, whether
@@ -38,7 +39,8 @@
 // where the caller reads it: browser.showing, voe_ui_typing(ui),
 // scene.picking.open, scene.dropdown.open, the primary button's level, and what
 // voe_editor_views_fly returned (view.h): a flying view keeps every key it reads,
-// so then no command fires and the editor is not at rest.
+// so then no command fires and the editor is not at rest. `assets_keyboard` is
+// scene.assets.keyboard (assets_panel.h).
 typedef struct {
 	bool browser_showing;
 	bool typing;
@@ -46,12 +48,17 @@ typedef struct {
 	bool dropdown_open;
 	bool pointer_down;
 	bool flying;
+	bool assets_keyboard;
 } voe_editor_shortcuts_guards;
 
 // One frame's answer. Every flag is an edge, true for one frame per press.
 typedef struct {
 	bool new_project, open, save;
 	bool delete_entity, duplicate;
+	// Delete while the Assets panel holds the keyboard, instead of
+	// `delete_entity`; F2 alone.
+	bool delete_asset;
+	bool rename;
 	// R alone: the gizmo's arrows become rings or back (scene.h).
 	bool gizmo_switch;
 	// F alone: the view under the pointer frames the selection (view.h).

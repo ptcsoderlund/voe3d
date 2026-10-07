@@ -1,4 +1,5 @@
-// The one read of what this frame's keyboard asked for. See the header for why
+// The one read of what this frame's keyboard asked for, F2 and the Assets
+// panel's Delete among it. See the header for why
 // which edge means which command is answered once, why a guard is handed in
 // rather than asked for, why the rest a step is recorded at is worked out here
 // too, and why acting on any of it is the caller's.
@@ -39,15 +40,21 @@ voe_editor_shortcuts voe_editor_shortcuts_read(const voe_editor_keys_frame *keys
 		   !guards.browser_showing && !guards.flying;
 
 	// DELETE AND CTRL+D ARE THE SAME SHAPE OF EDGE, quiet while anybody is
-	// typing or the browser shows.
-	out.delete_entity = keys->pressed[VOE_PLATFORM_KEY_DELETE] && !quiet;
-	out.duplicate = control && keys->pressed[VOE_PLATFORM_KEY_D] && !quiet;
+	// typing or the browser shows. WHILE THE ASSETS PANEL HOLDS THE
+	// KEYBOARD Delete is the selected asset's and Ctrl+D is nothing.
+	out.delete_entity = keys->pressed[VOE_PLATFORM_KEY_DELETE] && !quiet &&
+			    !guards.assets_keyboard;
+	out.delete_asset = keys->pressed[VOE_PLATFORM_KEY_DELETE] && !quiet &&
+			   guards.assets_keyboard;
+	out.duplicate = control && keys->pressed[VOE_PLATFORM_KEY_D] && !quiet &&
+			!guards.assets_keyboard;
 	// R AND F, WITH NO MODIFIER, UNDER DELETE'S GUARD AND WITH NOTHING OPEN
 	// THAT A KEY MIGHT BELONG TO: no picker, no dropdown.
 	const bool bare = !control && !shift && !quiet && !guards.picker_open &&
 			  !guards.dropdown_open;
 	out.gizmo_switch = keys->pressed[VOE_PLATFORM_KEY_R] && bare;
 	out.frame_selection = keys->pressed[VOE_PLATFORM_KEY_F] && bare;
+	out.rename = keys->pressed[VOE_PLATFORM_KEY_F2] && bare;
 
 	// CTRL+Z AND CTRL+SHIFT+Z OR CTRL+Y ARE THE SAME SHAPE OF EDGE AGAIN,
 	// and beyond `quiet` they ask for the rest a step is recorded at
@@ -72,8 +79,11 @@ voe_editor_shortcuts voe_editor_shortcuts_read(const voe_editor_keys_frame *keys
 	out.escape_free = out.escape && !guards.typing;
 
 	VOE_BASE_ASSERT(!guards.flying || (!out.at_rest && !out.save &&
-					   !out.undo && !out.delete_entity),
+					   !out.undo && !out.delete_entity &&
+					   !out.delete_asset && !out.rename),
 			"a flying view let a command through");
+	VOE_BASE_ASSERT(!(out.delete_entity && out.delete_asset),
+			"one Delete meant for both an entity and an asset");
 	VOE_BASE_ASSERT(!out.escape_free || out.escape,
 			"a free Escape with no Escape edge behind it");
 	return out;

@@ -17,14 +17,15 @@
 //    pointer and the left button.
 // 3. The borders (resize.h): a seam is a fill the walk draws, not a widget,
 //    so they are asked before anything else that reads the left button; one
-//    they have takes `ui`'s pointer and the left button too.
+//    they have takes `ui`'s pointer and the left button too. Then the right
+//    button's down edge over the Assets panel opens its menu (assets_menu.h).
 // 4. The middle drag (view.h), the views' and never the interface's.
 // 5. The gizmo (gizmo.h), so a press on an arrow selects nothing.
 // 6. The Assets drag (assets_drag.h), blocked while the gizmo takes the press.
 // 7. The pick (pick.h), last: a press the gizmo or a drag took selects nothing.
 //
 // Constraints: the parts pointed at are main.c's and outlive the loop; none of
-// this allocates. `flew`, `resize` and `pick` are this file's to write; main.c
+// this allocates. `flew`, `right_was`, `resize` and `pick` are this file's to write; main.c
 // sets them once in the fill and reads none of them.
 #pragma once
 
@@ -70,6 +71,8 @@ typedef struct {
 	// Whether a view flew last frame, so the pointer's lock is asked for
 	// only on the frame that changes (platform/input.h).
 	bool flew;
+	// Whether the right button was down last frame, for its down edge.
+	bool right_was;
 	// The borders between the root's panels, at rest; main.c fills it with
 	// `.held = UINT32_MAX` (resize.h).
 	voe_editor_resize resize;

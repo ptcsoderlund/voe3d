@@ -11,10 +11,8 @@ header.
   raw one.
 - `clock_win32.c` — the performance counter, the frequency asked for once, and the launch from the process's creation time.
   Its header says why not the millisecond tick counts.
-- `file_wayland.c` — open, read/write, close, and the rename that makes a write
-  atomic. Its header says why the name says wayland, why the read and write
-  loops and the checked fsync and close are not optional, and why the
-  `.partial` path is a stack buffer.
+- `file_wayland.c` — open, read/write, close, the rename that makes a write
+  atomic, and renameat2 for a move that never replaces, on Linux.
 - `file_win32.c` — CreateFileW, GetFileAttributesW, ReadFile/WriteFile, CloseHandle, and the
   MoveFileExW that makes a write atomic, a UTF-8 path converted on the way in. Its header says why
   a 64-bit count is moved in steps, and why a path too long for its stack buffer fails as an open.
@@ -24,6 +22,7 @@ header.
 - `folder_win32.c` — FindFirstFileW/FindNextFileW, CreateDirectoryW, and
   GetEnvironmentVariableW for %USERPROFILE%/%APPDATA%, each name made UTF-8. Its header says why a
   directory symlink needs no extra call here, unlike the Linux side.
+- `trash_wayland.c` — realpath, an exclusive `.trashinfo` create, and rename into the home trash.
 - `wide_win32.h` — UTF-8 to UTF-16 into a caller's buffer and UTF-16 to UTF-8 into an arena, for
   the Windows files here only. Its header says why the "W" calls and not a manifest, and why a path
   that does not fit is the caller's ordinary failure.

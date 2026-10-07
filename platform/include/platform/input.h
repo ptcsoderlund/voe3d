@@ -62,11 +62,12 @@ typedef struct voe_platform_window voe_platform_window;
 // and the fix is remappable bindings at the call site, not a keymap in here.
 //
 // THE LIST IS SHORT BECAUSE OF RULE 10 AND NOT BECAUSE IT WAS HARD. Every key
-// below has a caller today. There is no rest of the alphabet, no F-keys and no
-// arrows, because nothing reads them; adding one is a line in the enum and a line
-// in each backend's table, and it happens when something wants it. F is the most
-// recent to arrive that way: the editor's frame-the-selection shortcut (spec 065)
-// reads it. R came before it for the editor's gizmo switch between move and
+// below has a caller today. There is no rest of the alphabet, no other F-keys and
+// no arrows, because nothing reads them; adding one is a line in the enum and a
+// line in each backend's table, and it happens when something wants it. F2 is the
+// most recent to arrive that way: the editor's rename shortcut in the assets panel
+// reads it. F came before it for the editor's frame-the-selection shortcut
+// (spec 065), R before that for the editor's gizmo switch between move and
 // rotate (spec 035), Z and Y for the editor's undo and redo (spec 014), and
 // Delete for the editor's Delete command (spec 010).
 //
@@ -99,6 +100,7 @@ typedef enum {
 	VOE_PLATFORM_KEY_Y,
 	VOE_PLATFORM_KEY_R,
 	VOE_PLATFORM_KEY_F,
+	VOE_PLATFORM_KEY_F2,
 	VOE_PLATFORM_KEY_COUNT
 } voe_platform_key;
 

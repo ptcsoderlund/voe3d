@@ -15,7 +15,7 @@ carries it out.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
 - `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
-- `frame_commands.c` — the history step, the read with its acts and `ui`'s keyboard, and Delete,
+- `frame_commands.c` — the history step, the read with its acts (F2's rename, an asset's Delete) and `ui`'s keyboard, and Delete,
   Ctrl+D, R, the edit and a reveal's unfold marked after the interface has drawn.
 - `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
   borders, the middle drag, the gizmo, the Assets drag and the pick, and what main.c reads after.
@@ -51,8 +51,9 @@ carries it out.
 - `shortcuts.h` — what this frame's keyboard asked the editor to do: a flag per shortcut, worked out
   once out of keys.h's frame and the guards the caller holds, a flying view silencing all of them,
   with acting on one left to the caller.
-- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, Ctrl+D, R and F, the
-  rest a step is recorded at with Ctrl+Z and Ctrl+Y on it, and Escape's raw and free edges.
+- `shortcuts.c` — the one read of those flags: the three Ctrl commands, Delete, an asset's under the
+  Assets panel's keyboard, Ctrl+D, R, F and F2, the rest a step is recorded at with Ctrl+Z and Ctrl+Y
+  on it, and Escape's raw and free edges.
 - `options.h` — the command line, as UTF-8 arguments from `platform`: the folder to open,
   `--capture`'s path, `--size`'s picture, `--frames`' count and `--capture-view`'s path, or one
   usage line on stderr.
@@ -169,18 +170,34 @@ carries it out.
 - `drag_ghost.h` — the ghost every editor drag shows beside the pointer: a raised panel of the
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
-- `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
-  entered and Up but never above it, listed again once a second, a fired prefab row left to open,
-  and Import.
-- `assets_panel.c` — the project's and the shown folder's listings, the rows filled in two passes,
-  the panel's one frame of `ui` calls, the read of its rows, a fired prefab's path, Up and Import
-  afterwards, and the import.
-- `assets_drag.h` — a held model, prefab or picture row from the Assets panel: released over a
-  scene view it places a new thing or a copy where the ray lands, over the Inspector it swaps the
-  selected thing's model or its emitter's texture, elsewhere nothing.
+- `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, never above
+  it, asking for a create, rename, delete or move: a new folder or rename named in place, a selected
+  row's Delete, a row held for a drag, a prefab to open, and Import.
+- `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
+  panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
+  fired prefab's path unless dragged, Up and Import afterwards, and the import.
+- `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
+  over a row, Create with its Folder submenu over the empty part, anchored at the pointer.
+- `assets_menu.c` — the menu's one frame of `ui` calls, the read of its rows with its own closing,
+  and where it and the submenu go next frame.
+- `assets_ask.h` — the question Delete asks about the Assets panel's selected row: its name, up to
+  four users and "and N more" walked once on opening, Delete and Cancel, as an anchored panel.
+- `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
+  the read of its buttons and a press outside afterwards.
+- `assets_drag.h` — a held row from the Assets panel: released over a folder row or Up it moves
+  there; a model, prefab or picture over a scene view places a new thing or a copy where the ray
+  lands, over the Inspector swaps the selected thing's model or emitter's texture; elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the drop point, the Inspector's rectangle, the texture swap, and the
-  one undo step.
+  the release and the ghost, the move's target, the drop point, the Inspector's rectangle, the
+  texture swap, and the one undo step.
+- `assets_walk.h` — the project's `.scene` and `.prefab` texts walked: who names a path before a
+  Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
+- `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
+  the match, and the follow with its room check and write.
+- `assets_manage.h` — the Assets panel's file commands: a folder made, a rename or move followed on
+  disk and in the open scene, a duplicate, the trash, each refused with a notice and nothing changed.
+- `assets_manage.c` — the shared checks, the move's check, move, write and memory with the undo line
+  forgotten, the next free copy name, and the trash's refusals worded.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
@@ -195,7 +212,8 @@ carries it out.
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
   Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
-  commands they fire are carried out, then the selection's reveal.
+  commands they fire are carried out, the Assets panel's rename, new folder and Delete question
+  among them, the Assets menu's rows, then the selection's reveal.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

@@ -31,7 +31,6 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **engine_assets** — the human's logo and input material; not code; agents read, link, never write.
 
 ## Decisions in force
-
 0001–0167 stand in `history/decisions/`; 0168 on are indexed in `decisions/decisions.md`.
 - 0001, 0005, 0008, 0026, 0047 — One repo of static CMake folders, no plugin; Clang 19+ as `clang`.
 - 0004, 0021, 0023, 0028, 0031, 0042, 0213 — Tools installed, deps fetched; no CI; CTest.
@@ -58,4 +57,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0333–0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0361, 0363, 0364 — Block kinds; sun, moon; fields; panels closed; √.
 - 0358, 0359, 0362, 0370, 0371 — GPU ms per pass; Best Practices; far mips; splash; F.
-- 0374–0377 — 0.3 is the loghouse world; bindless, instanced; hill sculpted, painted; Create, Rename.
+- 0374–0377 — 0.3 is the loghouse world; bindless, instanced; hill sculpted, painted; Assets panel.

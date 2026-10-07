@@ -103,3 +103,10 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   anisotropy, variants. Each waits until a game needs it. The loghouse's lamps may want spot lights.
 - **A project's own shaders, made in the editor** (2026-10-07, from 0377): Create → Shader in the
   Assets panel. 0.3's materials use the engine's shaders; this waits for a work order of its own.
+- **Editing text in a field, all the way** (2026-10-07, asked after testing 081: "I would like to be able
+  to move a cursor instead of having to retype the whole string"; "When we do it we do it all the way").
+  `ui`'s one shared text box (0192) has no cursor: it opens all selected and typing replaces it. Done in one
+  go, never in part: a cursor moved by ←/→, Home/End and a click; Ctrl+←/→ by word; Backspace/Delete at the
+  cursor; selection by Shift+keys, drag and double-click; copy, cut and paste through the system clipboard
+  (Wayland's is a piece of `platform` work). Every field gets it at once: Rename, Inspector names, typed
+  numbers, hex. Waits until after 092; amends 0192.

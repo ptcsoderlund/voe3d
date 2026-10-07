@@ -7,10 +7,11 @@ that module's promises from outside. None of them needs a window or a display.
   that the launch is known and less than a minute before now. Its header says
   why nothing in it measures a duration against a duration.
 - `file.c` — that bytes round-trip, a shorter file replaces a longer one, a failed read or
-  write fails as it says, no `.partial` outlives a write, a stamp holds until a rewrite of
-  another length and is false for a folder or nothing, and a non-ASCII name round-trips.
+  write fails as it says, and a move renames a file, carries a folder whole, refuses a taken
+  name and fails on nothing.
 - `folder.c` — that listings are byte-sorted with folder and hidden right, failures are
   UNAVAILABLE or REFUSED, settings honours `XDG_CONFIG_HOME`, and non-ASCII names list exactly.
+- `trash.c` — that a file and a folder reach the trash with their info, and a taken name is numbered.
 - `input.c` — a poll drains motion, wheel and typed text and keeps held keys and the pointer;
   focus loss releases keys, pointer loss buttons; an overflowing or control code point types
   nothing; the pointer's shape survives a poll and both losses.

@@ -1,6 +1,7 @@
 // main.c's loop's run of pointer and view reads, moved here with its comments:
-// the glide, the fly and the shortcuts, the borders, then the middle drag, the gizmo, the
-// Assets drag and the pick, in the order frame_pointer.h gives. See there.
+// the glide, the fly and the shortcuts, the borders, the Assets panel's right
+// button, then the middle drag, the gizmo, the Assets drag and the pick, in the
+// order frame_pointer.h gives. See there.
 #include "frame_pointer.h"
 
 #include "frame_selection.h"
@@ -60,7 +61,8 @@ static bool borders(voe_editor_frame_pointer *frame, bool flying)
 			!frame->session->errors.showing &&
 			!frame->scene->picking.open &&
 			!frame->scene->dropdown.open &&
-			!frame->bar->menu.open && !flying,
+			!frame->bar->menu.open &&
+			!frame->scene->assets.menu.open && !flying,
 		voe_platform_clock_now());
 	frame->root->lit = resized.reached;
 	if (resized.taken) {
@@ -80,6 +82,33 @@ static bool borders(voe_editor_frame_pointer *frame, bool flying)
 	return resized.taken;
 }
 
+// THE RIGHT BUTTON'S DOWN EDGE OVER THE ASSETS PANEL OPENS ITS MENU (0378
+// point 8): it selects the row under the pointer, gives the panel the
+// keyboard and opens the menu there (assets_panel.h), by last frame's
+// rectangles, since `ui` knows one button. Never while a view flies or a
+// panel covers the dock.
+static void assets_right(voe_editor_frame_pointer *frame,
+			 const voe_editor_frame_pointer_input *input, bool flying)
+{
+	const bool edge = input->right && !frame->right_was;
+	const bool covered = frame->browser->showing ||
+			     frame->preferences->showing ||
+			     frame->project_panel->showing ||
+			     frame->session->errors.showing ||
+			     frame->session->asking.open || frame->bar->menu.open;
+
+	frame->right_was = input->right;
+	if (!edge || flying || covered ||
+	    !voe_editor_dock_over_panel(
+		    frame->root,
+		    voe_editor_topbar_high(frame->bar, frame->root->size.y),
+		    VOE_EDITOR_PANEL_ASSETS, frame->root->pointer.at))
+		return;
+	(void)voe_editor_assets_menu_at(&frame->scene->assets,
+					frame->root->pointer.at);
+	VOE_BASE_ASSERT(frame->right_was, "a right edge not kept");
+}
+
 // The gizmo, the Assets drag and the pick, against the left press the fly and
 // the borders left.
 static void presses(voe_editor_frame_pointer *frame,
@@ -91,7 +120,8 @@ static void presses(voe_editor_frame_pointer *frame,
 			   frame->preferences->showing ||
 			   frame->project_panel->showing ||
 			   frame->session->errors.showing ||
-			   frame->scene->picking.open || frame->bar->menu.open;
+			   frame->scene->picking.open || frame->bar->menu.open ||
+			   frame->scene->assets.menu.open;
 
 	VOE_BASE_ASSERT(frame->gizmo != NULL && frame->drag != NULL,
 			"presses with no gizmo or drag");
@@ -103,8 +133,8 @@ static void presses(voe_editor_frame_pointer *frame,
 				      input->pixels_per_millimetre,
 			      at, down, panel);
 
-	// A held model row, released over a view or the Inspector
-	// (assets_drag.h), under the pick's own `blocked`.
+	// A held Assets row, released over a view, the Inspector, a folder
+	// row or Up (assets_drag.h), under the pick's own `blocked`.
 	voe_editor_assets_drag_read(
 		frame->drag, frame->session, frame->undo, frame->scene,
 		frame->views, frame->root, frame->bar, frame->geometries,
@@ -160,6 +190,7 @@ voe_editor_frame_pointer_read(voe_editor_frame_pointer *frame,
 	result.taken = borders(frame, result.flying);
 	if (result.taken)
 		left = false;
+	assets_right(frame, input, result.flying);
 
 	// The middle button is the views' and the left is the interface's, so
 	// the two never compete for one press. Never while the browser shows —

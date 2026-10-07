@@ -11,7 +11,8 @@
 // WHAT THIS FRAME'S KEYBOARD ASKED FOR IS ONE READ (shortcuts.h): the guards
 // main.c holds go in, a flag per shortcut comes back, and every act on one
 // is below that read — the three commands through session.h, Delete and Ctrl+D
-// through scene.h, Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y through undo.h, whose step
+// through scene.h unless the Assets panel holds the keyboard, F2 through
+// assets_panel.h, Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y through undo.h, whose step
 // is taken at the top of the next frame, before the structural queue is
 // applied. Escape's order is this file's (at the picker's close).
 // Escape, Backspace, Enter, Tab and the text read since the last poll are the
