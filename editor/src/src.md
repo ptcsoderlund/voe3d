@@ -181,6 +181,10 @@ carries it out.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
   the release and the ghost, the drop point, the Inspector's rectangle, the texture swap, and the
   one undo step.
+- `assets_walk.h` — the project's `.scene` and `.prefab` texts walked: who names a path before a
+  Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
+- `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
+  the match, and the follow with its room check and write.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
