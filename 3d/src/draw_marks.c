@@ -1,6 +1,6 @@
 // The editor's marks drawn over the world: a scene camera's box and frustum,
 // every sun's circle and arrow, every point light's three circles, every bare
-// place's diamond, every light blocker's box, one entity's
+// place's diamond, the brush's two rings, every light blocker's box, one entity's
 // silhouette, a collider's and the selected blocker's lines and the gizmo's two
 // meshes, arrows or rings,
 // each as this frame's transient geometry and one or two draws, at the entity's
@@ -10,11 +10,14 @@
 // object here has identity matrices; the record is the caller's unlit one and the colour the caller's.
 #include "draw_marks.h"
 
+#include <3d/brush_marker.h>
 #include <3d/camera_marker.h>
 #include <3d/collider_marker.h>
 #include <3d/gizmo.h>
 #include <3d/gizmo_rings.h>
 #include <3d/light_blocker.h>
+#include <3d/model_component.h>
+#include <3d/models.h>
 #include <3d/outline.h>
 #include <3d/place_marker.h>
 #include <3d/point_light_marker.h>
@@ -237,6 +240,40 @@ void voe_3d_draw_marks_places(const voe_ecs_world *world,
 			  marked.material, marked.colour);
 	draw_marker_lines(device, selected, marked.material,
 			  marked.selected_colour);
+}
+
+// The brush's two rings on the landscape `frame.brush` names (0379 point 3),
+// at its current world place, as one geometry and one draw in the world's
+// depth. A zeroed or dead entity, no model table, no store, no loaded
+// landscape, no transform and a picture with no area draw none.
+void voe_3d_draw_marks_brush(const voe_ecs_world *world,
+			     voe_render_device *device, voe_base_arena *arena,
+			     voe_3d_frame frame)
+{
+	voe_3d_brush_marked brush = frame.brush;
+	const voe_3d_model *worn;
+	const voe_3d_model_entry *entry;
+	voe_3d_outline_mesh mesh;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing a brush to no device");
+	VOE_BASE_ASSERT(arena != NULL, "a brush with no arena");
+
+	if (frame.models == NULL || !voe_ecs_entity_alive(world, brush.entity) ||
+	    !has_store(world, &voe_3d_model_key) ||
+	    voe_scene_transform_get(world, brush.entity) == NULL)
+		return;
+	worn = voe_3d_model_get(world, brush.entity);
+	if (worn == NULL)
+		return;
+	entry = voe_3d_models_find(frame.models, worn->path);
+	if (entry == NULL || !entry->loaded || entry->landscape == NULL)
+		return;
+	if (voe_3d_brush_marker_quads(
+		    entry->landscape,
+		    voe_scene_transform_world(world, brush.entity), brush.x,
+		    brush.z, brush.radius, brush.inner, frame.view, frame.eye,
+		    brush.size, brush.pixels, arena, &mesh))
+		draw_marker_lines(device, mesh, brush.material, brush.colour);
 }
 
 // Every light row with a transform, marked as the point lights are (0360 point

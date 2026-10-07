@@ -31,8 +31,9 @@ again, or to find where a claim that has started failing is written down.
 - `draw_gizmo.c` — that a gizmo's arrows and rings show through the cube it stands in. Skips
   without a graphics card.
 - `draw_markers.c` — that a marked camera or sun is one draw more and a zeroed marker none, that
-  two suns are one draw and one selected two, that a ray picks each sun, and that a bare place
-  is marked and one with a shape not. Skips without a graphics card.
+  two suns are one draw and one selected two, that a ray picks each sun, that a bare place
+  is marked and one with a shape not, that the brush's rings lie 5 cm over the ground, and that a
+  brush on a landscape is one draw more. The draws skip without a graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
   none with no store, and that a glowing one is unlit. Skips without a graphics card.
 - `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0

@@ -59,6 +59,7 @@
 // light tables already state below.
 #pragma once
 
+#include <3d/brush_marker.h>
 #include <3d/camera_marker.h>
 #include <3d/collider_marker.h>
 #include <3d/gizmo.h>
@@ -222,6 +223,28 @@ typedef struct {
 	voe_platform_size size;
 } voe_3d_rows_marked;
 
+// The sculpting brush a pass draws as two rings on a landscape (0379 point 3),
+// voe_3d_brush_marker_quads', with the world inside its depth after the
+// places, so a hill in front hides them. Only an editor's view sets it. One
+// transient range of VOE_3D_BRUSH_MARKER_VERTICES and _INDICES and one object;
+// an entity with no loaded landscape in `frame.models` or no transform draws
+// none, and a refused range draws none, as the outline does.
+typedef struct {
+	// The thing wearing the landscape, zeroed for none.
+	voe_ecs_entity entity;
+	// The brush's centre in the grid's own space, its radius and its
+	// full-weight radius, metres.
+	float x, z, radius, inner;
+	// The unlit record the quads wear — the outline's, voe_3d_shapes'.
+	voe_3d_material material;
+	// Linear, and the whole of what the rings look like.
+	voe_math_float3 colour;
+	// How wide a line is on the picture, in pixels, at any distance.
+	float pixels;
+	// The size of that picture, in pixels.
+	voe_platform_size size;
+} voe_3d_brush_marked;
+
 // The collider a pass draws as lines (0253), voe_3d_collider_marker_quads'.
 // It is drawn after the outline, behind the outline's depth clear, with the
 // outline's material and colour (`frame.outlined`), so it shows through what
@@ -352,6 +375,9 @@ typedef struct {
 	// and _INDICES per marked entity, two ranges and two objects; a pool too
 	// small draws none.
 	voe_3d_rows_marked places;
+	// THE SCULPTING BRUSH'S TWO RINGS (0379 point 3), drawn right after the
+	// places; a zeroed record draws none (voe_3d_brush_marked above).
+	voe_3d_brush_marked brush;
 	// The one entity whose collider this pass draws as lines, zeroed for
 	// none (voe_3d_collider_marked above).
 	voe_3d_collider_marked collider;
@@ -403,9 +429,10 @@ typedef struct {
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
-// `point_lights`, `places`, `collider`, `light_blockers`, `points` and `blockers`
-// all come back zeroed and `models` NULL — hiding, outlining, standing a gizmo,
-// marking a camera, the suns, the point lights or the places, drawing a collider or the blockers' boxes,
+// `point_lights`, `places`, `brush`, `collider`, `light_blockers`, `points` and
+// `blockers` all come back zeroed and `models` NULL — hiding, outlining,
+// standing a gizmo, marking a camera, the suns, the point lights, the places or
+// the brush, drawing a collider or the blockers' boxes,
 // lighting by point lights, keeping
 // light out of blockers and drawing models are the caller's choice and it
 // sets the field on the answer, and `more_lights` and `more_count` come back
@@ -606,7 +633,9 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // gizmo drawn after that, its arrows or its rings; `frame.marker`, when it names
 // a live camera with a transform, and `frame.sun`, when `shown`, every light
 // with a transform, are drawn with the world, `frame.places`, when `shown`,
-// with the world after the point lights, `frame.light_blockers`, when `shown`,
+// with the world after the point lights, `frame.brush`, when it names a loaded
+// landscape with a transform, with the world after the places,
+// `frame.light_blockers`, when `shown`,
 // every blocker but the selected one as its box's lines with the world after the
 // places, and `frame.collider`, when it names one with a collider, as lines
 // after the outline, and the selected blocker's box lines after those. Calling it with no pass open is the caller's bug
