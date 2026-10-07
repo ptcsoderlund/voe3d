@@ -1,6 +1,8 @@
-// The Assets panel's listing, its one frame of `ui` calls and the read of its
-// rows, a fired prefab row's path and Up afterwards. See the header for the arena, the once a second and
-// what a missing `Assets/` or a failed listing leaves.
+// The Assets panel's listing with the selected row kept, its one frame of `ui`
+// calls with the naming's field, and the read of its rows, the selection and
+// `keyboard`, the field's request, a fired prefab row's path and Up afterwards.
+// See the header for the arena, the once a second and what a missing
+// `Assets/` or a failed listing leaves.
 #include "assets_panel.h"
 
 #include "themes.h"
@@ -24,6 +26,7 @@
 #define LIST_SECONDS 1.0
 #define MISSING_LINE "No Assets folder in this project."
 #define ASSETS_GAP (2.0f * VOE_EDITOR_SPACING)
+#define NEW_FOLDER_NAME "New folder"
 
 static char *copy_string(voe_base_arena *arena, const char *text)
 {
@@ -156,15 +159,33 @@ static void rows_fill(voe_editor_assets *assets,
 	}
 }
 
+// The selected row found again among the new rows by `name`, NULL when gone
+// or when `name` is; a rename whose row is gone ends.
+static void selected_find(voe_editor_assets *assets, const char *name)
+{
+	VOE_BASE_ASSERT(assets != NULL, "finding a selection in no panel");
+	assets->selected = NULL;
+	for (uint32_t i = 0; i < assets->row_count && name != NULL; i++)
+		if (strcmp(assets->rows[i].name, name) == 0)
+			assets->selected = assets->rows[i].name;
+	if (assets->selected == NULL &&
+	    assets->naming == VOE_EDITOR_ASSETS_NAMING_RENAME)
+		assets->naming = VOE_EDITOR_ASSETS_NAMING_NONE;
+	VOE_BASE_ASSERT(assets->selected == NULL || name != NULL,
+			"a selection found for no name");
+}
+
 // Lists `project`'s `shown`, entered into `name` when it is not NULL or up a
 // level when `up`, and commits it to the arena. Both strings are copied into
-// scratch first: either may point into the arena being cleared.
+// scratch first: either may point into the arena being cleared. The selected
+// row and the naming are kept only when the same folder is listed again.
 static void relist(voe_editor_assets *assets, const char *project,
 		   const char *shown, const char *name, bool up)
 {
 	voe_base_arena *scratch;
 	voe_platform_folder_listing listing;
 	const char *kept;
+	const char *selected = NULL;
 	char *next;
 	bool missing;
 	bool same;
@@ -175,6 +196,11 @@ static void relist(voe_editor_assets *assets, const char *project,
 	kept = project ? copy_string(scratch, project) : NULL;
 	next = copy_string(scratch, shown);
 	same = assets->listed_once && same_folder(kept, assets->project);
+	if (same && name == NULL && !up && strcmp(next, assets->shown) == 0 &&
+	    assets->selected != NULL)
+		selected = copy_string(scratch, assets->selected);
+	if (!same || name != NULL || up)
+		assets->naming = VOE_EDITOR_ASSETS_NAMING_NONE;
 
 	if (name != NULL)
 		next = next[0] == '\0' ? copy_string(scratch, name) :
@@ -196,6 +222,7 @@ static void relist(voe_editor_assets *assets, const char *project,
 	assets->missing = missing;
 	assets->listed_once = true;
 	rows_fill(assets, &listing);
+	selected_find(assets, selected);
 	voe_base_arena_destroy(scratch);
 }
 
@@ -211,6 +238,8 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 		assets->arena = voe_base_arena_new(ASSETS_ARENA);
 		assets->up_button = VOE_UI_NODE_NONE;
 		assets->import_button = VOE_UI_NODE_NONE;
+		assets->naming_field = VOE_UI_NODE_NONE;
+		assets->empty = VOE_UI_NODE_NONE;
 	}
 	if (!assets->listed_once ||
 	    !same_folder(project_folder, assets->project)) {
@@ -231,6 +260,21 @@ void voe_editor_assets_list_due(voe_editor_assets *assets)
 	VOE_BASE_ASSERT(assets->listed < 0.0, "a listing marked due in the future");
 }
 
+// The naming's field holding `text`, focused on the frame its naming began.
+// A refused field (VOE_UI_NODE_NONE) has nothing to focus, so the focus waits.
+static void naming_field_draw(voe_ui_context *ui, voe_editor_assets *assets,
+			      const char *text)
+{
+	VOE_BASE_ASSERT(ui != NULL && assets != NULL, "drawing no naming field");
+	VOE_BASE_ASSERT(text != NULL, "a naming field holding no name");
+	assets->naming_field =
+		voe_ui_field(ui, "asset_name", 0, text, (voe_ui_sizing){ 0 });
+	if (assets->naming_focus && assets->naming_field != VOE_UI_NODE_NONE) {
+		voe_ui_field_focus(ui, assets->naming_field);
+		assets->naming_focus = false;
+	}
+}
+
 void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing the Assets panel into no interface");
@@ -238,6 +282,8 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 
 	assets->up_button = VOE_UI_NODE_NONE;
 	assets->import_button = VOE_UI_NODE_NONE;
+	assets->naming_field = VOE_UI_NODE_NONE;
+	assets->empty = VOE_UI_NODE_NONE;
 	// Import needs a folder to copy into, so an untitled project has none;
 	// a missing `Assets/` still has it, since importing makes one.
 	if (assets->listed_once && assets->project != NULL) {
@@ -260,15 +306,91 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 		return;
 	}
 	voe_ui_label(ui, assets->path);
+	// Folders come first, so the pending folder is first among them.
+	if (assets->naming == VOE_EDITOR_ASSETS_NAMING_FOLDER)
+		naming_field_draw(ui, assets, NEW_FOLDER_NAME);
 	for (uint32_t i = 0; i < assets->row_count; i++) {
 		voe_editor_assets_row *row = &assets->rows[i];
+		bool selected = row->name == assets->selected;
 
-		row->node = voe_ui_choice_begin(ui, "asset", i, false);
+		if (selected &&
+		    assets->naming == VOE_EDITOR_ASSETS_NAMING_RENAME) {
+			row->node = VOE_UI_NODE_NONE;
+			naming_field_draw(ui, assets, row->name);
+			continue;
+		}
+		row->node = voe_ui_choice_begin(ui, "asset", i, selected);
 		voe_ui_label(ui, row->name);
 		if (row->folder)
 			voe_ui_label(ui, "/");
 		voe_ui_end(ui);
 	}
+	assets->empty = voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .size = { .along = { VOE_UI_SIZE_GROW, 1.0f } } });
+	voe_ui_end(ui);
+}
+
+// `folder` and `name` joined with `/` into `out`, or `name` alone at
+// `Assets/`; voe_editor_assets_rename_begin left the room.
+static void joined_into(char *out, const char *folder, const char *name)
+{
+	int length;
+
+	VOE_BASE_ASSERT(out != NULL && folder != NULL && name != NULL,
+			"joining no path");
+	length = folder[0] == '\0' ?
+			 snprintf(out, VOE_EDITOR_ASSETS_PATH, "%s", name) :
+			 snprintf(out, VOE_EDITOR_ASSETS_PATH, "%s/%s", folder,
+				  name);
+	VOE_BASE_ASSERT(length >= 0 && length < VOE_EDITOR_ASSETS_PATH,
+			"a request's path past the room naming checked for");
+}
+
+// The committed `name` as the naming's request, the shown folder's `\` from
+// a joined subfolder made `/`, as assets_manage.h's paths are.
+static void request_set(voe_editor_assets *assets, const char *name)
+{
+	voe_editor_assets_request *request = &assets->request;
+
+	VOE_BASE_ASSERT(assets->shown != NULL && name != NULL,
+			"a request from no listed panel or no name");
+	VOE_BASE_ASSERT(assets->naming != VOE_EDITOR_ASSETS_NAMING_RENAME ||
+				assets->selected != NULL,
+			"a rename with no selected row");
+	*request = (voe_editor_assets_request){ .kind = assets->naming };
+	snprintf(request->name, sizeof request->name, "%s", name);
+	joined_into(request->folder, "", assets->shown);
+	for (char *c = request->folder; *c != '\0'; c++)
+		if (*c == '\\')
+			*c = '/';
+	if (request->kind != VOE_EDITOR_ASSETS_NAMING_RENAME)
+		return;
+	joined_into(request->from, request->folder, assets->selected);
+	joined_into(request->to, request->folder, request->name);
+}
+
+// The naming's field read: a commit leaves its request, and a commit, a
+// cancel, a focus lost or a field not drawn this frame ends the naming.
+static void naming_read(const voe_ui_context *ui, voe_editor_assets *assets)
+{
+	voe_ui_field_result result;
+
+	VOE_BASE_ASSERT(ui != NULL && assets != NULL, "reading no naming");
+	if (assets->naming == VOE_EDITOR_ASSETS_NAMING_NONE)
+		return;
+	if (assets->naming_field == VOE_UI_NODE_NONE) {
+		assets->naming = VOE_EDITOR_ASSETS_NAMING_NONE;
+		return;
+	}
+	result = voe_ui_field_action(ui, assets->naming_field);
+	assets->naming_field = VOE_UI_NODE_NONE;
+	if (result.committed)
+		request_set(assets, result.text);
+	if (result.committed || result.cancelled || !result.focused)
+		assets->naming = VOE_EDITOR_ASSETS_NAMING_NONE;
+	VOE_BASE_ASSERT(assets->naming_field == VOE_UI_NODE_NONE,
+			"a naming field left standing after its read");
 }
 
 // `name` in the shown folder as `Assets/...` into `opened`, `\` from a joined
@@ -295,7 +417,8 @@ static void opened_set(voe_editor_assets *assets, const char *name)
 }
 
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
-				   voe_editor_assets *assets)
+				   voe_editor_assets *assets, bool pointer_down,
+				   bool over)
 {
 	VOE_BASE_ASSERT(ui != NULL, "reading the clicks of no interface");
 	VOE_BASE_ASSERT(assets != NULL, "reading the clicks of no Assets panel");
@@ -307,20 +430,29 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 	bool import = assets->import_button != VOE_UI_NODE_NONE &&
 		      voe_ui_button_action(ui, assets->import_button).fired;
 	const char *entered = NULL;
+	bool pressed = false;
 
+	// Before the rows: a press on another row commits the rename of the
+	// one still selected.
+	naming_read(ui, assets);
 	// Every node is forgotten once read, so a frame that does not draw
 	// the panel asks nothing stale.
 	assets->up_button = VOE_UI_NODE_NONE;
 	assets->import_button = VOE_UI_NODE_NONE;
+	assets->empty = VOE_UI_NODE_NONE;
 	assets->held = NULL;
 	assets->held_prefab = false;
 	assets->held_picture = false;
 	for (uint32_t i = 0; i < assets->row_count; i++) {
 		voe_editor_assets_row *row = &assets->rows[i];
+		bool held = row->node != VOE_UI_NODE_NONE &&
+			    voe_ui_button_action(ui, row->node).held;
 
-		if ((row->model || row->prefab || row->picture) &&
-		    row->node != VOE_UI_NODE_NONE &&
-		    voe_ui_button_action(ui, row->node).held) {
+		if (held) {
+			assets->selected = row->name;
+			pressed = true;
+		}
+		if ((row->model || row->prefab || row->picture) && held) {
 			assets->held = row->name;
 			assets->held_prefab = row->prefab;
 			assets->held_picture = row->picture;
@@ -334,9 +466,46 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 			opened_set(assets, row->name);
 		row->node = VOE_UI_NODE_NONE;
 	}
-	if (up || entered != NULL)
+	// A row's own press takes the keyboard; one outside the panel, not a
+	// row's drag carried out of it, gives it back.
+	if (pressed)
+		assets->keyboard = true;
+	else if (pointer_down && !over)
+		assets->keyboard = false;
+	if (up || entered != NULL) {
 		relist(assets, assets->project, assets->shown, entered, up);
+		assets->selected = NULL;
+	}
 	return import;
+}
+
+// Whether the shown folder leaves room in a request for a whole field's name.
+static bool naming_fits(const voe_editor_assets *assets)
+{
+	VOE_BASE_ASSERT(assets != NULL, "asking whether no panel can name");
+	return assets->listed_once && !assets->missing &&
+	       strlen(assets->shown) + 1 + VOE_UI_FIELD_CAPACITY <
+		       VOE_EDITOR_ASSETS_PATH;
+}
+
+void voe_editor_assets_rename_begin(voe_editor_assets *assets)
+{
+	VOE_BASE_ASSERT(assets != NULL, "renaming in no Assets panel");
+	if (assets->selected == NULL || !naming_fits(assets))
+		return;
+	assets->naming = VOE_EDITOR_ASSETS_NAMING_RENAME;
+	assets->naming_focus = true;
+	VOE_BASE_ASSERT(assets->selected != NULL, "a rename with no row");
+}
+
+void voe_editor_assets_folder_begin(voe_editor_assets *assets)
+{
+	VOE_BASE_ASSERT(assets != NULL, "naming a folder in no Assets panel");
+	if (!naming_fits(assets))
+		return;
+	assets->naming = VOE_EDITOR_ASSETS_NAMING_FOLDER;
+	assets->naming_focus = true;
+	VOE_BASE_ASSERT(assets->naming_focus, "a folder naming never focused");
 }
 
 // Makes `<project>/Assets/` when the project's listing has none. False with

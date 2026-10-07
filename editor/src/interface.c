@@ -40,10 +40,9 @@
 // session's project, which the ghost shows as refused or not. Then scene.h's
 // reveal shows a selection made elsewhere in the list.
 //
-// A PREFAB ROW FIRED IN THE ASSETS PANEL OPENS IT, through
-// voe_editor_session_prefab_open, beside where Import shows the browser; the
-// bar then names the prefab's file and draws Back, whose command reaches
-// voe_editor_session_do as the bar's others do.
+// A PREFAB ROW FIRED IN THE ASSETS PANEL OPENS IT (session.h), beside where
+// Import shows the browser; the panel's naming request is carried out through
+// assets_manage.h in the frame's arena, a rename's typed `/` refused here.
 //
 // THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
 // FILE'S. It is drawn inside that panel so that it moves and disappears with the
@@ -57,6 +56,7 @@
 // panel header's × goes through the same toggle on its root.
 #include "interface.h"
 
+#include "assets_manage.h"
 #include "browser.h"
 #include "errors.h"
 #include "inspector.h"
@@ -81,8 +81,41 @@
 #include <ui/colour.h>
 #include <ui/theme.h>
 
+#include <string.h>
+
 // Between the picker and the Inspector column, and below the bar. Millimetres.
 #define PICKER_GAP (1.0f * VOE_EDITOR_SPACING)
+
+// The Assets panel's request carried out and cleared. A rename's `to` is the
+// shown folder joined with the typed name, so a `/` in it would move the file
+// into a folder rather than rename it (assets_manage.h's constraint); it is
+// refused here in the words assets_manage.c uses for the other separators.
+static void assets_request_do(voe_editor_session *session,
+			      voe_editor_scene *scene, voe_editor_undo *undo,
+			      voe_base_arena *arena)
+{
+	voe_editor_assets_request *request = &scene->assets.request;
+
+	VOE_BASE_ASSERT(session != NULL && scene != NULL && undo != NULL,
+			"an Assets request with no session, scene or undo");
+	VOE_BASE_ASSERT(arena != NULL, "an Assets request with no scratch");
+	if (request->kind == VOE_EDITOR_ASSETS_NAMING_RENAME) {
+		if (strchr(request->name, '/') != NULL)
+			voe_editor_notice_set(&session->notice,
+					      "%s: a name cannot hold /, \\ or \"",
+					      request->name);
+		else
+			// A false has said why in the notice.
+			(void)voe_editor_assets_move(session, scene, undo,
+						     arena, request->from,
+						     request->to);
+	} else if (request->kind == VOE_EDITOR_ASSETS_NAMING_FOLDER) {
+		(void)voe_editor_assets_folder_make(session, scene, undo, arena,
+						    request->folder,
+						    request->name);
+	}
+	request->kind = VOE_EDITOR_ASSETS_NAMING_NONE;
+}
 
 voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
 					 const voe_ui_theme *theme)
@@ -130,6 +163,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       uint32_t count, voe_editor_scene *scene,
 			       const voe_editor_assets_drag *drag,
 			       voe_editor_views *views,
+			       voe_editor_undo *undo,
 			       voe_editor_session *session,
 			       voe_editor_topbar *bar,
 			       voe_editor_browser *browser,
@@ -148,6 +182,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(scene != NULL, "drawing an interface with no scene");
 	VOE_BASE_ASSERT(drag != NULL, "drawing an interface with no drag");
 	VOE_BASE_ASSERT(views != NULL, "drawing an interface with no views");
+	VOE_BASE_ASSERT(undo != NULL, "drawing an interface with no undo line");
 	VOE_BASE_ASSERT(session != NULL, "drawing an interface with no session");
 	VOE_BASE_ASSERT(bar != NULL, "drawing an interface with no top bar");
 	VOE_BASE_ASSERT(browser != NULL, "drawing an interface with no browser");
@@ -209,6 +244,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// Why a Scene list drag over Assets would be refused, never
 		// shown: the release's make says it in the session's notice.
 		voe_editor_notice unshown = { 0 };
+		// Whether the pointer is over the Assets leaf, for the Scene
+		// list's drop and the Assets panel's keyboard.
+		bool over_assets;
 
 		if (browsing || preferring || erroring || projecting)
 			voe_editor_scene_picker_close(scene);
@@ -382,11 +420,12 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		if (!voe_editor_scene_clicks_read(scene, ui))
 			voe_editor_notice_set(&session->notice,
 					      "The scene is full.");
+		over_assets = voe_editor_dock_over_panel(
+			root, voe_editor_topbar_high(bar, root->size.y),
+			VOE_EDITOR_PANEL_ASSETS, root->pointer.at);
 		voe_editor_scene_list_drop(
 			scene, ui, root->pointer.down, root->pointer.at,
-			voe_editor_dock_over_panel(
-				root, voe_editor_topbar_high(bar, root->size.y),
-				VOE_EDITOR_PANEL_ASSETS, root->pointer.at),
+			over_assets,
 			!voe_editor_prefab_make_refused(session->project,
 							scene->list_held,
 							&unshown));
@@ -400,10 +439,13 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		}
 		// After every read that can move the selection this frame.
 		voe_editor_scene_reveal(scene, ui);
-		if (voe_editor_assets_clicks_read(ui, &scene->assets))
+		if (voe_editor_assets_clicks_read(ui, &scene->assets,
+						  root->pointer.down,
+						  over_assets))
 			voe_editor_browser_show(browser,
 						VOE_EDITOR_BROWSER_IMPORT, NULL,
 						&session->notice);
+		assets_request_do(session, scene, undo, arena);
 		if (scene->assets.opened[0] != '\0') {
 			voe_editor_session_prefab_open(session, scene,
 						       scene->assets.opened);

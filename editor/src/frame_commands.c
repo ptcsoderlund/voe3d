@@ -1,5 +1,6 @@
 // The three per-frame command stretches of main.c's loop, in the order main.c
-// calls them: the history's step, the keyboard's read and acts, and the acts
+// calls them: the history's step, the keyboard's read and acts (F2's rename
+// among them, the Assets panel's keyboard a guard), and the acts
 // that wait for the interface to have drawn, a reveal's unfold marked among
 // them. See frame_commands.h.
 #include "frame_commands.h"
@@ -77,8 +78,14 @@ voe_editor_frame_commands_read(voe_editor_frame_commands *commands,
 				  .picker_open = scene->picking.open,
 				  .dropdown_open = scene->dropdown.open,
 				  .pointer_down = left,
-				  .flying = flying });
+				  .flying = flying,
+				  .assets_keyboard = scene->assets.keyboard });
 	commands->shortcuts = shortcuts;
+
+	// F2 renames the Assets panel's selected row while the panel holds
+	// the keyboard; its field is drawn from this frame (assets_panel.h).
+	if (shortcuts.rename && scene->assets.keyboard)
+		voe_editor_assets_rename_begin(&scene->assets);
 
 	// Ctrl+N, Ctrl+O and Ctrl+S are the bar's three commands.
 	if (shortcuts.new_project)

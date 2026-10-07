@@ -27,6 +27,7 @@
 #include "session.h"
 #include "themes.h"
 #include "topbar.h"
+#include "undo.h"
 
 #include <base/arena.h>
 #include <math/float2.h>
@@ -459,6 +460,10 @@ void voe_editor_interface_surface(voe_platform_size target,
 // Project and Errors does. The dock keeps its pointer, so the views and the
 // Inspector stay usable beside it; its × hides it, and the Panels list's
 // Frame breakdown row shows or hides it through the same toggle.
+//
+// `undo` IS FORGOTTEN BY A RENAME the Assets panel's field commits, carried out
+// through assets_manage.h with a new folder's make; a refusal is said in the
+// session's notice.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
 					     voe_ui_context *ui,
 					     voe_base_arena *arena,
@@ -467,6 +472,7 @@ void voe_editor_interface_surface(voe_platform_size target,
 					     voe_editor_scene *scene,
 					     const voe_editor_assets_drag *drag,
 					     voe_editor_views *views,
+					     voe_editor_undo *undo,
 					     voe_editor_session *session,
 					     voe_editor_topbar *bar,
 					     voe_editor_browser *browser,

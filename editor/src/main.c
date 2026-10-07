@@ -631,7 +631,8 @@ int main(int argc, char *argv[])
 			drawn = voe_editor_interface_draw(
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
-				&scene, &drag, &views, &session, &bar, &browser,
+				&scene, &drag, &views, &undo, &session, &bar,
+				&browser,
 				&preferences, &project_panel, &themes,
 				&breakdown, commands.escape_free);
 			// The acts that wait for the draw (frame_commands.h).

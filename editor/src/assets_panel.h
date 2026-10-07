@@ -3,53 +3,49 @@
 // out. A folder row is entered, Up goes back a level, Import copies a `.glb`
 // chosen in the browser's IMPORT mode into the shown folder (0277 point 7),
 // and the listing follows the project in place. main.c updates it once a
-// frame; dock.c draws it under
-// the Scene list and interface.c reads its clicks beside the other panels':
+// frame; dock.c draws it and interface.c reads it after the frame ends:
 //
 //     voe_editor_assets_update(&scene.assets, session.project->folder, now);
 //     voe_editor_assets_draw(ui, &scene->assets);          // in the dock
-//     voe_editor_assets_clicks_read(ui, &scene->assets);   // after frame end
+//     voe_editor_assets_clicks_read(ui, &scene->assets, down, over);
 //
-// ITS OWN ARENA, cleared at every listing: the shown folder, the project it
-// was listed for and every row name are copied in, so nothing points into the
-// session's project, which New and Open replace. Made on the first update and
-// freed by voe_editor_assets_destroy at shutdown.
+// ITS OWN ARENA, cleared at every listing, holds the shown folder, the project
+// and every row name, so nothing points into the session's project, which New
+// and Open replace. Made on the first update, freed by voe_editor_assets_destroy.
 //
-// ONCE A SECOND it lists again, so a file copied in from outside the editor
-// shows up without a click, and it is not a folder read every frame. A
-// different project folder lists at once, back at `Assets/`.
+// ONCE A SECOND it lists again, so a file copied in from outside shows up; a
+// different project folder lists at once, back at `Assets/`. NEVER ABOVE
+// `Assets/`: `shown` is relative to it and Up is not drawn there; the rest of
+// the disk is the browser's (browser.h).
 //
-// NEVER ABOVE `Assets/`. `shown` is relative to it and Up is not drawn at it:
-// the panel is the project's files, and the rest of the disk is the
-// browser's (browser.h).
+// EVERY ROW IS DRAWN ALIKE, a choice in the theme's text colour, its kind told
+// by the name's ending alone (0194). A MODEL (`.glb`), PREFAB (`.prefab`) or
+// PICTURE (`.png`, `.jpg`, `.jpeg`) row, in any case, is held so assets_drag.h
+// places it or makes it a texture (0270, 0283, 0298). A prefab row pressed and
+// released on the row fires: its project-relative path, `/` between, is left
+// in `opened` for the caller to read and clear; one too long for it is not.
 //
-// EVERY ROW IS DRAWN ALIKE, an unselected choice in the theme's text colour:
-// the kind is shown by the name's ending alone, never by colour (0194).
+// THE SELECTED ROW (0378 point 6) is the last row pressed, drawn selected,
+// kept across a listing while its name is still there, cleared on entering a
+// folder or Up. A row pressed also takes `keyboard`, F2 and Delete being the
+// panel's then (shortcuts.h); a primary press outside the panel gives it back.
 //
-// A MODEL ROW is a file whose name ends `.glb`, in any case: the one kind a
-// thing can draw in 0.2 (0270). It is held so assets_drag.h places it; other
-// files are only listed.
-//
-// A PREFAB ROW is a file whose name ends `.prefab`, in any case (0283): held
-// as a model row is, so assets_drag.h places it. Pressed and released on the
-// row, which a drag to a view never is, it fires: the read leaves its
-// project-relative path, `/` between, in `opened`, a field the caller reads
-// and clears; a path too long for it is not reported.
-//
-// A PICTURE ROW is a file whose name ends `.png`, `.jpg` or `.jpeg`, in any
-// case (0298 point 5): held as a model row is, so assets_drag.h can make it
-// an emitter's texture.
+// NAMING IN PLACE (0378 point 4): rename_begin draws the selected row, and
+// folder_begin a pending row first among the folders, as a field focused with
+// its name selected. Enter or a press elsewhere leaves a `request` the caller
+// carries out through assets_manage.h and clears; Escape leaves none. Either
+// ends the naming, as do entering a folder, Up, or a listing without the row.
 //
 // A FAILED LISTING KEEPS THE OLD ROWS for the same project, as browser.h's
-// does, and says why on stderr through platform/folder.h. `Assets/` is looked
-// for in the project's own listing first, so a project without one, or an
-// untitled project with no folder, is no rows and `missing`, shown as a line,
-// with nothing on stderr. Constraint: a shown subfolder removed from outside
-// reports on stderr once a second until Up is pressed.
+// does, and says why on stderr through platform/folder.h. A project without
+// `Assets/`, or untitled, is no rows and `missing`, shown as a line, nothing
+// on stderr. Constraints: a shown subfolder removed from outside reports on
+// stderr once a second until Up; naming does not begin in a shown folder too
+// long for VOE_EDITOR_ASSETS_PATH with a whole field's name after it, which a
+// longer buffer would lift.
 //
-// THE ROWS SCROLL IN THE LEAF'S OWN SCROLL AREA (dock.c): every panel that is
-// not a picture already is one, and a second inside it would have nothing to
-// grow against.
+// THE ROWS SCROLL IN THE LEAF'S OWN SCROLL AREA (dock.c), and the empty space
+// under them is a node of its own, so a read can test a press there.
 #pragma once
 
 #include "browser.h"
@@ -73,6 +69,28 @@ typedef struct {
 	bool prefab;
 	bool picture;
 } voe_editor_assets_row;
+
+// A request's paths, `/` between: room for the shown folder and a field's name.
+#define VOE_EDITOR_ASSETS_PATH 1024
+
+// The naming in progress, and the kind of a request it left.
+typedef enum {
+	VOE_EDITOR_ASSETS_NAMING_NONE = 0,
+	VOE_EDITOR_ASSETS_NAMING_RENAME,
+	VOE_EDITOR_ASSETS_NAMING_FOLDER,
+} voe_editor_assets_naming;
+
+// What a committed field asks for, paths relative to `Assets/` as
+// assets_manage.h takes them: a rename's `from` and `to`, the shown folder
+// joined with the row's and the typed name, or a folder's `folder` and `name`.
+// `name` is the typed text as it is, so the caller can refuse a `/` in it.
+typedef struct {
+	voe_editor_assets_naming kind;
+	char folder[VOE_EDITOR_ASSETS_PATH];
+	char from[VOE_EDITOR_ASSETS_PATH];
+	char to[VOE_EDITOR_ASSETS_PATH];
+	char name[VOE_UI_FIELD_CAPACITY + 1];
+} voe_editor_assets_request;
 
 // The panel's whole state. Zeroed is a panel never listed.
 typedef struct {
@@ -102,6 +120,19 @@ typedef struct {
 	// The prefab row fired at the last read, `Assets/...` under the
 	// project, "" for none. The caller clears it once it has opened it.
 	char opened[VOE_SCENE_PREFAB_PATH];
+	// The selected row's name, one of the rows' own in `arena`, NULL for
+	// none; and whether F2 and Delete are the panel's.
+	const char *selected;
+	bool keyboard;
+	// The naming in progress, its field focused at the next draw while
+	// `naming_focus`, the field drawn, and the space under the rows.
+	voe_editor_assets_naming naming;
+	bool naming_focus;
+	voe_ui_node naming_field;
+	voe_ui_node empty;
+	// Left by a committed field; the caller carries it out and sets `kind`
+	// back to NONE.
+	voe_editor_assets_request request;
 } voe_editor_assets;
 
 // Lists again when `project_folder` (NULL for untitled) differs from the one
@@ -115,16 +146,28 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 void voe_editor_assets_list_due(voe_editor_assets *assets);
 
 // Up (not at `Assets/`) beside Import (only when the project has a folder),
-// the shown folder's path, then one row per entry, or the line saying there
-// is no `Assets/`. Records every node for the read.
+// the shown folder's path, then a new folder's field, one row per entry, the
+// renamed one a field, and the space under them; or the line saying there is
+// no `Assets/`. Records every node for the read.
 void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 
-// After voe_ui_frame_end: a folder row fired is entered, Up fired goes up a
-// level; either lists at once. `held` is set to the model, prefab or picture
-// row held, if any, and `opened` to a prefab row fired. True when Import fired, which
-// the caller answers by showing the browser in IMPORT mode.
+// After voe_ui_frame_end: the naming's field read into `request`, then a
+// folder row fired is entered, Up fired goes up a level; either lists at once.
+// A row held is selected and takes `keyboard`; `pointer_down` while the
+// pointer is not `over` the panel gives it back. `held` is set to the model,
+// prefab or picture row held, if any, and `opened` to a prefab row fired.
+// True when Import fired, which the caller answers by showing the browser in
+// IMPORT mode.
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
-				   voe_editor_assets *assets);
+				   voe_editor_assets *assets, bool pointer_down,
+				   bool over);
+
+// The selected row drawn as a field holding its name from the next draw;
+// nothing without a selected row.
+void voe_editor_assets_rename_begin(voe_editor_assets *assets);
+
+// A pending "New folder" row drawn as a field first among the folders.
+void voe_editor_assets_folder_begin(voe_editor_assets *assets);
 
 // Copies the file at `source` into the shown folder under its own name, read
 // whole and written atomically over any file of that name, making `Assets/`
