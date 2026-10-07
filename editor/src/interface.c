@@ -28,10 +28,8 @@
 // picker sits anchored over the dock just left of the Inspector column, seeded
 // from the row. A `changed` goes through inspector.h's
 // voe_editor_inspector_colour_submit at once, so the shape changes live; an
-// `outside` press closes it. It is read before the Inspector's buttons, so a
-// swatch that fires in the frame an outside press closed the picker opens it
-// again rather than being closed behind. The browser and Preferences cover the
-// same area, and either showing closes it.
+// `outside` press closes it. The browser and Preferences cover the same area,
+// and either showing closes it.
 //
 // THE SCENE LIST'S DROP IS CARRIED OUT IN THAT SAME ONE READ, through
 // scene_list.h's voe_editor_scene_list_drop, after the rows' clicks. Released
@@ -40,12 +38,9 @@
 // session's project, which the ghost shows as refused or not. Then scene.h's
 // reveal shows a selection made elsewhere in the list.
 //
-// A PREFAB ROW FIRED IN THE ASSETS PANEL OPENS IT (session.h), beside where
-// Import shows the browser; the panel's naming request is carried out through
-// assets_manage.h in the frame's arena, a rename's typed `/` refused here.
-// Its Delete request opens the session's question (assets_ask.h), drawn over
-// the dock and read here: Delete trashes through assets_manage.h, and it or
-// Cancel or a press outside closes it.
+// THE ASSETS PANEL'S REQUESTS ARE CARRIED OUT HERE: a fired prefab row opens,
+// a naming request goes through assets_manage.h, and Delete asks first
+// (assets_ask.h); see voe_editor_interface_draw for how and in what order.
 //
 // THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
 // FILE'S. It is drawn inside that panel so that it moves and disappears with the
@@ -57,9 +52,7 @@
 // goes through panels.h's voe_editor_panels_toggle and closes it, and Escape,
 // a press off the list and Panels, or the browser showing close it. A fired
 // panel header's × goes through the same toggle on its root. THE ASSETS
-// PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn after it and read after
-// the panel: Rename, Delete and Folder begin on the panel, Duplicate goes
-// through assets_manage.h; Escape closes it first, as do the dock's covers.
+// PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn and read here too.
 #include "interface.h"
 
 #include "assets_ask.h"
@@ -190,6 +183,22 @@ void voe_editor_interface_surface(voe_platform_size target,
 	*pixels_per_millimetre = scale;
 }
 
+// The order of the reads after voe_ui_frame_end is what makes them agree:
+//
+// The colour picker is read before the Inspector's buttons, so a swatch that
+// fires in the frame an outside press closed the picker opens it again rather
+// than being closed behind.
+//
+// A prefab row fired in the Assets panel opens it (session.h), beside where
+// Import shows the browser; the panel's naming request is carried out through
+// assets_manage.h in the frame's arena, a rename's typed `/` refused here. Its
+// Delete request opens the session's question (assets_ask.h), drawn over the
+// dock and read here: Delete trashes through assets_manage.h, and it or Cancel
+// or a press outside closes it.
+//
+// The Assets panel's right-button menu is drawn after the panels list and read
+// after the panel: Rename, Delete and Folder begin on the panel, Duplicate goes
+// through assets_manage.h; Escape closes it first, as do the dock's covers.
 bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_base_arena *arena,
 			       voe_editor_dock_root *roots,

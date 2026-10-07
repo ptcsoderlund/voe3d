@@ -170,10 +170,9 @@ carries it out.
 - `drag_ghost.h` — the ghost every editor drag shows beside the pointer: a raised panel of the
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
-- `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, folders
-  entered and Up but never above it, listed again once a second or when due, a selected row holding
-  the keyboard, a rename or new folder named in place as a request, a prefab to open, Import, any
-  row held for a drag, and the menu and the drag read from last frame's rectangles, Up's among them.
+- `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, never above
+  it, asking for a create, rename, delete or move: a new folder or rename named in place, a selected
+  row's Delete, a row held for a drag, a prefab to open, and Import.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
   fired prefab's path unless dragged, Up and Import afterwards, and the import.

@@ -51,8 +51,9 @@
 // THE ROWS SCROLL IN THE LEAF'S OWN SCROLL AREA (dock.c), and the empty space
 // under them is a node of its own, so a read can test a press there. THE RIGHT
 // BUTTON (0378 point 8): `ui` knows one button, so the read keeps each row's,
-// the empty part's and the whole panel's visible rectangles, and menu_at opens
-// `menu` (assets_menu.h) from them.
+// the empty part's, Up's and the whole panel's visible rectangles from the
+// last frame, and menu_at opens `menu` (assets_menu.h) and the drag finds its
+// target from them.
 #pragma once
 
 #include "assets_menu.h"
