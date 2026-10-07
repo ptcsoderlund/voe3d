@@ -183,9 +183,8 @@ carries it out.
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, never above
-  it, asking for a create, rename, delete or move: a new folder, landscape or rename named in place,
-  a selected row's Delete, a row held for a drag (a `.landscape` as a model), a prefab or landscape
-  to open, and Import.
+  it, asking for a create, rename, delete or move named in place, a row held for a drag, a prefab or
+  landscape to open, and Import.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
   fired prefab's or landscape's path unless dragged, Up and Import afterwards, and the import.
@@ -227,10 +226,9 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
   Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
-  commands they fire are carried out, the Assets panel's rename, new folder, new landscape and Delete
-  question among them, the Landscape panel opened and its size written, the Sculpt section's read,
-  the Assets menu's rows, then the selection's reveal.
+- `interface.c` — one `ui` frame per root, and the one read of its clicks where the commands they
+  fire are carried out: the Assets panel's requests, the Landscape panel's size, the Sculpt
+  section's read, the Assets menu's rows, then the selection's reveal.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
@@ -280,16 +278,13 @@ carries it out.
   selection's outline colour, dimmed for a gizmo handle at rest and fainter still for a blocker's box.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
   passes, lit by every light, with the world, its models, the selection's outline, collider and
-  gizmo, every blocker's box, the markers, every meshless place's too, the brush circle, and the
-  device capacities.
-- `view_passes.c` — the preview's pass while the selected entity has a camera, then each shown
-  view's shadow passes and pass, lit by every directional and point light and kept out of the light
-  blockers, every place marked and every blocker lined, the brush's rings on the hovered ground with
-  the gizmo hidden while brushing a landscape, stopping at the first refused pass.
+  gizmo, every blocker's box, the markers, the brush circle, and the device capacities.
+- `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, lit by every
+  light and kept out of the blockers, every place marked and blocker lined, the brush's rings with
+  the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
-  emptied on a different project, a broken file said in the notice, progress passed on during a
-  splash wait, handed to picking and the view passes, and its landscapes drawn, saved, reverted,
-  put back by a stroke and resized.
+  emptied on a different project, a broken file in the notice, a splash wait's progress passed on,
+  and its landscapes drawn, saved, reverted, put back by a stroke and resized.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed; landscapes drawn transient,
   settled, written on Save, read again on a New or Open, and a size written and re-read.
@@ -311,10 +306,9 @@ carries it out.
   written back relative to its parent.
 - `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), a state
   carrying a sculpting stroke beside its text, with the level's line set aside while a prefab is open.
-- `undo.c` — the states pushed once, the two lines swapped, the compare a settled edit makes against
-  the state the world is, a reveal's amend of it, a stroke pushed, the throwing away of what could
-  have been redone with its strokes, and a step writing the stroke it passes and re-finding the
-  selection by its authored id.
+- `undo.c` — the states pushed once, the two lines swapped, a settled edit's compare and a reveal's
+  amend, a stroke pushed, what could have been redone thrown away with its strokes, and a step
+  writing the stroke it passes and re-finding the selection by authored id.
 - `strokes.h` — one sculpting stroke: a landscape's path, the rectangle touched and its heights
   before and after, its own memory beside the undo line's text, and why.
 - `strokes.c` — the copies made and freed, and the heights written either way through the store.
