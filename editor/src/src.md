@@ -6,7 +6,7 @@ carries it out.
 
 - `main.c` — opens the project, window and device, starts and loads scenes on a worker behind a
   live splash, and runs the loop until a close goes ahead or the picture is written, taking the
-  frame breakdown's timings each frame.
+  frame breakdown's timings each frame and drawing, settling, saving and reverting landscapes.
 - `loading.h` — the start's and a New or Open load's works for a splash wait: shaders with the
   editor's pipeline cache, shapes and models, or the scene and its models, and what the worker owns.
 - `loading.c` — the two works, each step after a stop check, in the worker's own scratch.
@@ -121,8 +121,8 @@ carries it out.
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
 - `session.h` — the project being worked on, its Play, Refresh, Ship and open prefab, the Errors
-  panel shown from the build log, and the armed command that makes Close, New, Open and Back
-  refuse once over unsaved work.
+  panel shown from the build log, the armed command that makes Close, New, Open and Back refuse
+  once over unsaved work, and the `saved` flag a written Save leaves for main.c.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, what a browser action does to the session, and the load a frame later.
@@ -265,9 +265,10 @@ carries it out.
   blockers, every place marked and every blocker lined, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file said in the notice, progress passed on during a
-  splash wait, and handed to picking and the view passes.
+  splash wait, handed to picking and the view passes, and its landscapes drawn, saved and reverted.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
-  with a failure's notice, cleared through the device and destroyed.
+  with a failure's notice, cleared through the device and destroyed; landscapes drawn transient,
+  settled, written on Save and read again on a New or Open.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode and the reveal of a selection made elsewhere.
 - `scene.c` — the selection, Delete and Duplicate, the gizmo's switch, the colour picker and

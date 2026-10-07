@@ -120,7 +120,10 @@
 // in two ranges likewise (0320 point 9); the places', in two ranges, sized by
 // VOE_GAME_WORLD_AUTHORED because the editor's world holds only authored
 // entities (0365); and the other blockers' boxes,
-// VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more.
+// VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more. On top,
+// once a frame and not per view, a whole landscape's chunks drawn transient
+// while a stroke is held (VOE_3D_LANDSCAPE_TRANSIENT_*, 0379 point 4): they are
+// made once after the draw opens and every pass draws the same ones.
 #define VOE_EDITOR_CAPACITIES                                                \
 	(voe_render_capacities)                                               \
 	{                                                                     \
@@ -163,7 +166,8 @@
 					       VOE_GAME_WORLD_AUTHORED +       \
 				       VOE_3D_COLLIDER_MARKER_VERTICES *       \
 					       VOE_GAME_WORLD_LIGHT_BLOCKERS) * \
-				      VOE_EDITOR_VIEWS,                        \
+					      VOE_EDITOR_VIEWS +                \
+				      VOE_3D_LANDSCAPE_TRANSIENT_VERTICES,     \
 		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
 				      VOE_EDITOR_GIZMO_INDICES +               \
 				      VOE_3D_CAMERA_MARKER_INDICES +           \
@@ -176,8 +180,10 @@
 					      VOE_GAME_WORLD_AUTHORED +        \
 				      VOE_3D_COLLIDER_MARKER_INDICES *         \
 					      VOE_GAME_WORLD_LIGHT_BLOCKERS) * \
-				     VOE_EDITOR_VIEWS,                         \
-		.transient_geometries = 13 * VOE_EDITOR_VIEWS                  \
+					     VOE_EDITOR_VIEWS +                 \
+				     VOE_3D_LANDSCAPE_TRANSIENT_INDICES,       \
+		.transient_geometries = 13 * VOE_EDITOR_VIEWS +                \
+					VOE_3D_LANDSCAPE_TRANSIENT_RANGES      \
 	}
 
 // Sets `preview_shown` to whether the selected entity has a camera and, when

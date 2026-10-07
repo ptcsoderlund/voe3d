@@ -1,12 +1,17 @@
 // The editor's one model store models.h describes: made empty, emptied on a
 // different folder, filled and re-read through game/models.h once a frame,
-// cleared through the device and destroyed, and handed out read-only.
+// cleared through the device and destroyed, and handed out read-only; its
+// landscapes drawn transient, settled, written on Save and read again.
 #include "models.h"
 
 #include <base/assert.h>
+#include <base/error.h>
 #include <base/report.h>
 
 #include <game/models.h>
+
+#include <platform/file.h>
+#include <platform/path.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -116,6 +121,136 @@ void voe_editor_models_update(voe_editor_models *models,
 	say_failure(&session->notice,
 		    voe_game_models_watch(models->store, device, models->folder,
 					  scratch));
+}
+
+void voe_editor_models_frame(voe_editor_models *models,
+			     voe_render_device *device, voe_base_arena *scratch)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"drawing landscapes of no store");
+	VOE_BASE_ASSERT(device != NULL && scratch != NULL,
+			"drawing landscapes with no device or scratch");
+	voe_3d_models_landscape_frame(models->store, device, scratch);
+}
+
+void voe_editor_models_settle(voe_editor_models *models,
+			      voe_render_device *device,
+			      voe_base_arena *scratch)
+{
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"settling landscapes of no store");
+	VOE_BASE_ASSERT(device != NULL && scratch != NULL,
+			"settling landscapes with no device or scratch");
+	if (!voe_3d_models_landscape_settle(models->store, device, scratch,
+					    &error))
+		VOE_BASE_ERROR("editor", "a landscape stays transient: %s",
+			       voe_base_error_string(error));
+}
+
+// Whether `entry` is a landscape changed since it was loaded or saved.
+static bool edited_landscape(const voe_3d_model_entry *entry)
+{
+	VOE_BASE_ASSERT(entry != NULL, "asking after no entry");
+	return entry->landscape != NULL && entry->edited;
+}
+
+bool voe_editor_models_save(voe_editor_models *models, const char *folder,
+			    voe_base_arena *scratch, voe_editor_notice *why)
+{
+	uint32_t count;
+
+	VOE_BASE_ASSERT(models != NULL && folder != NULL,
+			"saving landscapes of no store or into no folder");
+	VOE_BASE_ASSERT(scratch != NULL && why != NULL,
+			"saving landscapes with no scratch or notice");
+	count = voe_3d_models_count(models->store);
+	for (uint32_t i = 0; i < count; i++) {
+		const voe_3d_model_entry *entry =
+			voe_3d_models_at(models->store, i);
+		struct voe_base_arena_mark mark;
+		voe_assets_landscape_text text;
+		voe_base_error error = VOE_BASE_OK;
+		bool written;
+
+		if (!edited_landscape(entry))
+			continue;
+		mark = voe_base_arena_mark(scratch);
+		text = voe_assets_landscape_write(entry->landscape, scratch);
+		written = voe_platform_file_write(
+			voe_platform_path_join(scratch, folder, entry->path),
+			(const uint8_t *)text.text, text.size, &error);
+		voe_base_arena_rewind(scratch, mark);
+		if (!written) {
+			voe_editor_notice_set(why, "Could not save %s: %s",
+					      entry->path,
+					      voe_base_error_string(error));
+			return false;
+		}
+		voe_3d_models_landscape_saved(models->store, entry->path);
+	}
+	return true;
+}
+
+// Reads `path` under `folder` and loads it over its entry; a file that will
+// not read is kept failed as game/models.c keeps one. `path` is a copy, since
+// a load replaces the entry that held it.
+static void reread(voe_3d_models *store, voe_render_device *device,
+		   const char *folder, const char *path,
+		   voe_base_arena *scratch)
+{
+	const char *full = voe_platform_path_join(scratch, folder, path);
+	voe_base_error error = VOE_BASE_OK;
+	uint64_t stamp = 0;
+	size_t size = 0;
+	const uint8_t *bytes;
+
+	VOE_BASE_ASSERT(path[0] != '\0', "re-reading a landscape with no path");
+	bytes = voe_platform_file_stamp(full, &stamp) ?
+			voe_platform_file_read(full, scratch, &size, &error) :
+			NULL;
+	if (bytes == NULL) {
+		voe_3d_models_fail(store, path, 0);
+		VOE_BASE_ERROR("editor", "could not read %s again", path);
+		return;
+	}
+	if (!voe_3d_models_load(store, device, path, stamp, bytes, size,
+				&error))
+		VOE_BASE_ERROR("editor", "could not read %s again: %s", path,
+			       voe_base_error_string(error));
+}
+
+void voe_editor_models_revert(voe_editor_models *models, const char *folder,
+			      voe_render_device *device,
+			      voe_base_arena *scratch)
+{
+	uint32_t count;
+
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"reverting landscapes of no store");
+	VOE_BASE_ASSERT(device != NULL && scratch != NULL,
+			"reverting landscapes with no device or scratch");
+	if (folder == NULL)
+		return;
+	count = voe_3d_models_count(models->store);
+	for (uint32_t i = 0; i < count; i++) {
+		const voe_3d_model_entry *entry =
+			voe_3d_models_at(models->store, i);
+		struct voe_base_arena_mark mark;
+		size_t length;
+		char *path;
+
+		if (!edited_landscape(entry))
+			continue;
+		mark = voe_base_arena_mark(scratch);
+		length = strlen(entry->path) + 1;
+		path = voe_base_arena_push(scratch, length);
+		VOE_BASE_ASSERT(path != NULL, "no room to copy a landscape's path");
+		memcpy(path, entry->path, length);
+		reread(models->store, device, folder, path, scratch);
+		voe_base_arena_rewind(scratch, mark);
+	}
 }
 
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models)

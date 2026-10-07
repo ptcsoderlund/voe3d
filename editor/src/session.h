@@ -54,9 +54,9 @@
 // inspector's edits are no command, so its caller calls this, which marks the
 // project unsaved, clears the notice and disarms.
 //
-// `replaced` IS A FLAG AND NOT A RETURN VALUE: voe_editor_session_load put a
-// different project in place, a frame after NEW or OPEN's Confirm; the loop
-// reads and clears it (main.c empties the undo history on it).
+// `replaced` AND `saved` ARE FLAGS, NOT RETURN VALUES: another project loaded
+// (voe_editor_session_load), or this one written by SAVE or Save's Confirm;
+// main.c clears each, emptying undo on one and saving landscapes on the other.
 #pragma once
 
 #include "assets_ask.h"
@@ -119,6 +119,9 @@ typedef struct {
 	// A different project is in session->project, set by whichever call
 	// put it there and cleared by whoever acts on it.
 	bool replaced;
+	// The project was written by a SAVE or the browser's Save Confirm;
+	// cleared by main.c once it has written the edited landscapes.
+	bool saved;
 	// A prefab was opened in the level's place, or Back left it; each set
 	// by the call that did it and cleared by main.c.
 	bool prefab_opened;

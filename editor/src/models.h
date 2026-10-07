@@ -34,6 +34,13 @@
 // even the header"), else game/models.c's category. The thing draws as
 // nothing and the file is not read again until its stamp changes, so the
 // notice is set once, not once a frame.
+//
+// A LANDSCAPE IS EDITED IN THE STORE AND ONLY THROUGH THIS FILE (0379 points
+// 4 and 6): its grid is the store's, so the calls into 3d/models.h that draw,
+// settle, write and re-read it are made here and nowhere else. Each frame
+// _frame, inside the draw, draws its dirty chunks transient, and _settle,
+// between frames beside the update, uploads them static again. Save writes
+// every edited one to its file; a New or Open reads every edited one again.
 #pragma once
 
 #include "session.h"
@@ -65,6 +72,32 @@ void voe_editor_models_update(voe_editor_models *models,
 			      voe_render_device *device,
 			      voe_base_arena *scratch, double now,
 			      voe_game_progress *progress);
+
+// Once a frame, after the draw opens and before any pass: every dirty
+// landscape chunk drawn transient this frame. `scratch` is rewound.
+void voe_editor_models_frame(voe_editor_models *models,
+			     voe_render_device *device, voe_base_arena *scratch);
+
+// Once a frame, between frames: every dirty landscape chunk uploaded static
+// again. A device with no room is one stderr line; the chunk stays dirty.
+void voe_editor_models_settle(voe_editor_models *models,
+			      voe_render_device *device,
+			      voe_base_arena *scratch);
+
+// Every edited landscape written to `<folder>/<path>` and marked saved. False
+// at the first refused write, `why` naming the file; those before it saved.
+// `scratch` is rewound.
+[[nodiscard]] bool voe_editor_models_save(voe_editor_models *models,
+					  const char *folder,
+					  voe_base_arena *scratch,
+					  voe_editor_notice *why);
+
+// Every edited landscape read from `<folder>/<path>` again and loaded over
+// itself. A file that will not read keeps its entry as an update's failure
+// does, the reason on stderr. Nothing for a NULL folder. Between frames.
+void voe_editor_models_revert(voe_editor_models *models, const char *folder,
+			      voe_render_device *device,
+			      voe_base_arena *scratch);
 
 // The store to read, for what draws, picks and outlines.
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models);

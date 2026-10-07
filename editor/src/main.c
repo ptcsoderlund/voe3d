@@ -482,6 +482,20 @@ int main(int argc, char *argv[])
 			break;
 		}
 
+		// A SAVE THAT WROTE THE PROJECT WRITES ITS EDITED LANDSCAPES, a
+		// refusal said and the project unsaved again; a different
+		// project reads its edited ones back, before the history step
+		// clears `replaced` (models.h).
+		if (session.saved) {
+			session.saved = false;
+			if (!voe_editor_models_save(models, session.project->folder,
+						    scratch, &session.notice))
+				session.project->unsaved = true;
+		}
+		if (session.replaced)
+			voe_editor_models_revert(models, session.project->folder,
+						 gpu, scratch);
+
 		// The history's step, before world_step.h (frame_commands.h).
 		voe_editor_frame_commands_history(&commands);
 
@@ -597,6 +611,7 @@ int main(int argc, char *argv[])
 		// The files this frame's rows name, before the draw opens (models.h).
 		voe_editor_models_update(models, &session, gpu, arena,
 					 opened.tick.now, NULL);
+		voe_editor_models_settle(models, gpu, scratch);
 		voe_editor_assets_update(&scene.assets, session.project->folder,
 					 opened.tick.now);
 		if (!voe_app_draw_open(app, opened.size, &drawing)) {
@@ -606,6 +621,8 @@ int main(int argc, char *argv[])
 		if (!drawing)
 			continue;
 
+		// The landscapes' dirty chunks, transient for this frame's passes.
+		voe_editor_models_frame(models, gpu, scratch);
 		light = voe_editor_view_light(session.project->world);
 
 		// A pass per view the tree shows (view_passes.h). If one is
