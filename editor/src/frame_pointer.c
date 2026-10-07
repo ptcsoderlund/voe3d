@@ -146,7 +146,7 @@ static void presses(voe_editor_frame_pointer *frame,
 	voe_editor_assets_drag_read(
 		frame->drag, frame->session, frame->undo, frame->scene,
 		frame->views, frame->root, frame->bar, frame->geometries,
-		voe_editor_models_store(frame->models), at, down,
+		frame->models, at, down,
 		panel || voe_editor_gizmo_taking(frame->gizmo));
 
 	// Then a press over a view picks what is under it (pick.h). A press

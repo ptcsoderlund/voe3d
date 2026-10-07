@@ -178,13 +178,15 @@ carries it out.
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, never above
-  it, asking for a create, rename, delete or move: a new folder or rename named in place, a selected
-  row's Delete, a row held for a drag, a prefab to open, and Import.
+  it, asking for a create, rename, delete or move: a new folder, landscape or rename named in place,
+  a selected row's Delete, a row held for a drag (a `.landscape` as a model), a prefab to open, and
+  Import.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
   fired prefab's path unless dragged, Up and Import afterwards, and the import.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
-  over a row, Create with its Folder submenu over the empty part, anchored at the pointer.
+  over a row, Create with its Folder and Landscape submenu over the empty part, anchored at the
+  pointer.
 - `assets_menu.c` — the menu's one frame of `ui` calls, the read of its rows with its own closing,
   and where it and the submenu go next frame.
 - `assets_ask.h` — the question Delete asks about the Assets panel's selected row: its name, up to
@@ -201,10 +203,12 @@ carries it out.
   Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
   the match, and the follow with its room check and write.
-- `assets_manage.h` — the Assets panel's file commands: a folder made, a rename or move followed on
-  disk and in the open scene, a duplicate, the trash, each refused with a notice and nothing changed.
-- `assets_manage.c` — the shared checks, the move's check, move, write and memory with the undo line
-  forgotten, the next free copy name, and the trash's refusals worded.
+- `assets_manage.h` — the Assets panel's file commands: a folder or flat landscape made, a rename or
+  move followed on disk, in the open scene and in the model store, a duplicate, the trash, each
+  refused with a notice and nothing changed.
+- `assets_manage.c` — the shared checks, the landscape's name and flat file, the move's check, move,
+  store rename, write and memory with the undo line forgotten, the next free copy name, and the
+  trash's refusals worded.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
@@ -219,8 +223,8 @@ carries it out.
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
   Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
 - `interface.c` — one `ui` frame per root, and the one read of the frame's clicks where the
-  commands they fire are carried out, the Assets panel's rename, new folder and Delete question
-  among them, the Sculpt section's read, the Assets menu's rows, then the selection's reveal.
+  commands they fire are carried out, the Assets panel's rename, new folder, new landscape and Delete
+  question among them, the Sculpt section's read, the Assets menu's rows, then the selection's reveal.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

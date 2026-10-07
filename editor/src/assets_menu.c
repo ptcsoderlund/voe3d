@@ -26,9 +26,11 @@ static const voe_editor_assets_menu_item ROW_ITEMS[VOE_EDITOR_ASSETS_MENU_ROWS] 
 };
 // Create's kinds, in the order the submenu lists them; a later kind adds its
 // name and item here (0377 point 2).
-static const char *const KIND_NAMES[VOE_EDITOR_ASSETS_MENU_KINDS] = { "Folder" };
+static const char *const KIND_NAMES[VOE_EDITOR_ASSETS_MENU_KINDS] = {
+	"Folder", "Landscape"
+};
 static const voe_editor_assets_menu_item KIND_ITEMS[VOE_EDITOR_ASSETS_MENU_KINDS] = {
-	VOE_EDITOR_ASSETS_MENU_FOLDER
+	VOE_EDITOR_ASSETS_MENU_FOLDER, VOE_EDITOR_ASSETS_MENU_LANDSCAPE
 };
 static const char *const CREATE_NAME[1] = { "Create" };
 
@@ -240,7 +242,7 @@ voe_editor_assets_menu_read(const voe_ui_context *ui,
 		menu->create_open = !menu->create_open;
 	if (fired != VOE_EDITOR_ASSETS_MENU_NONE || (down && !over))
 		voe_editor_assets_menu_close(menu);
-	VOE_BASE_ASSERT(fired <= VOE_EDITOR_ASSETS_MENU_FOLDER,
+	VOE_BASE_ASSERT(fired <= VOE_EDITOR_ASSETS_MENU_LANDSCAPE,
 			"an Assets menu row past the items");
 	return fired;
 }

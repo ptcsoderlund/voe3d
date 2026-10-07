@@ -39,7 +39,8 @@
 // reveal shows a selection made elsewhere in the list.
 //
 // THE ASSETS PANEL'S REQUESTS ARE CARRIED OUT HERE: a fired prefab row opens,
-// a naming request goes through assets_manage.h, and Delete asks first
+// a naming request (a rename, folder or landscape) goes through
+// assets_manage.h, the panel listed after a landscape's make, and Delete asks first
 // (assets_ask.h); see voe_editor_interface_draw for how and in what order.
 //
 // THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
@@ -94,7 +95,7 @@
 // refused here in the words assets_manage.c uses for the other separators.
 static void assets_request_do(voe_editor_session *session,
 			      voe_editor_scene *scene, voe_editor_undo *undo,
-			      voe_base_arena *arena)
+			      voe_editor_models *models, voe_base_arena *arena)
 {
 	voe_editor_assets_request *request = &scene->assets.request;
 
@@ -109,12 +110,18 @@ static void assets_request_do(voe_editor_session *session,
 		else
 			// A false has said why in the notice.
 			(void)voe_editor_assets_move(session, scene, undo,
-						     arena, request->from,
+						     models, arena,
+						     request->from,
 						     request->to);
 	} else if (request->kind == VOE_EDITOR_ASSETS_NAMING_FOLDER) {
 		(void)voe_editor_assets_folder_make(session, scene, undo, arena,
 						    request->folder,
 						    request->name);
+	} else if (request->kind == VOE_EDITOR_ASSETS_NAMING_LANDSCAPE &&
+		   voe_editor_assets_landscape_make(session, arena,
+						    request->folder,
+						    request->name)) {
+		voe_editor_assets_list_due(&scene->assets);
 	}
 	request->kind = VOE_EDITOR_ASSETS_NAMING_NONE;
 }
@@ -136,6 +143,8 @@ static void assets_menu_do(voe_editor_session *session, voe_editor_scene *scene,
 		voe_editor_assets_delete_begin(&scene->assets);
 	else if (item == VOE_EDITOR_ASSETS_MENU_FOLDER)
 		voe_editor_assets_folder_begin(&scene->assets);
+	else if (item == VOE_EDITOR_ASSETS_MENU_LANDSCAPE)
+		voe_editor_assets_landscape_begin(&scene->assets);
 	else if (item == VOE_EDITOR_ASSETS_MENU_DUPLICATE &&
 		 voe_editor_assets_selected_path(&scene->assets, path,
 						 sizeof path))
@@ -198,7 +207,7 @@ void voe_editor_interface_surface(voe_platform_size target,
 // or a press outside closes it.
 //
 // The Assets panel's right-button menu is drawn after the panels list and read
-// after the panel: Rename, Delete and Folder begin on the panel, Duplicate goes
+// after the panel: Rename, Delete, Folder and Landscape begin on the panel, Duplicate goes
 // through assets_manage.h; Escape closes it first, as do the dock's covers.
 bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_base_arena *arena,
@@ -207,6 +216,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       const voe_editor_assets_drag *drag,
 			       voe_editor_views *views,
 			       voe_editor_undo *undo,
+			       voe_editor_models *models,
 			       voe_editor_session *session,
 			       voe_editor_topbar *bar,
 			       voe_editor_browser *browser,
@@ -226,6 +236,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 	VOE_BASE_ASSERT(drag != NULL, "drawing an interface with no drag");
 	VOE_BASE_ASSERT(views != NULL, "drawing an interface with no views");
 	VOE_BASE_ASSERT(undo != NULL, "drawing an interface with no undo line");
+	VOE_BASE_ASSERT(models != NULL, "drawing an interface with no models");
 	VOE_BASE_ASSERT(session != NULL, "drawing an interface with no session");
 	VOE_BASE_ASSERT(bar != NULL, "drawing an interface with no top bar");
 	VOE_BASE_ASSERT(browser != NULL, "drawing an interface with no browser");
@@ -516,7 +527,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_browser_show(browser,
 						VOE_EDITOR_BROWSER_IMPORT, NULL,
 						&session->notice);
-		assets_request_do(session, scene, undo, arena);
+		assets_request_do(session, scene, undo, models, arena);
 		// After the panel's read, so a naming begun here is not ended by
 		// a field it has not drawn yet, and before the question opens
 		// from `deleting`.

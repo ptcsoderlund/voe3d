@@ -235,7 +235,7 @@ static void drop(const voe_editor_assets_drag *drag,
 		 voe_editor_scene *scene, const voe_editor_views *views,
 		 const voe_editor_dock_root *root, const voe_editor_topbar *bar,
 		 const voe_3d_shape_geometries *geometries,
-		 const voe_3d_models *models, voe_math_float2 pointer)
+		 voe_editor_models *models, voe_math_float2 pointer)
 {
 	outcome out = outcome_at(drag, session, scene, views, root, bar,
 				 pointer, false);
@@ -253,7 +253,7 @@ static void drop(const voe_editor_assets_drag *drag,
 	if (out.kind == OUTCOME_MOVE) {
 		voe_base_arena *scratch = voe_base_arena_new(MOVE_SCRATCH);
 
-		(void)voe_editor_assets_move(session, scene, undo, scratch,
+		(void)voe_editor_assets_move(session, scene, undo, models, scratch,
 					     drag->path + strlen("Assets/"),
 					     out.to);
 		voe_base_arena_destroy(scratch);
@@ -267,7 +267,8 @@ static void drop(const voe_editor_assets_drag *drag,
 		done = texture_swap(scene->world, swap.entity, drag->path);
 	} else {
 		done = drop_into_view(drag, scene, &views->views[out.view],
-				      out.point, geometries, models);
+				      out.point, geometries,
+				      voe_editor_models_store(models));
 	}
 	if (!done) {
 		voe_editor_notice_set(&session->notice, "The scene is full.");
@@ -282,7 +283,7 @@ void voe_editor_assets_drag_read(
 	voe_editor_undo *undo, voe_editor_scene *scene,
 	const voe_editor_views *views, const voe_editor_dock_root *root,
 	const voe_editor_topbar *bar, const voe_3d_shape_geometries *geometries,
-	const voe_3d_models *models, voe_math_float2 pointer, bool down,
+	voe_editor_models *models, voe_math_float2 pointer, bool down,
 	bool blocked)
 {
 	VOE_BASE_ASSERT(drag != NULL && session != NULL && undo != NULL,

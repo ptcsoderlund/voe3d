@@ -479,12 +479,13 @@ void voe_editor_interface_surface(voe_platform_size target,
 // Frame breakdown row shows or hides it through the same toggle.
 //
 // `undo` IS FORGOTTEN BY A RENAME the Assets panel's field commits, carried out
-// through assets_manage.h with a new folder's make; a refusal is said in the
+// through assets_manage.h, which renames in `models` too, with a new folder's
+// and a new landscape's make; a refusal is said in the
 // session's notice. THE SESSION'S DELETE QUESTION (assets_ask.h) opens from
 // the Assets panel's `deleting`, is drawn over the dock while the browser is
 // not, and its Delete trashes through assets_manage.h with `undo`. THE ASSETS
 // PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn last, over everything,
-// while open; its Rename, Delete and Create's Folder begin on the panel and its
+// while open; its Rename, Delete and Create's kinds begin on the panel and its
 // Duplicate goes through assets_manage.h. `escape` closes it before anything
 // else, and any panel over the dock closes it.
 [[nodiscard]] bool voe_editor_interface_draw(voe_render_device *gpu,
@@ -496,6 +497,7 @@ void voe_editor_interface_surface(voe_platform_size target,
 					     const voe_editor_assets_drag *drag,
 					     voe_editor_views *views,
 					     voe_editor_undo *undo,
+					     voe_editor_models *models,
 					     voe_editor_session *session,
 					     voe_editor_topbar *bar,
 					     voe_editor_browser *browser,

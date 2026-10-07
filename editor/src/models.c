@@ -277,6 +277,15 @@ void voe_editor_models_put(voe_editor_models *models, const char *path,
 	voe_3d_models_landscape_put(models->store, path, rect, values);
 }
 
+void voe_editor_models_rename(voe_editor_models *models, const char *from,
+			      const char *to)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"renaming in no store");
+	VOE_BASE_ASSERT(from != NULL && to != NULL, "renaming no path");
+	voe_3d_models_rename(models->store, from, to);
+}
+
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models)
 {
 	VOE_BASE_ASSERT(models != NULL, "reading no model store");

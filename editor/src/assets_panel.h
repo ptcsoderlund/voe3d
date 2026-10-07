@@ -21,8 +21,9 @@
 // EVERY ROW IS DRAWN ALIKE, a choice in the theme's text colour, its kind told
 // by the name's ending alone (0194). EVERY ROW IS HELD for assets_drag.h,
 // which moves it onto a folder row or Up (0377 point 3) and places a MODEL
-// (`.glb`), PREFAB (`.prefab`) or PICTURE (`.png`, `.jpg`, `.jpeg`) row, in any
-// case, or makes it a texture (0270, 0283, 0298). A prefab row pressed and
+// (`.glb`, or `.landscape` worn as one, 0379 point 2), PREFAB (`.prefab`) or
+// PICTURE (`.png`, `.jpg`, `.jpeg`) row, in any case, or makes it a texture
+// (0270, 0283, 0298). A prefab row pressed and
 // released on the row fires: its project-relative path, `/` between, is left
 // in `opened` for the caller to read and clear; one too long for it is not. A
 // row marked dragged (held_dragged) enters no folder and opens nothing.
@@ -32,9 +33,10 @@
 // folder or Up. A row pressed also takes `keyboard`, F2 and Delete being the
 // panel's then (shortcuts.h); a primary press outside the panel gives it back.
 //
-// NAMING IN PLACE (0378 point 4): rename_begin draws the selected row, and
-// folder_begin a pending row first among the folders, as a field focused with
-// its name selected. Enter or a press elsewhere leaves a `request` the caller
+// NAMING IN PLACE (0378 point 4): rename_begin draws the selected row,
+// folder_begin a pending row first among the folders and landscape_begin one
+// first among the files, as a field focused with its name selected. Enter or a
+// press elsewhere leaves a `request` the caller
 // carries out through assets_manage.h and clears; Escape leaves none. Either
 // ends the naming, as do entering a folder, Up, or a listing without the row.
 // delete_begin leaves the selected row's path in `deleting`, which the caller
@@ -92,11 +94,13 @@ typedef enum {
 	VOE_EDITOR_ASSETS_NAMING_NONE = 0,
 	VOE_EDITOR_ASSETS_NAMING_RENAME,
 	VOE_EDITOR_ASSETS_NAMING_FOLDER,
+	VOE_EDITOR_ASSETS_NAMING_LANDSCAPE,
 } voe_editor_assets_naming;
 
 // What a committed field asks for, paths relative to `Assets/` as
 // assets_manage.h takes them: a rename's `from` and `to`, the shown folder
-// joined with the row's and the typed name, or a folder's `folder` and `name`.
+// joined with the row's and the typed name, or a folder's or a landscape's
+// `folder` and `name`.
 // `name` is the typed text as it is, so the caller can refuse a `/` in it.
 typedef struct {
 	voe_editor_assets_naming kind;
@@ -233,6 +237,9 @@ void voe_editor_assets_rename_begin(voe_editor_assets *assets);
 
 // A pending "New folder" row drawn as a field first among the folders.
 void voe_editor_assets_folder_begin(voe_editor_assets *assets);
+
+// A pending "New landscape" row drawn as a field first among the files.
+void voe_editor_assets_landscape_begin(voe_editor_assets *assets);
 
 // The selected row's path left in `deleting` for the caller to ask about;
 // nothing without a selected row or when the path does not fit.

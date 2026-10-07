@@ -113,5 +113,10 @@ voe_3d_landscape_rect voe_editor_models_brush(voe_editor_models *models,
 void voe_editor_models_put(voe_editor_models *models, const char *path,
 			   voe_3d_landscape_rect rect, const float *values);
 
+// Every entry at `from` or under `from/` takes `to` in its place, both under
+// `Assets/`: a rename or move keeps a landscape's unsaved heights (0379 point 6).
+void voe_editor_models_rename(voe_editor_models *models, const char *from,
+			      const char *to);
+
 // The store to read, for what draws, picks and outlines.
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models);

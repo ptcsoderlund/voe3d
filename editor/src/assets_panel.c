@@ -29,6 +29,7 @@
 #define MISSING_LINE "No Assets folder in this project."
 #define ASSETS_GAP (2.0f * VOE_EDITOR_SPACING)
 #define NEW_FOLDER_NAME "New folder"
+#define NEW_LANDSCAPE_NAME "New landscape"
 
 static char *copy_string(voe_base_arena *arena, const char *text)
 {
@@ -151,8 +152,10 @@ static void rows_fill(voe_editor_assets *assets,
 				.node = VOE_UI_NODE_NONE,
 				.name = copy_string(assets->arena, e->name),
 				.folder = e->folder,
+				// A landscape is worn as a model (0379 point 2).
 				.model = !e->folder &&
-					 voe_editor_browser_names_model(e->name),
+					 (voe_editor_browser_names_model(e->name) ||
+					  name_ends(e->name, ".landscape")),
 				.prefab = !e->folder &&
 					  name_ends(e->name, ".prefab"),
 				.picture = !e->folder && names_picture(e->name),
@@ -324,6 +327,11 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 		voe_editor_assets_row *row = &assets->rows[i];
 		bool selected = row->name == assets->selected;
 
+		// The pending landscape before the first file.
+		if (!row->folder && (i == 0 || assets->rows[i - 1].folder) &&
+		    assets->naming == VOE_EDITOR_ASSETS_NAMING_LANDSCAPE)
+			naming_field_draw(ui, assets, NEW_LANDSCAPE_NAME);
+
 		if (selected &&
 		    assets->naming == VOE_EDITOR_ASSETS_NAMING_RENAME) {
 			row->node = VOE_UI_NODE_NONE;
@@ -336,6 +344,11 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 			voe_ui_label(ui, "/");
 		voe_ui_end(ui);
 	}
+	// No file row to go before: after the folders.
+	if (assets->naming == VOE_EDITOR_ASSETS_NAMING_LANDSCAPE &&
+	    (assets->row_count == 0 ||
+	     assets->rows[assets->row_count - 1].folder))
+		naming_field_draw(ui, assets, NEW_LANDSCAPE_NAME);
 	assets->empty = voe_ui_column_begin(
 		ui, (voe_ui_container){
 			    .size = { .along = { VOE_UI_SIZE_GROW, 1.0f } } });
@@ -537,6 +550,16 @@ void voe_editor_assets_folder_begin(voe_editor_assets *assets)
 	assets->naming = VOE_EDITOR_ASSETS_NAMING_FOLDER;
 	assets->naming_focus = true;
 	VOE_BASE_ASSERT(assets->naming_focus, "a folder naming never focused");
+}
+
+void voe_editor_assets_landscape_begin(voe_editor_assets *assets)
+{
+	VOE_BASE_ASSERT(assets != NULL, "naming a landscape in no Assets panel");
+	if (!naming_fits(assets))
+		return;
+	assets->naming = VOE_EDITOR_ASSETS_NAMING_LANDSCAPE;
+	assets->naming_focus = true;
+	VOE_BASE_ASSERT(assets->naming_focus, "a landscape naming never focused");
 }
 
 bool voe_editor_assets_selected_path(const voe_editor_assets *assets, char *out,
