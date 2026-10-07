@@ -57,4 +57,5 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
 - 0333–0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0361, 0363, 0364 — Block kinds; sun, moon; fields; panels closed; √.
-- 0358, 0359, 0362, 0370, 0371, 0372 — GPU ms per pass; Best Practices; far mips; splash; F; 0.3 is the glTF samples.
+- 0358, 0359, 0362, 0370, 0371 — GPU ms per pass; Best Practices; far mips; splash; F.
+- 0374, 0375 — 0.3 is the loghouse game's world; materials bindless, copies of a mesh instanced.
