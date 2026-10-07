@@ -27,6 +27,9 @@
 // table, so the table's count and indices never see it; the water's one part
 // and record are kept beside it too.
 //
+// A LANDSCAPE IS READ HERE AND UPLOADED BY models_landscape.c, which holds
+// every landscape call; the table they share is models_store.h's.
+//
 // CONSTRAINTS: _find is a scan over the entries by string compare, which at
 // VOE_3D_MODELS entries is nothing; a hash of the path would lift it if the
 // store ever grows by orders of magnitude. A full store refuses a new path, and
@@ -34,13 +37,16 @@
 #include "model_bake.h"
 #include "model_picture.h"
 #include "model_upload.h"
+#include "models_store.h"
 
 #include <3d/models.h>
+#include <assets/landscape.h>
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -48,32 +54,6 @@
 // since a decoded picture alone may be many megabytes.
 #define ENTRY_BLOCK (64 * 1024)
 #define SCRATCH_BLOCK (1024 * 1024)
-
-// What an entry holds that its readers do not see: its arena, and every texture
-// and shading record its load made, so a replace or a clear frees them all.
-typedef struct {
-	voe_base_arena *memory;
-	voe_render_texture *textures;
-	uint32_t texture_count;
-	voe_render_shading *shadings;
-	uint32_t shading_count;
-} entry_held;
-
-struct voe_3d_models {
-	voe_3d_model_entry entries[VOE_3D_MODELS];
-	entry_held held[VOE_3D_MODELS];
-	uint32_t count;
-	// The quad every picture's parts are drawn on, when `has_quad`.
-	voe_render_geometry quad;
-	bool has_quad;
-	// The soft dot, found at "", when `has_dot`.
-	voe_3d_model_entry dot;
-	entry_held dot_held;
-	bool has_dot;
-	// The water's part on the quad, its record the store's, when `has_water`.
-	voe_3d_model_part water;
-	bool has_water;
-};
 
 voe_3d_models *voe_3d_models_new(void)
 {
@@ -91,14 +71,25 @@ static bool has_twin(const voe_3d_model_part *part)
 }
 
 // Everything `entry` put on the card and its memory, given back; a picture's
-// parts are on the store's quad, which is not the entry's to free.
+// parts are on the store's quad, which is not the entry's to free. A
+// landscape's geometries are its statics, its parts maybe a frame's transients,
+// and its sixteen parts share one twin.
 static void release(voe_render_device *device, const voe_3d_model_entry *entry,
 		    const entry_held *held)
 {
-	for (uint32_t i = 0; !entry->picture && i < entry->part_count; i++)
-		(void)voe_render_geometry_destroy(device,
-						  entry->parts[i].geometry);
+	const uint32_t twins = entry->landscape != NULL && entry->part_count > 0 ?
+				       1 :
+				       entry->part_count;
+
 	for (uint32_t i = 0; i < entry->part_count; i++) {
+		if (entry->landscape != NULL)
+			(void)voe_render_geometry_destroy(device,
+							  held->statics[i]);
+		else if (!entry->picture)
+			(void)voe_render_geometry_destroy(
+				device, entry->parts[i].geometry);
+	}
+	for (uint32_t i = 0; i < twins; i++) {
 		if (has_twin(&entry->parts[i]))
 			(void)voe_render_shading_destroy(
 				device, entry->parts[i].faded);
@@ -141,8 +132,7 @@ void voe_3d_models_destroy(voe_3d_models *models)
 	free(models);
 }
 
-// `path`'s index, or VOE_3D_MODELS when the store does not hold it.
-static uint32_t find(const voe_3d_models *models, const char *path)
+uint32_t voe_3d_models_index(const voe_3d_models *models, const char *path)
 {
 	for (uint32_t i = 0; i < models->count; i++) {
 		if (strcmp(models->entries[i].path, path) == 0)
@@ -151,9 +141,21 @@ static uint32_t find(const voe_3d_models *models, const char *path)
 	return VOE_3D_MODELS;
 }
 
-// A failed entry for `path` in a new arena of its own, not yet in the store.
-static void entry_new(const char *path, uint64_t stamp,
-		      voe_3d_model_entry *entry, entry_held *held)
+bool voe_3d_models_room(const voe_3d_models *models, const char *path,
+			voe_base_error *error)
+{
+	if (models->count < VOE_3D_MODELS ||
+	    voe_3d_models_index(models, path) != VOE_3D_MODELS)
+		return true;
+	VOE_BASE_ERROR("3d", "no room for %s — the store holds %u models", path,
+		       VOE_3D_MODELS);
+	if (error != NULL)
+		*error = VOE_BASE_ERROR_REFUSED;
+	return false;
+}
+
+void voe_3d_models_entry_new(const char *path, uint64_t stamp,
+			     voe_3d_model_entry *entry, entry_held *held)
 {
 	size_t length = strlen(path) + 1;
 	char *copy;
@@ -168,10 +170,10 @@ static void entry_new(const char *path, uint64_t stamp,
 // does, replaces the old entry when the new one loaded and keeps the old one at
 // the new stamp when it did not. Whatever is not kept is given back. False,
 // with the new entry given back, when the store is full.
-static bool keep(voe_3d_models *models, voe_render_device *device,
-		 const voe_3d_model_entry *entry, const entry_held *held)
+bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
+			const voe_3d_model_entry *entry, const entry_held *held)
 {
-	uint32_t index = find(models, entry->path);
+	uint32_t index = voe_3d_models_index(models, entry->path);
 
 	if (index == VOE_3D_MODELS) {
 		if (models->count == VOE_3D_MODELS) {
@@ -230,7 +232,7 @@ static void build_shape(voe_base_arena *memory, const voe_3d_model_bake *bake,
 
 // `part`'s twin, its material with the alpha mode BLENDED, when it is not
 // BLENDED already; false, with `error` REFUSED, when the device has no room.
-static bool upload_twin(voe_render_device *device, voe_3d_model_part *part,
+bool voe_3d_models_twin(voe_render_device *device, voe_3d_model_part *part,
 			voe_base_error *error)
 {
 	voe_3d_material twin = part->material;
@@ -266,7 +268,7 @@ static bool upload_parts(voe_render_device *device,
 			voe_3d_model_upload_material(upload, part->material);
 		entry->parts[p].faded = entry->parts[p].material.shading;
 		*made = p + 1;
-		if (!upload_twin(device, &entry->parts[p], error))
+		if (!voe_3d_models_twin(device, &entry->parts[p], error))
 			return false;
 	}
 	return true;
@@ -379,6 +381,45 @@ static bool upload_picture(voe_3d_models *models, voe_render_device *device,
 	return true;
 }
 
+// Whether `path` ends `.landscape`, compared without case.
+static bool is_landscape(const char *path)
+{
+	static const char suffix[] = ".landscape";
+	const size_t tail = sizeof(suffix) - 1;
+	const size_t length = strlen(path);
+
+	if (length < tail)
+		return false;
+	for (size_t i = 0; i < tail; i++) {
+		if (tolower((unsigned char)path[length - tail + i]) != suffix[i])
+			return false;
+	}
+	return true;
+}
+
+// Reads a `.landscape`'s text and loads it; text that is no landscape is kept
+// as a failed entry, or keeps the old one, at `stamp`.
+static bool load_landscape_text(voe_3d_models *models,
+				voe_render_device *device, const char *path,
+				uint64_t stamp, const uint8_t *bytes,
+				size_t size, voe_base_error *error)
+{
+	voe_base_arena *scratch = voe_base_arena_new(SCRATCH_BLOCK);
+	voe_assets_landscape landscape;
+	bool loaded = voe_assets_landscape_read((const char *)bytes, size,
+						scratch, &landscape, error);
+
+	if (loaded) {
+		loaded = voe_3d_models_load_landscape(models, device, path, stamp,
+						      &landscape, error);
+	} else {
+		VOE_BASE_ERROR("3d", "could not load the landscape %s", path);
+		voe_3d_models_fail(models, path, stamp);
+	}
+	voe_base_arena_destroy(scratch);
+	return loaded;
+}
+
 bool voe_3d_models_load(voe_3d_models *models, voe_render_device *device,
 			const char *path, uint64_t stamp, const uint8_t *bytes,
 			size_t size, voe_base_error *error)
@@ -393,16 +434,13 @@ bool voe_3d_models_load(voe_3d_models *models, voe_render_device *device,
 	VOE_BASE_ASSERT(device != NULL, "loading a model with no device");
 	VOE_BASE_ASSERT(path != NULL, "loading a model with no path");
 
-	if (models->count == VOE_3D_MODELS &&
-	    find(models, path) == VOE_3D_MODELS) {
-		VOE_BASE_ERROR("3d", "no room for %s — the store holds %u models",
-			       path, VOE_3D_MODELS);
-		if (error != NULL)
-			*error = VOE_BASE_ERROR_REFUSED;
+	if (!voe_3d_models_room(models, path, error))
 		return false;
-	}
+	if (is_landscape(path))
+		return load_landscape_text(models, device, path, stamp, bytes,
+					   size, error);
 
-	entry_new(path, stamp, &entry, &held);
+	voe_3d_models_entry_new(path, stamp, &entry, &held);
 	scratch = voe_base_arena_new(SCRATCH_BLOCK);
 	if (voe_3d_model_picture_is(path)) {
 		entry.picture = true;
@@ -418,7 +456,7 @@ bool voe_3d_models_load(voe_3d_models *models, voe_render_device *device,
 		VOE_BASE_ERROR("3d", "could not load the model %s", path);
 
 	voe_base_arena_destroy(scratch);
-	(void)keep(models, device, &entry, &held);
+	(void)voe_3d_models_keep(models, device, &entry, &held);
 	return loaded;
 }
 
@@ -434,7 +472,7 @@ bool voe_3d_models_load_dot(voe_3d_models *models, voe_render_device *device,
 
 	if (models->has_dot)
 		return true;
-	entry_new("", 0, &models->dot, &models->dot_held);
+	voe_3d_models_entry_new("", 0, &models->dot, &models->dot_held);
 	scratch = voe_base_arena_new(SCRATCH_BLOCK);
 	image = voe_3d_model_picture_dot(scratch);
 	loaded = upload_picture(models, device, scratch, &image, &models->dot,
@@ -513,8 +551,8 @@ void voe_3d_models_fail(voe_3d_models *models, const char *path,
 
 	// A failed entry has nothing on the card, so keep never reaches a
 	// device for it.
-	entry_new(path, stamp, &entry, &held);
-	(void)keep(models, NULL, &entry, &held);
+	voe_3d_models_entry_new(path, stamp, &entry, &held);
+	(void)voe_3d_models_keep(models, NULL, &entry, &held);
 }
 
 const voe_3d_model_entry *voe_3d_models_find(const voe_3d_models *models,
@@ -527,7 +565,7 @@ const voe_3d_model_entry *voe_3d_models_find(const voe_3d_models *models,
 
 	if (path[0] == '\0')
 		return models->has_dot ? &models->dot : NULL;
-	index = find(models, path);
+	index = voe_3d_models_index(models, path);
 	return index == VOE_3D_MODELS ? NULL : &models->entries[index];
 }
 

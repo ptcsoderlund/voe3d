@@ -118,5 +118,8 @@ again, or to find where a claim that has started failing is written down.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
   blended twin and none leaked, pictures and the uncounted dot, and a model drawn only with the
   store. Skips without a card.
+- `models_landscape.c` — a `.landscape` loaded as sixteen parts on one material, a brush marking it
+  edited and the frame drawing its chunks transient, the settle making them static, a put's rect
+  and a rename. Skips without a card.
 - `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, a chunk wound up
   and a rect on a chunk edge in both. Needs no graphics card.
