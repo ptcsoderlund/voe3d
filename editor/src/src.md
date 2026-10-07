@@ -15,8 +15,9 @@ carries it out.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
 - `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
-- `frame_commands.c` — the history step, the read with its acts (F2's rename, an asset's Delete) and `ui`'s keyboard, and Delete,
-  Ctrl+D, R, the edit and a reveal's unfold marked after the interface has drawn.
+- `frame_commands.c` — the history step, the read with its acts (F2's rename, an asset's Delete)
+  and `ui`'s keyboard, and Delete, Ctrl+D, R, the edit and a reveal's unfold marked after the
+  interface has drawn.
 - `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
   borders, the middle drag, the gizmo, the Assets drag and the pick, and what main.c reads after.
 - `frame_pointer.c` — the fly with its lock edge, the borders with their clears and remember, and
