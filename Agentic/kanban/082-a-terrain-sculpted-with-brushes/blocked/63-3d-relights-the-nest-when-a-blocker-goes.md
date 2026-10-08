@@ -33,3 +33,6 @@ lights change: every begun volume relights whole. Find and fix it in 3d.
 ## Done when
 `ctest --test-dir build/debug -R '^3d/bounce_scene$'` passes, with its BLOCKED check reading the patch
 within 1/255 of before once the blocker is destroyed.
+
+## Blocked
+3d begins both volumes correctly every frame, and no probing frame fails, so none of the three candidates holds. Volume 0 begins with cell (−12,−6,−12), corner (−24,−17,−32) and spacing 2; volume 3 begins with cell (−12,−4,−4), corner (−12,−9,−12) and spacing 1. Both give the same origin, and the eye is at (0,5,8). The blocker count goes 0, 1, 0, with walls, indoors and sun all 0, and each change records [bounce sun shadow][bounce relight] for both volumes on the next full frame. The fault is any whole-grid relight, with no blocker involved: right after the box moved 1 m along +x was recaptured and relit incrementally (patch 106 98 98), setting bounce strength to 2 and back to 1, each settled, leaves the patch at 98 98 98. That is a render card: repeat this in `render/tests/blocked_bounce.c` with the eye off the origin, nest cell (−12,−4,−4), and an incremental recapture before a lights change, then fix the whole path of `voe_render_bounce_relight` (`record_relight` with `whole`).
