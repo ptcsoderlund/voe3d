@@ -15,6 +15,14 @@
 // and a mean² near its square; probe 1, whose every texel sees a back face, has
 // validity 0.
 //
+// READINESS (ADR-0389 point 4), the validity's G, before the frames above go
+// on: probe 0's is 0 read back after the first frame that captured it,
+// i / VOE_RENDER_BOUNCE_FADE after i more, and 1 after VOE_RENDER_BOUNCE_FADE.
+//
+// A FADING FRAME. The frame after the first that captures nothing, its probes
+// still fading in: the bounce shadow pass does not open, and the relight
+// records one dispatch, the settle.
+//
 // A SETTLED FRAME. After VOE_RENDER_BOUNCE_FADE frames for the last pictures
 // to fade in, one more frame of begin, a capture pass that does not open, and
 // relight records no dispatch.
@@ -41,9 +49,13 @@
 #define SIDE 16
 #define FACE VOE_RENDER_BOUNCE_FACE
 // The readback: probe 0's +X face of the moments atlas (RG16F) at 0, the first
-// two validity texels (R16F) after it.
+// two validity texels (RG16F: validity, readiness) after it.
 #define MOMENTS_BYTES ((VkDeviceSize)FACE * FACE * 4)
-#define READBACK_BYTES (MOMENTS_BYTES + 4)
+#define READBACK_BYTES (MOMENTS_BYTES + 8)
+// Halves into the readback: probe 0's validity and readiness, probe 1's validity.
+#define VALIDITY_0 (MOMENTS_BYTES / 2)
+#define READY_0 (VALIDITY_0 + 1)
+#define VALIDITY_1 (VALIDITY_0 + 2)
 // More frames than capturing every probe 64 a frame takes.
 #define FRAMES_MAX 200
 
@@ -248,7 +260,10 @@ static float half_to_float(uint16_t h)
 	return (h & 0x8000) != 0 ? -value : value;
 }
 
-static void check_settled(voe_render_device *device)
+// The readback's halves into `halves`, once the card is idle; false, checked,
+// when it could not be read.
+static bool read_halves(voe_render_device *device,
+			uint16_t halves[READBACK_BYTES / 2])
 {
 	struct voe_render_buffer readback = { 0 };
 	void *mapped = NULL;
@@ -259,33 +274,99 @@ static void check_settled(voe_render_device *device)
 			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		"test readback"));
 	if (readback.buffer == VK_NULL_HANDLE)
-		return;
+		return false;
 	read_volume(device, &readback);
 	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 						    readback.memory, 0,
 						    VK_WHOLE_SIZE, 0, &mapped),
 			   VK_SUCCESS);
 	if (mapped != NULL) {
-		uint16_t halves[READBACK_BYTES / 2];
-		// The texel just off the face's middle, (3, 3).
-		const size_t middle = 2 * (3 * FACE + 3);
-		float mean;
-		float square;
-
-		memcpy(halves, mapped, sizeof(halves));
-		mean = half_to_float(halves[middle]);
-		square = half_to_float(halves[middle + 1]);
-		printf("probe 0 +X: mean %.3f m, mean² %.3f; validity %.1f, %.1f\n",
-		       (double)mean, (double)square,
-		       (double)half_to_float(halves[MOMENTS_BYTES / 2]),
-		       (double)half_to_float(halves[MOMENTS_BYTES / 2 + 1]));
-		VOE_TEST_CHECK(fabsf(mean - 0.75f) < 0.1f);
-		VOE_TEST_CHECK(fabsf(square - mean * mean) < 0.05f);
-		VOE_TEST_CHECK(half_to_float(halves[MOMENTS_BYTES / 2]) == 1.0f);
-		VOE_TEST_CHECK(half_to_float(halves[MOMENTS_BYTES / 2 + 1]) == 0.0f);
+		memcpy(halves, mapped, READBACK_BYTES);
 		voe_render_vk.unmap_memory(device->device, readback.memory);
 	}
 	voe_render_buffer_teardown(device, &readback);
+	return mapped != NULL;
+}
+
+static void check_settled(voe_render_device *device)
+{
+	uint16_t halves[READBACK_BYTES / 2];
+	// The texel just off the face's middle, (3, 3).
+	const size_t middle = 2 * (3 * FACE + 3);
+	float mean;
+	float square;
+
+	if (!read_halves(device, halves))
+		return;
+	mean = half_to_float(halves[middle]);
+	square = half_to_float(halves[middle + 1]);
+	printf("probe 0 +X: mean %.3f m, mean² %.3f; validity %.1f, %.1f\n",
+	       (double)mean, (double)square,
+	       (double)half_to_float(halves[VALIDITY_0]),
+	       (double)half_to_float(halves[VALIDITY_1]));
+	VOE_TEST_CHECK(fabsf(mean - 0.75f) < 0.1f);
+	VOE_TEST_CHECK(fabsf(square - mean * mean) < 0.05f);
+	VOE_TEST_CHECK(half_to_float(halves[VALIDITY_0]) == 1.0f);
+	VOE_TEST_CHECK(half_to_float(halves[VALIDITY_1]) == 0.0f);
+}
+
+// Probe 0's readiness read back, or −1 when it could not be read.
+static float readiness_of_probe_0(voe_render_device *device)
+{
+	uint16_t halves[READBACK_BYTES / 2];
+
+	return read_halves(device, halves) ? half_to_float(halves[READY_0]) :
+					     -1.0f;
+}
+
+// The first frame that captures, then VOE_RENDER_BOUNCE_FADE more, probe 0's
+// readiness read back after each.
+static void a_new_picture_reads_ready_after_sixteen_frames(
+	voe_render_device *device, voe_render_geometry cube,
+	voe_render_shading grey)
+{
+	bool rising = true;
+
+	VOE_TEST_CHECK(one_frame(device, cube, grey) > 0);
+	VOE_TEST_CHECK(readiness_of_probe_0(device) == 0.0f);
+	for (uint32_t i = 1; i <= VOE_RENDER_BOUNCE_FADE; i++) {
+		const float ready = (one_frame(device, cube, grey),
+				     readiness_of_probe_0(device));
+
+		rising = rising &&
+			 ready == (float)i / (float)VOE_RENDER_BOUNCE_FADE;
+	}
+	VOE_TEST_CHECK(rising);
+	VOE_TEST_CHECK(readiness_of_probe_0(device) == 1.0f);
+}
+
+// A frame with only fading probes: no capture, no bounce shadow pass, and the
+// settle the relight's one dispatch.
+static void a_fading_frame_records_only_the_settle(voe_render_device *device)
+{
+	const voe_render_view light = {
+		.view = voe_math_float4x4_identity(),
+		.projection = voe_math_float4x4_identity(),
+	};
+	const uint32_t before = device->relight_dispatches;
+	bool drawing = false;
+	bool opened = true;
+
+	VOE_TEST_CHECK(voe_render_bounce_probes_fading(&device->window_volume[0].probes));
+	VOE_TEST_CHECK(voe_render_frame_begin(device, (voe_platform_size){ SIDE, SIDE },
+					      &drawing));
+	if (!drawing)
+		return;
+	voe_render_bounce_begin(device, VOE_RENDER_TARGET_WINDOW, &BOUNCE);
+	VOE_TEST_CHECK(voe_render_bounce_capture_pass_begin(device, &opened));
+	VOE_TEST_CHECK(!opened);
+	opened = true;
+	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(device, 0, &light,
+							   &opened));
+	VOE_TEST_CHECK(!opened);
+	voe_render_bounce_relight(device);
+	VOE_TEST_CHECK_INT(device->relight_dispatches, before + 1);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
 // Whether the newest breakdown names the relight.
@@ -315,6 +396,7 @@ static void settle(voe_render_device *device)
 	// The first frame only wants the volume.
 	VOE_TEST_CHECK_INT(one_frame(device, cube, grey), 0);
 	VOE_TEST_CHECK(device->window_volume[0].wanted);
+	a_new_picture_reads_ready_after_sixteen_frames(device, cube, grey);
 	for (; frames < FRAMES_MAX; frames++) {
 		before = device->relight_dispatches;
 		passes = one_frame(device, cube, grey);
@@ -332,6 +414,7 @@ static void settle(voe_render_device *device)
 	}
 	printf("captured every probe in %u frames\n", frames);
 	VOE_TEST_CHECK(frames > 0 && frames < FRAMES_MAX);
+	a_fading_frame_records_only_the_settle(device);
 	check_settled(device);
 	// The last pictures fade in, relighting, before the grid is still.
 	for (uint32_t i = 0; i < VOE_RENDER_BOUNCE_FADE; i++)

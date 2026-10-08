@@ -303,6 +303,10 @@ static void a_new_picture_fades_in_over_sixteen_places(void)
 			 p.ready[taken[15]] == i;
 	}
 	VOE_TEST_CHECK(fading);
+	// The place that reaches full weight still fades, for one listing at it.
+	place(&p, CELL, NULL, 0, &NONE);
+	VOE_TEST_CHECK(voe_render_bounce_probes_fading(&p));
+	VOE_TEST_CHECK_INT(p.ready[taken[0]], VOE_RENDER_BOUNCE_FADE);
 	place(&p, CELL, NULL, 0, &NONE);
 	VOE_TEST_CHECK(!voe_render_bounce_probes_fading(&p));
 	VOE_TEST_CHECK_INT(p.ready[taken[0]], VOE_RENDER_BOUNCE_FADE);

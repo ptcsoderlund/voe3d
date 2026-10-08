@@ -431,7 +431,7 @@ struct voe_render_bounce_begun {
 
 // One target's probe volume, bounce_volume.c's (ADR-0326 points 2 to 6): the
 // albedo (RGBA8 sRGB), normal-and-distance (RGBA16F) and moments (RG16F) atlases,
-// 1152 × 2304; the validity (R16F), 24 × 12 × 24; and seven grids of six-axis
+// 1152 × 2304; the validity (RG16F, G the readiness), 24 × 12 × 24; and seven grids of six-axis
 // irradiance (ADR-0327), levels L(n, k) then the sum, three RGBA16F images each,
 // image a axis a, probe (i, j, k) at (2i, j, k) for + and (2i + 1, j, k) for −,
 // 48 × 12 × 24. Every image storage, sampled,

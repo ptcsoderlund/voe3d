@@ -89,8 +89,9 @@ by reading the offscreen colour image back.
   and a texel past the clear, not opened when settled, when only a lamp bounces, or with `passes`
   spent, and opened for the window and a target in one frame, each record saying drawn. Headless.
 - `bounce_settle.c` — captured probes settling: beside a cube, validity 1 and a moments mean to its
-  face; inside it, validity 0; a settled frame dispatching nothing; `bounce relight` in the
-  breakdown of a relit frame and not of the settled one. Headless.
+  face; inside it, validity 0; readiness 0, then 1 sixteen frames on; a fading frame one settle and
+  no sun map; a settled frame dispatching nothing; `bounce relight` in the breakdown of a relit
+  frame and not of the settled one. Headless.
 - `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and
   a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
 - `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture, a red wall's

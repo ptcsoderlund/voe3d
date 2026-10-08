@@ -95,15 +95,19 @@ static void enter(voe_render_bounce_probes *p, const int32_t cell[3],
 	assert(whole || p->placed);
 }
 
-// Every fading probe one place nearer full weight, fading no more at FADE.
+// Every fading probe one place nearer full weight. One at FADE fades no more
+// only the place after it got there, so the relight lists it once at FADE and
+// the validity's readiness reaches 1.
 static void fade_in(voe_render_bounce_probes *p)
 {
 	assert(p != NULL);
 	for (uint32_t probe = 0; probe < TOTAL; probe++) {
 		if (!bit(p->fading, probe))
 			continue;
-		if (++p->ready[probe] >= VOE_RENDER_BOUNCE_FADE)
+		if (p->ready[probe] >= VOE_RENDER_BOUNCE_FADE)
 			clear_bit(p->fading, probe);
+		else
+			p->ready[probe]++;
 		assert(p->ready[probe] <= VOE_RENDER_BOUNCE_FADE);
 	}
 }

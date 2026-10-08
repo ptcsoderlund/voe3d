@@ -7,8 +7,12 @@
 // orientation, so texel (u, v) of face f looks along the face's view
 // (2u − 1, 1 − 2v, 1), u and v at the texel's centre over the face.
 //
-// settle: one workgroup of 64 per listed probe (bit 31 set: it holds a picture).
-// - Validity, at the probe's coordinate: 1, or 0 when it holds no picture or
+// settle: one workgroup of 64 per listed probe. A list word: the probe in bits
+// 0–15, its readiness 0 to FADE in bits 16–20, bit 31 set when it holds a
+// picture. The first `changed` words are changed probes, the rest fading only.
+// - Readiness / FADE into the validity image's G, for every word.
+// - A fading-only word stops there: R and the moments stay as they are.
+// - Validity, R at the probe's coordinate: 1, or 0 when it holds no picture or
 //   more than a quarter of its texels (96) see a back face, normal · direction
 //   from the probe above nought: a probe inside something. No hit has a normal
 //   of nought, so it is never a back face.
@@ -65,6 +69,11 @@ static const uint FACE = 8;
 static const uint TEXELS = 6 * FACE * FACE;
 static const uint GROUP = 64;
 static const uint HOLDS = 0x80000000u;
+static const uint PROBE = 0xffffu;
+static const uint READY_SHIFT = 16;
+static const uint READY = 0x1fu;
+// VOE_RENDER_BOUNCE_FADE: the places a new picture takes to full weight.
+static const float FADE = 16.0;
 static const uint LAMPS = 16;
 static const uint BLOCKERS = 32;
 static const uint LEVELS = 6;
@@ -85,7 +94,7 @@ struct relight_push {
 	uint sun_chain;
 	uint lamps;
 	uint point_ready;
-	uint reserved;
+	uint changed;
 };
 
 struct relight_light {
@@ -163,8 +172,8 @@ RWTexture2D<float4> relight_normal;
 [format("rg16f")]
 RWTexture2D<float2> relight_moments;
 [[vk::binding(2, 0)]]
-[format("r16f")]
-RWTexture3D<float> relight_validity;
+[format("rg16f")]
+RWTexture3D<float2> relight_validity;
 [[vk::binding(3, 0)]]
 StructuredBuffer<uint> relight_list;
 [[vk::binding(4, 0)]]
@@ -237,9 +246,16 @@ uint2 picture_origin(uint3 t)
 void settle(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 {
 	uint entry = relight_list[relight_current.first + group.x];
-	uint3 t = probe_coordinate(entry & ~HOLDS);
+	uint3 t = probe_coordinate(entry & PROBE);
 	uint2 origin = picture_origin(t);
+	float readiness = float((entry >> READY_SHIFT) & READY) / FADE;
 
+	// Uniform over the group, so it leaves before any barrier together.
+	if (group.x >= relight_current.changed) {
+		if (thread == 0)
+			relight_validity[t] = float2(relight_validity[t].r, readiness);
+		return;
+	}
 	if (thread == 0)
 		settle_back_faces = 0;
 	GroupMemoryBarrierWithGroupSync();
@@ -265,10 +281,11 @@ void settle(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 	}
 	GroupMemoryBarrierWithGroupSync();
 	if (thread == 0)
-		relight_validity[t] = (entry & HOLDS) != 0 &&
-					      settle_back_faces <= TEXELS / 4 ?
-					      1.0 :
-					      0.0;
+		relight_validity[t] = float2((entry & HOLDS) != 0 &&
+						     settle_back_faces <= TEXELS / 4 ?
+						     1.0 :
+						     0.0,
+					     readiness);
 }
 
 // The solid angle of face texel `at`: the cube's area element integrated over
@@ -456,7 +473,7 @@ void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 
 	for (uint d = 0; d < 6; d++)
 		e[d] = float3(0.0);
-	if (relight_validity[t] > 0.5)
+	if (relight_validity[t].r > 0.5)
 		for (uint i = thread; i < TEXELS; i += GROUP) {
 			uint face = i / (FACE * FACE);
 			int2 at = int2(i % FACE, i / FACE % FACE);

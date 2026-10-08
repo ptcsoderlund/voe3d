@@ -1499,7 +1499,9 @@ typedef struct {
 // Relights the target voe_render_bounce_begin began (ADR-0326 points 5 and 6),
 // after its capture passes, between passes: each probe captured or emptied since
 // the last relight gets its validity and distance moments, and (from card 09)
-// the grid is relit when a probe changed or the bouncing lights did. On a settled frame it
+// the grid is relit when a probe changed or the bouncing lights did. A frame
+// with only probes fading in records a settle alone, which writes their
+// readiness (ADR-0389 point 4). On a settled frame it
 // records nothing at all and only the read runs (ADR-0317 point 4); on a volume
 // not built, or a card without shaderOutputLayer, nothing either. Level 1's sun is
 // shadowed by this begin's bounce shadow map when one was drawn, lit outside its

@@ -29,7 +29,8 @@
 // w + min(VOE_RENDER_BOUNCE_REACH × spacing / VOE_RENDER_BOUNCE_SPACING,
 // VOE_RENDER_BOUNCE_UNSEEN_RADII × w): a probe's reach, but no further than
 // where the caster is under one face texel (ADR-0389 point 7). Every fading
-// probe gains 1 of readiness, up to VOE_RENDER_BOUNCE_FADE. It writes the
+// probe gains 1 of readiness, up to VOE_RENDER_BOUNCE_FADE, and stops fading
+// the place after it reached it. It writes the
 // bouncing lights: the sun, every further sun with bounces and intensity, the
 // first VOE_RENDER_BOUNCE_LAMPS point lights with bounces, and every blocker.
 //

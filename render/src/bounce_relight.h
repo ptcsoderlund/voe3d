@@ -1,23 +1,30 @@
 // What the relight's building (bounce_relight_build.c) and its recording
 // (bounce_relight.c) share: the set layout's bindings, the push block member
 // for member with bounce_relight.slang's, how many volumes a device relights,
-// and the bit of a list word that says a probe holds a picture. Included by
-// those two files only; the rest of render reaches the relight through
-// device_calls.h.
+// and a list word's fields. Included by those two files only; the rest of
+// render reaches the relight through device_calls.h.
+//
+// A LIST WORD (ADR-0389 point 4): the toroidal probe index in bits 0–15, its
+// readiness 0 to VOE_RENDER_BOUNCE_FADE in bits 16–20, and bit 31 set when it
+// holds a picture.
 #ifndef VOE_RENDER_BOUNCE_RELIGHT_H
 #define VOE_RENDER_BOUNCE_RELIGHT_H
 
 #include "device_internal.h"
 
 #define VOE_RENDER_RELIGHT_BINDINGS 12
+#define VOE_RENDER_RELIGHT_PROBE 0xffffu
+#define VOE_RENDER_RELIGHT_READY_SHIFT 16
+#define VOE_RENDER_RELIGHT_READY 0x1fu
 #define VOE_RENDER_RELIGHT_HOLDS 0x80000000u
 // Seven grids of three images: six levels, then the sum.
 #define VOE_RENDER_RELIGHT_LEVELS 6
 #define VOE_RENDER_RELIGHT_GRID_IMAGES (3 * (VOE_RENDER_RELIGHT_LEVELS + 1))
 #define VOE_RENDER_RELIGHT_LEVEL_IMAGES (3 * VOE_RENDER_RELIGHT_LEVELS)
 
-// bounce_relight.slang's push block, member for member: settle reads the first
-// two, relight the rest.
+// bounce_relight.slang's push block, member for member: settle reads `first`,
+// `count` (every probe listed) and `changed` (the first that many changed, the
+// rest only fading), relight the rest.
 struct voe_render_relight_push {
 	uint32_t first;
 	uint32_t count;
@@ -26,7 +33,7 @@ struct voe_render_relight_push {
 	uint32_t sun_chain;
 	uint32_t lamps;
 	uint32_t point_ready;
-	uint32_t reserved;
+	uint32_t changed;
 };
 
 static const VkDescriptorType

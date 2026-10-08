@@ -4,7 +4,8 @@
 // voe_render_bounce_placed, where a volume's probes were last placed.
 //
 // WHAT IT OWNS. Per volume, the three atlases and the 22 3D images of struct
-// voe_render_bounce_volume: the validity, 24 × 12 × 24, and the 21 grid images
+// voe_render_bounce_volume: the validity, 24 × 12 × 24, RG16F (R validity, G
+// readiness 0 to 1, ADR-0389 point 4), and the 21 grid images
 // of six-axis irradiance (ADR-0327), twice as wide, a probe's + and − texels
 // side by side along x. Every one storage, sampled and transfer-dst (and
 // -src, which a test reads one back through), cleared to nought and resting in
@@ -198,8 +199,8 @@ static bool build_listed(voe_render_device *device,
 		return build_image(device, image, ATLAS, VK_FORMAT_R16G16_SFLOAT,
 				   0, 0, "moments atlas");
 	case 3:
-		return build_image(device, image, VALIDITY, VK_FORMAT_R16_SFLOAT,
-				   0, 0, "validity");
+		return build_image(device, image, VALIDITY,
+				   VK_FORMAT_R16G16_SFLOAT, 0, 0, "validity");
 	default:
 		snprintf(grid, sizeof grid, "six-axis irradiance grid %u axis %u",
 			 (i - 4) / 3, (i - 4) % 3);

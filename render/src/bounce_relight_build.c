@@ -22,7 +22,7 @@
 // PER SLOT, host-visible, coherent and mapped, written directly, the submit
 // making them visible: the list buffer, voe_render_relight_volume_count ×
 // VOE_RENDER_BOUNCE_PROBES_TOTAL words, volume d's band at d × the total, a
-// word a toroidal probe index with bit 31 set when it holds a picture; and the
+// word as bounce_relight.h lays it out; and the
 // record buffer, a region per volume device->relight_record_stride apart (the
 // record rounded up to the card's uniform offset alignment), volume d's at d ×
 // the stride, binding 11 of its set naming that region alone. One record per
@@ -49,8 +49,10 @@ static alignas(uint32_t) const unsigned char bounce_relight_spv[] = {
 
 static_assert(sizeof(struct voe_render_relight_push) == 32,
 	      "relight push size");
-static_assert(VOE_RENDER_BOUNCE_PROBES_TOTAL < VOE_RENDER_RELIGHT_HOLDS,
-	      "a probe index leaves bit 31 for the holds flag");
+static_assert(VOE_RENDER_BOUNCE_PROBES_TOTAL <= VOE_RENDER_RELIGHT_PROBE + 1,
+	      "a probe index fits bits 0–15 of a list word");
+static_assert(VOE_RENDER_BOUNCE_FADE <= VOE_RENDER_RELIGHT_READY,
+	      "a readiness fits bits 16–20 of a list word");
 static_assert(VOE_RENDER_BOUNCES_MAX == 3, "three chains of six levels");
 
 static bool create_layouts(voe_render_device *device)
