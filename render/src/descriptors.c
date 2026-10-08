@@ -23,11 +23,11 @@
 //      through shadow.c's comparison sampler, written at startup and again by
 //      shadow.c when the array grows (ADR-0357). One per slot because each
 //      slot draws its own maps while the card may still be reading the other's
-//   6  the probe volumes' sums, four images each (the x, y and z axis
-//      images of six-axis irradiance, then the validity),
-//      (targets + 1) × VOE_RENDER_BOUNCE_VOLUMES × 4 entries, a volume's at 4 ×
-//      its descriptor index, the window's first; written as each volume is
-//      built (ADR-0326 point 7), partially bound until then
+//   6  the probe volumes' sums, four images each (the x, y and z axis images
+//      of six-axis irradiance, then the validity), (targets + 1) ×
+//      VOE_RENDER_BOUNCE_VOLUMES × 4 entries, a volume's at 4 × its descriptor
+//      index, the window's first; written as each volume is built (ADR-0326
+//      point 7), partially bound until then
 //   7  the point lights, 8 their tile and slice masks (ADR-0320): storage
 //      buffers per frame slot, one region per pass, written as each pass opens
 //   9  the slot's point shadow maps, all 96 layers, through binding 5's
@@ -40,10 +40,9 @@
 //
 // BINDING 4 IS IN THE SAME LAYOUT THOUGH draw.slang DOES NOT READ IT, AND THAT
 // IS THE POINT. shaders/elements.slang reads it and shares this layout, so the
-// descriptor set bound as a pass opens serves both — a second layout
-// would be a second set, a second pool entry and a rebind between every mesh
-// draw and every element draw. Vulkan does not require a shader to declare
-// every binding its layout has.
+// descriptor set bound as a pass opens serves both. A second layout would be a
+// second set, a second pool entry and a rebind between every mesh draw and
+// every element draw. Vulkan lets a shader leave out bindings of its layout.
 //
 // A mesh draw's only push constant is its object number; the element pipeline
 // pushes its surface transform through the same range (see device.c).
