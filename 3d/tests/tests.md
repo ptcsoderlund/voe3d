@@ -105,7 +105,9 @@ again, or to find where a claim that has started failing is written down.
   card.
 - `shape.c` — the shape table's description, default row casting, intents (cast_shadows false
   among them) and runs, each kind's own
-  geometry, and the upload's two material records. The table and geometry half needs no graphics
+  geometry, the changes table (`a_recolour_is_a_change_for_one_run`, `a_kind_change_is_a_change`,
+  `the_same_colour_again_is_no_change`, `a_world_without_the_table_reports_no_change`), and the
+  upload's two material records. The table and geometry half needs no graphics
   card; the upload half skips without one.
 - `model_component.c` — the model component's fields, its default and intents read back after a
   run, a dead entity's intent dropped and a long path cut. Needs no graphics card.

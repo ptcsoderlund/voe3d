@@ -8,7 +8,8 @@
 // that an entity without a shape is untouched, that an unknown kind gets
 // nothing, that each kind gets its own geometry, that a removed shape's mesh
 // and material are dropped and an imported mesh is not, that the capsule and
-// the cylinder are built the right size and the right way out, and that the GPU
+// the cylinder are built the right size and the right way out, that the changes
+// table marks a new colour or kind for one run and nothing else, and that the GPU
 // half uploads the three shapes into a device sized from the constants, with
 // their one white material.
 //
@@ -77,7 +78,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = ENTITIES,
-		.component_types = 5,
+		.component_types = 6,
 		.intent_types = 2,
 		.structure_requests = 4 * ENTITIES,
 		.structure_bytes = 1024,
@@ -424,6 +425,90 @@ static void a_removed_shape_drops_its_mesh_and_material(voe_base_arena *arena)
 	VOE_TEST_CHECK(voe_3d_material_get(world, imported) != NULL);
 }
 
+// Submits a row of this kind and colour for the entity.
+static void submit(voe_ecs_world *world, voe_ecs_entity entity, uint32_t kind,
+		   voe_math_float3 colour)
+{
+	VOE_TEST_CHECK(voe_3d_shape_submit(
+		world, (voe_3d_shape_intent){
+			       .entity = entity,
+			       .shape = { .kind = kind,
+					  .colour = colour,
+					  .cast_shadows = true } }));
+}
+
+// A new colour marks the entity for the run that applied it, the next run
+// clears it, and a shape no intent named is never marked.
+static void a_recolour_is_a_change_for_one_run(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_3d_shapes shapes = a_shapes_value();
+	voe_ecs_entity cube;
+	voe_ecs_entity other;
+
+	voe_3d_shape_changes_register(world, ENTITIES);
+	cube = shaped(world, VOE_3D_SHAPE_CUBE);
+	other = shaped(world, VOE_3D_SHAPE_CUBE);
+
+	voe_3d_shape_system_run(world, &shapes);
+	VOE_TEST_CHECK(!voe_3d_shape_changed(world, cube));
+
+	submit(world, cube, VOE_3D_SHAPE_CUBE,
+	       (voe_math_float3){ 1.0f, 0.0f, 0.0f });
+	voe_3d_shape_system_run(world, &shapes);
+	VOE_TEST_CHECK(voe_3d_shape_changed(world, cube));
+	VOE_TEST_CHECK(!voe_3d_shape_changed(world, other));
+
+	voe_3d_shape_system_run(world, &shapes);
+	VOE_TEST_CHECK(!voe_3d_shape_changed(world, cube));
+}
+
+// A new kind in the same colour is a change too.
+static void a_kind_change_is_a_change(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_3d_shapes shapes = a_shapes_value();
+	voe_ecs_entity cube;
+
+	voe_3d_shape_changes_register(world, ENTITIES);
+	cube = shaped(world, VOE_3D_SHAPE_CUBE);
+
+	submit(world, cube, VOE_3D_SHAPE_CAPSULE, VOE_3D_SHAPE_GREY);
+	voe_3d_shape_system_run(world, &shapes);
+	VOE_TEST_CHECK(voe_3d_shape_changed(world, cube));
+}
+
+// An intent that names the colour and kind the row already has changes
+// nothing, and so marks nothing.
+static void the_same_colour_again_is_no_change(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_3d_shapes shapes = a_shapes_value();
+	voe_ecs_entity cube;
+
+	voe_3d_shape_changes_register(world, ENTITIES);
+	cube = shaped(world, VOE_3D_SHAPE_CUBE);
+
+	submit(world, cube, VOE_3D_SHAPE_CUBE, VOE_3D_SHAPE_GREY);
+	voe_3d_shape_system_run(world, &shapes);
+	VOE_TEST_CHECK(!voe_3d_shape_changed(world, cube));
+}
+
+// A world that never registered the table runs as before and answers false.
+static void a_world_without_the_table_reports_no_change(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_3d_shapes shapes = a_shapes_value();
+	voe_ecs_entity cube = shaped(world, VOE_3D_SHAPE_CUBE);
+
+	submit(world, cube, VOE_3D_SHAPE_CUBE,
+	       (voe_math_float3){ 1.0f, 0.0f, 0.0f });
+	voe_3d_shape_system_run(world, &shapes);
+	VOE_TEST_CHECK(!voe_3d_shape_changed(world, cube));
+	VOE_TEST_CHECK(voe_3d_shape_get(world, cube) != NULL &&
+		       voe_3d_shape_get(world, cube)->colour.x == 1.0f);
+}
+
 static voe_math_float3 minus(voe_math_float3 a, voe_math_float3 b)
 {
 	return (voe_math_float3){ a.x - b.x, a.y - b.y, a.z - b.z };
@@ -655,6 +740,10 @@ int main(void)
 	an_unknown_kind_gets_nothing(arena);
 	each_kind_gets_its_own_geometry(arena);
 	a_removed_shape_drops_its_mesh_and_material(arena);
+	a_recolour_is_a_change_for_one_run(arena);
+	a_kind_change_is_a_change(arena);
+	the_same_colour_again_is_no_change(arena);
+	a_world_without_the_table_reports_no_change(arena);
 	the_capsule_and_cylinder_are_built_right();
 
 	voe_base_arena_destroy(arena);

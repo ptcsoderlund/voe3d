@@ -2,7 +2,12 @@
 // and the selection outline's unlit record, the shape's intent and its drain,
 // the run that gives a mesh and a material to a shape that has neither yet,
 // re-points the mesh of a shape whose kind changed, and removes both once the
-// shape is gone.
+// shape is gone; and the opt-in table of which shapes the last run changed.
+//
+// THE CHANGES TABLE IS FOUND BY WALKING THE WORLD'S TYPES, as
+// scene/src/transform_previous.c finds its own: a world that never registered it
+// would assert in voe_ecs_component_type. Clearing it is a walk of every row,
+// one lookup each; a run that kept the rows it set would lift it.
 //
 // THE RUNS AND THE COUNTS ARE FILE-SCOPE STATICS AND THEREFORE PER PROCESS, the
 // same trade scene/identity_system.c makes and explains: two worlds in one
@@ -57,6 +62,77 @@ static uint32_t run_count;
 // The same two for intents the drain corrected.
 static bool in_corrected_run;
 static uint32_t corrected_run_count;
+
+static const struct voe_ecs_key changes_key = { "voe_3d_shape_changes" };
+
+// The changes table, or false when this world never registered one.
+static bool changes_type(const voe_ecs_world *world, voe_ecs_type *out)
+{
+	for (uint32_t i = 0; i < voe_ecs_component_type_count(world); i++) {
+		voe_ecs_type type = voe_ecs_component_type_at(world, i);
+
+		if (voe_ecs_component_key(world, type) == &changes_key) {
+			*out = type;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void voe_3d_shape_changes_register(voe_ecs_world *world, uint32_t capacity)
+{
+	voe_ecs_type type;
+
+	VOE_BASE_ASSERT(world != NULL, "registering shape changes in no world");
+	VOE_BASE_ASSERT(!changes_type(world, &type),
+			"registering shape changes twice");
+
+	// Asserts when the shapes are not registered yet.
+	(void)voe_ecs_component_type(world, &voe_3d_shape_key);
+	(void)voe_ecs_component_register(world, &changes_key, sizeof(bool),
+					 capacity, &voe_ecs_runtime_only);
+}
+
+bool voe_3d_shape_changed(const voe_ecs_world *world, voe_ecs_entity entity)
+{
+	voe_ecs_type type;
+	const bool *changed;
+
+	VOE_BASE_DEBUG_ASSERT(world != NULL, "asking no world about shape changes");
+
+	if (!changes_type(world, &type))
+		return false;
+	changed = voe_ecs_component_get(world, type, entity);
+	return changed != NULL && *changed;
+}
+
+// Sets every row of the changes table false.
+static void clear_changes(voe_ecs_world *world, voe_ecs_type changes)
+{
+	const voe_ecs_entity *owners = voe_ecs_component_entities(world, changes);
+	uint32_t count = voe_ecs_component_count(world, changes);
+	const bool unchanged = false;
+
+	for (uint32_t i = 0; i < count; i++)
+		(void)voe_ecs_component_set(world, changes, owners[i],
+					    &unchanged);
+}
+
+// Sets the entity's row true, adding one when it has none.
+static void mark_changed(voe_ecs_world *world, voe_ecs_type changes,
+			 voe_ecs_entity entity)
+{
+	const bool changed = true;
+	bool kept = voe_ecs_component_get(world, changes, entity) != NULL
+			    ? voe_ecs_component_set(world, changes, entity,
+						    &changed)
+			    : voe_ecs_component_add(world, changes, entity,
+						    &changed);
+
+	VOE_BASE_ASSERT(kept,
+			"the shape changes table is smaller than the shape table");
+}
 
 bool voe_3d_shapes_upload(voe_render_device *device, voe_3d_shapes *out,
 			  voe_base_error *error)
@@ -145,8 +221,11 @@ static bool built_in(uint32_t kind)
 // Applies every waiting intent in submission order and empties the queue, with
 // a kind none of the three built-in ones put back and the colour clamped. A
 // correction is reported like an unknown kind: the first of a run named, the
-// rest counted, the count said once a drain corrects nothing.
-static void drain(voe_ecs_world *world, voe_ecs_type type)
+// rest counted, the count said once a drain corrects nothing. With the changes
+// table (`has_changes`), an applied colour or kind other than the row's is
+// marked in it.
+static void drain(voe_ecs_world *world, voe_ecs_type type, bool has_changes,
+		  voe_ecs_type changes)
 {
 	voe_ecs_intent queue = voe_ecs_component_replace(world, type).intent;
 	const voe_3d_shape_intent *intents = voe_ecs_intent_queue(world, queue);
@@ -190,6 +269,12 @@ static void drain(voe_ecs_world *world, voe_ecs_type type)
 					(double)row.colour.z);
 			corrected++;
 		}
+
+		if (has_changes &&
+		    (row.kind != own->kind || row.colour.x != own->colour.x ||
+		     row.colour.y != own->colour.y ||
+		     row.colour.z != own->colour.z))
+			mark_changed(world, changes, intents[i].entity);
 
 		(void)voe_ecs_component_set(world, type, intents[i].entity,
 					    &row);
@@ -300,6 +385,8 @@ static void drop_orphans(voe_ecs_world *world, voe_ecs_type type,
 void voe_3d_shape_system_run(voe_ecs_world *world, const voe_3d_shapes *shapes)
 {
 	voe_ecs_type type;
+	voe_ecs_type changes = { 0 };
+	bool has_changes;
 	const voe_3d_shape *rows;
 	const voe_ecs_entity *entities;
 	uint32_t count;
@@ -310,7 +397,10 @@ void voe_3d_shape_system_run(voe_ecs_world *world, const voe_3d_shapes *shapes)
 			      "running the shape system with no shapes uploaded");
 
 	type = voe_ecs_component_type(world, &voe_3d_shape_key);
-	drain(world, type);
+	has_changes = changes_type(world, &changes);
+	if (has_changes)
+		clear_changes(world, changes);
+	drain(world, type, has_changes, changes);
 	rows = voe_ecs_component_rows(world, type);
 	entities = voe_ecs_component_entities(world, type);
 	count = voe_ecs_component_count(world, type);

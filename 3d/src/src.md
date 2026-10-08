@@ -36,7 +36,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   in double and wrapped with fmod.
 - `shape_system.c` — the one upload of the three shapes' geometry and of the two materials they
   wear, the intent's submit and drain, and the run that gives a shape its mesh and material,
-  repoints a changed kind and drops both once the shape is gone.
+  repoints a changed kind and drops both once the shape is gone, and the opt-in changes table it
+  clears and marks.
 - `shape_geometry.c` — the three shapes kept on the CPU: the cube pointed at, the
   capsule and the cylinder built into an arena, and the build any triangles go
   through, whose edges are found by welding by position and walking twice.
