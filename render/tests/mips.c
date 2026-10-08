@@ -13,7 +13,8 @@
 // a plane 200 wide and 90 deep, one unit below the eye, from 1 to 91 ahead. It
 // fills the picture's lower half; its far half, the 16 rows by the horizon, is
 // minified two texels or more on both axes and must be the same blend, which is
-// anisotropic filtering with its mips and not a smear or a crawl.
+// trilinear with its mips, anisotropy being off on the checked card (ADR-0369),
+// and still not a crawl.
 //
 // The camera sits at the origin looking down −Z with a 90° field of view, so
 // at a distance of 1 the picture is exactly 2 units across: a quad of half-side
