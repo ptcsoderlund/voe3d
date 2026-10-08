@@ -77,30 +77,24 @@ by reading the offscreen colour image back.
 - `bounce_probes.c` — probes queued and relit, with no card: a sphere reaching a grid's reach
   further or sixteen radii, no relight on a scroll under a still lamp, a new picture fading in over
   sixteen places, a retaken one keeping its readiness, a scrolled-in one not ready.
-- `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
-  window's and a target's apart, a sum image 48 wide, freed after 300 frames with no begin, and
-  both relit in one frame each into its own record, at 2 and 4 m each its own spacing, volumes 0 and 3
-  of one target built and relit apart at their own placed cells, and an unplaced volume not placed.
-  Headless.
+- `bounce_volume.c` — a probe volume built the frame after its first begin, freed after 300
+  idle frames, a window's and a target's and two of one target kept apart, each relit into its own
+  record at its own spacing. Headless.
 - `bounce_capture.c` — the capture pass: open with a near cube one draw and a far one none, the
   fifth in a frame not open, refused with `passes` spent, a red cube in the albedo atlas, and at
   spacing 4 a cube 30 m off one draw. Headless.
 - `bounce_shadow.c` — the relight's sun map: opened after a frame's captures with a cube one draw
   and a texel past the clear, not opened when settled, when only a lamp bounces, or with `passes`
   spent, and opened for the window and a target in one frame, each record saying drawn. Headless.
-- `bounce_settle.c` — captured probes settling: beside a cube, validity 1 and a moments mean to its
-  face; inside it, validity 0; readiness 0, then 1 sixteen frames on; a fading frame one settle and
-  no sun map; a settled frame dispatching nothing; `bounce relight` in the breakdown of a relit
-  frame and not of the settled one. Headless.
-- `bounce_read.c` — lit surfaces reading the probe volumes: nothing captured reads as no begin; an
-  empty 1 m nest as the level grid alone (`an_empty_nest_reads_as_the_level_grid_alone`); a settled
-  one changing its middle by a red wall (`a_settled_nest_reads_in_its_middle`); the level grid
-  alone reading the ground beside the wall redder than 3 m out
-  (`the_ground_beside_the_wall_is_redder_than_further_out`, 0390). Headless.
-- `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture, a red wall's
-  lit side at spacing 2 and 4; a stale pebble relighting fewer workgroups than the grid
-  (`a_recapture_relights_only_what_it_changed`), a moved sun all of it
-  (`a_lights_change_relights_the_whole_grid`). Headless.
+- `bounce_settle.c` — captured probes settling: validity and moments beside and inside a cube,
+  readiness fading in over sixteen frames, a fading frame one settle, a settled one nothing, and
+  `bounce relight` in the breakdown only when relit. Headless.
+- `bounce_read.c` — lit surfaces reading the probe volumes: nothing captured as no begin, an
+  empty 1 m nest as the level grid alone, a settled one changing its middle, and the ground beside
+  a red wall redder than 3 m out. Headless.
+- `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture by a red wall
+  at spacing 2 and 4, a box, a room and a lamp; a stale pebble relighting less than the grid, a
+  moved sun all of it. Headless.
 - `bounce_suns.c` — every sun lighting the probes: a sun alone, an empty `more` the same bytes, a
   dark sun's copy in `more` within 1%, a moon adding, a moon at bounces 0 nothing, a moon shadowed
   behind a wall nothing. Headless.
@@ -129,11 +123,8 @@ by reading the offscreen colour image back.
   under and clear of it as before; a Wall stopping a lamp; Indoors keeping the sun, not the fill;
   a Room holding the sun lit inside, black outside; zero kinds the old picture. Headless.
 - `blocked_bounce.c` — the bounce kept by a blocker: a blocked patch by a red wall takes no red,
-  ground outside as before, a count of 0 the old picture, and a lamp inside with the wall bouncing
-  red onto the patch, one outside none; `a_removed_blocker_relights_the_nest`, the 1 m nest
-  begun too, the patch back to its unblocked reading once the blocker goes;
-  `a_whole_relight_keeps_the_nests_bounce`, 3d's eye and nest, the red kept through a lights
-  change after a recapture. Headless.
+  a lamp inside bounces it red and one outside not, the 1 m nest relit when the blocker goes, and
+  3d's nest keeping its red through a lights change. Headless.
 - `blocker_kinds_bounce.c` — kinds gating the bounce by a red wall: a Wall slab between it and a
   patch leaving the patch as with no bounce, ground on the wall's side red; an Indoors box round the
   patch as with no blocker; a Room box with zero kinds as with no bounce. Headless.
