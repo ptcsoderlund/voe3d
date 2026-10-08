@@ -699,7 +699,9 @@ voe_render_device *voe_render_device_new_headless(voe_base_arena *arena,
 // that opens a device closes it, so a new message anywhere fails that test,
 // without a check per folder; and a person's debug session is not aborted at
 // the message, only told the count when the device goes. The count is read
-// after close_down, so a message the teardown itself raised is counted too.
+// after close_down, so a message the teardown itself raised is counted too, and
+// the new messages the device kept are listed before it, so the lines above the
+// count and the assert say what was counted.
 void voe_render_device_destroy(voe_render_device *device)
 {
 	uint32_t new_messages;
@@ -708,6 +710,8 @@ void voe_render_device_destroy(voe_render_device *device)
 
 	close_down(device);
 	new_messages = device->new_messages;
+	if (new_messages > 0)
+		voe_render_best_practices_list_new(device);
 	release(device);
 
 	if (new_messages > 0)

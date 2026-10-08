@@ -266,8 +266,12 @@ void voe_render_debug_label_end(VkCommandBuffer commands);
 // allowlist. _other_vendor: `id_name` carries a vendor tag (NVIDIA, AMD, Arm,
 // IMG) that is not `vendor_id`'s. _classify: what the messenger does with one
 // message, an error or a warning — another vendor's dropped, an allowed warning
-// allowed, anything else counted in device->new_messages as new. _announce: the
-// one line saying the checks are on or missing, the vendor and the list's length.
+// allowed, anything else counted in device->new_messages as new and kept by its
+// id name with the first `message` text (may be NULL). _announce: the one line
+// saying the checks are on or missing, the vendor and the list's length.
+// _list_new: at close, when new_messages is not nought, one line per kept id —
+// error or warning, the id, how many times, the first text — and one for the
+// new messages no row had room for, printed before the count line.
 enum voe_render_message_verdict {
 	VOE_RENDER_MESSAGE_DROPPED,
 	VOE_RENDER_MESSAGE_ALLOWED,
@@ -278,8 +282,9 @@ enum voe_render_message_verdict {
 							  const char *id_name);
 [[nodiscard]] enum voe_render_message_verdict
 voe_render_best_practices_classify(voe_render_device *device, bool error,
-				   const char *id_name);
+				   const char *id_name, const char *message);
 void voe_render_best_practices_announce(const voe_render_device *device);
+void voe_render_best_practices_list_new(const voe_render_device *device);
 
 // buffer.c. A buffer of size with usage, in memory that has properties, and the
 // one allocation under it, the buffer named `name` (debug_names.c).

@@ -33,7 +33,8 @@ which file to open — what each one owns, and where the seams between them run.
   debug build the validation layer with Best Practices and vendor checks, its messenger, or the
   checks recorded missing.
 - `best_practices.c` — the Best Practices allowlist, which vendor a message is for, the classifier
-  that counts new messages, and the start line saying the checks are on or missing.
+  that counts new messages, keeps each new message and names it again at close, and the start line
+  saying the checks are on or missing.
 - `debug_names.c` — the one helper that names an object and labels a span of a command buffer for a
   capture tool; each does nothing without debug-utils.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,

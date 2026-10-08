@@ -118,6 +118,13 @@
 
 #include "device_parts.h"
 
+// The new validation messages the device keeps to name again at close
+// (best_practices.c): how many distinct id names, and the bytes each row keeps of
+// an id name and of its first text, the terminator included. A longer one is cut.
+#define VOE_RENDER_KEPT_MESSAGES 8
+#define VOE_RENDER_KEPT_ID_BYTES 128
+#define VOE_RENDER_KEPT_TEXT_BYTES 384
+
 struct voe_render_device {
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT messenger;
@@ -513,6 +520,20 @@ struct voe_render_device {
 	bool vendor_checks;
 	uint32_t vendor_id;
 	uint32_t new_messages;
+	// What those new messages were, one row per distinct id name, a row free
+	// while its count is nought: the id name ("(no id)" for none), whether
+	// one was an error, how many came, and the first one's text. Then how
+	// many new messages found no free row. Fixed and in the struct because a
+	// messenger callback must not allocate or fail; written where
+	// new_messages is counted, so it shares that counter's threading; read
+	// once, at close.
+	struct {
+		char id_name[VOE_RENDER_KEPT_ID_BYTES];
+		bool error;
+		uint32_t count;
+		char text[VOE_RENDER_KEPT_TEXT_BYTES];
+	} kept[VOE_RENDER_KEPT_MESSAGES];
+	uint32_t kept_overflow;
 
 	// ---- the guard; see the top of this file.
 
