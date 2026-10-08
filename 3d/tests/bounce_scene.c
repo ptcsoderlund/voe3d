@@ -9,49 +9,50 @@
 // at 45 degrees along -x onto the box's +x face, bounces 1, strength 1, no
 // fill, casting, as are both shapes (0324). The eye stands 8 m up and 14 m
 // back (+z), looking down at the origin. The same world at bounces 0 is the
-// reference: its shadows call begins no bounce, so its window reads none.
+// reference: its shadows call begins no bounce, so its window reads none. Each
+// world keeps a previous table and the shape changes table, and every frame
+// first remembers transforms, then runs the transform system, as the editor's
+// step does; a move is an intent that frame applies.
 //
 // SETTLED, COUNTED AS bounce.c COUNTS: by `passes`. A full frame has room for
-// the cascades, VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes, the relight's
-// sun map (0329) and the window's. A probing frame first opens DUMMIES empty
-// passes, so a shadows call that would open a capture pass or the sun map
-// returns false there (render says so on a line; that noise is the
-// measurement), and true when nothing is queued or to be relit. Full and
-// probing frames alternate until a probing one is true, within BOUND pairs.
+// the cascades, VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes, a sun map per
+// begun volume (0389: a 2 m level grid begins the 1 m nest too; the device has
+// room for VOE_RENDER_BOUNCE_VOLUMES) and the window's. A probing frame first
+// opens DUMMIES empty passes, so a shadows call that would open a capture pass
+// or a sun map returns false there (render says so on a line; that noise is
+// the measurement), true when nothing is queued or to be relit. Full and
+// probing frames alternate until a probing one is true, within BOUND pairs;
+// then FADE full frames more, as a frame that only fades opens no pass.
 //
-// THE LIT SIDE (step 2): the ground 0.25 m out from the sunlit +x face has its
-// red less its green above the reference's by at least TINT/255, and 3 m out
-// by less than half that. THE SHADOW (step 3, 0312, 0327): the ground 0.25 m
-// out from the shadowed -x face, at the foot, within SHADOW/255 of the
-// reference in every channel. EVEN GROUND (step 2, 0326): five points along
-// x = -6, 2 m apart in z, within EVEN/255 of each other; again after the sun
-// is turned 5 degrees higher, each one's green risen with it.
+// THE LIT SIDE (step 2): the ground 0.25 m out from the sunlit +x face has red
+// less green above the reference's by at least TINT/255, 3 m out by less than
+// half that. THE SHADOW (step 3, 0312, 0327): the ground at the foot of the
+// shadowed -x face within SHADOW/255 of the reference in every channel. EVEN
+// GROUND (step 2, 0326): five points along x = -6, 2 m apart in z, within
+// EVEN/255 of each other; again with the sun 5 degrees higher, each greener.
 //
 // SETTLING (step 8): unchanged, the next probing frame opens no capture pass;
-// the box moved 1 m along x, a previous table remembered as a stepping game
-// does, makes the next one open one, and within BOUND it settles again.
+// the box moved 1 m along x makes the next open one; within BOUND it settles.
 //
 // TURN (bug 01) AND LOOKING AWAY (0328, 0329): settled, the camera turned 90
 // degrees about Y in place for TURNED probing frames, each opening no capture
 // pass; then turned 180 degrees and, facing away, the bounce strength set to 2
 // and settled, back to 1 and settled. Turned back each time, the lit-side,
-// shadow-foot and open-ground pixels are each within 1/255 of before: a
-// relight shadows the sun by the volume's own map, not the view's cascades.
+// shadow-foot and open-ground pixels are each within 1/255 of before.
 //
-// MOVE (bug 03, 0331): settled, the eye moved 6 m along -x and 3 m up for
-// TURNED probing frames, each opening no capture pass and relighting nothing,
-// then moved back, the same pixels within 1/255: the grid is the level's.
+// MOVE (bug 03, 0388): settled, the eye nudged 1.5 m along -x, within the 1 m
+// nest's two cells, for TURNED probing frames, each opening no capture pass;
+// then moved 6 m along -x and 3 m up, settled, moved back and settled. Each
+// time back, the same pixels within 1/255.
 //
 // BLOCKED (0347 point 4): settled, a light blocker in both worlds around the
-// ground 0.4 to 1.6 m out from the box's sunlit face, not the box. Once settled
-// the ground 0.75 m out reads within BLOCKED/255 of the reference, and the
-// looked-at pixels, all outside it, within BLOCKED/255 of before; the blocker
-// destroyed, once settled that patch is within 1/255 of before again.
+// ground 0.4 to 1.6 m out from the box's sunlit face, not the box. Settled, the
+// ground 0.75 m out reads within BLOCKED/255 of the reference, the looked-at
+// pixels outside it within BLOCKED/255 of before; the blocker destroyed and
+// settled, that patch is within 1/255 of before again.
 //
-// FAR (bug 03, 0331): the eye 40 m further back along +z, still looking at the
-// origin, for TURNED probing frames, each true; the lit side, projected from
-// there, redder than the reference at the same eye by at least half of
-// TINT/255: distance from the camera does not take the bounce away.
+// FAR (bug 03, 0331): the eye 40 m further back along +z, settled, then TURNED
+// probing frames each true; the lit side there at least half TINT/255 redder.
 //
 // Pixels are a world point projected about the frame's eye through its view,
 // with the engine's one Y flip. IT NEEDS A GRAPHICS CARD WITH shaderOutputLayer
@@ -89,7 +90,10 @@
 
 #define SCRATCH (16 * 1024 * 1024)
 #define SIDE 128
-#define BOUND 160
+#define BOUND 320
+// Places a new probe picture takes to full weight (0389 point 4), render's
+// VOE_RENDER_BOUNCE_FADE, which render keeps to itself.
+#define FADE 16
 #define TINT 3
 #define SHADOW 4
 #define EVEN 2
@@ -98,11 +102,13 @@
 #define TURNED 3
 // The pixels TURN compares: the lit side, the shadow's foot and the open ground.
 #define LOOKED (2 + OPEN)
-// The cascades, the capture passes, the bounce shadow pass and the window's.
-#define PASSES \
-	(VOE_RENDER_SHADOW_CASCADES + VOE_RENDER_BOUNCE_CAPTURE_PASSES + 2)
+// The cascades, the capture passes, a bounce shadow pass for each volume a
+// target holds and the window's.
+#define PASSES                                                          \
+	(VOE_RENDER_SHADOW_CASCADES + VOE_RENDER_BOUNCE_CAPTURE_PASSES + \
+	 VOE_RENDER_BOUNCE_VOLUMES + 1)
 // Leaves the cascades' passes and not one more.
-#define DUMMIES (VOE_RENDER_BOUNCE_CAPTURE_PASSES + 2)
+#define DUMMIES (PASSES - VOE_RENDER_SHADOW_CASCADES)
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = VOE_3D_SHAPES_VERTICES,
@@ -154,7 +160,8 @@ static voe_math_quat sun_at(float elevation)
 		(voe_math_float3){ -cosf(elevation), -sinf(elevation), 0.0f });
 }
 
-// The world of the header with a sun of `bounces`, remembered once.
+// The world of the header with a sun of `bounces`, keeping a previous table
+// and the shape changes table, as the editor's world does.
 static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces)
 {
 	voe_ecs_limits limits = {
@@ -176,6 +183,7 @@ static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces)
 	voe_3d_material_register(s->world, 8);
 	voe_3d_panel_register(s->world, 8);
 	voe_3d_shape_register(s->world, 8);
+	voe_3d_shape_changes_register(s->world, 8);
 	voe_3d_model_register(s->world, 8);
 	voe_scene_light_blocker_register(s->world, 2);
 
@@ -211,15 +219,19 @@ static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces)
 			     (voe_math_float3){ 2.0f, 2.0f, 2.0f },
 			     (voe_math_float3){ 1.0f, 0.02f, 0.02f });
 	voe_3d_shape_system_run(s->world, shapes);
-	voe_scene_transform_remember(s->world);
 }
 
-// The frame's view and lights, as the loop takes them each frame.
+// The frame's step and then its view and lights, as the editor takes them
+// each frame: every transform remembered, then the transforms placed since
+// applied, so a place is a move between lag 1 and lag 0.
 static voe_3d_frame begin_a_frame(scene *s, bool *drawing)
 {
 	voe_platform_size size = { SIDE, SIDE };
-	voe_3d_frame frame = voe_3d_draw_system_frame(s->world, size, 0.0f);
+	voe_3d_frame frame;
 
+	voe_scene_transform_remember(s->world);
+	voe_scene_transform_system_run(s->world);
+	frame = voe_3d_draw_system_frame(s->world, size, 0.0f);
 	frame.target = VOE_RENDER_TARGET_WINDOW;
 	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(s->world, &frame,
 						       s->scratch));
@@ -279,14 +291,17 @@ static bool a_capture_was_wanted(scene *s)
 	return wanted;
 }
 
-// Full and probing frames until a probing one wants no capture; whether that
-// came within BOUND.
+// Full and probing frames until a probing one wants no capture, then FADE
+// full frames, since a frame that only fades opens no pass and a read could
+// otherwise land mid-fade; whether that came within BOUND.
 static bool settles(scene *s)
 {
 	for (int pair = 0; pair < BOUND; pair++) {
 		(void)a_full_frame(s);
 		if (!a_capture_was_wanted(s)) {
 			printf("settled after %d pairs\n", pair + 1);
+			for (int f = 0; f < FADE; f++)
+				(void)a_full_frame(s);
 			return true;
 		}
 	}
@@ -383,12 +398,11 @@ static void open_ground_is_even(const voe_render_picture *picture,
 				       EVEN);
 }
 
-// `entity` given `transform` by an intent and the transform system's run.
+// `entity` given `transform` by an intent, applied by the next frame's step.
 static void place(scene *s, voe_ecs_entity entity, voe_scene_transform transform)
 {
 	VOE_TEST_CHECK(voe_scene_transform_submit(
 		s->world, (voe_scene_transform_intent){ entity, transform }));
-	voe_scene_transform_system_run(s->world);
 }
 
 // The LOOKED pixels of `picture` into `pixels`: lit side, foot, open ground.
@@ -412,9 +426,10 @@ static void the_pixels_looked_at(const voe_render_picture *picture,
 }
 
 // The camera at `away` for TURNED probing frames, each opening no capture pass,
-// then back: every looked-at pixel within 1/255 of before; `what` on each line.
+// then back; with `settle`, settled at `away` and again once back instead:
+// every looked-at pixel within 1/255 of before; `what` on each line.
 static void away_and_back_changes_nothing(scene *s, voe_scene_transform away,
-					  const char *what)
+					  bool settle, const char *what)
 {
 	voe_scene_transform pose = *voe_scene_transform_get(s->world, s->camera);
 	voe_3d_frame frame = a_full_frame(s);
@@ -424,9 +439,14 @@ static void away_and_back_changes_nothing(scene *s, voe_scene_transform away,
 
 	the_pixels_looked_at(&picture, &frame, before);
 	place(s, s->camera, away);
-	for (int f = 0; f < TURNED; f++)
-		VOE_TEST_CHECK(!a_capture_was_wanted(s));
+	if (settle)
+		VOE_TEST_CHECK(settles(s));
+	else
+		for (int f = 0; f < TURNED; f++)
+			VOE_TEST_CHECK(!a_capture_was_wanted(s));
 	place(s, s->camera, pose);
+	if (settle)
+		VOE_TEST_CHECK(settles(s));
 	frame = a_full_frame(s);
 	picture = read_window(s);
 	the_pixels_looked_at(&picture, &frame, after);
@@ -448,17 +468,21 @@ static void turning_moves_nothing(scene *s)
 		voe_math_quat_from_axis_angle((voe_math_float3){ 0.0f, 1.0f, 0.0f },
 					      1.5707963f),
 		turned.rotation);
-	away_and_back_changes_nothing(s, turned, "turned");
+	away_and_back_changes_nothing(s, turned, false, "turned");
 }
 
-// MOVE: 6 m along -x and 3 m up and back.
+// MOVE: 1.5 m along -x and back, within the 1 m nest's two cells; then 6 m
+// along -x and 3 m up and back, settled at each.
 static void moving_moves_nothing(scene *s)
 {
-	voe_scene_transform moved = *voe_scene_transform_get(s->world, s->camera);
+	voe_scene_transform nudged = *voe_scene_transform_get(s->world, s->camera);
+	voe_scene_transform moved = nudged;
 
+	nudged.position.x -= 1.5;
+	away_and_back_changes_nothing(s, nudged, false, "nudged");
 	moved.position.x -= 6.0;
 	moved.position.y += 3.0;
-	away_and_back_changes_nothing(s, moved, "moved");
+	away_and_back_changes_nothing(s, moved, true, "moved");
 }
 
 // A light blocker of `size` at `at`, unturned; the entity.
@@ -559,6 +583,7 @@ static void far_keeps_the_bounce(scene *s, scene *plain)
 					cosf(pitch * 0.5f) };
 	place(s, s->camera, far);
 	place(plain, plain->camera, far);
+	VOE_TEST_CHECK(settles(s));
 	for (int f = 0; f < TURNED; f++)
 		VOE_TEST_CHECK(!a_capture_was_wanted(s));
 	frame = a_full_frame(s);
@@ -651,12 +676,10 @@ static void the_bounce(scene *s, const voe_3d_shapes *shapes)
 		VOE_TEST_CHECK(after[i][1] > before[i][1]);
 
 	VOE_TEST_CHECK(!a_capture_was_wanted(s));
-	voe_scene_transform_remember(s->world);
 	moved = *voe_scene_transform_get(s->world, s->box);
 	moved.position.x += 1.0;
 	place(s, s->box, moved);
 	VOE_TEST_CHECK(a_capture_was_wanted(s));
-	voe_scene_transform_remember(s->world);
 	VOE_TEST_CHECK(settles(s));
 	a_blocker_keeps_the_bounce_out(s, &plain);
 	turning_moves_nothing(s);

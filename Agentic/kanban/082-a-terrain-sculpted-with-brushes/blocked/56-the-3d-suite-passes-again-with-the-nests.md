@@ -38,3 +38,6 @@ do not change `3d/src` or `3d/include`. If a test can only pass by an engine cha
 
 ## Done when
 `ctest --test-dir build/debug -R '^3d/(shadow_lights|bounce_scene|bounce)$'` passes.
+
+## Blocked
+`3d/shadow_lights` and `3d/bounce` pass, and every wait, budget and header in `3d/bounce_scene` is brought to the nests (TURN, BLOCKED, SETTLING, EVEN, MOVE, FAR and the shadow all pass). Its lit-side check `2 * far < near` (bounce_scene.c:374) still fails: the ground 0.25 m from the red box's sunlit face is only 4/255 redder, and 3 m out 2/255. Further out it is redder (6 at x 3.35), and the reading stays the same after 40 more frames and a full relight, so it is not a wait. It looks like an engine read near the box: the 0389 point 6 lit-pass read of volume 0 as rgb × a, with the 1 m nest not covering z 0.5 from this eye. Unblock with a fix in `3d/src` or `render` for the tint beside a 2 m box, or a planner decision to change the lit-side check, which this card was told to leave as it is.

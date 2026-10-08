@@ -54,8 +54,9 @@ again, or to find where a claim that has started failing is written down.
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
 - `shadow_lights.c` — that a sun and a moon each cast their own shadow on the floor from the second
-  frame, a sun that does not cast leaves only the moon's, and one casting light fits one light's
-  passes without growing the array. Skips without a graphics card.
+  frame, a sun that does not cast leaves only the moon's, one casting light fits one light's
+  passes without growing the array, a moon bounces once its probes have faded in, and two casting
+  suns that bounce draw a sun map each per begun volume. Skips without a graphics card.
 - `blocked_shadows.c` — that a moon inside an All, Direct or Fill box, or alone inside an All, is
   not shadowed by a roof outside it yet casts the cube inside, and that with no box the roof shadows
   the floor. Skips without a graphics card.
@@ -63,9 +64,10 @@ again, or to find where a claim that has started failing is written down.
   begun volume, two views each drawing theirs, the caster-sized stale spheres, the still casters'
   box, `a_two_metre_level_begins_only_the_one_metre_nest` and
   `the_finest_nest_keeps_a_capture_pass`. Skips without a card.
-- `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints the
-  ground it faces, open ground stays even, the grid settles, a light blocker keeps the tint out of
-  its patch, and camera turns and moves change nothing, nor does a far eye. Skips without a card.
+- `bounce_scene.c` — the probe bounce through the editor's and the game's calls, each frame
+  remembering first: a red box tints the ground it faces, open ground stays even, the grid and its
+  1 m nest settle and fade in, a light blocker keeps the tint out of its patch, and camera turns, a
+  nudge and moves change nothing, nor does a far eye. Skips without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.
