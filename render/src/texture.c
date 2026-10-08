@@ -13,10 +13,12 @@
 // A MATERIAL TEXTURE HAS A MIP CHAIN AND KEEPS ITS HARD TEXELS UP CLOSE
 // (ADR-0359). A SMOOTH texture — every model and material picture — gets every
 // level down to 1x1, built on the GPU in the same submission as the upload
-// (texture_levels.c), and is read trilinear when minified, at up to 8×
-// anisotropy where the card has it (ADR-0369), so a distant surface
+// (texture_levels.c), and is read trilinear when minified, so a distant surface
 // stops sparkling and crawling as the camera moves, and NEAREST when magnified,
-// so up close it shows the texels it always did.
+// so up close it shows the texels it always did. Anisotropy is off: on the card
+// the checks run on it blends magnified texels (ADR-0369), so a low-angle
+// surface is plain trilinear; device.c still asks for samplerAnisotropy and
+// keeps the card's anisotropy limit, which nothing reads now.
 //
 // SHEETS AND GLYPHS STAY ONE LEVEL. A SHARP sheet is indexed by rectangle and a
 // lower level would bleed one sprite into the next; a FIELD glyph atlas holds
@@ -644,15 +646,6 @@ bool voe_render_texture_startup(voe_render_device *device)
 	struct voe_render_texture_slot *slot = &device->textures[0];
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "starting textures on no device");
-
-	// SMOOTH reads anisotropic where the card has it (ADR-0369): trilinear
-	// alone picks its level by the longer footprint axis, so a surface seen
-	// at a low angle turns to mush; anisotropy keeps it sharp along the
-	// short axis. SHARP and FIELD keep it off: sheets and fields are seen
-	// face-on and are one level, so there is no long axis to sample along.
-	infos[VOE_RENDER_SAMPLING_SMOOTH].anisotropyEnable =
-		device->max_anisotropy > 1.0f ? VK_TRUE : VK_FALSE;
-	infos[VOE_RENDER_SAMPLING_SMOOTH].maxAnisotropy = device->max_anisotropy;
 
 	for (uint32_t i = 0; i < VOE_RENDER_SAMPLING_COUNT; i++) {
 		result = voe_render_vk.create_sampler(device->device, &infos[i],
