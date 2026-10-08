@@ -13,10 +13,9 @@ header.
   Its header says why not the millisecond tick counts.
 - `file_wayland.c` — open, read/write, close, the rename that makes a write
   atomic, and renameat2 for a move that never replaces, on Linux.
-- `file_win32.c` — CreateFileW, GetFileAttributesW, ReadFile/WriteFile, CloseHandle, and the
-  MoveFileExW that makes a write atomic, MoveFileExW with no flags for a move that never replaces,
-  a UTF-8 path converted on the way in. Its header says why
-  a 64-bit count is moved in steps, and why a path too long for its stack buffer fails as an open.
+- `file_win32.c` — the Windows half of `platform/file.h` through CreateFileW,
+  GetFileAttributesW, ReadFile/WriteFile and CloseHandle, a write made atomic
+  and a move that never replaces both by MoveFileExW.
 - `folder_wayland.c` — opendir/readdir, mkdir, and $HOME/$XDG_CONFIG_HOME. Its
   header says why listing is two passes and the sort is by hand, and when
   `fstatat` decides `folder` instead of `d_type`.
