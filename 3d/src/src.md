@@ -34,10 +34,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   defaults, the reads and the replace submit.
 - `water_system.c` — the replace drain, the waves rows added and dropped, and the clock stepped
   in double and wrapped with fmod.
-- `shape_system.c` — the one upload of the three shapes' geometry and of the two materials they
-  wear, the intent's submit and drain, and the run that gives a shape its mesh and material,
-  repoints a changed kind and drops both once the shape is gone, and the opt-in changes table it
-  clears and marks.
+- `shape_system.c` — the one upload of the three shapes' geometry and their two materials, the
+  intent's submit and drain, the run that gives, repoints and drops a shape's mesh and material,
+  and the opt-in changes table.
 - `shape_geometry.c` — the three shapes kept on the CPU: the cube pointed at, the
   capsule and the cylinder built into an arena, and the build any triangles go
   through, whose edges are found by welding by position and walking twice.
