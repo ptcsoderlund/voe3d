@@ -3,7 +3,7 @@
 // and which failure is which is written there.
 //
 // LINUX ONLY, AND THE NAME IS THE BUILD'S — see platform/src/file_wayland.c's
-// header. There is no _win32 half: Windows is paused (ADR-0339).
+// header. The Windows half is platform/src/trash_win32.c.
 //
 // THE ABSOLUTE PATH IS THE PARENT'S realpath PLUS THE NAME, not realpath of the
 // path itself: a symlink sent to the trash is the link, and the restore path

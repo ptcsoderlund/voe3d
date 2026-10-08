@@ -1,9 +1,12 @@
 // What platform/trash.h promises, checked from outside: a file goes to
 // files/ with an info/ entry naming its percent-encoded path, a folder goes
 // whole, a taken name is numbered, and nothing at the path is UNAVAILABLE.
-// Linux only by construction, like trash.h itself (ADR-0339).
 //
-// XDG_DATA_HOME IS POINTED AT A SCRATCH FOLDER under the test's own working
+// ON WINDOWS ONLY THE MISSING PATH IS CHECKED: everything that succeeds there
+// would fill the person's real Recycle Bin (ADR-0382 point 4), so the
+// freedesktop checks and their scratch setup are Linux's, inside #ifndef _WIN32.
+//
+// ON LINUX XDG_DATA_HOME IS POINTED AT A SCRATCH FOLDER under the test's own working
 // folder, so the person's real trash is never touched and the trash is on the
 // same file system as the files sent to it. The scratch tree is torn down by
 // name with remove/rmdir, before and after, as platform/tests/folder.c does.
@@ -12,8 +15,12 @@
 #include <platform/trash.h>
 
 #include <base/arena.h>
-#include <platform/file.h>
 #include <testing/test.h>
+
+#define WORK "voe_platform_trash_test_work"
+
+#ifndef _WIN32
+#include <platform/file.h>
 
 #include <limits.h>
 #include <stdint.h>
@@ -23,7 +30,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define WORK "voe_platform_trash_test_work"
 #define DATA "voe_platform_trash_test_data"
 #define FILES DATA "/Trash/files"
 #define INFO DATA "/Trash/info"
@@ -106,6 +112,7 @@ static void trash_numbers_a_taken_name(voe_base_arena *arena)
 	VOE_TEST_CHECK(exists(INFO "/twice.trashinfo"));
 	VOE_TEST_CHECK(exists(INFO "/twice.2.trashinfo"));
 }
+#endif
 
 static void trash_of_nothing_is_unavailable(voe_base_arena *arena)
 {
@@ -113,12 +120,15 @@ static void trash_of_nothing_is_unavailable(voe_base_arena *arena)
 
 	VOE_TEST_CHECK(!voe_platform_trash(WORK "/missing", arena, &error));
 	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_UNAVAILABLE);
+#ifndef _WIN32
 	VOE_TEST_CHECK(!exists(INFO "/missing.trashinfo"));
+#endif
 }
 
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(4096);
+#ifndef _WIN32
 	char data[PATH_MAX];
 
 	cleanup();
@@ -130,9 +140,12 @@ int main(void)
 	trash_moves_a_file_with_its_info(arena);
 	trash_moves_a_folder_whole(arena);
 	trash_numbers_a_taken_name(arena);
+#endif
 	trash_of_nothing_is_unavailable(arena);
 
 	voe_base_arena_destroy(arena);
+#ifndef _WIN32
 	cleanup();
+#endif
 	return voe_test_result();
 }
