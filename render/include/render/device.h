@@ -113,10 +113,11 @@ typedef struct voe_render_device voe_render_device;
 // device's life, because nothing destroys one. A device made with none refuses
 // the first create with a message. Each target costs two texture slots of the
 // 1024 — its picture and its depth copy (ADR-0305) — as well as its images, and
-// the window's depth copy takes one more. A target or the window that voe_render_bounce_begin has begun also holds a
-// probe volume (ADR-0326) until 300 frames pass with no begin: three 1152 × 2304
-// atlases of 4, 8 and 4 bytes a texel and 22 3D images of 24 × 12 × 24, about
-// 43.6 MB. One that is never begun costs nothing (ADR-0316). The relight's sun
+// the window's depth copy takes one more. A target or the window holds up to
+// four probe volumes (ADR-0326, 0389 point 1), one for each volume
+// voe_render_bounce_begin has begun, each freed after 300 frames with no begin
+// onto it. Each is three 1152 × 2304 atlases of 4, 8 and 4 bytes a texel and 22
+// 3D images of 24 × 12 × 24, about 43.6 MB. One never begun costs nothing (ADR-0316). The relight's sun
 // map is 4 MB of depth a frame slot, only with shaderOutputLayer (ADR-0329).
 //
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
@@ -1541,6 +1542,10 @@ void voe_render_pass_end(voe_render_device *device);
 // change to any of them relights. A count past VOE_RENDER_DIRECTIONAL_LIGHTS − 1,
 // NULL with a count, bounces past VOE_RENDER_BOUNCES_MAX, or a mask bit at or
 // past the blocker count asserts. Zero is none, the old picture.
+//
+// `volume` IS WHICH OF THE TARGET'S VOE_RENDER_BOUNCE_VOLUMES THIS IS (0389
+// point 1): 0 the level grid, which a caller naming none gets, and 1 to 3 the
+// nests at 16, 4 and 1 m about the eye. It is below VOE_RENDER_BOUNCE_VOLUMES.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;
@@ -1553,6 +1558,7 @@ struct voe_render_bounce_frame {
 	float spacing;
 	voe_render_light_blockers blockers;
 	voe_render_directional_lights more;
+	uint32_t volume;
 };
 
 // Records `target`'s bounce for this frame, between passes; the arrays are
@@ -1566,16 +1572,29 @@ struct voe_render_bounce_frame {
 // unshadowed when none was drawn (a sun that does not cast). The cascades never
 // reach the relight (ADR-0329).
 //
-// THE FIRST BEGIN ONTO A TARGET BUILDS ITS PROBE VOLUME AT THE TOP OF THE NEXT
-// FRAME, the GPU idling once as a resize does, and this frame bounces nothing. A
-// volume with no begin for 300 frames is freed the same way (ADR-0316). On a card
+// THE FIRST BEGIN ONTO A VOLUME BUILDS IT AT THE TOP OF THE NEXT FRAME, the GPU
+// idling once as a resize does, and this frame it bounces nothing. A volume
+// with no begin for 300 frames is freed the same way (ADR-0316). On a card
 // without shaderOutputLayer nothing bounces and no volume is built.
 //
-// Outside a frame, with a pass open, on a target not live, for a target already
-// begun this frame, with `sun_bounces` past VOE_RENDER_BOUNCES_MAX, or with a
+// CAPTURE, SHADOW AND RELIGHT CALLS ACT ON THE LATEST BEGIN. A target's volumes
+// are begun one after another, each followed by its own capture passes, bounce
+// shadow passes and relight (0389 point 1).
+//
+// Outside a frame, with a pass open, on a target not live, for this target's
+// volume already begun this frame, with a volume at or past
+// VOE_RENDER_BOUNCE_VOLUMES, `sun_bounces` past VOE_RENDER_BOUNCES_MAX, or a
 // spacing not finite or not above nought it asserts.
 void voe_render_bounce_begin(voe_render_device *device, voe_render_target target,
 			     const struct voe_render_bounce_frame *frame);
+
+// Writes into `cell` the lowest world cell volume `volume` of `target` was last
+// placed at, counted in its spacing (0389 point 2). False, `cell` untouched,
+// when the volume has never been placed or was freed since. A target not live
+// or a volume at or past VOE_RENDER_BOUNCE_VOLUMES asserts.
+[[nodiscard]] bool voe_render_bounce_placed(const voe_render_device *device,
+					    voe_render_target target,
+					    uint32_t volume, int32_t cell[3]);
 
 // Whether a pass is open: true from a _pass_begin that returned true until its
 // _pass_end. It exists so that a caller which issues draws on behalf of another —

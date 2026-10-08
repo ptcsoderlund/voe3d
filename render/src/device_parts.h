@@ -420,7 +420,7 @@ static_assert(offsetof(struct voe_render_relight_record, sun_map) == 48 &&
 		      sizeof(struct voe_render_relight_record) == 3440,
 	      "the relight record as bounce_relight.slang lays it out");
 
-// Whether one frame slot's frame began a probe volume, and the lowest cell,
+// Whether one frame slot's frame began this probe volume, and the lowest cell,
 // corner and spacing that begin placed it at (ADR-0326 point 7, 0332 point 3).
 struct voe_render_bounce_begun {
 	bool begun;
@@ -438,7 +438,8 @@ struct voe_render_bounce_begun {
 // transfer-dst and -src, cleared to nought, resting in GENERAL. `wanted` is set by a
 // begin, `built` when the images exist, `idle` the frame tops since the last
 // begin; `chains_lit` bit n while chain n's levels may hold light, the relight's.
-// ONE COPY, NOT PER FRAME SLOT, which is why `begun` is.
+// ONE COPY, NOT PER FRAME SLOT, which is why `begun` is; and `begun` is the
+// volume's own, so two volumes of one target begin in one frame (0389 point 1).
 struct voe_render_bounce_volume {
 	struct voe_render_allocated_image albedo;
 	struct voe_render_allocated_image normal;

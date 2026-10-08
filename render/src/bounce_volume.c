@@ -1,6 +1,7 @@
 // A target's probe volumes (ADR-0326 points 2 and 8, 0389 point 1): their
-// images built on first use and freed when unused, and voe_render_bounce_begin,
-// which records a target's bounce for the frame.
+// images built on first use and freed when unused, voe_render_bounce_begin,
+// which records one volume of a target's bounce for the frame, and
+// voe_render_bounce_placed, where a volume's probes were last placed.
 //
 // WHAT IT OWNS. Per volume, the three atlases and the 22 3D images of struct
 // voe_render_bounce_volume: the validity, 24 × 12 × 24, and the 21 grid images
@@ -349,6 +350,8 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 			"a bounce begin with stale spheres and no array");
 	VOE_BASE_ASSERT(frame->points.count == 0 || frame->points.lights != NULL,
 			"a bounce begin with point lights and no array");
+	VOE_BASE_ASSERT(frame->volume < VOE_RENDER_BOUNCE_VOLUMES,
+			"a bounce begin whose volume is at or past VOE_RENDER_BOUNCE_VOLUMES");
 	VOE_BASE_ASSERT(device->recording, "a bounce begin with no frame open");
 	VOE_BASE_ASSERT(!device->pass_open,
 			"a bounce begin inside a pass — it records between passes");
@@ -392,13 +395,14 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 	if (!voe_render_device_ready(device))
 		return;
 
-	// Volume 0, the level grid, until a begin names its own (0389 point 1).
-	device->bounce_volume = 0;
+	// The volume the begin names (0389 point 1), which the capture, shadow
+	// and relight calls after it act on.
+	device->bounce_volume = frame->volume;
 	volume = voe_render_bounce_volume_of(device, target,
 					     device->bounce_volume);
 	begun = &volume->begun[device->slot];
 	VOE_BASE_ASSERT(!begun->begun,
-			"a second bounce begin for one target in one frame");
+			"a second bounce begin for one volume of a target in one frame");
 	begun->begun = true;
 	// The sun map opens once per sun per begin (ADR-0330 point 1).
 	memset(device->frames[device->slot].bounce_shadow.drawn, 0,
@@ -464,4 +468,21 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 	device->bounce_frame.blockers.walls = lights.walls;
 	device->bounce_frame.blockers.indoors = lights.indoors;
 	device->bounce_frame.blockers.sun = lights.sun_mask;
+}
+
+// A freed volume is zeroed, so its probes say unplaced.
+bool voe_render_bounce_placed(const voe_render_device *device,
+			      voe_render_target target, uint32_t volume,
+			      int32_t cell[3])
+{
+	const struct voe_render_bounce_volume *v;
+
+	VOE_BASE_ASSERT(device != NULL && cell != NULL,
+			"asking where a volume was placed with no device or nowhere to say");
+	v = voe_render_bounce_volume_of((voe_render_device *)device, target,
+					volume);
+	if (!v->probes.placed)
+		return false;
+	memcpy(cell, v->probes.cell, sizeof(v->probes.cell));
+	return true;
 }
