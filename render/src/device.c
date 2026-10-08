@@ -426,12 +426,15 @@ static void close_down(voe_render_device *device)
 		voe_render_swapchain_teardown(device);
 		voe_render_target_teardown(device);
 		// Before the table that holds the targets' volumes goes.
-		voe_render_bounce_volume_teardown(device, &device->window_volume);
-		for (uint32_t i = 0; device->targets != NULL &&
-				     i < device->capacities.targets;
-		     i++)
-			voe_render_bounce_volume_teardown(device,
-							  &device->targets[i].volume);
+		for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++) {
+			voe_render_bounce_volume_teardown(
+				device, &device->window_volume[v]);
+			for (uint32_t i = 0; device->targets != NULL &&
+					     i < device->capacities.targets;
+			     i++)
+				voe_render_bounce_volume_teardown(
+					device, &device->targets[i].volume[v]);
+		}
 		voe_render_targets_shutdown(device);
 
 		// Before the layout below, which it shares.

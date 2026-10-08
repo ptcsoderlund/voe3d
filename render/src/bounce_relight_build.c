@@ -13,16 +13,18 @@
 // sampled; 9 every layer of the slot's bounce shadow map (bounce_shadow.c's)
 // and 10 its point shadow maps, through the shadow sampler; 11 its volume's
 // region of the slot's record buffer. The volume's images rest in GENERAL,
-// the maps where the shader reads them. One set per frame slot and volume (the
-// window 0, target n n), rewritten by every relight: a slot's fence says its
-// last use has finished, and a volume may have been rebuilt since.
+// the maps where the shader reads them. One set per frame slot and volume, every
+// volume of the window and of each target, indexed by the volume's descriptor
+// index d (voe_render_bounce_volume_index), rewritten by every relight: a
+// slot's fence says its last use has finished, and a volume may have been
+// rebuilt since.
 //
 // PER SLOT, host-visible, coherent and mapped, written directly, the submit
-// making them visible: the list buffer, (targets + 1) ×
-// VOE_RENDER_BOUNCE_PROBES_TOTAL words, volume n's band at n × the total, a
+// making them visible: the list buffer, voe_render_relight_volume_count ×
+// VOE_RENDER_BOUNCE_PROBES_TOTAL words, volume d's band at d × the total, a
 // word a toroidal probe index with bit 31 set when it holds a picture; and the
-// record buffer, (targets + 1) regions device->relight_record_stride apart (the
-// record rounded up to the card's uniform offset alignment), volume n's at n ×
+// record buffer, a region per volume device->relight_record_stride apart (the
+// record rounded up to the card's uniform offset alignment), volume d's at d ×
 // the stride, binding 11 of its set naming that region alone. One record per
 // volume and not per slot (ADR-0330 point 2): the CPU writes it at the relight,
 // so two volumes relit in one frame would both read the last one's. A struct

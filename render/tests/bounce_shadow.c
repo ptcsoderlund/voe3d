@@ -214,7 +214,7 @@ static bool window_relit(voe_render_device *device, voe_render_geometry cube,
 
 	if (!open_frame(device, &frame))
 		return false;
-	VOE_TEST_CHECK(device->window_volume.built);
+	VOE_TEST_CHECK(device->window_volume[0].built);
 	for (int i = 0; i < VOE_RENDER_BOUNCE_CAPTURE_PASSES; i++) {
 		VOE_TEST_CHECK(voe_render_bounce_capture_pass_begin(device, &opened));
 		VOE_TEST_CHECK(opened);
@@ -276,12 +276,13 @@ static void two_targets(voe_render_device *device, voe_render_geometry cube,
 	}
 	if (!window_relit(device, cube, grey))
 		return;
-	VOE_TEST_CHECK(device->targets[0].volume.built);
+	VOE_TEST_CHECK(device->targets[0].volume[0].built);
 	voe_render_bounce_begin(device, id, &sun);
 	shadow_pass(device, cube, grey, true);
 	voe_render_bounce_relight(device);
 	region_says(device, 0, true);
-	region_says(device, id.index, true);
+	region_says(device, voe_render_bounce_volume_index(id.index, 0),
+		    true);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 
 	if (!window_relit(device, cube, grey))
@@ -290,7 +291,8 @@ static void two_targets(voe_render_device *device, voe_render_geometry cube,
 	shadow_pass(device, cube, grey, false);
 	voe_render_bounce_relight(device);
 	region_says(device, 0, true);
-	region_says(device, id.index, false);
+	region_says(device, voe_render_bounce_volume_index(id.index, 0),
+		    false);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 

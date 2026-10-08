@@ -373,12 +373,15 @@ static bool begin_frame(voe_render_device *device, voe_platform_size size,
 	device->pass_camera = false;
 	device->pass_count = 0;
 	device->window_cleared = false;
-	device->window_volume.begun[device->slot].begun = false;
 	device->bounce_begun = false;
 	device->capture_passes = 0;
-	for (uint32_t i = 0; i < device->capacities.targets; i++) {
+	for (uint32_t i = 0; i < device->capacities.targets; i++)
 		device->targets[i].cleared = false;
-		device->targets[i].volume.begun[device->slot].begun = false;
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++) {
+		device->window_volume[v].begun[device->slot].begun = false;
+		for (uint32_t i = 0; i < device->capacities.targets; i++)
+			device->targets[i].volume[v].begun[device->slot].begun =
+				false;
 	}
 	device->object_count = 0;
 	// Both start again with the frame: the elements because this slot's

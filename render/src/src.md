@@ -77,7 +77,7 @@ which file to open — what each one owns, and where the seams between them run.
 - `bounce_probes.c` — its place at a grid's own spacing, nearest-first take, relight-needed (lamps
   and light blockers about the corner, so an eye that moves relights nothing; a change of kinds or
   the sun's mask relights) and relit calls over bit sets.
-- `bounce_volume.c` — a target's probe volume: its atlases and six-axis irradiance 3D images, built
+- `bounce_volume.c` — a target's probe volumes: their atlases and six-axis irradiance 3D images, built
   at the top of the frame after the first `voe_render_bounce_begin` and named at bindings 6 and 10,
   freed after 300 frames unbegun, and that begin, which keeps its spacing per frame slot.
 - `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and

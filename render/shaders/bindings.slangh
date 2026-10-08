@@ -191,7 +191,8 @@ Sampler2DArrayShadow voe_render_point_shadow_maps;
 // binding 10: every
 // volume's moments atlas, one each, through a linear, clamping sampler
 // (render/src/descriptors.c). UNSIZED because the C side's lengths are
-// (capacities.targets + 1) × 4 and + 1, runtime numbers; reading them needs
+// (capacities.targets + 1) × VOE_RENDER_BOUNCE_VOLUMES × 4 and × 1, runtime
+// numbers; reading them needs
 // runtimeDescriptorArray, and the entries of volumes not built are partially
 // bound — render/src/device.c enables both.
 [[vk::binding(6, 0)]]

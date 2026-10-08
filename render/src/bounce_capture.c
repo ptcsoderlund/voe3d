@@ -346,7 +346,8 @@ bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 	if (!device->bounce_begun ||
 	    device->capture_passes >= VOE_RENDER_BOUNCE_CAPTURE_PASSES)
 		return true;
-	volume = voe_render_bounce_volume_of(device, device->bounce_target);
+	volume = voe_render_bounce_volume_of(device, device->bounce_target,
+					     device->bounce_volume);
 	if (!volume->built || !any_queued(&volume->probes))
 		return true;
 

@@ -186,6 +186,9 @@ typedef struct {
 #define VOE_RENDER_BOUNCE_REACH 24.0f
 // Texels a side of the relight's own sun map, per frame slot (ADR-0329).
 #define VOE_RENDER_BOUNCE_SHADOW_TEXELS 1024u
+// Probe volumes a target holds: 0 the level grid, 1 to 3 the nests at 16, 4
+// and 1 m (0389 point 1).
+#define VOE_RENDER_BOUNCE_VOLUMES 4
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's

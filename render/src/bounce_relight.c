@@ -406,15 +406,17 @@ void voe_render_bounce_relight(voe_render_device *device)
 			"a bounce relight with no voe_render_bounce_begin this frame");
 	if (!device->bounce_begun)
 		return;
-	volume = voe_render_bounce_volume_of(device, device->bounce_target);
+	volume = voe_render_bounce_volume_of(device, device->bounce_target,
+					     device->bounce_volume);
 	if (!volume->built)
 		return;
 	voe_render_bounce_begun_lights(device, &lights);
 	if (!voe_render_bounce_probes_relight_needed(&volume->probes, &lights))
 		return;
 
-	// The window's volume is 0 and target n's n, its id's index.
-	index = device->bounce_target.index;
+	// The window's slot is 0 and target n's n, its id's index.
+	index = voe_render_bounce_volume_index(device->bounce_target.index,
+					       device->bounce_volume);
 	VOE_BASE_DEBUG_ASSERT(index < voe_render_relight_volume_count(device),
 			      "a volume with no band");
 	count = list_changed(&volume->probes,

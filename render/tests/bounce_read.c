@@ -202,7 +202,7 @@ static void nothing_captured_is_no_bounce(struct scene *scene,
 	draw_frame(scene, true, false, &named, arena);
 	VOE_TEST_CHECK(named == VOE_RENDER_NO_BOUNCE);
 	begun = draw_frame(scene, true, true, &named, arena);
-	VOE_TEST_CHECK(scene->device->window_volume.built == layered);
+	VOE_TEST_CHECK(scene->device->window_volume[0].built == layered);
 	VOE_TEST_CHECK(named == (layered ? 0u : VOE_RENDER_NO_BOUNCE));
 	plain = draw_frame(scene, false, true, &named, arena);
 	VOE_TEST_CHECK(named == VOE_RENDER_NO_BOUNCE);

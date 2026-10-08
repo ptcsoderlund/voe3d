@@ -195,7 +195,8 @@ struct voe_render_device {
 	VkPipeline pipeline_capture;
 	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
 	// settle, relight and sum pipelines; per frame slot a mapped list buffer,
-	// a mapped record buffer of (targets + 1) regions, volume n's at n ×
+	// a mapped record buffer of a region per volume, each at its descriptor
+	// index (voe_render_bounce_volume_index) ×
 	// `relight_record_stride` (the record's size rounded up to the card's
 	// uniform offset alignment, as `pass_stride` is), and one set per volume
 	// (calloc'd); and how many dispatches it has recorded. All nought without
@@ -368,17 +369,18 @@ struct voe_render_device {
 	// The texture slot that shows the window's depth copy, each frame slot
 	// its own; claimed by the first voe_render_target_build, never freed.
 	uint32_t window_depth_texture;
-	// The window's probe volume, built on the first begin onto the window.
-	struct voe_render_bounce_volume window_volume;
+	// The window's probe volumes, each built on the first begin onto it.
+	struct voe_render_bounce_volume window_volume[VOE_RENDER_BOUNCE_VOLUMES];
 
 	// This frame's last voe_render_bounce_begin, bounce_volume.c's: whether
-	// there was one, its target, and a copy of its record whose `stale` is
+	// there was one, its target and volume, and a copy of its record whose `stale` is
 	// none and whose `points` are `bounce_lamps`, the bouncing lamps, and
 	// `blockers` `bounce_blockers`, and `more` `bounce_suns`, the bouncing
 	// further suns — none of any while the target's volume is not built.
 	// Reset by voe_render_frame_begin.
 	bool bounce_begun;
 	voe_render_target bounce_target;
+	uint32_t bounce_volume;
 	struct voe_render_bounce_frame bounce_frame;
 	voe_render_point_light bounce_lamps[VOE_RENDER_BOUNCE_LAMPS];
 	voe_render_light_blocker bounce_blockers[VOE_RENDER_LIGHT_BLOCKERS];

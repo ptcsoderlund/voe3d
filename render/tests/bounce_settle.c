@@ -221,9 +221,9 @@ static void read_volume(voe_render_device *device,
 		return;
 	voe_render_vk.begin_command_buffer(commands, &begin);
 	voe_render_vk.cmd_pipeline_barrier2(commands, &before);
-	copy(commands, device->window_volume.moments.image,
+	copy(commands, device->window_volume[0].moments.image,
 	     VK_IMAGE_LAYOUT_GENERAL, readback->buffer, 1, &moments);
-	copy(commands, device->window_volume.validity.image,
+	copy(commands, device->window_volume[0].validity.image,
 	     VK_IMAGE_LAYOUT_GENERAL, readback->buffer, 1, &validity);
 	voe_render_vk.cmd_pipeline_barrier2(commands, &after);
 	voe_render_vk.end_command_buffer(commands);
@@ -314,7 +314,7 @@ static void settle(voe_render_device *device)
 						  36, &cube, &error));
 	// The first frame only wants the volume.
 	VOE_TEST_CHECK_INT(one_frame(device, cube, grey), 0);
-	VOE_TEST_CHECK(device->window_volume.wanted);
+	VOE_TEST_CHECK(device->window_volume[0].wanted);
 	for (; frames < FRAMES_MAX; frames++) {
 		before = device->relight_dispatches;
 		passes = one_frame(device, cube, grey);

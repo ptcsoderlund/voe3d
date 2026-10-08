@@ -234,7 +234,7 @@ static uint32_t one_frame(struct scene *s, voe_render_picture *picture)
 	VOE_TEST_CHECK(voe_render_shadow_pass_begin(s->device, 0, &s->light));
 	draw_boxes(s);
 	voe_render_pass_end(s->device);
-	if (s->restale && s->device->window_volume.built) {
+	if (s->restale && s->device->window_volume[0].built) {
 		bounce.stale = &EVERYTHING;
 		bounce.stale_count = 1;
 		s->restale = false;

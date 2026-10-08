@@ -473,8 +473,9 @@ struct voe_render_target_slot {
 	// copy. Neither changes.
 	uint32_t texture;
 	uint32_t depth_texture;
-	// Built on the first begin onto the target, kept through a resize.
-	struct voe_render_bounce_volume volume;
+	// The target's probe volumes (0389 point 1), each built on the first
+	// begin onto it, kept through a resize.
+	struct voe_render_bounce_volume volume[VOE_RENDER_BOUNCE_VOLUMES];
 	uint32_t generation;
 	bool live;
 	// The clear rule: false until the first pass onto this target in a

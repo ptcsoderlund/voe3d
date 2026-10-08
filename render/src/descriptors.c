@@ -25,14 +25,16 @@
 //      slot draws its own maps while the card may still be reading the other's
 //   6  the probe volumes' sums, four images each (the x, y and z axis
 //      images of six-axis irradiance, then the validity),
-//      (targets + 1) × 4 entries, the window's first; written as each volume
-//      is built (ADR-0326 point 7), partially bound until then
+//      (targets + 1) × VOE_RENDER_BOUNCE_VOLUMES × 4 entries, a volume's at 4 ×
+//      its descriptor index, the window's first; written as each volume is
+//      built (ADR-0326 point 7), partially bound until then
 //   7  the point lights, 8 their tile and slice masks (ADR-0320): storage
 //      buffers per frame slot, one region per pass, written as each pass opens
 //   9  the slot's point shadow maps, all 96 layers, through binding 5's
 //      comparison sampler, written once at startup (ADR-0325)
-//  10  the probe volumes' moments atlases, one each, (targets + 1) entries,
-//      through a linear, clamping sampler; written with binding 6
+//  10  the probe volumes' moments atlases, one each at its descriptor index,
+//      (targets + 1) × VOE_RENDER_BOUNCE_VOLUMES entries, through a linear,
+//      clamping sampler; written with binding 6
 //  11  the light blockers and their point lights' masks (ADR-0347): a storage
 //      buffer per frame slot, one region per pass, written as each pass opens
 //
@@ -65,8 +67,9 @@
 
 static bool build_layout(voe_render_device *device)
 {
-	const uint32_t grid_entries = (device->capacities.targets + 1) * 4;
-	const uint32_t moment_entries = device->capacities.targets + 1;
+	const uint32_t moment_entries =
+		(device->capacities.targets + 1) * VOE_RENDER_BOUNCE_VOLUMES;
+	const uint32_t grid_entries = moment_entries * 4;
 	VkDescriptorSetLayoutBinding bindings[12] = {
 		{
 			.binding = 0,
@@ -578,8 +581,9 @@ void voe_render_descriptors_write_volume(
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL && volume != NULL && volume->built,
 			      "writing descriptors for no device or an unbuilt volume");
-	VOE_BASE_DEBUG_ASSERT(index <= device->capacities.targets,
-			      "writing a volume past binding 6's (targets + 1) × 4 entries");
+	VOE_BASE_DEBUG_ASSERT(index < (device->capacities.targets + 1) *
+					      VOE_RENDER_BOUNCE_VOLUMES,
+			      "writing a volume past binding 6's (targets + 1) × VOE_RENDER_BOUNCE_VOLUMES × 4 entries");
 
 	for (uint32_t k = 0; k < 4; k++)
 		sums[k] = (VkDescriptorImageInfo){

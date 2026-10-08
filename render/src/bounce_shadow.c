@@ -244,7 +244,8 @@ static bool wanted(const voe_render_device *device, uint32_t layer)
 					      device->bounce_suns[layer - 1].bounces;
 	voe_render_bounce_lights lights;
 	const struct voe_render_bounce_volume *volume = voe_render_bounce_volume_of(
-		(voe_render_device *)device, device->bounce_target);
+		(voe_render_device *)device, device->bounce_target,
+		device->bounce_volume);
 
 	VOE_BASE_DEBUG_ASSERT(device->bounce_begun,
 			      "asking whether a bounce no begin placed wants a map");

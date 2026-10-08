@@ -215,7 +215,7 @@ static uint32_t one_frame(struct scene *s)
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
 		return 0;
-	if (s->restale && s->device->window_volume.built) {
+	if (s->restale && s->device->window_volume[0].built) {
 		bounce.stale = &EVERYTHING;
 		bounce.stale_count = 1;
 		s->restale = false;
@@ -324,7 +324,7 @@ static void read_sum(voe_render_device *device,
 					 VOE_RENDER_BOUNCE_PROBES_XZ },
 		};
 
-		copy(commands, device->window_volume.irradiance[6][a].image,
+		copy(commands, device->window_volume[0].irradiance[6][a].image,
 		     VK_IMAGE_LAYOUT_GENERAL, readback->buffer, 1, &region);
 	}
 	voe_render_vk.cmd_pipeline_barrier2(commands, &after);

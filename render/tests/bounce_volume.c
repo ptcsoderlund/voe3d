@@ -91,8 +91,8 @@ static void sum_is_wide(voe_render_device *device,
 
 static void built_on_first_use(voe_render_device *device, voe_render_target id)
 {
-	const struct voe_render_bounce_volume *window = &device->window_volume;
-	const struct voe_render_bounce_volume *own = &device->targets[0].volume;
+	const struct voe_render_bounce_volume *window = &device->window_volume[0];
+	const struct voe_render_bounce_volume *own = &device->targets[0].volume[0];
 
 	one_frame(device, true, false, id);
 	VOE_TEST_CHECK(window->wanted && !window->built);
@@ -153,14 +153,15 @@ static void each_relit_apart(voe_render_device *device, voe_render_target id)
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
 		return;
-	VOE_TEST_CHECK(device->window_volume.built &&
-		       device->targets[0].volume.built);
+	VOE_TEST_CHECK(device->window_volume[0].built &&
+		       device->targets[0].volume[0].built);
 	voe_render_bounce_begin(device, VOE_RENDER_TARGET_WINDOW, &BOUNCE);
 	voe_render_bounce_relight(device);
 	voe_render_bounce_begin(device, id, &moved);
 	voe_render_bounce_relight(device);
 	region_holds(device, 0, BOUNCE.cell, VOE_RENDER_BOUNCE_SPACING);
-	region_holds(device, id.index, moved.cell, VOE_RENDER_BOUNCE_SPACING);
+	region_holds(device, voe_render_bounce_volume_index(id.index, 0),
+		     moved.cell, VOE_RENDER_BOUNCE_SPACING);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
@@ -185,8 +186,9 @@ static void each_at_its_spacing(voe_render_device *device, voe_render_target id)
 	voe_render_bounce_begin(device, id, &coarse);
 	voe_render_bounce_relight(device);
 	region_holds(device, 0, window.cell, 2.0f);
-	region_holds(device, id.index, coarse.cell, 4.0f);
-	VOE_TEST_CHECK(device->targets[0].volume.begun[device->slot].spacing ==
+	region_holds(device, voe_render_bounce_volume_index(id.index, 0),
+		     coarse.cell, 4.0f);
+	VOE_TEST_CHECK(device->targets[0].volume[0].begun[device->slot].spacing ==
 		       4.0f);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
@@ -197,9 +199,9 @@ static void nothing_without_output_layer(voe_render_device *device,
 	printf("note: no shaderOutputLayer, so nothing bounces\n");
 	one_frame(device, true, true, id);
 	one_frame(device, false, false, id);
-	VOE_TEST_CHECK(!device->window_volume.wanted &&
-		       !device->window_volume.built);
-	VOE_TEST_CHECK(!device->targets[0].volume.built);
+	VOE_TEST_CHECK(!device->window_volume[0].wanted &&
+		       !device->window_volume[0].built);
+	VOE_TEST_CHECK(!device->targets[0].volume[0].built);
 }
 
 int main(void)

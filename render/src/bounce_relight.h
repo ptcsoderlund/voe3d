@@ -51,12 +51,13 @@ static const uint32_t
 		VOE_RENDER_RELIGHT_LEVEL_IMAGES, 1, 1, 1, 1, 1, 1,
 	};
 
-// The volumes a device relights, a set and a list band each: the window's and
-// one per target.
+// The volumes a device relights, a set, a list band and a record region each,
+// at its descriptor index (voe_render_bounce_volume_index): every volume of the
+// window and of each target.
 static inline uint32_t
 voe_render_relight_volume_count(const voe_render_device *device)
 {
-	return device->capacities.targets + 1;
+	return (device->capacities.targets + 1) * VOE_RENDER_BOUNCE_VOLUMES;
 }
 
 #endif

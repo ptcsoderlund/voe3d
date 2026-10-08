@@ -291,9 +291,10 @@ void voe_render_pass_start(voe_render_device *device,
 	device->pass_bounce_shadow = false;
 }
 
-// The bounce record of a camera pass onto the target owning `volume`, volume
-// `index`: its first entry at binding 6, the corner, the lowest cell wrapped
-// per axis and the spacing of frame slot `slot`'s begin, when that begin
+// The bounce record of a camera pass onto the target owning `volume`, at
+// descriptor index `index`: its first entry at binding 6, the corner, the
+// lowest cell wrapped per axis and the spacing of frame slot `slot`'s begin,
+// when that begin
 // happened and the volume is built; left at VOE_RENDER_NO_BOUNCE otherwise
 // (ADR-0326 point 7).
 static void name_volume(struct voe_render_frame_bounce *bounce,
@@ -572,9 +573,13 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
 	if (camera != NULL) {
 		name_volume(&block.bounce,
-			    own != NULL ? &own->volume : &device->window_volume,
-			    own != NULL ? (uint32_t)(own - device->targets) + 1 :
-					  0,
+			    own != NULL ? &own->volume[0] :
+					  &device->window_volume[0],
+			    voe_render_bounce_volume_index(
+				    own != NULL ?
+					    (uint32_t)(own - device->targets) + 1 :
+					    0,
+				    0),
 			    device->slot);
 		place_lights(frame, device->pass_count, &camera->view,
 			     camera->points,
