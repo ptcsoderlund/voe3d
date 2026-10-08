@@ -5,7 +5,8 @@ module's promises from outside. None of them needs a window or a graphics card.
 
 - `transform.c` — that the matrix is translate·rotate·scale and changes only through a drained
   intent, that a child composes under its parent and back, that a rotation arrives unit length, that
-  the field list is the compiler's layout, and that a remembered step blends back by a lag.
+  the field list is the compiler's layout, that a remembered step blends back by a lag, and that
+  remembered is false without a table or for a transform added after the remember, true after it.
 - `parent.c` — that a child's world place follows its parent, the walks go both ways and end on a
   loop, reparenting keeps the world place, and entities without a transform parent and end chains.
 - `prefab.c` — that both prefab tables register, queued rows read back once

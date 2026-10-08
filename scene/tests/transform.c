@@ -22,7 +22,8 @@
 // relative undoes it, a millimetre kept under a far parent and a zero parent
 // scale giving a finite row; a rotation arrives unit length, a zero one leaving
 // the row alone; and a remembered step blends back by a lag, a child along its
-// blended parent rather than straight.
+// blended parent rather than straight; and only a transform the last remember
+// held is remembered.
 //
 // THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID. check.cmake builds
 // without descriptions, and a check that followed the build would never run on
@@ -808,6 +809,50 @@ static void a_child_blends_along_its_parent(voe_base_arena *arena)
 	VOE_TEST_CHECK_FLOAT(now.position.z, -1.0, TOLERANCE);
 }
 
+// The editor's world before 0389, and any world that does not step: nothing is
+// remembered, and asking is an answer rather than an assert.
+static void a_world_without_a_previous_table_remembers_nothing(
+	voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity thing = placed(world);
+
+	VOE_TEST_CHECK(!voe_scene_transform_remembered(world, thing));
+	VOE_TEST_CHECK(!voe_scene_transform_remembered(NULL, thing));
+}
+
+// A caster added this step: its transform exists, the previous table does not
+// hold it yet, and that is how the bounce knows it is new.
+static void a_transform_added_after_the_remember_is_not_remembered(
+	voe_base_arena *arena)
+{
+	voe_ecs_world *world = stepping_world_of(arena);
+	voe_ecs_entity early = placed(world);
+	voe_ecs_entity late;
+
+	voe_scene_transform_remember(world);
+	late = placed(world);
+
+	VOE_TEST_CHECK(voe_scene_transform_remembered(world, early));
+	VOE_TEST_CHECK(!voe_scene_transform_remembered(world, late));
+}
+
+// Remembered once, remembered from then on; a destroyed one is not.
+static void a_remembered_transform_is_remembered(voe_base_arena *arena)
+{
+	voe_ecs_world *world = stepping_world_of(arena);
+	voe_ecs_entity thing = placed(world);
+
+	VOE_TEST_CHECK(!voe_scene_transform_remembered(world, thing));
+	voe_scene_transform_remember(world);
+	VOE_TEST_CHECK(voe_scene_transform_remembered(world, thing));
+	voe_scene_transform_remember(world);
+	VOE_TEST_CHECK(voe_scene_transform_remembered(world, thing));
+
+	voe_ecs_entity_destroy(world, thing);
+	VOE_TEST_CHECK(!voe_scene_transform_remembered(world, thing));
+}
+
 // Never saved, never in the Inspector: the previous table is runtime-only.
 static void the_previous_table_is_runtime_only(voe_base_arena *arena)
 {
@@ -848,6 +893,9 @@ int main(void)
 	with_nothing_remembered_between_is_now(arena);
 	a_child_blends_along_its_parent(arena);
 	the_previous_table_is_runtime_only(arena);
+	a_world_without_a_previous_table_remembers_nothing(arena);
+	a_transform_added_after_the_remember_is_not_remembered(arena);
+	a_remembered_transform_is_remembered(arena);
 
 	a_rotation_arrives_unit_length(arena);
 	a_quiet_drain(arena);
