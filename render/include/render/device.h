@@ -1512,9 +1512,11 @@ void voe_render_pass_end(voe_render_device *device);
 // What one target's bounce is this frame (ADR-0326 point 8). `spacing` is the
 // metres between this volume's probes (0332 point 3), `cell` the volume's lowest
 // world cell counted in them and `corner` its lowest corner about the eye;
-// `stale` holds `stale_count` spheres about the eye, xyz centre and w radius,
-// whose probes are captured again. `sun` bounces `sun_bounces` times, scaled by
-// `sun_strength`; `points` are the frame's point lights, the first
+// `stale` holds `stale_count` spheres about the eye, xyz centre and w a
+// caster's own radius; render adds the reach, w + min(twelve cells, 16 w), and
+// captures the probes within again (ADR-0389 point 7). `sun` bounces
+// `sun_bounces` times, scaled by `sun_strength`; `points` are the frame's point
+// lights, the first
 // VOE_RENDER_BOUNCE_LAMPS with bounces bouncing. A struct tag and no typedef,
 // because the call below has the name and C has one name space for both.
 //
@@ -1524,7 +1526,8 @@ void voe_render_pass_end(voe_render_device *device);
 // sun and by a lamp by point 3, and a texel feeds its probe only when point 3
 // passes with the probe as source and the hit as surface. Blockers that change,
 // or a change of kinds or of the sun's mask, relight the grid; an eye that moves
-// does not, for they are compared about `corner`. Zero is none; more than
+// or a grid that scrolls does not, for blockers and lamps are compared about the
+// world origin, `corner` − `cell` × `spacing`. Zero is none; more than
 // VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, a row not finite, walls and
 // indoors sharing a bit, or a kind or sun bit at or past the count asserts, as
 // at _pass_begin.
@@ -1552,7 +1555,8 @@ struct voe_render_bounce_frame {
 // Records `target`'s bounce for this frame, between passes; the arrays are
 // copied, so the caller's are its own again when this returns. The volume is
 // placed, captured, relit and read at `frame->spacing`; a spacing other than its
-// last empties the whole grid, as a jump does (0332 point 3).
+// last empties the whole grid, as a jump does (0332 point 3). Each stale sphere,
+// a caster's own radius, recaptures out to that radius plus the reach above.
 //
 // THE SUN IS SHADOWED IN THE RELIGHT BY THIS BEGIN'S BOUNCE SHADOW MAP when
 // voe_render_bounce_shadow_pass_begin opened it, lit outside its box, and

@@ -74,9 +74,9 @@ by reading the offscreen colour image back.
 - `shadow_lights.c` — the shadow array growing: one light ready at first and none without
   `shadow_size`, a second ready the frame after it is wanted, layer 7 drawn and slot 1 read, nine
   capped at four, and nought shrinking nothing. Headless.
-- `bounce_probes.c` — which captured probes are queued, with no card: all on the first place, 288
-  on a one-cell move, only within a stale sphere, all on a new spacing, a relight only on change
-  (blockers, their kinds and the sun's mask too), and the 17th bouncing lamp left out.
+- `bounce_probes.c` — probes queued and relit, with no card: a sphere reaching a grid's reach
+  further or sixteen radii, no relight on a scroll under a still lamp, a new picture fading in over
+  sixteen places, a retaken one keeping its readiness, a scrolled-in one not ready.
 - `bounce_volume.c` — a probe volume wanted on the first begin and built the next frame, the
   window's and a target's apart, a sum image 48 wide, freed after 300 frames with no begin, and
   both relit in one frame each into its own record, at 2 and 4 m each its own spacing. Headless.

@@ -12,8 +12,9 @@
 //
 // CELL −1 WRAPS TO 23, and the index is x + 24·y + 288·z of the wrapped cell.
 //
-// A STALE SPHERE OF 6 m QUEUES ONLY THE PROBES WHOSE CENTRE IS WITHIN IT, at
-// 2 m and at 4 m between probes.
+// A STALE SPHERE OF 6 m QUEUES ONLY THE PROBES WITHIN 6 m AND A GRID'S REACH,
+// 30 m at 2 m between probes and 54 m at 4 m; one of 0.5 m within 0.5 + 16 ×
+// 0.5 m (ADR-0389 point 7).
 //
 // A NEW SPACING AT THE SAME CELL QUEUES ALL 6912 again.
 //
@@ -33,6 +34,12 @@
 // A MOON ADDED RELIGHTS; the same moon again does not; its intensity, its mask
 // or its bounces changed does, and so does the moon taken away. A moon with no
 // bounces is none (ADR-0357 points 1 and 4).
+//
+// A SCROLL UNDER A STILL LAMP CHANGES NO LIGHTS: compared about the world
+// origin, only the entered slabs relight (ADR-0389 point 5).
+//
+// A NEW PICTURE FADES IN OVER 16 PLACES, relighting until it is ready; a
+// retaken one keeps its readiness; a scrolled-in probe is not ready.
 //
 // The tests set the marks by hand where taking all 6912 one by one would only
 // be slow: a grid with every probe captured is the state those claims start in.
@@ -193,13 +200,14 @@ static void minus_one_wraps(void)
 	VOE_TEST_CHECK_INT(voe_render_bounce_probe_index(-25, 12, 24), 23);
 }
 
-// A 6 m sphere placed into a captured grid at `spacing` with lowest corner
-// `corner` queues exactly the probes whose centres at that spacing lie in it.
+// `sphere` placed into a captured grid at `spacing` with lowest corner `corner`
+// queues exactly the probes whose centres at that spacing lie within `reach`
+// of its centre.
 static void a_stale_sphere_queues_within_at(voe_math_float3 corner,
-					    float spacing)
+					    float spacing, voe_math_float4 sphere,
+					    float reach)
 {
 	static voe_render_bounce_probes p;
-	const voe_math_float4 sphere = { 3.0f, -1.0f, 5.0f, 6.0f };
 	uint32_t within = 0;
 	bool only_within = true;
 
@@ -213,25 +221,134 @@ static void a_stale_sphere_queues_within_at(voe_math_float3 corner,
 				const float dx = corner.x + (x + 0.5f) * spacing - sphere.x;
 				const float dy = corner.y + (y + 0.5f) * spacing - sphere.y;
 				const float dz = corner.z + (z + 0.5f) * spacing - sphere.z;
-				const bool in = dx * dx + dy * dy + dz * dz <= 36.0f;
+				const bool in =
+					dx * dx + dy * dy + dz * dz <= reach * reach;
 				const uint32_t probe = voe_render_bounce_probe_index(
 					(int64_t)CELL[0] + x, (int64_t)CELL[1] + y, (int64_t)CELL[2] + z);
 
 				within += in;
 				only_within = only_within && in == has(p.queued, probe);
 			}
-	VOE_TEST_CHECK(within > 0);
+	VOE_TEST_CHECK(within > 0 && within < TOTAL);
 	VOE_TEST_CHECK_INT(count(p.queued), within);
 	VOE_TEST_CHECK(only_within);
 }
 
-static void a_stale_sphere_queues_within(void)
+// A 6 m caster reaches 6 m + twelve cells: 30 m at 2 m, 54 m at 4 m.
+static void a_sphere_reaches_a_grid_reach_further(void)
 {
 	const voe_math_float3 corner4 = { 2.0f * CORNER.x, 2.0f * CORNER.y,
 					  2.0f * CORNER.z };
+	const voe_math_float4 sphere = { 3.0f, -1.0f, 5.0f, 6.0f };
 
-	a_stale_sphere_queues_within_at(CORNER, VOE_RENDER_BOUNCE_SPACING);
-	a_stale_sphere_queues_within_at(corner4, 4.0f);
+	a_stale_sphere_queues_within_at(CORNER, VOE_RENDER_BOUNCE_SPACING,
+					sphere, 30.0f);
+	a_stale_sphere_queues_within_at(corner4, 4.0f, sphere, 54.0f);
+}
+
+// A 0.5 m caster is under a face texel past 16 radii: 0.5 + 8 m, not + 24.
+static void a_small_sphere_reaches_sixteen_radii(void)
+{
+	const voe_math_float4 pebble = { 3.0f, -1.0f, 5.0f, 0.5f };
+
+	a_stale_sphere_queues_within_at(CORNER, VOE_RENDER_BOUNCE_SPACING,
+					pebble, 8.5f);
+}
+
+static void a_scroll_under_a_still_lamp_does_not_relight(void)
+{
+	static voe_render_bounce_probes p;
+	const int32_t moved[3] = { CELL[0] + 1, CELL[1], CELL[2] - 2 };
+	const voe_math_float3 scrolled = { CORNER.x + 2.0f, CORNER.y,
+					   CORNER.z - 4.0f };
+	const voe_render_point_light lamp = {
+		.position = { 1.0f, 2.0f, 3.0f }, .range = 5.0f,
+		.colour = { 1, 1, 1 }, .falloff = 1.0f, .bounces = 1,
+		.bounce_strength = 1.0f,
+	};
+	const voe_render_point_lights lamps = { &lamp, 1 };
+
+	memset(&p, 0, sizeof(p));
+	place(&p, CELL, NULL, 0, &lamps);
+	capture_all(&p);
+	voe_render_bounce_probes_relit(&p, &lights);
+	voe_render_bounce_probes_place(&p, moved, scrolled,
+				       VOE_RENDER_BOUNCE_SPACING, NULL, 0, &SUN,
+				       1, 1.0f, &NO_MORE, &lamps, &NO_BLOCKERS,
+				       &lights);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_lights_changed(&p, &lights));
+	// The entered slabs relight; the lamp does not.
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+	voe_render_bounce_probes_relit(&p, &lights);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_relight_needed(&p, &lights));
+}
+
+static void a_new_picture_fades_in_over_sixteen_places(void)
+{
+	static voe_render_bounce_probes p;
+	uint32_t taken[16];
+	bool fading = true;
+
+	memset(&p, 0, sizeof(p));
+	place(&p, CELL, NULL, 0, &NONE);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_fading(&p));
+	VOE_TEST_CHECK_INT(voe_render_bounce_probes_take(&p, taken, 16), 16);
+	VOE_TEST_CHECK_INT(count(p.fading), 16);
+	VOE_TEST_CHECK_INT(p.ready[taken[0]], 0);
+	voe_render_bounce_probes_relit(&p, &lights);
+	for (uint32_t i = 1; i < VOE_RENDER_BOUNCE_FADE; i++) {
+		place(&p, CELL, NULL, 0, &NONE);
+		fading = fading && voe_render_bounce_probes_fading(&p) &&
+			 voe_render_bounce_probes_relight_needed(&p, &lights) &&
+			 p.ready[taken[15]] == i;
+	}
+	VOE_TEST_CHECK(fading);
+	place(&p, CELL, NULL, 0, &NONE);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_fading(&p));
+	VOE_TEST_CHECK_INT(p.ready[taken[0]], VOE_RENDER_BOUNCE_FADE);
+	VOE_TEST_CHECK(!voe_render_bounce_probes_relight_needed(&p, &lights));
+}
+
+static void a_retaken_picture_keeps_its_readiness(void)
+{
+	static voe_render_bounce_probes p;
+	const voe_math_float4 at_eye = { 0.0f, 0.0f, 0.0f, 0.25f };
+	uint32_t taken[16];
+	uint32_t again[16];
+
+	memset(&p, 0, sizeof(p));
+	place(&p, CELL, NULL, 0, &NONE);
+	VOE_TEST_CHECK_INT(voe_render_bounce_probes_take(&p, taken, 16), 16);
+	for (uint32_t i = 0; i < 3; i++)
+		place(&p, CELL, NULL, 0, &NONE);
+	// A pebble at the eye queues the probes beside it again.
+	place(&p, CELL, &at_eye, 1, &NONE);
+	VOE_TEST_CHECK_INT(p.ready[taken[0]], 4);
+	VOE_TEST_CHECK_INT(voe_render_bounce_probes_take(&p, again, 1), 1);
+	VOE_TEST_CHECK(has(p.fading, again[0]));
+	VOE_TEST_CHECK_INT(p.ready[again[0]], 4);
+	VOE_TEST_CHECK_INT(count(p.fading), 16);
+}
+
+static void a_scrolled_in_probe_is_not_ready(void)
+{
+	static voe_render_bounce_probes p;
+	const int32_t moved[3] = { CELL[0] + 1, CELL[1], CELL[2] };
+	uint32_t ready = 0;
+	uint32_t still = 0;
+
+	memset(&p, 0, sizeof(p));
+	place(&p, CELL, NULL, 0, &NONE);
+	capture_all(&p);
+	memset(p.ready, VOE_RENDER_BOUNCE_FADE, sizeof(p.ready));
+	place(&p, moved, NULL, 0, &NONE);
+	for (uint32_t i = 0; i < TOTAL; i++) {
+		ready += p.ready[i] == VOE_RENDER_BOUNCE_FADE;
+		still += !has(p.queued, i) || p.ready[i] == 0;
+	}
+	VOE_TEST_CHECK_INT(ready, TOTAL - 288);
+	VOE_TEST_CHECK_INT(still, TOTAL);
+	VOE_TEST_CHECK_INT(count(p.fading), 0);
 }
 
 static void a_new_spacing_queues_all(void)
@@ -445,7 +562,8 @@ int main(void)
 	a_take_gives_the_nearest();
 	a_move_queues_the_entered_slab();
 	minus_one_wraps();
-	a_stale_sphere_queues_within();
+	a_sphere_reaches_a_grid_reach_further();
+	a_small_sphere_reaches_sixteen_radii();
 	a_new_spacing_queues_all();
 	relight_follows_changes_and_lights();
 	an_eye_that_moves_relights_nothing();
@@ -453,5 +571,9 @@ int main(void)
 	kinds_and_the_sun_mask_relight();
 	the_17th_bouncing_lamp_is_left_out();
 	a_moon_relights_when_it_changes();
+	a_scroll_under_a_still_lamp_does_not_relight();
+	a_new_picture_fades_in_over_sixteen_places();
+	a_retaken_picture_keeps_its_readiness();
+	a_scrolled_in_probe_is_not_ready();
 	return voe_test_result();
 }

@@ -8,8 +8,9 @@
 // scene until one does not open, the bounce shadow pass (a view down the sun at
 // the volume's centre, VOLUME_HALF either side) with the scene drawn into it
 // when it opens, relight, then a camera pass of the scene, shadowed by the
-// cascade, read back. A scene is settled by such frames until
-// one opens no capture pass; a new scene is queued whole by a stale sphere.
+// cascade, read back. A scene is settled by such frames until one opens no
+// capture pass, then VOE_RENDER_BOUNCE_FADE more for the last pictures to fade
+// in; a new scene is queued whole by a stale sphere.
 // Every probe is captured, nearest the origin first, in about 108 frames.
 //
 // Grey ground (0.5) everywhere; a sun along (0.6, −0.8, 0). Points are world
@@ -310,6 +311,9 @@ static void settle(struct scene *s, const struct box *boxes, uint32_t count)
 			break;
 	printf("settled in %u frames\n", frame);
 	VOE_TEST_CHECK(frame < FRAMES_MAX);
+	// The last pictures fade in, relighting, before the grid is still.
+	for (uint32_t i = 0; i < VOE_RENDER_BOUNCE_FADE; i++)
+		one_frame(s, NULL);
 }
 
 // A picture with the scene's lights as they now are.

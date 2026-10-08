@@ -15,8 +15,9 @@
 // and a mean² near its square; probe 1, whose every texel sees a back face, has
 // validity 0.
 //
-// A SETTLED FRAME. One more frame of begin, a capture pass that does not open,
-// and relight records no dispatch.
+// A SETTLED FRAME. After VOE_RENDER_BOUNCE_FADE frames for the last pictures
+// to fade in, one more frame of begin, a capture pass that does not open, and
+// relight records no dispatch.
 //
 // THE BREAKDOWN. Read VOE_RENDER_FRAMES_IN_FLIGHT frames after one that
 // relit, it holds `bounce relight`; after the settled frame, it does not. A card
@@ -332,6 +333,9 @@ static void settle(voe_render_device *device)
 	printf("captured every probe in %u frames\n", frames);
 	VOE_TEST_CHECK(frames > 0 && frames < FRAMES_MAX);
 	check_settled(device);
+	// The last pictures fade in, relighting, before the grid is still.
+	for (uint32_t i = 0; i < VOE_RENDER_BOUNCE_FADE; i++)
+		VOE_TEST_CHECK_INT(one_frame(device, cube, grey), 0);
 
 	before = device->relight_dispatches;
 	VOE_TEST_CHECK_INT(one_frame(device, cube, grey), 0);
