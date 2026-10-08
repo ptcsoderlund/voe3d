@@ -92,8 +92,9 @@ by reading the offscreen colour image back.
   face; inside it, validity 0; readiness 0, then 1 sixteen frames on; a fading frame one settle and
   no sun map; a settled frame dispatching nothing; `bounce relight` in the breakdown of a relit
   frame and not of the settled one. Headless.
-- `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and
-  a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
+- `bounce_read.c` — lit surfaces reading the probe volumes: nothing captured reads as no begin; an
+  empty 1 m nest as the level grid alone (`an_empty_nest_reads_as_the_level_grid_alone`); a settled
+  one changing its middle by a red wall (`a_settled_nest_reads_in_its_middle`). Headless.
 - `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture, a red wall's
   lit side at spacing 2 and 4; a stale pebble relighting fewer workgroups than the grid
   (`a_recapture_relights_only_what_it_changed`), a moved sun all of it

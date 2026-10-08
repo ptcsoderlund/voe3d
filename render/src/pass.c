@@ -15,9 +15,10 @@
 // layer of the slot's shadow map instead: depth only, always cleared, drawn
 // through the shadow pipeline, and closed by the same _pass_end.
 //
-// A camera pass names its target's probe volume in its block only when this
-// frame slot's frame began it and it is built (ADR-0326 point 7), at that
-// begin's spacing (0332 point 3); a block naming none leaves the spacing nought.
+// A camera pass names each of its target's probe volumes in its block, entry v
+// volume v, only when this frame slot's frame began it and it is built (ADR-0326
+// point 7, 0389 point 6), at that begin's spacing (0332 point 3); an entry
+// naming none leaves its spacing nought.
 //
 // THE POINT-SHADOW PASS (ADR-0325) opens in point_shadow.c through this file's
 // start and light copy, and is closed by the same _pass_end. A capture pass
@@ -570,17 +571,19 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 		block.shadow = camera->shadow;
 	}
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
-	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+		block.bounce[v].grid = VOE_RENDER_NO_BOUNCE;
 	if (camera != NULL) {
-		name_volume(&block.bounce,
-			    own != NULL ? &own->volume[0] :
-					  &device->window_volume[0],
-			    voe_render_bounce_volume_index(
-				    own != NULL ?
-					    (uint32_t)(own - device->targets) + 1 :
-					    0,
-				    0),
-			    device->slot);
+		for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+			name_volume(&block.bounce[v],
+				    own != NULL ? &own->volume[v] :
+						  &device->window_volume[v],
+				    voe_render_bounce_volume_index(
+					    own != NULL ?
+						    (uint32_t)(own - device->targets) + 1 :
+						    0,
+					    v),
+				    device->slot);
 		place_lights(frame, device->pass_count, &camera->view,
 			     camera->points,
 			     voe_render_point_shadows_ready(device), &block);
@@ -689,7 +692,8 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t layer,
 			       device->capacities.shadow_size };
 	block.camera = *light;
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
-	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+		block.bounce[v].grid = VOE_RENDER_NO_BOUNCE;
 	depth.imageView = frame->shadow.layers[layer];
 	rendering.renderArea.extent = extent;
 	scissor.extent = extent;

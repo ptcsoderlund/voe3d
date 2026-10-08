@@ -421,22 +421,20 @@ float3 direct_light(float3 world, float3 n, uint mask)
 }
 
 // Level (chain, level − 1)'s E at `world` facing `n`, whose mask is `mask`,
-// over π.
+// over π: rgb × a at an edge band of one cell, readiness not counted.
 float3 level_below(float3 world, float3 n, uint mask)
 {
 	relight_push push = relight_current;
 	record_blockers blockers;
 	uint below = 3 * (push.chain * (push.chain - 1) / 2 + push.level - 2);
+	float4 read = voe_render_bounce_read(
+		relight_levels[below], relight_levels[below + 1],
+		relight_levels[below + 2], relight_validity_read,
+		relight_moments_read, relight_lights.corner, relight_lights.cell,
+		relight_lights.spacing, 1.0, false, blockers,
+		relight_lights.walls, relight_lights.indoors, mask, world, n);
 
-	return voe_render_bounce_read(relight_levels[below],
-				      relight_levels[below + 1],
-				      relight_levels[below + 2],
-				      relight_validity_read, relight_moments_read,
-				      relight_lights.corner, relight_lights.cell,
-				      relight_lights.spacing, blockers,
-				      relight_lights.walls, relight_lights.indoors,
-				      mask, world, n) /
-	       PI;
+	return read.rgb * read.a / PI;
 }
 
 // Probe `t`'s six-axis irradiance `e` (+x, −x, +y, −y, +z, −z) into grid

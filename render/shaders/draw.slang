@@ -559,7 +559,7 @@ voe_render_capture_vertex(voe_render_draw_vertex_in vertex,
 	out.about = world.xyz - probe.position;
 	out.position = voe_render_point_shadow_clip(
 		out.about, layer % 6,
-		VOE_RENDER_BOUNCE_REACH_CELLS * voe_render_frame.bounce.spacing);
+		VOE_RENDER_BOUNCE_REACH_CELLS * voe_render_frame.bounce[0].spacing);
 	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
 	out.uv = vertex.uv;
 	out.layer = layer;

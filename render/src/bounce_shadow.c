@@ -353,8 +353,9 @@ bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
 
 	block.camera = *light;
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
-	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
-	block.bounce.spacing = device->bounce_frame.spacing;
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+		block.bounce[v].grid = VOE_RENDER_NO_BOUNCE;
+	block.bounce[0].spacing = device->bounce_frame.spacing;
 	record_open(frame, layer);
 	device->pass_target = NULL;
 	device->pass_extent = (VkExtent2D){ TEXELS, TEXELS };

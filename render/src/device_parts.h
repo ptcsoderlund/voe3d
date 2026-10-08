@@ -54,11 +54,12 @@
 // VOE_RENDER_NO_DEPTH_COPY until voe_render_frame_copy_depth runs in the pass,
 // then the texture slot of the copy.
 //
-// `bounce` IS THE PASS'S PROBE VOLUME (ADR-0326 point 7): `grid` the first of
-// its four entries at binding 6, 4 × its volume index, VOE_RENDER_NO_BOUNCE for
-// none; `corner` its lowest corner about the eye, `cell` its lowest cell wrapped
-// per axis into 24 × 12 × 24, and `spacing` the metres between probes. Only a
-// camera pass whose volume this frame slot began and is built names one.
+// `bounce` ARE THE PASS'S PROBE VOLUMES (ADR-0326 point 7, 0389 point 6), entry
+// v its target's volume v: `grid` the first of its four entries at binding 6,
+// 4 × its volume index, VOE_RENDER_NO_BOUNCE for none; `corner` its lowest
+// corner about the eye, `cell` its lowest cell wrapped per axis into 24 × 12 ×
+// 24, and `spacing` the metres between probes. Only a camera pass names one, and
+// only a volume this frame slot began and is built.
 //
 // `more_count` AND `more` ARE THE PASS'S LIGHTS AFTER THE FIRST (ADR-0357 point
 // 1): how many of `more` a camera pass carries, nought in every other pass, and
@@ -87,7 +88,7 @@ struct voe_render_frame_block {
 	uint32_t lights;
 	uint32_t region;
 	uint32_t blockers;
-	struct voe_render_frame_bounce bounce;
+	struct voe_render_frame_bounce bounce[VOE_RENDER_BOUNCE_VOLUMES];
 	uint32_t more_count;
 	uint32_t reserved[3];
 	struct voe_render_frame_light more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];

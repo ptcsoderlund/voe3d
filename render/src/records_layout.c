@@ -32,12 +32,12 @@ static_assert(sizeof(voe_render_directional_light) == 368,
 	      "voe_render_directional_light is no longer the frame light and its bounce words");
 static_assert(sizeof(struct voe_render_frame_light) == 368,
 	      "the frame light no longer matches bindings.slangh's");
-static_assert(sizeof(struct voe_render_frame_block) == 560 + 3 * 368,
+static_assert(sizeof(struct voe_render_frame_block) == 656 + 3 * 368,
 	      "the per-pass block no longer matches what draw.slang reads at binding 0");
-static_assert(offsetof(struct voe_render_frame_block, more_count) == 544,
-	      "the further light count moved inside the per-pass block; draw.slang has it at 544");
-static_assert(offsetof(struct voe_render_frame_block, more) == 560,
-	      "the further lights moved inside the per-pass block; draw.slang has them at 560");
+static_assert(offsetof(struct voe_render_frame_block, more_count) == 640,
+	      "the further light count moved inside the per-pass block; draw.slang has it at 640");
+static_assert(offsetof(struct voe_render_frame_block, more) == 656,
+	      "the further lights moved inside the per-pass block; draw.slang has them at 656");
 
 // And the offsets, because the sizes above can stay right while the order goes
 // wrong. Every member a buffer layout rule would have moved is named here: the
@@ -77,7 +77,9 @@ static_assert(sizeof(struct voe_render_frame_blockers) == 32 * 64 + 256 * 4 + 4 
 static_assert(sizeof(struct voe_render_light_bins) == 1408 * 4,
 	      "the light bins no longer match the 1408 words draw.slang reads at binding 8");
 static_assert(offsetof(struct voe_render_frame_block, bounce) == 512,
-	      "the bounce record moved inside the per-pass block; draw.slang has it at 512");
+	      "the bounce records moved inside the per-pass block; draw.slang has them at 512");
+static_assert(sizeof(struct voe_render_frame_bounce) == 32,
+	      "a bounce record is no longer the 32 bytes draw.slang strides them by");
 static_assert(offsetof(struct voe_render_frame_bounce, grid) == 12,
 	      "the bounce record's grid moved; draw.slang has it at 12");
 static_assert(offsetof(struct voe_render_frame_bounce, cell) == 16,
