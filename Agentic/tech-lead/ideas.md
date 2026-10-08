@@ -25,8 +25,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   together with a font that can draw them.
 - **Visual logic** as an opt-in editor plugin (node graphs, Blueprint-like), off by default, that produces
   what hand-written C would (0187). After the coin game (0186).
-- **A visual shader editor** (node graph) and **a material editor**, two separate editors; a material is
-  an instance of a shader (0189). They replace a shape's lone colour.
+- **A visual shader editor** (node graph); a material is an instance of a shader (0189). The material
+  editor is work order 085.
 - **A runtime-GUI editor** for what the cooker outputs, itself drawn in the editor themes (0194). A game's GUI
   draws with a theme; per-element property overrides and a theme override are how it gets colour on purpose.
   After the coin game, whose GUI is written in code (0194). The editor then sets the file format, from what
@@ -57,21 +57,13 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   through ADR-0118's asynchronous tier, which today keeps physics shapes synchronous; streaming
   collision near the player needs that revisited. Builds on 0250's double positions (sponsor,
   2026-09-25).
-- **Automatic LOD at run time with cached baking** (sponsor, 2026-09-25): "like Nanite but with
-  good performance, more like traditional auto LOD". A mesh gets simplified levels generated
-  automatically (quadric-error simplification in the meshoptimizer style), baked on first use
-  and kept in the project's `Cache/` (0235), picked per object by its size on screen, blended
-  so levels do not pop. No per-cluster virtual geometry. Needs imported meshes first; today a
-  project draws only the built-in shapes. **LOD streaming** (sponsor, 2026-09-25): only the
+- **LOD streaming** (sponsor, 2026-09-25; the levels themselves are work order 089): only the
   levels near the one on screen (current ±1) sit in VRAM, the rest on disk, loaded ahead through
   ADR-0118's asynchronous tier. Recommended shape: the lowest level of every model always stays
   loaded, so a teleport shows something coarse rather than nothing; loading is prioritised by
   where the camera is heading; and one VRAM budget replaces a per-game mode: a low-poly game fits
   entirely and never streams, a high-detail game streams. A game can ask to preload around a
   place before teleporting there.
-- **A sky** (sponsor, 2026-09-26): a sky that is drawn, i.e. a panorama or sky dome and later
-  volumetric clouds, which could also feed the fill light and the bounce. Wanted sooner or later;
-  too big for now.
 - Explicit system ordering (Bevy-style `.before`/`.after`, system sets) for when a slot's systems
   run on several threads; until then list order within a slot is enough (0256).
 - **Entity groups in the Scene list** (sponsor, 2026-09-26): a filter box at the top of the list, and

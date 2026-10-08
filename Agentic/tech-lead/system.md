@@ -13,18 +13,18 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **platform** — the one OS-aware folder: window, input, pads, files, trash, clock, process, sound.
 - **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, blockers.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
-- **assets** — glTF, images, WAV, fonts and sectioned text to CPU data; the JSON parser.
+- **assets** — glTF, images, WAV, fonts, landscapes and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text read and written, paths followed; cooked to C.
 - **render** — all of Vulkan: card, resources, mip chains, passes, light, bounce, a pipeline cache.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene to draws: meshes, models, shapes, particles, water, picks, markers, blocked light.
+- **3d** — scene to draws: meshes, models, landscapes, shapes, particles, water, picks, brush, markers.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash worker.
-- **editor** — top bar, Project, Scene list, Assets, prefabs, views, gizmo, Inspector, Play, GPU ms.
+- **editor** — top bar, Project, Scene list, Assets, prefabs, views, gizmo, sculpt, Inspector, Play.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
@@ -54,7 +54,6 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0267, 0268, 0270–0272, 0277–0286, 0291, 0292, 0294–0297 — 0.1 closed; tank game; models; hits.
 - 0298, 0299, 0301, 0304, 0305, 0321, 0324, 0325 — Particles; effects; shadows; sounds; water; lamps
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
-- 0333–0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Linux; Release; copy; browse; splash.
-- 0348, 0349, 0351–0355, 0361, 0363, 0364 — Block kinds; sun, moon; fields; panels closed; √.
-- 0358, 0359, 0362, 0370, 0371 — GPU ms per pass; Best Practices; far mips; splash; F.
-- 0374–0379 — 0.3 is the loghouse world; bindless; hill sculpted, painted; Assets panel; landscape.
+- 0333–0338, 0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Release; copy; browse; splash.
+- 0348, 0349, 0351–0355, 0358, 0359, 0361–0364, 0370, 0371 — Blocks; moon; GPU ms; mips; splash; F.
+- 0374–0381, 0384–0393 — 0.3's loghouse; bindless; hill; landscape; Windows; 60 fps; nests; 083.
