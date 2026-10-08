@@ -12,7 +12,9 @@
 // fading in that did not change, each word with its readiness (the layout in
 // bounce_relight.h), and every listed probe settled, one workgroup each; then for level k 1 to
 // 3, for each chain n ≥ k holding a light (each sun and each lamp at its own
-// bounces), relight over every probe, a barrier between levels; then sum; then
+// bounces), relight, a barrier between levels; then sum. Relight and sum run
+// over the whole grid, `whole` set, when the lights changed, else one workgroup
+// per changed listed probe, `whole` clear (ADR-0389 point 5); then
 // the volume marked relit, all of it timed as the pass `bounce relight`
 // (pass_timing.c). The first barrier orders it after the capture copy,
 // this frame's shadow passes and the last frame's reads; the last before this
@@ -24,12 +26,14 @@
 // and the barrier before the frame's reads, and nothing else: no clear, level
 // or sum. The volume is still marked relit.
 //
-// device->relight_dispatches counts every dispatch recorded, for a test to read.
+// device->relight_dispatches counts every dispatch recorded and
+// device->relight_groups their workgroups, for a test to read.
 //
 // CONSTRAINTS. Listing scans every probe twice, 2 × 6912 a relight; a scan
-// by word would lift it if a profile names it. Every valid probe is relit at
-// every level in use whatever changed (0326's fixed cost), up to six dispatches
-// of 6912 workgroups.
+// by word would lift it if a profile names it. 0326's fixed cost, every valid
+// probe relit at every level in use, up to six dispatches of 6912 workgroups,
+// holds only when the lights change. Levels 2 and 3 of an unchanged probe
+// beside a new picture catch up at the next lights change (0389 point 5).
 #include "bounce_relight.h"
 
 #include <base/assert.h>
@@ -310,6 +314,7 @@ static void record_dispatch(voe_render_device *device, VkCommandBuffer commands,
 					 sizeof(*push), push);
 	voe_render_vk.cmd_dispatch(commands, groups, 1, 1);
 	device->relight_dispatches++;
+	device->relight_groups += groups;
 }
 
 // Chain `chain`'s levels of `volume` cleared to nought, in GENERAL.
@@ -333,7 +338,8 @@ static void record_clear_chain(VkCommandBuffer commands,
 }
 
 // Every level in use, a barrier after each, then the sum and the barrier
-// before the frame's reads.
+// before the frame's reads; over the whole grid with push.whole, else a
+// workgroup per changed listed probe.
 static void record_levels(voe_render_device *device, VkCommandBuffer commands,
 			  VkDescriptorSet set,
 			  struct voe_render_relight_push push, uint32_t held)
@@ -341,7 +347,10 @@ static void record_levels(voe_render_device *device, VkCommandBuffer commands,
 	const VkPipelineStageFlags2 compute = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
 	const VkAccessFlags2 reads = VK_ACCESS_2_SHADER_STORAGE_READ_BIT |
 				     VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+	const uint32_t probes = push.whole != 0 ? VOE_RENDER_BOUNCE_PROBES_TOTAL :
+						  push.changed;
 
+	VOE_BASE_DEBUG_ASSERT(probes > 0, "relighting no probe");
 	for (uint32_t level = 1; level <= VOE_RENDER_BOUNCES_MAX; level++) {
 		bool dispatched = false;
 
@@ -351,7 +360,7 @@ static void record_levels(voe_render_device *device, VkCommandBuffer commands,
 			push.chain = chain;
 			push.level = level;
 			record_dispatch(device, commands, device->relight_levels,
-					set, &push, VOE_RENDER_BOUNCE_PROBES_TOTAL);
+					set, &push, probes);
 			dispatched = true;
 		}
 		if (dispatched)
@@ -361,17 +370,20 @@ static void record_levels(voe_render_device *device, VkCommandBuffer commands,
 	}
 	// One thread a texel: two a probe along x (ADR-0327).
 	record_dispatch(device, commands, device->relight_sum, set, &push,
-			(2 * VOE_RENDER_BOUNCE_PROBES_TOTAL + GROUP - 1) / GROUP);
+			push.whole != 0 ?
+				(2 * VOE_RENDER_BOUNCE_PROBES_TOTAL + GROUP - 1) /
+					GROUP :
+				probes);
 	record_barrier(commands, compute, VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
 		       compute | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, reads);
 }
 
 // The whole relight of volume `index`, `count` probes listed in its band, the
-// first `changed` of them changed; with `relights` false (only fading probes,
-// the lights as relit) the settle and its barriers alone.
+// first `changed` of them changed, over the whole grid when `whole` (the lights
+// changed); with neither (only fading probes) the settle and its barriers alone.
 static void record_relight(voe_render_device *device,
 			   struct voe_render_bounce_volume *volume, uint32_t index,
-			   uint32_t count, uint32_t changed, bool relights,
+			   uint32_t count, uint32_t changed, bool whole,
 			   const voe_render_bounce_lights *lights)
 {
 	const VkPipelineStageFlags2 compute = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
@@ -389,9 +401,10 @@ static void record_relight(voe_render_device *device,
 		.lamps = lights->lamp_count,
 		.point_ready = voe_render_point_shadows_ready(device) ? 1u : 0u,
 		.changed = changed,
+		.whole = whole ? 1u : 0u,
 	};
 
-	VOE_BASE_DEBUG_ASSERT(changed <= count && (relights || count > 0),
+	VOE_BASE_DEBUG_ASSERT(changed <= count && (whole || count > 0),
 			      "more changed than listed, or a settle of nothing");
 	write_set(device, volume, index, device->slot, set);
 	write_record(device, index, lights);
@@ -406,7 +419,7 @@ static void record_relight(voe_render_device *device,
 			       VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
 		       compute | clear,
 		       storage | sampled | VK_ACCESS_2_TRANSFER_WRITE_BIT);
-	if (!relights) {
+	if (changed == 0 && !whole) {
 		record_dispatch(device, commands, device->relight_settle, set,
 				&push, count);
 		// The new readiness, before this frame's reads.
@@ -438,7 +451,6 @@ void voe_render_bounce_relight(voe_render_device *device)
 	uint32_t index;
 	uint32_t count;
 	uint32_t changed;
-	bool relights;
 
 	VOE_BASE_ASSERT(device != NULL, "a bounce relight on no device");
 	VOE_BASE_ASSERT(device->recording, "a bounce relight with no frame open");
@@ -468,12 +480,12 @@ void voe_render_bounce_relight(voe_render_device *device)
 			    (uint32_t *)device->relight_mapped[device->slot] +
 				    (size_t)index * VOE_RENDER_BOUNCE_PROBES_TOTAL,
 			    &changed);
-	relights = changed > 0 ||
-		   voe_render_bounce_probes_lights_changed(&volume->probes,
-							   &lights);
 	voe_render_pass_timing_open(device, voe_render_frame_open(device),
 				    "bounce relight");
-	record_relight(device, volume, index, count, changed, relights, &lights);
+	record_relight(device, volume, index, count, changed,
+		       voe_render_bounce_probes_lights_changed(&volume->probes,
+							       &lights),
+		       &lights);
 	voe_render_pass_timing_close(device, voe_render_frame_open(device));
 	voe_render_bounce_probes_relit(&volume->probes, &lights);
 }

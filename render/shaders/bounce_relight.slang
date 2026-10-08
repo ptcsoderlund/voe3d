@@ -19,8 +19,9 @@
 // - Moments, at the texel's own place: the mean and mean² of the distances
 //   over its 3×3 within its face, a neighbour past the edge clamped to it.
 //
-// relight: one workgroup of 64 per probe of the grid, over its 384 texels, into
-// level (chain, level) — grid chain(chain − 1)/2 + level − 1. Each texel weighs
+// relight: one workgroup of 64 per probe, over its 384 texels: each of the grid
+// with `whole` 1, else each of the first `changed` listed (ADR-0389 point 5);
+// into level (chain, level) — grid chain(chain − 1)/2 + level − 1. Each texel weighs
 // its solid angle; no hit (distance at the volume's reach, 12 × the record's
 // spacing) or a back face is nought;
 // else at the surface point (probe + direction × distance) radiance = albedo ×
@@ -35,8 +36,7 @@
 // values reduced in group memory. That is the exact clamped-cosine irradiance
 // along each axis, so flat ground and walls take nothing from behind their own
 // plane, where first-order harmonics lit an upward normal from a ring below
-// its horizon. An
-// invalid probe writes nought.
+// its horizon. An invalid probe writes nought.
 // BLOCKERS (ADR-0350 point 5), the record's by blockers.slangh's pass, with
 // its `walls` and `indoors`: a texel's p is its hit pushed PUSH along its
 // normal. It feeds its probe only when the pass holds from the probe to p;
@@ -45,8 +45,9 @@
 // through bounce_read.slangh's gated read.
 // THE TEXELS. Grid g's image 3g + a is axis a (x, y, z), 48 × 12 × 24: probe
 // t's E(+a) at (2t.x, t.y, t.z), E(−a) at (2t.x + 1, t.y, t.z), RGB, alpha 0.
-// sum: one thread per texel of the 48-wide images, grid 6 = the sum of grids 0
-// to 5; a level not in use is nought, bounce_relight.c clears it.
+// sum: grid 6 = the sum of grids 0 to 5, one thread per texel of the 48-wide
+// images with `whole`, else a listed probe's two texels in its own workgroup, as
+// relight; a level not in use is nought, bounce_relight.c clears it.
 //
 // The push block matches struct relight_push in bounce_relight.c, the record at
 // binding 11 its struct relight_record: the structs below repeat bindings.slangh's
@@ -95,6 +96,7 @@ struct relight_push {
 	uint lamps;
 	uint point_ready;
 	uint changed;
+	uint whole;
 };
 
 struct relight_light {
@@ -461,7 +463,9 @@ void store_grid(uint grid, uint3 t, float3 e[6])
 void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 {
 	relight_push push = relight_current;
-	uint3 t = probe_coordinate(group.x);
+	uint3 t = probe_coordinate(
+		push.whole != 0 ? group.x :
+				  relight_list[push.first + group.x] & PROBE);
 	uint2 origin = picture_origin(t);
 	uint3 placed = (t + SIZE - relight_lights.cell % SIZE) % SIZE;
 	float3 centre = relight_lights.corner +
@@ -521,12 +525,24 @@ void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void sum(uint3 id: SV_DispatchThreadID)
+void sum(uint3 id: SV_DispatchThreadID, uint3 group: SV_GroupID,
+	 uint thread: SV_GroupIndex)
 {
-	if (id.x >= 2 * TOTAL)
-		return;
-	uint3 t = uint3(id.x % (2 * SIZE.x), id.x / (2 * SIZE.x) % SIZE.y,
-			id.x / (2 * SIZE.x * SIZE.y));
+	uint3 t;
+
+	if (relight_current.whole != 0) {
+		if (id.x >= 2 * TOTAL)
+			return;
+		t = uint3(id.x % (2 * SIZE.x), id.x / (2 * SIZE.x) % SIZE.y,
+			  id.x / (2 * SIZE.x * SIZE.y));
+	} else {
+		// A listed probe's two texels, E(+a) and E(−a).
+		if (thread >= 2)
+			return;
+		uint3 p = probe_coordinate(
+			relight_list[relight_current.first + group.x] & PROBE);
+		t = uint3(2 * p.x + thread, p.y, p.z);
+	}
 	float4 axes[3] = { float4(0.0), float4(0.0), float4(0.0) };
 
 	[ForceUnroll]

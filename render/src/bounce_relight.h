@@ -24,7 +24,8 @@
 
 // bounce_relight.slang's push block, member for member: settle reads `first`,
 // `count` (every probe listed) and `changed` (the first that many changed, the
-// rest only fading), relight the rest.
+// rest only fading), relight the rest. Relight and sum run over the whole grid
+// with `whole` 1, else over the first `changed` listed (ADR-0389 point 5).
 struct voe_render_relight_push {
 	uint32_t first;
 	uint32_t count;
@@ -34,6 +35,7 @@ struct voe_render_relight_push {
 	uint32_t lamps;
 	uint32_t point_ready;
 	uint32_t changed;
+	uint32_t whole;
 };
 
 static const VkDescriptorType

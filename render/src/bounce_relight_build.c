@@ -47,7 +47,7 @@ static alignas(uint32_t) const unsigned char bounce_relight_spv[] = {
 #embed "bounce_relight.spv"
 };
 
-static_assert(sizeof(struct voe_render_relight_push) == 32,
+static_assert(sizeof(struct voe_render_relight_push) == 36,
 	      "relight push size");
 static_assert(VOE_RENDER_BOUNCE_PROBES_TOTAL <= VOE_RENDER_RELIGHT_PROBE + 1,
 	      "a probe index fits bits 0–15 of a list word");

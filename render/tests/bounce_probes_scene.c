@@ -35,6 +35,10 @@
 // - A white wall (0.9) under a dim sun (0.05), a lamp of range 3 m 2 m before
 //   it: the wall 4.5 m from the lamp, past its reach, brighter at lamp bounces 1
 //   than at 0.
+// - Settled by the lamp's wall, a_recapture_relights_only_what_it_changed: one
+//   stale sphere of 0.5 m at the wall's foot, and that frame's relight records
+//   fewer workgroups than one level of the whole grid (ADR-0389 point 5);
+//   a_lights_change_relights_the_whole_grid: a moved sun, at least 6912.
 //
 // A card without shaderOutputLayer bounces nothing, and that is said. A machine
 // with no usable Vulkan skips and says so.
@@ -571,6 +575,39 @@ static void a_lamp_by_a_white_wall(struct scene *s)
 		       brightness_at(s, &none, above));
 }
 
+// The lights as last relit, so only the probes the sphere queued and this
+// frame captured are relit and summed.
+static void a_recapture_relights_only_what_it_changed(struct scene *s)
+{
+	static const voe_math_float4 pebble = { 0.0f, 0.5f, 0.0f, 0.5f };
+	const uint32_t dispatches = s->device->relight_dispatches;
+	const uint32_t groups = s->device->relight_groups;
+
+	s->bounce.stale = &pebble;
+	s->bounce.stale_count = 1;
+	one_frame(s, NULL);
+	s->bounce.stale = NULL;
+	s->bounce.stale_count = 0;
+	printf("a stale pebble: %u relight workgroups\n",
+	       s->device->relight_groups - groups);
+	VOE_TEST_CHECK(s->device->relight_dispatches > dispatches);
+	VOE_TEST_CHECK(s->device->relight_groups - groups <
+		       VOE_RENDER_BOUNCE_PROBES_TOTAL);
+}
+
+static void a_lights_change_relights_the_whole_grid(struct scene *s)
+{
+	const uint32_t groups = s->device->relight_groups;
+
+	s->bounce.sun.direction = (voe_math_float3){ 0.0f, -1.0f, 0.0f };
+	one_frame(s, NULL);
+	s->bounce.sun.direction = SUN_DIRECTION;
+	printf("a moved sun: %u relight workgroups\n",
+	       s->device->relight_groups - groups);
+	VOE_TEST_CHECK(s->device->relight_groups - groups >=
+		       VOE_RENDER_BOUNCE_PROBES_TOTAL);
+}
+
 static void run(struct scene *s)
 {
 	static const voe_render_shading_values values[SHADINGS] = {
@@ -617,6 +654,8 @@ static void run(struct scene *s)
 	a_red_box(s);
 	a_room(s);
 	a_lamp_by_a_white_wall(s);
+	a_recapture_relights_only_what_it_changed(s);
+	a_lights_change_relights_the_whole_grid(s);
 }
 
 int main(void)

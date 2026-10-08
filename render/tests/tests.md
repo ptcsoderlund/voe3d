@@ -95,7 +95,9 @@ by reading the offscreen colour image back.
 - `bounce_read.c` — lit surfaces reading the probe volume: a pass names a begun, built volume, and
   a sunlit grey ground with fill 0.1 under it, nothing captured, reads as with no begin. Headless.
 - `bounce_probes_scene.c` — probes relit a level at a time, checked in the picture, a red wall's
-  lit side at spacing 2 and 4. Headless.
+  lit side at spacing 2 and 4; a stale pebble relighting fewer workgroups than the grid
+  (`a_recapture_relights_only_what_it_changed`), a moved sun all of it
+  (`a_lights_change_relights_the_whole_grid`). Headless.
 - `bounce_suns.c` — every sun lighting the probes: a sun alone, an empty `more` the same bytes, a
   dark sun's copy in `more` within 1%, a moon adding, a moon at bounces 0 nothing, a moon shadowed
   behind a wall nothing. Headless.

@@ -199,8 +199,8 @@ struct voe_render_device {
 	// index (voe_render_bounce_volume_index) ×
 	// `relight_record_stride` (the record's size rounded up to the card's
 	// uniform offset alignment, as `pass_stride` is), and one set per volume
-	// (calloc'd); and how many dispatches it has recorded. All nought without
-	// output_layer.
+	// (calloc'd); how many dispatches it has recorded, and how many
+	// workgroups they held. All nought without output_layer.
 	VkDescriptorSetLayout relight_set_layout;
 	VkPipelineLayout relight_layout;
 	VkDescriptorPool relight_pool;
@@ -214,6 +214,7 @@ struct voe_render_device {
 	VkDeviceSize relight_record_stride;
 	VkDescriptorSet *relight_sets[VOE_RENDER_FRAMES_IN_FLIGHT];
 	uint32_t relight_dispatches;
+	uint32_t relight_groups;
 	// Whether the relight's startup has finished, which prepare does
 	// (pipeline.c); until then the relight does nothing. Never true
 	// without output_layer.
