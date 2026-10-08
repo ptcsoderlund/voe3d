@@ -131,7 +131,9 @@ by reading the offscreen colour image back.
 - `blocked_bounce.c` — the bounce kept by a blocker: a blocked patch by a red wall takes no red,
   ground outside as before, a count of 0 the old picture, and a lamp inside with the wall bouncing
   red onto the patch, one outside none; `a_removed_blocker_relights_the_nest`, the 1 m nest
-  begun too, the patch back to its unblocked reading once the blocker goes. Headless.
+  begun too, the patch back to its unblocked reading once the blocker goes;
+  `a_whole_relight_keeps_the_nests_bounce`, 3d's eye and nest, the red kept through a lights
+  change after a recapture. Headless.
 - `blocker_kinds_bounce.c` — kinds gating the bounce by a red wall: a Wall slab between it and a
   patch leaving the patch as with no bounce, ground on the wall's side red; an Indoors box round the
   patch as with no blocker; a Room box with zero kinds as with no bounce. Headless.

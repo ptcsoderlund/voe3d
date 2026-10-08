@@ -34,3 +34,11 @@ If the case passes with no fix, keep it in and block, giving A, B and C and what
 `ctest --test-dir build/debug -R '^render/(blocked_bounce|bounce_)'` passes with
 `a_whole_relight_keeps_the_nests_bounce`; then, after `cmake --build --preset debug --target
 voe_test_3d_bounce_scene`, `ctest --test-dir build/debug -R '^3d/bounce_scene$'` passes.
+
+## Blocked
+The case passes with no fix: A 152 138 138, B 148 138 138 (the move frame relit both volumes by 192
+workgroups, incrementally), C 148 138 138, bounces 0 redness 0 — the whole relight keeps the red, in render,
+with the scene drawn about the eye (0,5,8) and 3d's cells, corners and spacings. What differs from 3d's frame:
+3d also begins volumes 1 and 2, draws each volume's own bounce shadow view (here one view at volume 0's
+centre), and its failing check (`3d/tests/bounce_scene.c:566`, still `98 98 98 against 106 98 98`) reads after
+a blocker added and removed, not a strength change; per 0391 bug 05 now splits out of 082.

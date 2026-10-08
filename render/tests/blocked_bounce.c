@@ -21,6 +21,15 @@
 //   patch settled with no blocker; with the patch's blocker settled, within
 //   2/255 of bounces 0; the blocker gone (count 0) and settled, within 1/255
 //   of the first. Settled is also every begun volume relighting nothing.
+// - a_whole_relight_keeps_the_nests_bounce, 3d's frame: the scene drawn about
+//   an eye at (0, 5, 8), volume 0 at cell (−12, −6, −12), corner
+//   (−24, −17, −32), the nest at cell (−12, −4, −4), corner (−12, −9, −12),
+//   sun 2 at bounces 1, no blocker. Settled (A); the wall moved 1 m along +x
+//   and marked stale for one frame, which relights both volumes by fewer
+//   workgroups than one grid, settled (B); strength 2 then 1, each settled
+//   (C). B redder than bounces 0 by more than 2/255, C within 1/255 of B.
+// A settle's first frame marks both volumes wholly stale, but for the settles
+// after the move, as 3d's would not.
 //
 // A card without shaderOutputLayer bounces nothing, and that is said. A machine
 // with no usable Vulkan skips and says so.
@@ -125,6 +134,11 @@ struct scene {
 	voe_render_point_light lamp;
 	bool restale;
 	bool nested;
+	int32_t nest_cell[3];
+	voe_math_float3 nest_corner;
+	// How far the red wall stands along +x from WALL_SCENE's place.
+	float wall_shift;
+	voe_math_float3 eye;
 };
 
 static const voe_math_float4 EVERYTHING = { 0.0f, 0.0f, 0.0f, 1000.0f };
@@ -207,9 +221,15 @@ static void draw_boxes(struct scene *s)
 {
 	for (uint32_t i = 0; i < 2; i++) {
 		const struct box *b = &WALL_SCENE[i];
-		voe_render_object object = {
+		voe_math_float3 at = b->at;
+		voe_render_object object;
+
+		if (b->shading == RED)
+			at.x += s->wall_shift;
+		at = voe_math_float3_sub(at, s->eye);
+		object = (voe_render_object){
 			.world = voe_math_float4x4_mul(
-				voe_math_float4x4_from_translation(b->at),
+				voe_math_float4x4_from_translation(at),
 				voe_math_float4x4_from_scale(b->size)),
 			.normal = voe_math_float4x4_from_scale((voe_math_float3){
 				1.0f / b->size.x, 1.0f / b->size.y,
@@ -273,12 +293,15 @@ static uint32_t one_frame(struct scene *s, voe_render_picture *picture)
 	if (s->restale && s->device->window_volume[0].built) {
 		bounce.stale = &EVERYTHING;
 		bounce.stale_count = 1;
+		nest.stale = &EVERYTHING;
+		nest.stale_count = 1;
 		s->restale = false;
 	}
 	passes = one_volume(s, &bounce);
 	if (s->nested) {
 		nest.volume = 3;
-		nest.corner = (voe_math_float3){ -12.0f, -6.0f, -12.0f };
+		memcpy(nest.cell, s->nest_cell, sizeof(nest.cell));
+		nest.corner = s->nest_corner;
 		nest.spacing = 1.0f;
 		passes += one_volume(s, &nest);
 	}
@@ -296,12 +319,13 @@ static uint32_t one_frame(struct scene *s, voe_render_picture *picture)
 
 // Every probe captured and faded in: frames until one opens no capture pass
 // and relights nothing in any begun volume, past the first, which may only
-// want a volume.
-static void settle(struct scene *s)
+// want a volume. The first frame marks the whole of volume 0 stale when
+// `restale`, which recaptures every probe.
+static void settle(struct scene *s, bool restale)
 {
 	uint32_t frame = 0;
 
-	s->restale = true;
+	s->restale = restale;
 	for (; frame < FRAMES_MAX; frame++) {
 		const uint32_t dispatches = s->device->relight_dispatches;
 
@@ -396,7 +420,7 @@ static void a_blocked_patch(struct scene *s)
 	s->bounce.sun = s->camera.light;
 	s->bounce.sun_bounces = 1;
 	s->bounce.sun_strength = 1.0f;
-	settle(s);
+	settle(s, true);
 	plain = picture_of(s);
 	block_with(s, (voe_render_light_blockers){ .blockers = patch, .count = 1 });
 	one = picture_of(s);
@@ -480,17 +504,17 @@ static void a_removed_blocker_relights_the_nest(struct scene *s)
 	s->bounce.sun = s->camera.light;
 	s->bounce.sun_bounces = 1;
 	s->bounce.sun_strength = 1.0f;
-	settle(s);
+	settle(s, true);
 	first = picture_of(s);
 	block_with(s, (voe_render_light_blockers){ .blockers = patch, .count = 1 });
-	settle(s);
+	settle(s, true);
 	blocked = picture_of(s);
 	s->bounce.sun_bounces = 0;
 	none = picture_of(s);
 	s->bounce.sun_bounces = 1;
-	settle(s);
+	settle(s, true);
 	block_with(s, (voe_render_light_blockers){ .blockers = patch, .count = 0 });
-	settle(s);
+	settle(s, true);
 	gone = picture_of(s);
 
 	rgb_at(s, &first, PATCH, before);
@@ -503,6 +527,79 @@ static void a_removed_blocker_relights_the_nest(struct scene *s)
 	VOE_TEST_CHECK(gap_at(s, &blocked, &none, PATCH) <= TOLERANCE);
 	VOE_TEST_CHECK(gap_at(s, &gone, &first, PATCH) <= 1);
 	block_with(s, (voe_render_light_blockers){ 0 });
+	s->nested = false;
+}
+
+// 3d's frame: the eye off the origin, volume 0 and the 1 m nest with cells
+// and corners that differ. A recapture relit incrementally, then a lights
+// change relit whole, keeps the patch's red.
+static void a_whole_relight_keeps_the_nests_bounce(struct scene *s)
+{
+	// The wall's old and new place, about the eye.
+	static const voe_math_float4 moved = { 0.5f, -3.0f, -8.0f, 6.4f };
+	const voe_render_view camera = s->camera.view;
+	const voe_math_float3 patch = voe_math_float3_sub(
+		PATCH, (voe_math_float3){ 0.0f, 5.0f, 8.0f });
+	voe_render_picture a, b, c, none;
+	uint32_t groups;
+	int at_a[3], at_b[3], at_c[3];
+
+	s->nested = true;
+	s->eye = (voe_math_float3){ 0.0f, 5.0f, 8.0f };
+	s->camera.view = look_at((voe_math_float3){ 0.0f, 0.0f, 0.0f }, patch,
+				 NARROW);
+	s->bounce.cell[0] = -12;
+	s->bounce.cell[1] = -6;
+	s->bounce.cell[2] = -12;
+	s->bounce.corner = (voe_math_float3){ -24.0f, -17.0f, -32.0f };
+	s->nest_cell[0] = -12;
+	s->nest_cell[1] = -4;
+	s->nest_cell[2] = -4;
+	s->nest_corner = (voe_math_float3){ -12.0f, -9.0f, -12.0f };
+	s->camera.points = (voe_render_point_lights){ 0 };
+	s->bounce.points = s->camera.points;
+	s->camera.light.intensity = 2.0f;
+	s->camera.light.fill = (voe_math_float3){ 0.1f, 0.1f, 0.1f };
+	s->bounce.sun = s->camera.light;
+	s->bounce.sun_bounces = 1;
+	s->bounce.sun_strength = 1.0f;
+	settle(s, true);
+	a = picture_of(s);
+
+	s->wall_shift = 1.0f;
+	s->bounce.stale = &moved;
+	s->bounce.stale_count = 1;
+	groups = s->device->relight_groups;
+	one_frame(s, NULL);
+	s->bounce.stale = NULL;
+	s->bounce.stale_count = 0;
+	groups = s->device->relight_groups - groups;
+	settle(s, false);
+	b = picture_of(s);
+
+	s->bounce.sun_strength = 2.0f;
+	settle(s, false);
+	s->bounce.sun_strength = 1.0f;
+	settle(s, false);
+	c = picture_of(s);
+	s->bounce.sun_bounces = 0;
+	none = picture_of(s);
+	s->bounce.sun_bounces = 1;
+
+	rgb_at(s, &a, patch, at_a);
+	rgb_at(s, &b, patch, at_b);
+	rgb_at(s, &c, patch, at_c);
+	printf("nest off the eye: A %d %d %d, B %d %d %d (moved frame %u groups), C %d %d %d, bounces 0 redness %d\n",
+	       at_a[0], at_a[1], at_a[2], at_b[0], at_b[1], at_b[2], groups,
+	       at_c[0], at_c[1], at_c[2], redness_at(s, &none, patch));
+	// Both volumes relit by their changed probes, not the whole grid.
+	VOE_TEST_CHECK(groups > 0 && groups < VOE_RENDER_BOUNCE_PROBES_TOTAL);
+	VOE_TEST_CHECK(redness_at(s, &b, patch) >
+		       redness_at(s, &none, patch) + TOLERANCE);
+	VOE_TEST_CHECK(gap_at(s, &c, &b, patch) <= 1);
+	s->wall_shift = 0.0f;
+	s->eye = (voe_math_float3){ 0.0f, 0.0f, 0.0f };
+	s->camera.view = camera;
 	s->nested = false;
 }
 
@@ -539,6 +636,8 @@ static void run(struct scene *s)
 		.corner = { -24.0f, -12.0f, -24.0f },
 		.spacing = VOE_RENDER_BOUNCE_SPACING,
 	};
+	memcpy(s->nest_cell, s->bounce.cell, sizeof(s->nest_cell));
+	s->nest_corner = (voe_math_float3){ -12.0f, -6.0f, -12.0f };
 	s->volume_light = sun_view(
 		voe_math_float3_add(
 			s->bounce.corner,
@@ -551,6 +650,7 @@ static void run(struct scene *s)
 	a_blocked_patch(s);
 	a_blocked_lamp(s);
 	a_removed_blocker_relights_the_nest(s);
+	a_whole_relight_keeps_the_nests_bounce(s);
 }
 
 int main(void)
