@@ -1,7 +1,8 @@
 # 05 — A small coloured box does not tint the ground beside it
 
 ## Seen
-On Windows, in the editor, with the sun at bounces 2. Three screenshots are beside this file.
+On Windows, in the editor, with the sun at bounces 2. Three screenshots are in `~/voe3d-scratch/bug-05/`,
+outside the repository.
 
 - `05-purple-cube-on-landscape.png`: a 1 m purple cube on the landscape, bounce strength 2. The sun is low
   and the cube's left face is in full sun, bright magenta. The ground in front of that face shows no
@@ -24,7 +25,7 @@ the box's colour, fading with distance. And step 2: flat ground is even, with no
 curved edge should not be there.
 
 The landscape is not fine until this works: the hill's world needs things on it to colour the ground
-around them.
+around them. How it is fixed is decision 0387: finer bounce grids nested around the camera.
 
 ## How to reproduce
 1. On Windows, build the debug preset and start the editor.
