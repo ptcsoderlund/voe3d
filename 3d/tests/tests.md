@@ -10,12 +10,9 @@ again, or to find where a claim that has started failing is written down.
 - `shadow_cascades.c` — that the splits rise to the reach, each slice lies in
   its cascade's box, and a moved and turned eye moves the map by whole texels,
   near the origin and 100 km out. Needs no graphics card.
-- `bounce_grid.c` — that the probe volume fits the level's box, not the eye: the same cell and
-  spacing from three eyes, a centre across a cell edge one cell on, no box about the origin, and a
-  sun view that holds the volume and grows with the spacing; and the nests:
-  `a_nest_starts_with_the_eye_nine_cells_up`, `a_nest_holds_still_while_the_eye_stays_within_two_cells`,
-  `a_nest_moves_one_cell_when_the_eye_crosses_three`, `a_nest_jumps_home_when_the_eye_leaves_it`,
-  `two_eyes_in_one_cell_give_one_world_place`. Needs no graphics card.
+- `bounce_grid.c` — that the probe volume fits the level's box, not the eye, the relight's sun view
+  holds it, and a nest about the eye starts, holds still, steps a cell and jumps home as the eye
+  moves. Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled
@@ -53,21 +50,18 @@ again, or to find where a claim that has started failing is written down.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
-- `shadow_lights.c` — that a sun and a moon each cast their own shadow on the floor from the second
-  frame, a sun that does not cast leaves only the moon's, one casting light fits one light's
-  passes without growing the array, a moon bounces once its probes have faded in, and two casting
-  suns that bounce draw a sun map each per begun volume. Skips without a graphics card.
+- `shadow_lights.c` — that a sun and a moon each cast their own shadow, a sun not casting leaves
+  the moon's, one casting light fits one light's passes, a moon bounces, and each bouncing sun
+  draws its own map per volume. Skips without a graphics card.
 - `blocked_shadows.c` — that a moon inside an All, Direct or Fill box, or alone inside an All, is
   not shadowed by a roof outside it yet casts the cube inside, and that with no box the roof shadows
   the floor. Skips without a graphics card.
-- `bounce.c` — the shadows call's passes over two frames, four shared captures and a sun map per
-  begun volume, two views each drawing theirs, the caster-sized stale spheres, the still casters'
-  box, `a_two_metre_level_begins_only_the_one_metre_nest` and
-  `the_finest_nest_keeps_a_capture_pass`. Skips without a card.
-- `bounce_scene.c` — the probe bounce through the editor's and the game's calls, each frame
-  remembering first: a red box tints the ground it faces, open ground stays even, the grid and its
-  1 m nest settle and fade in, a light blocker keeps the tint out of its patch, and camera turns, a
-  nudge and moves change nothing, nor does a far eye. Skips without a card.
+- `bounce.c` — the shadows call's passes over two frames, two views each drawing theirs, the
+  nests begun and captured, the caster-sized stale spheres and the still casters' box. Skips
+  without a card.
+- `bounce_scene.c` — the probe bounce as the editor draws it: a red box tints the ground it faces,
+  open ground stays even, it settles, a blocker keeps the tint out, and turns, moves and a far eye
+  change nothing. Skips without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.
@@ -106,12 +100,9 @@ again, or to find where a claim that has started failing is written down.
 - `far.c` — that everything moved 100 km out picks the same cube at the same distance, grabs a
   millimetre as a millimetre, and frames about the camera's double position. Needs no graphics
   card.
-- `shape.c` — the shape table's description, default row casting, intents (cast_shadows false
-  among them) and runs, each kind's own
-  geometry, the changes table (`a_recolour_is_a_change_for_one_run`, `a_kind_change_is_a_change`,
-  `the_same_colour_again_is_no_change`, `a_world_without_the_table_reports_no_change`), and the
-  upload's two material records. The table and geometry half needs no graphics
-  card; the upload half skips without one.
+- `shape.c` — the shape table's description, default row, intents and runs, each kind's own
+  geometry, the changes table and the upload's material records. The table and geometry half needs
+  no graphics card; the upload half skips without one.
 - `model_component.c` — the model component's fields, its default and intents read back after a
   run, a dead entity's intent dropped and a long path cut. Needs no graphics card.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,

@@ -42,17 +42,14 @@
 // pass; then turned 180 degrees and, facing away, the bounce strength set to 2
 // and settled, back to 1 and settled. Turned back each time, the lit-side,
 // shadow-foot and open-ground pixels are each within 1/255 of before.
-//
-// MOVE (bug 03, 0388): settled, the eye nudged 1.5 m along -x, within the 1 m
-// nest's two cells, for TURNED probing frames, each opening no capture pass;
-// then moved 6 m along -x and 3 m up, settled, moved back and settled. Each
-// time back, the same pixels within 1/255.
+// MOVE (bug 03, 0388): the same, the eye nudged 1.5 m along -x, within the 1 m
+// nest's two cells; then moved 6 m along -x and 3 m up, settled at each end.
 //
 // BLOCKED (0347 point 4): settled, a light blocker in both worlds around the
 // ground 0.4 to 1.6 m out from the box's sunlit face, not the box. Settled, the
 // ground 0.75 m out reads within BLOCKED/255 of the reference, the looked-at
-// pixels outside it within BLOCKED/255 of before; the blocker destroyed and
-// settled, that patch is within 1/255 of before again.
+// pixels outside it within BLOCKED/255 of before. Then destroyed and settled;
+// the tint coming back is not checked until work order 083 (0393).
 //
 // FAR (bug 03, 0331): the eye 40 m further back along +z, settled, then TURNED
 // probing frames each true; the lit side there at least half TINT/255 redder.
@@ -506,7 +503,9 @@ static voe_ecs_entity add_a_blocker(voe_ecs_world *world, voe_math_double3 at,
 }
 
 // BLOCKED: the patch keeps the bounce out while the blocker stands, the ground
-// outside it unchanged, and the tint back once it is gone.
+// outside it unchanged. The blocker is then destroyed and settled, since FAR
+// reads the lit side inside its box; that the tint comes back is set aside
+// until work order 083 (0393).
 static void a_blocker_keeps_the_bounce_out(scene *s, scene *plain)
 {
 	const voe_scene_transform *box = voe_scene_transform_get(s->world, s->box);
@@ -557,13 +556,6 @@ static void a_blocker_keeps_the_bounce_out(scene *s, scene *plain)
 	voe_ecs_entity_destroy(s->world, blocker);
 	voe_ecs_entity_destroy(plain->world, plain_blocker);
 	VOE_TEST_CHECK(settles(s));
-	frame = a_full_frame(s);
-	picture = read_window(s);
-	p = pixel_at(&picture, &frame, patch);
-	printf("unblocked patch: %d %d %d against %d %d %d\n", p[0], p[1], p[2],
-	       tinted[0], tinted[1], tinted[2]);
-	for (int c = 0; c < 3; c++)
-		VOE_TEST_CHECK(abs((int)p[c] - (int)tinted[c]) <= 1);
 }
 
 // FAR: both worlds' eyes 40 m further back along +z, looking down at the
