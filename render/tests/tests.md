@@ -49,6 +49,8 @@ by reading the offscreen colour image back.
 - `best_practices.c` — the Best Practices gate: in a debug build the checks on, and a frame of a
   shadow pass and a camera pass with a depth copy and an element closing with no new message; a
   release build says so and passes. Headless.
+- `new_messages.c` — what the Best Practices classifier keeps for the close to name, on made-up
+  messages; needs no graphics card.
 - `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within six
   calls and one more than the step count says, a pass with no camera drawing an element before any,
   a camera pass preparing it all, and prepare on a thread while element frames draw. Headless.
