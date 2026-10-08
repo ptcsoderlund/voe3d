@@ -1,13 +1,13 @@
-# 57 — A one-metre box tints the ground, and a moved one leaves no ring
+# 60 — A one-metre box tints the ground, and a moved one leaves no ring
 folder: 3d
-after: 53, 56
-decisions: 0168, 0387, 0388, 0389
+after: 53, 59
+decisions: 0168, 0387, 0388, 0389, 0390
 
 ## Change
 The proof of bug 05, in `3d/tests/bounce_scene.c` and its header comment. Spec 051's steps 2 and 3, with
-a small box. Card 56 already brought the file's world, waits, budget and existing cases to the nests:
-the world registers shape changes, every frame remembers transforms first, and `settles` waits out the
-fade. Change none of that.
+a small box. Cards 56 and 59 already brought the file's world, eye, waits, budget and existing cases to
+the nests: the world registers shape changes, every frame remembers transforms first, `settles` waits
+out the fade, and the eye stands where the 1 m nest covers the box (0390). Change none of that.
 
 - **New cases:**
   - `a_small_box_tints_the_ground_beside_it`: in place of the 2 m box, a 1 m cube, strongly purple, on the
