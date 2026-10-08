@@ -81,7 +81,11 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 // of the fitted grid along its direction (voe_3d_bounce_grid_sun) and, when
 // render opens it, the casters its blockers hold drawn into it (0329, 0357
 // point 4, 0361 point 2); then
-// relights. False when a pass or a draw is refused.
+// relights. That is volume 0; then each nest finer than the level grid, coarse
+// to fine, the same at voe_3d_bounce_grid_nest from voe_render_bounce_placed,
+// the j-th of n volumes capturing until the call's count reaches
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES − (n − 1 − j) (0389 points 1 to 3). False
+// when a pass or a draw is refused.
 [[nodiscard]] bool voe_3d_draw_bounce(voe_ecs_world *world,
 				      voe_render_device *device,
 				      voe_3d_frame *frame);

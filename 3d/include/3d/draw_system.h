@@ -599,16 +599,22 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // with `bounces` of 1 or more and the frame's light of some strength and not
 // `unshaded`, or any of `more_lights` with `bounces` of 1 or more, some
 // strength and shaded — or a light in `frame->points` has `bounces` of 1 or
-// more. Every sun goes to the bounce (0357 point 1). It fits the probe volume to
+// more. Every sun goes to the bounce (0357 point 1). It fits the level grid to
 // the still casters' box, not about `frame->eye`, so the camera never moves it
-// (0331, 0332); begins `frame->target`'s bounce, opens capture passes while
-// render has probes to capture, drawing the casters into each, and relights.
-// That is up to VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes and that many more
-// objects per caster. On a frame that relights, for each sun that bounces and
-// casts it opens one more pass, and one more object per caster: that sun's
-// relight map (0357 point 4), fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades,
-// so the relight's sun shadow does not follow the view (0329). The first frame after a light starts bouncing builds the
-// volume and shows none. A stale sphere is a caster's own size, half its world
+// (0331, 0332). Nests of 16, 4 and 1 m are placed about the eye, each only
+// when finer than the level grid, and move only when the eye goes past two
+// cells, so the camera moves the nests and never the level grid (0389). It
+// begins `frame->target`'s level grid, then each nest coarse to fine; for each
+// it opens capture passes while render has probes to capture, drawing the
+// casters into each, and relights. That is up to
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes in all, shared coarse to fine,
+// and that many more objects per caster. On a frame that relights a volume,
+// for each sun that bounces and casts it opens one more pass for that volume,
+// and one more object per caster: that sun's relight map (0357 point 4),
+// fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades, so the
+// relight's sun shadow does not follow the view (0329). The device needs room
+// for VOE_RENDER_BOUNCE_VOLUMES × the casting suns of those. The first frame
+// after a light starts bouncing builds the volumes and shows none. A stale sphere is a caster's own size, half its world
 // box's diagonal, render adding the reach: two where a caster moved, turned or
 // scaled this step (lag 1 against lag 0), one where it is when it is new or the
 // shape system changed it. A world without a previous table marks only

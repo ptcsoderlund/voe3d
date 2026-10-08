@@ -43,3 +43,11 @@ Per frame (0388):
 
 ## Done when
 `ctest --test-dir build/debug -R '^3d/bounce$'` passes with the two new cases.
+
+## Blocked
+The change is made and `3d/bounce` passes with both new cases, but `checks.sh --folder 3d` stays at
+FINDINGS: 1. Two tests fail, and both already failed before this card. `3d/bounce_scene` belongs to
+card 55. `3d/shadow_lights` failed at shadow_lights.c:402 (`bounced > still`) and now aborts at :226,
+because its `bounce_passes` sizes one sun map per light where each begun volume now opens its own.
+To unblock: land card 55, and cut a card for shadow_lights.c's pass budget and its :402 failure, or
+accept those two failures for this card.

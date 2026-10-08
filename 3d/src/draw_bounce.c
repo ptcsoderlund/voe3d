@@ -24,6 +24,11 @@
 // THE GRID IS FITTED TO THE LEVEL, NOT THE EYE (0331, 0332): the still casters'
 // box goes to voe_3d_bounce_grid_fit, and its spacing to the begin.
 //
+// THEN THE NESTS, COARSE TO FINE (0389 points 1 to 3): each nest finer than
+// the level grid, volume i + 1 for nest i, placed from where render last put
+// it. Every volume takes the same lights, blockers and stale spheres, its own
+// sun maps, and capture passes from one budget, each finer one keeping one.
+//
 // THE STILL CASTERS' BOX IS THE LEVEL (0332 point 1): the world box of every
 // caster draw_shadows.c draws that did not move this step, each geometry's own
 // box under its transform at lag 0. Still casters only, because a flying shell
@@ -379,15 +384,72 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 	return drawn;
 }
 
+// One call's bounce: what every volume it begins shares, the lights, blockers
+// and stale spheres, and the capture passes it has opened so far.
+struct bouncing {
+	voe_ecs_world *world;
+	voe_render_device *device;
+	const voe_3d_frame *frame;
+	struct voe_render_bounce_frame shared;
+	uint32_t captured;
+};
+
+// Volume `volume` at `grid` (0389 points 1 and 3): begun, then capture passes
+// while render opens one and this call's count is below `until`, one sun map
+// per casting sun, and the relight. False when a pass or a draw is refused.
+static bool bounce_volume(struct bouncing *call, voe_3d_bounce_grid grid,
+			  uint32_t volume, uint32_t until)
+{
+	const voe_3d_frame *frame = call->frame;
+	struct voe_render_bounce_frame bounce = call->shared;
+	bool opened = true;
+
+	VOE_BASE_ASSERT(volume < VOE_RENDER_BOUNCE_VOLUMES &&
+				until <= VOE_RENDER_BOUNCE_CAPTURE_PASSES,
+			"a volume or a capture budget past render's");
+	bounce.spacing = grid.spacing;
+	bounce.cell[0] = grid.cell[0];
+	bounce.cell[1] = grid.cell[1];
+	bounce.cell[2] = grid.cell[2];
+	bounce.corner = grid.corner;
+	bounce.volume = volume;
+	voe_render_bounce_begin(call->device, frame->target, &bounce);
+	while (opened && call->captured < until) {
+		bool drawn;
+
+		if (!voe_render_bounce_capture_pass_begin(call->device, &opened))
+			return false;
+		if (!opened)
+			break;
+		call->captured++;
+		drawn = voe_3d_draw_casters(call->world, call->device, frame, 0);
+		voe_render_pass_end(call->device);
+		if (!drawn)
+			return false;
+	}
+	if (voe_3d_draw_light_casts(call->world, 0) &&
+	    !draw_sun_map(call->world, call->device, frame, grid, 0,
+			  frame->light.direction))
+		return false;
+	for (uint32_t i = 0; i < frame->more_count; i++)
+		if (voe_3d_draw_light_casts(call->world, i + 1) &&
+		    !draw_sun_map(call->world, call->device, frame, grid, i + 1,
+				  frame->more_lights[i].light.direction))
+			return false;
+	voe_render_bounce_relight(call->device);
+	VOE_BASE_ASSERT(call->captured <= until, "more capture passes than budgeted");
+	return true;
+}
+
 bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			voe_3d_frame *frame)
 {
 	voe_math_float4 spheres[STALE_ROOM];
 	voe_math_double3 min = { 1.0, 1.0, 1.0 };
 	voe_math_double3 max = { 0.0, 0.0, 0.0 };
-	voe_3d_bounce_grid grid;
-	struct voe_render_bounce_frame bounce;
-	bool opened = true;
+	voe_3d_bounce_grid level;
+	struct bouncing call = { world, device, frame, { 0 }, 0 };
+	uint32_t first = 0;
 
 	VOE_BASE_ASSERT(world != NULL && device != NULL && frame != NULL,
 			"bouncing with no world, device or frame");
@@ -395,11 +457,8 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			"the bounce goes between passes, none open");
 	// No still caster leaves min above max, which the fit takes as no box.
 	(void)voe_3d_bounce_box(world, device, frame, &min, &max);
-	grid = voe_3d_bounce_grid_fit(min, max, frame->eye);
-	bounce = (struct voe_render_bounce_frame){
-		.spacing = grid.spacing,
-		.cell = { grid.cell[0], grid.cell[1], grid.cell[2] },
-		.corner = grid.corner,
+	level = voe_3d_bounce_grid_fit(min, max, frame->eye);
+	call.shared = (struct voe_render_bounce_frame){
 		.stale = spheres,
 		.stale_count = voe_3d_bounce_stale(world, device, frame, spheres,
 						   STALE_ROOM),
@@ -409,30 +468,32 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 		.more = { frame->more_lights, frame->more_count },
 	};
 	if (voe_scene_light_count(world) >= 1) {
-		bounce.sun_bounces = voe_scene_light_rows(world)[0].bounces;
-		bounce.sun_strength = voe_scene_light_rows(world)[0].bounce_strength;
+		call.shared.sun_bounces = voe_scene_light_rows(world)[0].bounces;
+		call.shared.sun_strength =
+			voe_scene_light_rows(world)[0].bounce_strength;
 	}
-	voe_render_bounce_begin(device, frame->target, &bounce);
-	while (opened) {
-		bool drawn;
-
-		if (!voe_render_bounce_capture_pass_begin(device, &opened))
-			return false;
-		if (!opened)
-			break;
-		drawn = voe_3d_draw_casters(world, device, frame, 0);
-		voe_render_pass_end(device);
-		if (!drawn)
-			return false;
-	}
-	if (voe_3d_draw_light_casts(world, 0) &&
-	    !draw_sun_map(world, device, frame, grid, 0, frame->light.direction))
+	// The nests begun are those finer than the level grid, `first` on.
+	while (first < VOE_3D_BOUNCE_NESTS &&
+	       voe_3d_bounce_nest_spacing(first) >= level.spacing)
+		first++;
+	// Each finer volume begun keeps a capture pass: the j-th of n stops at
+	// CAPTURE_PASSES − (n − 1 − j), nest i's n − 1 − j being NESTS − 1 − i.
+	if (!bounce_volume(&call, level, 0,
+			   VOE_RENDER_BOUNCE_CAPTURE_PASSES -
+				   (VOE_3D_BOUNCE_NESTS - first)))
 		return false;
-	for (uint32_t i = 0; i < frame->more_count; i++)
-		if (voe_3d_draw_light_casts(world, i + 1) &&
-		    !draw_sun_map(world, device, frame, grid, i + 1,
-				  frame->more_lights[i].light.direction))
+	for (uint32_t i = first; i < VOE_3D_BOUNCE_NESTS; i++) {
+		int32_t cell[3];
+		bool placed = voe_render_bounce_placed(device, frame->target, i + 1,
+						       cell);
+		voe_3d_bounce_grid nest = voe_3d_bounce_grid_nest(
+			voe_3d_bounce_nest_spacing(i), placed ? cell : NULL,
+			frame->eye);
+
+		if (!bounce_volume(&call, nest, i + 1,
+				   VOE_RENDER_BOUNCE_CAPTURE_PASSES -
+					   (VOE_3D_BOUNCE_NESTS - 1 - i)))
 			return false;
-	voe_render_bounce_relight(device);
+	}
 	return true;
 }
