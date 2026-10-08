@@ -60,8 +60,9 @@ again, or to find where a claim that has started failing is written down.
   not shadowed by a roof outside it yet casts the cube inside, and that with no box the roof shadows
   the floor. Skips without a graphics card.
 - `bounce.c` — the shadows call's passes over two frames, captures and sun map for a sun or lamp
-  that bounces, two views in one frame each drawing their sun map, the stale spheres a moved wall
-  marks, and the still casters' box from two eyes and a turned one. Skips without a card.
+  that bounces, two views in one frame each drawing their sun map, the caster-sized stale spheres a
+  moved, scaled, new or recoloured caster marks, none without a previous table but a recolour's,
+  and the still casters' box from two eyes and a turned one. Skips without a card.
 - `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints the
   ground it faces, open ground stays even, the grid settles, a light blocker keeps the tint out of
   its patch, and camera turns and moves change nothing, nor does a far eye. Skips without a card.

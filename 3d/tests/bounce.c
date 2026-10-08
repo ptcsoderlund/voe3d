@@ -30,12 +30,15 @@
 // sun map (0330), and the capture passes the frame's budget of four gives,
 // all the first view's: true on exactly those, false on one fewer.
 //
-// THE STALE SPHERES, at VOE_RENDER_BOUNCE_SPACING. With no previous table
-// nothing moved, so none. With one, the wall remembered and then moved a metre
-// along X marks two spheres of VOE_3D_BOUNCE_REACH, at (2, 0, -5) and (3, 0, -5)
-// about the eye; a room of one gives one; at a spacing of 8 m both are of 24 m,
-// 3 cells; remembered again, unmoved, it marks none. The ground never moves and
-// marks nothing throughout.
+// THE STALE SPHERES, each the caster's own size (0389 point 7); the wall's
+// radius is half its 0.2 × 2 × 4 world box's diagonal. Remembered and moved a
+// metre along X, it marks two, at (2, 0, -5) and (3, 0, -5) about the eye; a
+// room of one gives one; remembered again none, nor half a millimetre on.
+// Stretched to 4 m tall it marks two at (2, 0, -5), the old radius and the new.
+// A unit cube added after the remember marks one where it is, of half √3. With
+// the shape changes table and no previous table, the wall recoloured marks one
+// where it is, the next run none. Without a previous table a moved wall and a
+// new cube mark none. The ground never changes and marks nothing throughout.
 //
 // THE BOX OF THE STILL CASTERS (0332 point 1). A 40 × 0.1 × 40 ground at
 // y −0.05 and a 2 m cube at (5, 1, 0), the built-in cube a unit one, box
@@ -311,17 +314,114 @@ static void it_bounces_in_two_views(bool captures)
 		VOE_TEST_CHECK(!two_frames(wanted - 1, 1, true, 0, true).second);
 }
 
-// Whether `sphere` is centred at `x`, 0, -5 with the reach for its radius.
-static bool centred(voe_math_float4 sphere, float x)
+// Half the diagonal of a box of sides `x`, `y` and `z`.
+static float half_diagonal(float x, float y, float z)
+{
+	return 0.5f * sqrtf(x * x + y * y + z * z);
+}
+
+// The wall's world bounding radius: half its 0.2 × 2 × 4 box's diagonal.
+#define WALL_RADIUS half_diagonal(0.2f, 2.0f, 4.0f)
+
+// Whether `sphere` is centred at `x`, 0, -5 with radius `w`, within 1e-4.
+static bool centred(voe_math_float4 sphere, float x, float w)
 {
 	printf("sphere %g %g %g r %g\n", sphere.x, sphere.y, sphere.z, sphere.w);
 	return fabsf(sphere.x - x) < 1e-4f && fabsf(sphere.y) < 1e-4f &&
-	       fabsf(sphere.z + 5.0f) < 1e-4f && sphere.w == VOE_3D_BOUNCE_REACH;
+	       fabsf(sphere.z + 5.0f) < 1e-4f && fabsf(sphere.w - w) < 1e-4f;
 }
 
-// No previous table marks nothing; with one, a metre's move marks two, a room
-// of one one, and an unmoved wall none.
-static void moved_casters_mark_spheres(const voe_3d_shapes *shapes)
+// `entity`'s transform made `placed` this step.
+static void place(voe_ecs_world *world, voe_ecs_entity entity,
+		  voe_scene_transform placed)
+{
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		world, (voe_scene_transform_intent){ entity, placed }));
+	voe_scene_transform_system_run(world);
+}
+
+// A metre's move marks two of the wall's radius, a room of one one; remembered
+// again none, and half a millimetre none.
+static void moved_casters_mark_spheres(const voe_render_device *device,
+				       const voe_3d_shapes *shapes)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_platform_size size = { SIDE, SIDE };
+	voe_math_float4 spheres[8] = { 0 };
+	voe_ecs_entity wall;
+	voe_ecs_world *world = a_world(arena, shapes, true, 1, true, 0, &wall);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	voe_scene_transform moved;
+
+	voe_scene_transform_remember(world);
+	moved = *voe_scene_transform_get(world, wall);
+	moved.position.x += 1.0;
+	place(world, wall, moved);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 8), 2);
+	VOE_TEST_CHECK(centred(spheres[0], 2.0f, WALL_RADIUS));
+	VOE_TEST_CHECK(centred(spheres[1], 3.0f, WALL_RADIUS));
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 1), 1);
+
+	voe_scene_transform_remember(world);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 8), 0);
+	moved.position.x += 0.0005;
+	place(world, wall, moved);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 8), 0);
+	voe_base_arena_destroy(arena);
+}
+
+// The wall stretched to 4 m tall marks two where it stands, its old radius
+// and its new one.
+static void a_scaled_caster_marks(const voe_render_device *device,
+				  const voe_3d_shapes *shapes)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_platform_size size = { SIDE, SIDE };
+	voe_math_float4 spheres[8] = { 0 };
+	voe_ecs_entity wall;
+	voe_ecs_world *world = a_world(arena, shapes, true, 1, true, 0, &wall);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	voe_scene_transform scaled;
+
+	voe_scene_transform_remember(world);
+	scaled = *voe_scene_transform_get(world, wall);
+	scaled.scale.y = 4.0f;
+	place(world, wall, scaled);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 8), 2);
+	VOE_TEST_CHECK(centred(spheres[0], 2.0f, WALL_RADIUS));
+	VOE_TEST_CHECK(centred(spheres[1], 2.0f, half_diagonal(0.2f, 4.0f, 4.0f)));
+	voe_base_arena_destroy(arena);
+}
+
+// A unit cube added after the remember marks one where it is, of its own
+// radius; remembered, none.
+static void a_new_caster_marks_where_it_is(const voe_render_device *device,
+					   const voe_3d_shapes *shapes)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_platform_size size = { SIDE, SIDE };
+	voe_math_float4 spheres[8] = { 0 };
+	voe_ecs_entity wall;
+	voe_ecs_world *world = a_world(arena, shapes, true, 1, true, 0, &wall);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+
+	voe_scene_transform_remember(world);
+	(void)add_a_shape(world, (voe_math_double3){ -3.0, 0.0, -5.0 },
+			  (voe_math_float3){ 1.0f, 1.0f, 1.0f },
+			  (voe_math_float3){ 1.0f, 1.0f, 1.0f });
+	voe_3d_shape_system_run(world, shapes);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 8), 1);
+	VOE_TEST_CHECK(centred(spheres[0], -3.0f, half_diagonal(1.0f, 1.0f, 1.0f)));
+
+	voe_scene_transform_remember(world);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 8), 0);
+	voe_base_arena_destroy(arena);
+}
+
+// The wall turned blue in a world with the changes table and no previous one
+// marks one where it is, of its radius; the next run, none.
+static void a_recoloured_shape_marks_where_it_is(const voe_render_device *device,
+						 const voe_3d_shapes *shapes)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	voe_platform_size size = { SIDE, SIDE };
@@ -329,35 +429,43 @@ static void moved_casters_mark_spheres(const voe_3d_shapes *shapes)
 	voe_ecs_entity wall;
 	voe_ecs_world *world = a_world(arena, shapes, false, 1, true, 0, &wall);
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
-	voe_scene_transform moved;
 
-	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, VOE_RENDER_BOUNCE_SPACING,
-					       spheres, 8),
-			   0);
+	voe_3d_shape_changes_register(world, 8);
+	VOE_TEST_CHECK(voe_3d_shape_submit(
+		world, (voe_3d_shape_intent){
+			       .entity = wall,
+			       .shape = { .kind = VOE_3D_SHAPE_CUBE,
+					  .colour = { 0.0f, 0.0f, 1.0f },
+					  .cast_shadows = true } }));
+	voe_3d_shape_system_run(world, shapes);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 8), 1);
+	VOE_TEST_CHECK(centred(spheres[0], 2.0f, WALL_RADIUS));
 
-	world = a_world(arena, shapes, true, 1, true, 0, &wall);
-	frame = voe_3d_draw_system_frame(world, size, 0.0f);
-	voe_scene_transform_remember(world);
-	moved = *voe_scene_transform_get(world, wall);
+	voe_3d_shape_system_run(world, shapes);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 8), 0);
+	voe_base_arena_destroy(arena);
+}
+
+// With no previous table, a metre's move and a new cube mark nothing.
+static void a_world_without_a_previous_table_marks_no_move(
+	const voe_render_device *device, const voe_3d_shapes *shapes)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_platform_size size = { SIDE, SIDE };
+	voe_math_float4 spheres[8] = { 0 };
+	voe_ecs_entity wall;
+	voe_ecs_world *world = a_world(arena, shapes, false, 1, true, 0, &wall);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	voe_scene_transform moved = *voe_scene_transform_get(world, wall);
+
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 8), 0);
 	moved.position.x += 1.0;
-	VOE_TEST_CHECK(voe_scene_transform_submit(
-		world, (voe_scene_transform_intent){ wall, moved }));
-	voe_scene_transform_system_run(world);
-	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, VOE_RENDER_BOUNCE_SPACING,
-					       spheres, 8),
-			   2);
-	VOE_TEST_CHECK(centred(spheres[0], 2.0f));
-	VOE_TEST_CHECK(centred(spheres[1], 3.0f));
-	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, VOE_RENDER_BOUNCE_SPACING,
-					       spheres, 1),
-			   1);
-	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, 8.0f, spheres, 8), 2);
-	VOE_TEST_CHECK(spheres[0].w == 24.0f && spheres[1].w == 24.0f);
-
-	voe_scene_transform_remember(world);
-	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, &frame, VOE_RENDER_BOUNCE_SPACING,
-					       spheres, 8),
-			   0);
+	place(world, wall, moved);
+	(void)add_a_shape(world, (voe_math_double3){ -3.0, 0.0, -5.0 },
+			  (voe_math_float3){ 1.0f, 1.0f, 1.0f },
+			  (voe_math_float3){ 1.0f, 1.0f, 1.0f });
+	voe_3d_shape_system_run(world, shapes);
+	VOE_TEST_CHECK_INT(voe_3d_bounce_stale(world, device, &frame, spheres, 8), 0);
 	voe_base_arena_destroy(arena);
 }
 
@@ -518,7 +626,11 @@ int main(void)
 		return voe_test_result();
 	}
 	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
-	moved_casters_mark_spheres(&shapes);
+	moved_casters_mark_spheres(device, &shapes);
+	a_scaled_caster_marks(device, &shapes);
+	a_new_caster_marks_where_it_is(device, &shapes);
+	a_recoloured_shape_marks_where_it_is(device, &shapes);
+	a_world_without_a_previous_table_marks_no_move(device, &shapes);
 	still_casters_box_the_level(device, &shapes);
 	captures = voe_render_point_shadows_ready(device);
 	voe_render_device_destroy(device);

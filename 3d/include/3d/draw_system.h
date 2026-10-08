@@ -411,11 +411,6 @@ typedef struct {
 	voe_render_target target;
 } voe_3d_frame;
 
-// The least metres about a moved caster whose probes in the volume are captured
-// again (0326 point 4); on a coarser grid the radius is 3 of its cells (0332
-// point 4).
-#define VOE_3D_BOUNCE_REACH 6.0f
-
 // The share of D, the 17th casting lamp's distance, where a point light's
 // shadow starts fading (0325 point 5).
 #define VOE_3D_POINT_SHADOW_FADE 0.75f
@@ -613,8 +608,11 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // casts it opens one more pass, and one more object per caster: that sun's
 // relight map (0357 point 4), fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades,
 // so the relight's sun shadow does not follow the view (0329). The first frame after a light starts bouncing builds the
-// volume and shows none. Stale spheres are marked where a caster moved this
-// step (lag 1 against lag 0), so a world without a previous table marks none.
+// volume and shows none. A stale sphere is a caster's own size, half its world
+// box's diagonal, render adding the reach: two where a caster moved, turned or
+// scaled this step (lag 1 against lag 0), one where it is when it is new or the
+// shape system changed it. A world without a previous table marks only
+// recolours, and a removed caster marks nothing yet (0389).
 // When nothing bounces nothing is begun, built or drawn (0316); false as before
 // when any call fails. The bounce is handed `frame->blockers` (0347 point 4), so
 // voe_3d_draw_system_light_blockers comes first, and a blocker that changes
