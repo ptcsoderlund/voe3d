@@ -408,11 +408,15 @@ struct voe_render_device {
 	// meaningless while `recording` is false.
 	VkPipeline bound;
 
+	// Whether the open pass has bound a pool pair yet: false as a pass opens,
+	// set by its first mesh draw (draw.c), so a pass of elements alone binds
+	// no vertex buffer (ADR-0385). Meaningless while `recording` is false.
+	bool pools_bound;
 	// Which geometry pools the open recording last bound: false for the
 	// static pair, true for this slot's transient pair. The same shape as
 	// `bound` and for the same reason — a run of draws out of one pool costs
 	// one bind, and a caller that interleaves the two is still drawn right.
-	// Meaningless while `recording` is false.
+	// Read only once `pools_bound` is true.
 	bool bound_transient;
 
 	// The size every slot's target is, and the resolution the engine draws

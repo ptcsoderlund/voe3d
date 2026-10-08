@@ -248,16 +248,17 @@ void voe_render_open_rendering(VkCommandBuffer commands,
 
 // What every pass does once its rendering block is open: `block` into this
 // pass's own block of the slot's uniform buffer, `pipeline` bound, the slot's set
-// bound at that block's offset, the static pools bound, and the pass counted.
+// bound at that block's offset, no pools bound yet, and the pass counted.
 //
 // THE BLOCK IS SAFE TO WRITE because the fence at the top of the frame says the
 // GPU has finished reading what was in here two frames ago. The offset is the
 // whole of how the shader comes to read this pass's camera and not another's.
 //
-// THE STATIC POOLS ARE BOUND HERE because a pass's first draws come out of them.
-// Every static mesh is a range inside them, which is what makes one bind serve
-// all of those; a transient range makes draw_with (draw.c) bind the other pair,
-// and `bound_transient` is what keeps that to one bind per run.
+// NO POOL IS BOUND AS A PASS OPENS (ADR-0385). The first mesh draw binds the pair
+// it needs (draw_with, draw.c), and `bound_transient` keeps that to one bind per
+// run. Binding the static pair here left a pass of elements alone, an interface,
+// with a vertex buffer bound that nothing read, which the Best Practices layer
+// reports at the end of the command buffer (bug 04).
 //
 // THE PASS IS TIMED AND LABELLED HERE (pass_timing.c), its first stamp written
 // before anything it binds, and closed by voe_render_pass_end.
@@ -281,7 +282,7 @@ void voe_render_pass_start(voe_render_device *device,
 					       VK_PIPELINE_BIND_POINT_GRAPHICS,
 					       device->layout, 0, 1,
 					       &frame->descriptor, 1, &offset);
-	voe_render_bind_pools(device, frame, false);
+	device->pools_bound = false;
 
 	device->pass_open = true;
 	device->pass_count++;

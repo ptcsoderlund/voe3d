@@ -26,8 +26,8 @@ void voe_render_open_rendering(VkCommandBuffer commands,
 			       VkExtent2D extent, bool clear, bool own);
 
 // pass.c. What every pass does once its rendering block is open: `block` into
-// the pass's block of the slot's uniform buffer, `pipeline` and the set and the
-// static pools bound, the pass counted and open, of no special kind, and timed
+// the pass's block of the slot's uniform buffer, `pipeline` and the set bound and
+// no pools, the pass counted and open, of no special kind, and timed
 // and labelled as `name` (ADR-0367 point 1) until voe_render_pass_end.
 void voe_render_pass_start(voe_render_device *device,
 			   struct voe_render_frame *frame,
@@ -43,11 +43,6 @@ void voe_render_pass_copy_lights(const struct voe_render_frame *frame,
 // point_shadow.c. The point shadow maps back to where the shader reads them,
 // after the point-shadow pass's rendering ends; pass.c's _pass_end calls it.
 void voe_render_point_shadow_to_read(const struct voe_render_frame *frame);
-
-// draw.c. Binds the static pools or this slot's transient pair, and records
-// which in device->bound_transient.
-void voe_render_bind_pools(voe_render_device *device,
-			   const struct voe_render_frame *frame, bool transient);
 
 // present.c. Moves the slot's colour image to where a copy can read it.
 void voe_render_ready_for_copy(const struct voe_render_frame *frame);

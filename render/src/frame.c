@@ -15,10 +15,11 @@
 // cleared the window, device->object_count says how many objects have gone into
 // it, device->element_count says how many elements have been submitted to it,
 // device->draw_commands says how many draw commands it holds, device->bound says
-// which pipeline it last bound, device->bound_transient says which of the two
-// geometry pool pairs it last bound, and device->image_index says which swapchain
-// image _end has to blit into. _begin resets them; pass.c, draw.c and element.c
-// write them in between. There is exactly one frame open at a time, so a token
+// which pipeline it last bound, device->pools_bound whether the open pass has
+// bound a geometry pool pair yet and device->bound_transient which of the two it
+// last bound (both set by pass.c and draw.c), and device->image_index says which
+// swapchain image _end has to blit into. _begin resets them; pass.c, draw.c and
+// element.c write them in between. There is exactly one frame open at a time, so a token
 // handed to the caller would be a second place for that to live and a second
 // thing to get wrong.
 //
