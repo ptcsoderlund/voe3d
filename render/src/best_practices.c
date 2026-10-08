@@ -6,6 +6,9 @@
 // A NEW MESSAGE NOW COUNTS. Every validation error, and every warning whose id
 // name is not on the allowlist, adds one to the device's new_messages. The list
 // only shrinks: a card may remove a row, and adding one is a decision (0358).
+// A row may name an id only some layer releases raise, and a row the checks'
+// own layer cannot raise is kept, not pruned; no layer release is required of
+// anyone (0385).
 //
 // ANOTHER VENDOR'S MESSAGE IS DROPPED. The layer runs all four vendor sets, so
 // a message whose id name carries a vendor tag that is not the chosen card's
@@ -59,6 +62,10 @@ static const struct allowance allowlist[] = {
 	  "a pipeline is rebound once per pass, as every pass opens its own rendering; draws are not sorted across passes" },
 	{ "BestPractices-PushConstants",
 	  "the range is shared by the element and mesh pipelines and a mesh draw pushes only its own part" },
+	{ "BestPractices-pipeline-stage-flags2-compute",
+	  "barriers name ALL_COMMANDS; the barrier review waits for the frame breakdown's measurement (0358)" },
+	{ "BestPractices-vkAllocateMemory-small-allocation",
+	  "every buffer and image has its own allocation; no sub-allocator yet, the same cause as the small-dedicated-allocation rows" },
 	{ "BestPractices-vkBindBufferMemory-small-dedicated-allocation",
 	  "every buffer has its own allocation; sub-allocation is the allocator the review asked for, not this feature" },
 	{ "BestPractices-vkBindImageMemory-small-dedicated-allocation",
