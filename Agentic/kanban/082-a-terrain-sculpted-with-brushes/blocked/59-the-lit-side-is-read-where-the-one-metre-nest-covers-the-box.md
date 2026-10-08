@@ -27,3 +27,13 @@ the 1 m nest was placed (`voe_render_bounce_placed`).
 
 ## Done when
 `ctest --test-dir build/debug -R '^3d/(shadow_lights|bounce_scene|bounce)$'` passes.
+
+## Blocked
+With the eye at (0, 5, 8) (open ground moved to x -6, z -12 to -4 to stay in the picture; FAR's pitch now
+taken from the eye) the lit side passes: near 110 94 94 against 94 (16/255), far 97 95 95 (2/255). BLOCKED
+then fails at its last check (bounce_scene.c, `unblocked patch`): once the blocker is destroyed and settled
+(1 pair), the patch under it reads 98 98 98 against 106 98 98 tinted before, and still does 200 frames
+later, so the 1 m nest that now covers the patch never relights the tint back after a blocker goes; with
+the old eye (8 up, 14 back) and card 58 in the tree, every case passes, including the lit side (100 94 94,
+far 96 94 94) and the unblocked patch (117 vs 117). Unblock by a render card for the nest's relight after a
+blocker is removed, or by a decision to keep the old eye now that 0390 makes it pass.

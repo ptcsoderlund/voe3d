@@ -7,8 +7,11 @@
 // grid stays at 2 m as in the tank game's); a box 2 m a side, strongly red, at
 // (0.5, 1, 0.5), off the probe lattice's odd metres; a sun of 1 shining down
 // at 45 degrees along -x onto the box's +x face, bounces 1, strength 1, no
-// fill, casting, as are both shapes (0324). The eye stands 8 m up and 14 m
-// back (+z), looking down at the origin. The same world at bounces 0 is the
+// fill, casting, as are both shapes (0324). The eye stands 5 m up and 8 m
+// back (+z), looking down at the origin: a small thing's colour is a
+// near-camera detail (0387, 0390), so the 1 m nest, its lowest cell the eye's
+// less (12, 9, 12), holds the lit side clear of its 2-cell edge band (eye cell
+// z at most 10, y at most 6). The same world at bounces 0 is the
 // reference: its shadows call begins no bounce, so its window reads none. Each
 // world keeps a previous table and the shape changes table, and every frame
 // first remembers transforms, then runs the transform system, as the editor's
@@ -28,7 +31,7 @@
 // less green above the reference's by at least TINT/255, 3 m out by less than
 // half that. THE SHADOW (step 3, 0312, 0327): the ground at the foot of the
 // shadowed -x face within SHADOW/255 of the reference in every channel. EVEN
-// GROUND (step 2, 0326): five points along x = -6, 2 m apart in z, within
+// GROUND (step 2, 0326): five points along x = -6, z -12 to -4, 2 m apart, within
 // EVEN/255 of each other; again with the sun 5 degrees higher, each greener.
 //
 // SETTLING (step 8): unchanged, the next probing frame opens no capture pass;
@@ -171,7 +174,7 @@ static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces)
 		.structure_requests = 16,
 		.structure_bytes = 1024,
 	};
-	float pitch = atan2f(8.0f, 14.0f);
+	float pitch = atan2f(5.0f, 8.0f);
 
 	s->world = voe_ecs_world_new(s->keep, limits);
 	voe_scene_transform_register(s->world, 8);
@@ -191,7 +194,7 @@ static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces)
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		s->world, s->camera,
 		(voe_scene_transform){
-			.position = { 0.0, 8.0, 14.0 },
+			.position = { 0.0, 5.0, 8.0 },
 			.rotation = { -sinf(pitch * 0.5f), 0.0f, 0.0f,
 				      cosf(pitch * 0.5f) },
 			.scale = { 1.0f, 1.0f, 1.0f } }));
@@ -386,7 +389,7 @@ static void open_ground_is_even(const voe_render_picture *picture,
 	for (int i = 0; i < OPEN; i++) {
 		const uint8_t *p = pixel_at(
 			picture, frame,
-			(voe_math_float3){ -6.0f, 0.0f, -6.0f + 2.0f * (float)i });
+			(voe_math_float3){ -6.0f, 0.0f, -12.0f + 2.0f * (float)i });
 
 		printf("open %d: %d %d %d\n", i, p[0], p[1], p[2]);
 		for (int c = 0; c < 3; c++)
@@ -415,7 +418,7 @@ static void the_pixels_looked_at(const voe_render_picture *picture,
 
 	VOE_TEST_CHECK(picture != NULL && frame != NULL);
 	for (int i = 0; i < OPEN; i++)
-		at[2 + i] = (voe_math_float3){ -6.0f, 0.0f, -6.0f + 2.0f * (float)i };
+		at[2 + i] = (voe_math_float3){ -6.0f, 0.0f, -12.0f + 2.0f * (float)i };
 	for (int i = 0; i < LOOKED; i++) {
 		const uint8_t *p = pixel_at(picture, frame, at[i]);
 
@@ -569,8 +572,8 @@ static void a_blocker_keeps_the_bounce_out(scene *s, scene *plain)
 // reference's by at least half of TINT/255.
 static void far_keeps_the_bounce(scene *s, scene *plain)
 {
-	float pitch = atan2f(8.0f, 54.0f);
 	voe_scene_transform far = *voe_scene_transform_get(s->world, s->camera);
+	float pitch = atan2f((float)far.position.y, (float)far.position.z + 40.0f);
 	const voe_scene_transform *box = voe_scene_transform_get(s->world, s->box);
 	voe_math_float3 lit_side = { (float)box->position.x + 1.25f, 0.0f,
 				     (float)box->position.z };
