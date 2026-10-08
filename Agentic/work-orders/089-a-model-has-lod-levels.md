@@ -1,4 +1,4 @@
-# 088 — A model has LOD levels
+# 089 — A model has LOD levels
 
 ## What
 A model is drawn with less detail the smaller it is on screen. Its simpler levels are made

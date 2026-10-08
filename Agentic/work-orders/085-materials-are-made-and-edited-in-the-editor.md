@@ -1,4 +1,4 @@
-# 084 — Materials are made and edited in the editor
+# 085 — Materials are made and edited in the editor
 
 ## What
 A material is an asset of its own in the Assets panel (0377). Create → Material makes one. I pick its
@@ -8,7 +8,7 @@ material changes at once when I edit it. A material can be given to a placed sha
 Edits are undoable and are saved in the project.
 
 ## Why
-0374 has me edit materials at least far enough to make the ground's layers. Those layers are 085's input.
+0374 has me edit materials at least far enough to make the ground's layers. Those layers are 086's input.
 
 ## How to test
 1. Import a dirt texture set (colour, normal, roughness) into Assets. Create → Material, named Dirt, and

@@ -1,4 +1,4 @@
-# 091 — Textures are compressed on the GPU
+# 092 — Textures are compressed on the GPU
 
 ## What
 Every material texture sits in video memory in a format the graphics card decodes itself, at a quarter of
