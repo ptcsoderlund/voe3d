@@ -1,10 +1,12 @@
 // The probe volume fitted to the level, on the CPU (ADR-0331, 0332 points 2
 // and 4): the spacing and the whole cells of the world the target's probe grid
 // covers, fitted to the still casters' box, and where its lowest corner sits
-// about the eye; and the light view of the relight's sun map that covers it.
-// Arithmetic only; no device, no allocation.
+// about the eye; the finer nests placed about the eye; and the light view of
+// the relight's sun map that covers either. Arithmetic only; no device, no
+// allocation.
 //
 //     voe_3d_bounce_grid grid = voe_3d_bounce_grid_fit(min, max, eye);
+//     nest = voe_3d_bounce_grid_nest(spacing, placed ? cell : NULL, eye);
 //     bounce.spacing = grid.spacing, bounce.cell = grid.cell ...
 //     voe_render_bounce_begin(device, target, &bounce);
 //     light = voe_3d_bounce_grid_sun(grid, eye, sun.direction);
@@ -38,6 +40,17 @@
 // cascade's. The snap is in double about the world origin, so it does not
 // depend on where the camera stands or looks.
 //
+// NESTS ABOUT THE EYE (0387, 0389 point 2): beside the level grid, nest i is
+// render volume i + 1, at 16, 4 and 1 m coarse to fine, so a small thing near
+// the camera colours the ground before it. Its lowest cell is the eye's cell
+// less (12, 9, 12): nine cells below the eye and two above, because what is
+// looked at is mostly below. It holds still while the eye's cell stays within
+// 2 cells of home on every axis, then moves only as far as that needs, so a
+// wandering camera recaptures nothing and a flying one a slice at a time; a
+// move of a whole grid keeps nothing, and the nest is centred again. Its cells
+// are whole cells about the world origin, in double, like the level grid's: the
+// eye picks which cells are fine, never where a cell sits.
+//
 // Constraints: past 2^16 × the finest spacing a box too big is held as far as
 // that grid reaches, its outer parts unbounced.
 #pragma once
@@ -60,9 +73,23 @@ voe_3d_bounce_grid voe_3d_bounce_grid_fit(voe_math_double3 min,
 					  voe_math_double3 max,
 					  voe_math_double3 eye);
 
+// The nests' count, volumes 1 to 3 of a target.
+#define VOE_3D_BOUNCE_NESTS 3
+
+// Nest `nest`'s spacing: 16, 4 and 1 m. A nest at or past VOE_3D_BOUNCE_NESTS
+// asserts.
+float voe_3d_bounce_nest_spacing(uint32_t nest);
+
+// The nest at `spacing` about `eye`: home with `placed` NULL, else `placed`
+// moved only as far as brings the eye's cell within 2 cells of home, and home
+// when that move is a whole grid on any axis. A spacing not finite or not above
+// nought, or an eye not a number, asserts.
+voe_3d_bounce_grid voe_3d_bounce_grid_nest(float spacing, const int32_t *placed,
+					   voe_math_double3 eye);
+
 // The light view, eye-relative, of the relight's sun map for `grid` fitted
-// about `eye`, the sun shining along unit `direction`. A direction not of unit
-// length asserts.
+// about `eye`, the level grid or a nest alike, the sun shining along unit
+// `direction`. A direction not of unit length asserts.
 voe_render_view voe_3d_bounce_grid_sun(voe_3d_bounce_grid grid,
 				       voe_math_double3 eye,
 				       voe_math_float3 direction);

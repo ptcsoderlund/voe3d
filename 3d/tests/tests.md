@@ -12,7 +12,10 @@ again, or to find where a claim that has started failing is written down.
   near the origin and 100 km out. Needs no graphics card.
 - `bounce_grid.c` — that the probe volume fits the level's box, not the eye: the same cell and
   spacing from three eyes, a centre across a cell edge one cell on, no box about the origin, and a
-  sun view that holds the volume and grows with the spacing. Needs no graphics card.
+  sun view that holds the volume and grows with the spacing; and the nests:
+  `a_nest_starts_with_the_eye_nine_cells_up`, `a_nest_holds_still_while_the_eye_stays_within_two_cells`,
+  `a_nest_moves_one_cell_when_the_eye_crosses_three`, `a_nest_jumps_home_when_the_eye_leaves_it`,
+  `two_eyes_in_one_cell_give_one_world_place`. Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled
