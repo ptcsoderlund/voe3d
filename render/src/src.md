@@ -23,10 +23,12 @@ which file to open — what each one owns, and where the seams between them run.
   one-frame record and a pass's blocker region with its kinds; included only through
   `device_internal.h`.
 - `device.c` — opening, and the one place its order is: the surface, the logical device, the
-  format, timing, present modes, frame objects, the layout and element pipeline but no mesh
+  format, frame objects, the layout and element pipeline but no mesh
   pipeline, the guard's take and give, and close-down, plus the headless device the tests run on.
 - `startup.h` — the startup steps that live beside device.c, why open_device calls them in the
   order it does, and the card facts and ranking a test can call with no card.
+- `pacing.c` — the card's clock and the present modes learnt at startup, the present mode set and
+  read, and the frame's GPU time.
 - `instance.c` — the Vulkan instance, its extensions with debug-utils whenever offered, and in a
   debug build the validation layer with Best Practices and vendor checks, its messenger, or the
   checks recorded missing.
