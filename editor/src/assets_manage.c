@@ -5,6 +5,7 @@
 // built in scratch, which is rewound before each call returns.
 #include "assets_manage.h"
 
+#include "assets_panel.h"
 #include "assets_walk.h"
 
 #include <assets/landscape.h>
@@ -164,7 +165,7 @@ bool voe_editor_assets_folder_make(voe_editor_session *session, voe_editor_scene
 	mark = voe_base_arena_mark(scratch);
 	if (!name_free(session, scratch, folder, name))
 		goto rewind;
-	path = folder[0] == '\0' ? name : voe_platform_path_join(scratch, folder, name);
+	path = voe_editor_assets_join(scratch, folder, name);
 	voe_base_report_error_clear();
 	if (!voe_platform_folder_create(on_disk(session, scratch, path), NULL)) {
 		voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
@@ -217,7 +218,7 @@ bool voe_editor_assets_landscape_make(voe_editor_session *session, voe_base_aren
 	path = landscape_named(scratch, name);
 	if (!name_free(session, scratch, folder, path))
 		goto rewind;
-	path = folder[0] == '\0' ? path : voe_platform_path_join(scratch, folder, path);
+	path = voe_editor_assets_join(scratch, folder, path);
 	flat = voe_assets_landscape_flat(VOE_ASSETS_LANDSCAPE_SIZE_DEFAULT, VOE_ASSETS_LANDSCAPE_CELLS,
 					 scratch);
 	text = voe_assets_landscape_write(&flat, scratch);
@@ -424,7 +425,7 @@ bool voe_editor_assets_duplicate(voe_editor_session *session, voe_editor_scene *
 		voe_editor_notice_set(&session->notice, "%s is empty", project_relative(scratch, path));
 		goto rewind;
 	}
-	copy = source.folder[0] == '\0' ? copy : voe_platform_path_join(scratch, source.folder, copy);
+	copy = voe_editor_assets_join(scratch, source.folder, copy);
 	voe_base_report_error_clear();
 	if (!voe_platform_file_write(on_disk(session, scratch, copy), bytes, count, NULL)) {
 		voe_editor_notice_from_report(&session->notice, project_relative(scratch, copy));
@@ -454,7 +455,7 @@ bool voe_editor_assets_trash(voe_editor_session *session, voe_editor_scene *scen
 		voe_editor_assets_list_due(&scene->assets);
 	else if (error == VOE_BASE_ERROR_UNSUPPORTED)
 		voe_editor_notice_set(&session->notice,
-				      "%s is on another drive than the trash; nothing deleted",
+				      "%s is on a drive the trash does not take from; nothing deleted",
 				      project_relative(scratch, path));
 	else
 		voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));

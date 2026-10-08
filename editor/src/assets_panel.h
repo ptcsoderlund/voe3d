@@ -240,6 +240,12 @@ bool voe_editor_assets_menu_at(voe_editor_assets *assets, voe_math_float2 at);
 bool voe_editor_assets_selected_path(const voe_editor_assets *assets, char *out,
 				     size_t size);
 
+// `folder/name` with one `/` into `arena`, `name` alone when `folder` is "".
+// A relative path is always `/` between, on both platforms, because scene text
+// spells it so; voe_platform_path_join is for a path handed to the OS.
+const char *voe_editor_assets_join(voe_base_arena *arena, const char *folder,
+				   const char *name);
+
 // The selected row drawn as a field holding its name from the next draw;
 // nothing without a selected row.
 void voe_editor_assets_rename_begin(voe_editor_assets *assets);

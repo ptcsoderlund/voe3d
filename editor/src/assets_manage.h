@@ -41,7 +41,7 @@
 // CONSTRAINTS: a move's name is `to`'s last segment, so a Rename's caller
 // joins the shown folder and the typed name only after refusing a typed `/`.
 // Duplicate reads the file whole and refuses an empty one; names stop at 99.
-// Trash is the home trash only (platform/trash.h).
+// Trash is the desktop's, the home trash or the Recycle Bin (platform/trash.h).
 #pragma once
 
 #include "models.h"
@@ -81,7 +81,8 @@
 					       voe_editor_undo *undo,
 					       voe_base_arena *scratch, const char *path);
 
-// Sends the file or folder at `path` to the desktop's home trash.
+// Sends the file or folder at `path` to the desktop's trash, the home trash or
+// the Recycle Bin (platform/trash.h).
 [[nodiscard]] bool voe_editor_assets_trash(voe_editor_session *session,
 					   voe_editor_scene *scene, voe_editor_undo *undo,
 					   voe_base_arena *scratch, const char *path);

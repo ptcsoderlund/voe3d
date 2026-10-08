@@ -212,9 +212,9 @@ static void relist(voe_editor_assets *assets, const char *project,
 	if (!same || name != NULL || up)
 		assets->naming = VOE_EDITOR_ASSETS_NAMING_NONE;
 
+	// The join's copy is scratch's own, so it is writable.
 	if (name != NULL)
-		next = next[0] == '\0' ? copy_string(scratch, name) :
-			(char *)voe_platform_path_join(scratch, next, name);
+		next = (char *)voe_editor_assets_join(scratch, next, name);
 	else if (up)
 		cut_to_parent(next);
 
@@ -226,9 +226,8 @@ static void relist(voe_editor_assets *assets, const char *project,
 	assets->held = NULL;
 	assets->project =kept ? copy_string(assets->arena, kept) : NULL;
 	assets->shown = copy_string(assets->arena, next);
-	assets->path = next[0] == '\0' ?
-		ASSETS_FOLDER "/" :
-		voe_platform_path_join(assets->arena, ASSETS_FOLDER, next);
+	// `Assets/` itself at the top: the join of "Assets" and "".
+	assets->path = voe_editor_assets_join(assets->arena, ASSETS_FOLDER, next);
 	assets->missing = missing;
 	assets->listed_once = true;
 	rows_fill(assets, &listing);
@@ -384,8 +383,7 @@ static void joined_into(char *out, const char *folder, const char *name)
 			"a request's path past the room naming checked for");
 }
 
-// The committed `name` as the naming's request, the shown folder's `\` from
-// a joined subfolder made `/`, as assets_manage.h's paths are.
+// The committed `name` as the naming's request, in the shown folder.
 static void request_set(voe_editor_assets *assets, const char *name)
 {
 	voe_editor_assets_request *request = &assets->request;
@@ -398,9 +396,6 @@ static void request_set(voe_editor_assets *assets, const char *name)
 	*request = (voe_editor_assets_request){ .kind = assets->naming };
 	snprintf(request->name, sizeof request->name, "%s", name);
 	joined_into(request->folder, "", assets->shown);
-	for (char *c = request->folder; *c != '\0'; c++)
-		if (*c == '\\')
-			*c = '/';
 	if (request->kind != VOE_EDITOR_ASSETS_NAMING_RENAME)
 		return;
 	joined_into(request->from, request->folder, assets->selected);
@@ -431,29 +426,24 @@ static void naming_read(const voe_ui_context *ui, voe_editor_assets *assets)
 }
 
 // `name` in the shown folder as `Assets/...` into `out` of VOE_SCENE_PREFAB_PATH
-// bytes, `\` from a joined subfolder made `/`; left "" when it does not fit, as
-// assets_drag.c refuses.
+// bytes, joined in the panel's arena until its next listing; left "" when it
+// does not fit, as assets_drag.c refuses.
 static void opened_set(const voe_editor_assets *assets, const char *name,
 		       char *out)
 {
+	const char *path;
 	int length;
 
 	VOE_BASE_ASSERT(assets != NULL && assets->shown != NULL,
 			"opening a row from no listed panel");
 	VOE_BASE_ASSERT(name != NULL && out != NULL,
 			"opening a row with no name or into nowhere");
-	length = assets->shown[0] == '\0' ?
-			 snprintf(out, VOE_SCENE_PREFAB_PATH, "Assets/%s",
-				  name) :
-			 snprintf(out, VOE_SCENE_PREFAB_PATH, "Assets/%s/%s",
-				  assets->shown, name);
-	if (length < 0 || length >= VOE_SCENE_PREFAB_PATH) {
+	path = voe_editor_assets_join(
+		assets->arena, ASSETS_FOLDER,
+		voe_editor_assets_join(assets->arena, assets->shown, name));
+	length = snprintf(out, VOE_SCENE_PREFAB_PATH, "%s", path);
+	if (length < 0 || length >= VOE_SCENE_PREFAB_PATH)
 		out[0] = '\0';
-		return;
-	}
-	for (char *c = out; *c != '\0'; c++)
-		if (*c == '\\')
-			*c = '/';
 }
 
 // Where `node` showed this frame, no size for one not drawn.
@@ -600,10 +590,25 @@ bool voe_editor_assets_selected_path(const voe_editor_assets *assets, char *out,
 		out[0] = '\0';
 		return false;
 	}
-	for (char *c = out; *c != '\0'; c++)
-		if (*c == '\\')
-			*c = '/';
 	return true;
+}
+
+const char *voe_editor_assets_join(voe_base_arena *arena, const char *folder,
+				   const char *name)
+{
+	size_t size;
+	char *out;
+
+	VOE_BASE_ASSERT(arena != NULL && folder != NULL && name != NULL,
+			"joining no relative path");
+	if (folder[0] == '\0')
+		return copy_string(arena, name);
+	size = strlen(folder) + 1 + strlen(name) + 1;
+	out = voe_base_arena_push(arena, size);
+	VOE_BASE_ASSERT(out != NULL, "out of memory joining a relative path");
+	snprintf(out, size, "%s/%s", folder, name);
+	VOE_BASE_ASSERT(strlen(out) + 1 == size, "a relative path cut short");
+	return out;
 }
 
 void voe_editor_assets_delete_begin(voe_editor_assets *assets)
