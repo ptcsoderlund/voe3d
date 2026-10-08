@@ -38,7 +38,9 @@
 // the room for views, and the drawn entities once more for the preview's pass,
 // which draws the world alone; and every caster once per cascade of each of
 // VOE_RENDER_DIRECTIONAL_LIGHTS lights, point-shadow pass, capture pass and
-// bounce shadow pass (each sun's relight map), per view and for the preview
+// bounce shadow pass (one sun map per volume per casting sun on a frame that
+// relights, VOE_RENDER_BOUNCE_VOLUMES × VOE_RENDER_DIRECTIONAL_LIGHTS, 0389),
+// per view and for the preview
 // (0325 point 7, 0326 points 3 and 8, 0357 points 3 and 4); and every
 // emitter's particles, VOE_GAME_WORLD_EMITTERS
 // × VOE_3D_EMITTER_PARTICLES, and every water, VOE_GAME_WORLD_WATERS, an object
@@ -48,7 +50,7 @@
 // view and the preview a shadow pass per cascade of each of
 // VOE_RENDER_DIRECTIONAL_LIGHTS lights, one point-shadow pass, up to
 // VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes and one bounce shadow pass
-// per casting sun on a frame that relights (`shadow_size` is VOE_3D_SHADOW_TEXELS,
+// per volume per casting sun on a frame that relights (0389; `shadow_size` is VOE_3D_SHADOW_TEXELS,
 // 3d/shadow_cascades.h, `point_shadow_size` VOE_3D_POINT_SHADOW_TEXELS), and
 // `targets` a target per view and the preview's, each with its own probe volume
 // (0326 point 2) and two texture slots, its colour and its depth copy (0305
@@ -141,7 +143,8 @@
 				   (VOE_RENDER_SHADOW_CASCADES *               \
 					    VOE_RENDER_DIRECTIONAL_LIGHTS +    \
 				    1 + VOE_RENDER_BOUNCE_CAPTURE_PASSES +     \
-				    VOE_RENDER_DIRECTIONAL_LIGHTS) *           \
+				    VOE_RENDER_BOUNCE_VOLUMES *                \
+					    VOE_RENDER_DIRECTIONAL_LIGHTS) *   \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES * \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
@@ -152,7 +155,8 @@
 			  (VOE_RENDER_SHADOW_CASCADES *                        \
 				   VOE_RENDER_DIRECTIONAL_LIGHTS +             \
 			   1 + VOE_RENDER_BOUNCE_CAPTURE_PASSES +              \
-			   VOE_RENDER_DIRECTIONAL_LIGHTS) *                    \
+			   VOE_RENDER_BOUNCE_VOLUMES *                         \
+				   VOE_RENDER_DIRECTIONAL_LIGHTS) *            \
 				  (VOE_EDITOR_VIEWS + 1),                      \
 		.shadow_size = VOE_3D_SHADOW_TEXELS,                           \
 		.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS,               \

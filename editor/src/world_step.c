@@ -1,4 +1,5 @@
-// The world's step once a frame: game's step, then the emitters by the frame's
+// The world's step once a frame: the transforms remembered, game's step, then
+// the emitters by the frame's
 // seconds, the point lights' replaces, the water system by the seconds, then
 // every placed copy queued since expanded (world_step.h).
 //
@@ -15,6 +16,7 @@
 #include <game/frame.h>
 
 #include <scene/point_light_system.h>
+#include <scene/transform_system.h>
 
 void voe_editor_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes,
 			   float seconds, const char *folder,
@@ -24,6 +26,7 @@ void voe_editor_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes,
 			"stepping no world or with no shapes");
 	VOE_BASE_ASSERT(scratch != NULL && why != NULL,
 			"stepping with no scratch or nowhere to say why");
+	voe_scene_transform_remember(world);
 	voe_game_world_step(world, shapes);
 	voe_3d_emitter_system_run(world, seconds);
 	voe_scene_point_light_system_run(world);

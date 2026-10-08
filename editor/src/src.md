@@ -30,10 +30,10 @@ carries it out.
 - `startup.h` — which project the editor opens on: the argued folder, the remembered one or
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
-- `world_step.h` — the world's step once a frame, `game`'s step whose order is now `game`'s, why
-  the editor runs no move but runs emitters by the frame's seconds, and why placed copies are
+- `world_step.h` — the world's step once a frame, the transforms remembered first for the bounce's
+  stale spheres, `game`'s step whose order is now `game`'s, why the editor runs no move but runs emitters by the frame's seconds, and why placed copies are
   expanded after it.
-- `world_step.c` — the one call to `voe_game_world_step`, the emitters' and the water's runs by the
+- `world_step.c` — the remember, the one call to `voe_game_world_step`, the emitters' and the water's runs by the
   seconds, the point lights' replaces with none, then the expansion.
 - `prefabs.h` — what the editor does with prefabs: every placed copy expanded from its file in
   ascending id, a load, with deterministic ids and a file that will not read said in the notice;
