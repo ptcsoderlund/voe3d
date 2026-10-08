@@ -30,9 +30,13 @@
 //   surface is nearer than the mean, else σ² / (σ² + (d − mean)²). This is what
 //   keeps a probe on the far side of a wall from lighting the near side (0312).
 // rgb is the sum divided by the weights' sum. a is how much of the volume is
-// there (0389 point 6): the edge fade × the sum of the counted probes' trilinear
-// × validity (× readiness), 0 to 1; a sum of nought or not finite reads all
-// nought, so a volume with nothing captured reads no bounce. rgb × a is E.
+// there (0389 point 6 as 0390 amends it): the edge fade × the valid probes'
+// readiness, Σ trilinear × validity × readiness over Σ trilinear × validity,
+// with `ready`, and the edge fade alone without. A probe inside or behind
+// geometry only chooses what rgb is normalised over and never lowers a, so the
+// ground beside a box is not darkened by the box's own probes. Either sum of
+// nought or not finite reads all nought, so a volume with nothing captured
+// reads no bounce. rgb × a is E.
 //
 // E FROM SIX-AXIS IRRADIANCE (ADR-0327): a probe's E(n) = Σ_a n_a² ×
 // E(sign(n_a), axis a), from image a of the three at (2t.x, t.y, t.z) for + and
@@ -49,8 +53,8 @@
 // CONSTRAINTS. Eight probes, eight bilinear moment taps and 32 loads a call
 // (validity and the three axes, the side n faces on each), and eight blocker
 // masks and pass tests, nothing with no blockers; no
-// probe beyond the eight, so a grid of mostly invalid probes reads dark where
-// DDGI would search further.
+// probe beyond the eight, so a grid of mostly invalid probes reads its few
+// valid ones at full weight where DDGI would search further.
 
 static const uint3 VOE_BOUNCE_READ_SIZE = uint3(24, 12, 24);
 static const float VOE_BOUNCE_READ_FACE = 8.0;
@@ -111,7 +115,8 @@ float4 voe_render_bounce_read<L : voe_render_blocker_list>(
 	int3 side = int3(n.x < 0.0 ? 1 : 0, n.y < 0.0 ? 1 : 0, n.z < 0.0 ? 1 : 0);
 	float3 sum = float3(0.0, 0.0, 0.0);
 	float weights = 0.0;
-	float counted = 0.0;
+	float valids = 0.0;
+	float readies = 0.0;
 
 	for (uint k = 0; k < 8; k++) {
 		float3 o = float3(k & 1, (k >> 1) & 1, (k >> 2) & 1);
@@ -131,13 +136,14 @@ float4 voe_render_bounce_read<L : voe_render_blocker_list>(
 		float3 share = lerp(1.0 - f, f, o);
 		float facing = (dot(n, to_probe) + 1.0) * 0.5;
 		float2 valid = validity.Load(int4(int3(t), 0)).rg;
-		float share_counted = share.x * share.y * share.z * valid.r *
-				      (ready ? valid.g : 1.0);
-		float w = share_counted * (facing * facing + 0.2);
+		float share_valid = share.x * share.y * share.z * valid.r;
+		float share_ready = share_valid * (ready ? valid.g : 1.0);
+		float w = share_ready * (facing * facing + 0.2);
 
+		valids += share_valid;
+		readies += share_ready;
 		if (w <= 0.0)
 			continue;
-		counted += share_counted;
 		w *= voe_render_bounce_read_visibility(
 			voe_render_bounce_read_moments(moments, t, d), far);
 		int4 at = int4(2 * int(t.x), int(t.y), int(t.z), 0);
@@ -146,12 +152,13 @@ float4 voe_render_bounce_read<L : voe_render_blocker_list>(
 			    squared.z * z_axis.Load(at + int4(side.z, 0, 0, 0)).rgb);
 		weights += w;
 	}
-	if (!(weights > 0.0) || !isfinite(weights) || !(counted > 0.0) ||
-	    !isfinite(counted))
+	if (!(weights > 0.0) || !isfinite(weights) || !(valids > 0.0) ||
+	    !isfinite(valids) || !isfinite(readies))
 		return float4(0.0, 0.0, 0.0, 0.0);
 	float3 e = sum / weights;
+	float present = ready ? readies / valids : 1.0;
 
 	if (any(!isfinite(e)))
 		return float4(0.0, 0.0, 0.0, 0.0);
-	return float4(max(e, 0.0), edge.x * edge.y * edge.z * counted);
+	return float4(max(e, 0.0), edge.x * edge.y * edge.z * present);
 }

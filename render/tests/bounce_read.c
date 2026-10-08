@@ -24,6 +24,11 @@
 //   the origin, the nest's middle, differs from the volume-0-alone one; its
 //   probes stand beside the wall's lit side, where the level grid's are inside
 //   the wall or a metre off.
+// - The ground beside the wall is redder than further out: volume 0 alone
+//   settled, its probes inside the wall or a metre off, on the ground at z 0
+//   red less green 0.25 m out from the wall's sunlit +x face is greater than
+//   3 m out. The wall's own probes are invalid and only renormalise the read,
+//   never lowering its a (0390), so they do not darken the ground beside it.
 //
 // A card without shaderOutputLayer builds no volume and names none; the first
 // two pictures still match, the nests are not tried, and that is said. A machine
@@ -366,6 +371,56 @@ static void a_settled_nest_reads_in_its_middle(struct scene *scene,
 	VOE_TEST_CHECK(gap > 0);
 }
 
+// Red less green of the pixel `world` lands on in `picture`, seen by the
+// scene's camera, clip +y row 0; -1000 off the picture.
+static int redness_at(const struct scene *scene,
+		      const voe_render_picture *picture, voe_math_float3 world)
+{
+	const voe_render_view *view = &scene->camera.view;
+	voe_math_float4 clip = voe_math_float4x4_mul_float4(
+		voe_math_float4x4_mul(view->projection, view->view),
+		(voe_math_float4){ world.x, world.y, world.z, 1.0f });
+	float column = (clip.x / clip.w * 0.5f + 0.5f) * (float)picture->width;
+	float row = (0.5f - clip.y / clip.w * 0.5f) * (float)picture->height;
+	const uint8_t *p;
+
+	VOE_TEST_CHECK(clip.w > 0.0f && column >= 0.0f && row >= 0.0f &&
+		       column < (float)picture->width &&
+		       row < (float)picture->height);
+	if (clip.w <= 0.0f || column < 0.0f || row < 0.0f ||
+	    column >= (float)picture->width || row >= (float)picture->height)
+		return -1000;
+	p = &picture->pixels[((size_t)row * picture->width + (size_t)column) * 4];
+	printf("(%.2f, %.2f, %.2f): %d %d %d\n", world.x, world.y, world.z, p[0],
+	       p[1], p[2]);
+	return (int)p[0] - (int)p[1];
+}
+
+static void the_ground_beside_the_wall_is_redder_than_further_out(
+	struct scene *scene, voe_base_arena *arena)
+{
+	// The wall's sunlit face is at x = −1 + 0.25.
+	const float face = -0.75f;
+	uint32_t named[VOE_RENDER_BOUNCE_VOLUMES];
+	voe_render_picture alone = { 0 };
+	int beside;
+	int further;
+
+	settle(scene, 1, arena);
+	draw_frame(scene, 1, 1, named, &alone, arena);
+	VOE_TEST_CHECK_INT(named[0], 0);
+	VOE_TEST_CHECK_INT(named[3], VOE_RENDER_NO_BOUNCE);
+	VOE_TEST_CHECK(alone.pixels != NULL);
+	if (alone.pixels == NULL)
+		return;
+	beside = redness_at(scene, &alone,
+			    (voe_math_float3){ face + 0.25f, 0.0f, 0.0f });
+	further = redness_at(scene, &alone,
+			     (voe_math_float3){ face + 3.0f, 0.0f, 0.0f });
+	printf("redness beside %d, further out %d\n", beside, further);
+	VOE_TEST_CHECK(beside > further);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
@@ -400,6 +455,8 @@ int main(void)
 				(voe_math_float3){ 0.0f, 0.0f, 0.0f };
 			an_empty_nest_reads_as_the_level_grid_alone(&scene, arena);
 			a_settled_nest_reads_in_its_middle(&scene, arena);
+			the_ground_beside_the_wall_is_redder_than_further_out(
+				&scene, arena);
 		}
 		voe_render_device_destroy(scene.device);
 	}
