@@ -1,16 +1,14 @@
-# 55 — A one-metre box tints the ground, and a moved one leaves no ring
+# 57 — A one-metre box tints the ground, and a moved one leaves no ring
 folder: 3d
-after: 53, 54
+after: 53, 56
 decisions: 0168, 0387, 0388, 0389
 
 ## Change
 The proof of bug 05, in `3d/tests/bounce_scene.c` and its header comment. Spec 051's steps 2 and 3, with
-a small box.
+a small box. Card 56 already brought the file's world, waits, budget and existing cases to the nests:
+the world registers shape changes, every frame remembers transforms first, and `settles` waits out the
+fade. Change none of that.
 
-- **The world** registers `voe_3d_shape_changes_register`. Every frame first calls
-  `voe_scene_transform_remember`, as the editor now does.
-- **`settles`** also runs `VOE_RENDER_BOUNCE_FADE` more full frames once a probing frame is true. A frame
-  that only fades opens no pass, so without this a read could land mid-fade.
 - **New cases:**
   - `a_small_box_tints_the_ground_beside_it`: in place of the 2 m box, a 1 m cube, strongly purple, on the
     same ground and sun. Once settled, the ground 0.25 m out from its sunlit face has red less green above
@@ -20,12 +18,7 @@ a small box.
     box always stood at its new place.
   - `a_recoloured_box_tints_its_new_colour`: settled, the box's colour is changed through
     `voe_3d_shape_submit` to strong blue, then settled. The ground beside its lit face is bluer than before.
-- **Cases the nests change.** Each keeps its claim at the scale 0389 allows:
-  - MOVE (bug 03): an eye moved 1.5 m opens no capture pass, being inside the 1 m nest's two cells. The 6 m
-    move and back settles, and then the pixels are within 1/255 of before.
-  - FAR: settle at the far eye before checking that probing frames are true.
-  - TURN, BLOCKED, SETTLING and EVEN stand as they are; fix only the waits.
-- **Header:** rewrite the paragraphs for MOVE, FAR and SETTLED to match, and add the three new cases.
+- **Header:** a paragraph for the three new cases.
 - **`3d/tests/tests.md`:** the `bounce_scene.c` entry names the new cases.
 
 ## Done when
