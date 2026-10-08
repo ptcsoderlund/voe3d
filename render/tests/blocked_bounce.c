@@ -16,6 +16,11 @@
 //   holding the wall, the patch and the lamp (x −5 to 1, y −1 to 5, z ±7): the
 //   patch redder at lamp bounces 1 than at 0. The lamp moved outside it, to
 //   x −8: the patch within 2/255 of lamp bounces 0, no red.
+// - Sun 2 again, each frame beginning volume 3, the 1 m nest, after volume 0:
+//   lowest cell (−12, −6, −12), corner (−12, −6, −12), the same blockers. The
+//   patch settled with no blocker; with the patch's blocker settled, within
+//   2/255 of bounces 0; the blocker gone (count 0) and settled, within 1/255
+//   of the first. Settled is also every begun volume relighting nothing.
 //
 // A card without shaderOutputLayer bounces nothing, and that is said. A machine
 // with no usable Vulkan skips and says so.
@@ -36,7 +41,7 @@
 
 #define SIDE 128
 #define SHADOW_SIDE 2048
-#define FRAMES_MAX 200
+#define FRAMES_MAX 400
 #define LIGHT_HALF 30.0f
 #define VOLUME_HALF 60.0f
 #define LIGHT_DISTANCE 60.0f
@@ -119,6 +124,7 @@ struct scene {
 	struct voe_render_bounce_frame bounce;
 	voe_render_point_light lamp;
 	bool restale;
+	bool nested;
 };
 
 static const voe_math_float4 EVERYTHING = { 0.0f, 0.0f, 0.0f, 1000.0f };
@@ -216,31 +222,16 @@ static void draw_boxes(struct scene *s)
 	}
 }
 
-// One frame of the header's; the capture passes it opened. The picture goes
-// into `picture` when it is not NULL.
-static uint32_t one_frame(struct scene *s, voe_render_picture *picture)
+// One volume's part of a frame: begun with `bounce`, capture passes until one
+// does not open, its bounce shadow pass, its relight. The capture passes it
+// opened.
+static uint32_t one_volume(struct scene *s,
+			   const struct voe_render_bounce_frame *bounce)
 {
-	struct voe_render_bounce_frame bounce = s->bounce;
-	voe_base_error error = VOE_BASE_OK;
-	bool drawing = false;
 	bool opened = true;
 	uint32_t passes = 0;
 
-	VOE_TEST_CHECK(voe_render_frame_begin(s->device,
-					      (voe_platform_size){ SIDE, SIDE },
-					      &drawing));
-	VOE_TEST_CHECK(drawing);
-	if (!drawing)
-		return 0;
-	VOE_TEST_CHECK(voe_render_shadow_pass_begin(s->device, 0, &s->light));
-	draw_boxes(s);
-	voe_render_pass_end(s->device);
-	if (s->restale && s->device->window_volume[0].built) {
-		bounce.stale = &EVERYTHING;
-		bounce.stale_count = 1;
-		s->restale = false;
-	}
-	voe_render_bounce_begin(s->device, VOE_RENDER_TARGET_WINDOW, &bounce);
+	voe_render_bounce_begin(s->device, VOE_RENDER_TARGET_WINDOW, bounce);
 	while (opened) {
 		VOE_TEST_CHECK(voe_render_bounce_capture_pass_begin(s->device,
 								    &opened));
@@ -257,6 +248,40 @@ static uint32_t one_frame(struct scene *s, voe_render_picture *picture)
 		voe_render_pass_end(s->device);
 	}
 	voe_render_bounce_relight(s->device);
+	return passes;
+}
+
+// One frame of the header's, volume 3 begun after volume 0 when `nested`; the
+// capture passes it opened. The picture goes into `picture` when not NULL.
+static uint32_t one_frame(struct scene *s, voe_render_picture *picture)
+{
+	struct voe_render_bounce_frame bounce = s->bounce;
+	struct voe_render_bounce_frame nest = s->bounce;
+	voe_base_error error = VOE_BASE_OK;
+	bool drawing = false;
+	uint32_t passes;
+
+	VOE_TEST_CHECK(voe_render_frame_begin(s->device,
+					      (voe_platform_size){ SIDE, SIDE },
+					      &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return 0;
+	VOE_TEST_CHECK(voe_render_shadow_pass_begin(s->device, 0, &s->light));
+	draw_boxes(s);
+	voe_render_pass_end(s->device);
+	if (s->restale && s->device->window_volume[0].built) {
+		bounce.stale = &EVERYTHING;
+		bounce.stale_count = 1;
+		s->restale = false;
+	}
+	passes = one_volume(s, &bounce);
+	if (s->nested) {
+		nest.volume = 3;
+		nest.corner = (voe_math_float3){ -12.0f, -6.0f, -12.0f };
+		nest.spacing = 1.0f;
+		passes += one_volume(s, &nest);
+	}
 	VOE_TEST_CHECK(voe_render_pass_begin(s->device, VOE_RENDER_TARGET_WINDOW,
 					     &s->camera));
 	draw_boxes(s);
@@ -269,16 +294,21 @@ static uint32_t one_frame(struct scene *s, voe_render_picture *picture)
 	return passes;
 }
 
-// Every probe captured: frames until one opens no capture pass, past the
-// first, which may only want the volume.
+// Every probe captured and faded in: frames until one opens no capture pass
+// and relights nothing in any begun volume, past the first, which may only
+// want a volume.
 static void settle(struct scene *s)
 {
 	uint32_t frame = 0;
 
 	s->restale = true;
-	for (; frame < FRAMES_MAX; frame++)
-		if (one_frame(s, NULL) == 0 && frame > 0)
+	for (; frame < FRAMES_MAX; frame++) {
+		const uint32_t dispatches = s->device->relight_dispatches;
+
+		if (one_frame(s, NULL) == 0 &&
+		    s->device->relight_dispatches == dispatches && frame > 0)
 			break;
+	}
 	printf("settled in %u frames\n", frame);
 	VOE_TEST_CHECK(frame < FRAMES_MAX);
 }
@@ -432,6 +462,50 @@ static void a_blocked_lamp(struct scene *s)
 	block_with(s, (voe_render_light_blockers){ 0 });
 }
 
+// The 1 m nest begun beside volume 0: the patch blocked, then the blocker gone,
+// reads as it did before the blocker came.
+static void a_removed_blocker_relights_the_nest(struct scene *s)
+{
+	const voe_render_light_blocker patch[1] = {
+		blocker(PATCH, (voe_math_float3){ 2.0f, 1.5f, 2.0f }),
+	};
+	voe_render_picture first, blocked, none, gone;
+	int before[3], with[3], after[3];
+
+	s->nested = true;
+	s->camera.points = (voe_render_point_lights){ 0 };
+	s->bounce.points = s->camera.points;
+	s->camera.light.intensity = 2.0f;
+	s->camera.light.fill = (voe_math_float3){ 0.1f, 0.1f, 0.1f };
+	s->bounce.sun = s->camera.light;
+	s->bounce.sun_bounces = 1;
+	s->bounce.sun_strength = 1.0f;
+	settle(s);
+	first = picture_of(s);
+	block_with(s, (voe_render_light_blockers){ .blockers = patch, .count = 1 });
+	settle(s);
+	blocked = picture_of(s);
+	s->bounce.sun_bounces = 0;
+	none = picture_of(s);
+	s->bounce.sun_bounces = 1;
+	settle(s);
+	block_with(s, (voe_render_light_blockers){ .blockers = patch, .count = 0 });
+	settle(s);
+	gone = picture_of(s);
+
+	rgb_at(s, &first, PATCH, before);
+	rgb_at(s, &blocked, PATCH, with);
+	rgb_at(s, &gone, PATCH, after);
+	printf("nest patch: %d %d %d unblocked, %d %d %d blocked (gap to bounces 0 %d), %d %d %d gone\n",
+	       before[0], before[1], before[2], with[0], with[1], with[2],
+	       gap_at(s, &blocked, &none, PATCH), after[0], after[1], after[2]);
+	VOE_TEST_CHECK(redness_at(s, &first, PATCH) > TOLERANCE);
+	VOE_TEST_CHECK(gap_at(s, &blocked, &none, PATCH) <= TOLERANCE);
+	VOE_TEST_CHECK(gap_at(s, &gone, &first, PATCH) <= 1);
+	block_with(s, (voe_render_light_blockers){ 0 });
+	s->nested = false;
+}
+
 static void run(struct scene *s)
 {
 	static const voe_render_shading_values values[SHADINGS] = {
@@ -476,6 +550,7 @@ static void run(struct scene *s)
 		VOLUME_HALF);
 	a_blocked_patch(s);
 	a_blocked_lamp(s);
+	a_removed_blocker_relights_the_nest(s);
 }
 
 int main(void)

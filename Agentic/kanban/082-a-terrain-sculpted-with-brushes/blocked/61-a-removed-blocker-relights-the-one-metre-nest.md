@@ -35,3 +35,10 @@ If the new case passes with no fix, the fault is 3d's: block, giving both readin
 `ctest --test-dir build/debug -R '^render/(blocked_bounce|bounce_)'` passes with
 `a_removed_blocker_relights_the_nest`; then, after `cmake --build --preset debug --target
 voe_test_3d_bounce_scene`, `ctest --test-dir build/debug -R '^3d/bounce_scene$'` passes.
+
+## Blocked
+The new case `a_removed_blocker_relights_the_nest` passes in render with no fix: the nest patch reads
+151 137 137 unblocked, 0 0 0 blocked (gap to bounces 0: 0), 151 137 137 with the blocker gone. The 3d test
+still fails at bounce_scene.c:566, `unblocked patch: 98 98 98 against 106 98 98` (blocked patch 0 0 0
+against 0 0 0). So by this card the fault is 3d's (what it begins the nest with, or when, once the blocker
+entity is destroyed); a card in `3d` that finds and fixes it unblocks this. The case is left in.
