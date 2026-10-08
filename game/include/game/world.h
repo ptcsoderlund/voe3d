@@ -2,8 +2,9 @@
 // has for each: transform, identity, parent, prefab, prefab part, light, camera,
 // mesh, material, panel, shape, model, collider, body, emitter, its particles,
 // the transforms' previous step (0254), sound and its voice row (0304), water
-// and its waves (0305), point light (0320, 0321), light blocker (0347),
-// registered once on a fresh world.
+// and its waves (0305), point light (0320, 0321), light blocker (0347), the
+// shape changes (0389 point 8), registered once on a fresh world. The shape
+// changes table is runtime-only and only the shape system writes it.
 //
 //     voe_ecs_world *world = voe_game_world_new(arena);
 //
@@ -75,8 +76,8 @@ static_assert(VOE_GAME_WORLD_LIGHT_BLOCKERS <= VOE_RENDER_LIGHT_BLOCKERS,
 	      "a world holds more light blockers than a pass carries");
 
 // How many types the engine registers here; a project's come after them.
-#define VOE_GAME_WORLD_TYPES 23
+#define VOE_GAME_WORLD_TYPES 24
 
-// A fresh world with the twenty-three types registered and nothing in it. Never NULL:
+// A fresh world with the twenty-four types registered and nothing in it. Never NULL:
 // the arena aborts rather than failing.
 voe_ecs_world *voe_game_world_new(voe_base_arena *arena);

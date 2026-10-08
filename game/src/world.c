@@ -1,4 +1,6 @@
-// The twenty-three registrations and the room behind them. The reasoning is in
+// The twenty-four registrations and the room behind them, the shape changes
+// table (3d/shape_system.h) right after the shapes it marks, with their room.
+// The reasoning is in
 // game/include/game/world.h; what is here is the numbers and the order, which
 // is transforms first because a parent, a prefab, a point light, a light
 // blocker, a shape, a model, an emitter and a water need one
@@ -18,6 +20,7 @@
 #include <3d/model_component.h>
 #include <3d/panel_component.h>
 #include <3d/shape_component.h>
+#include <3d/shape_system.h>
 #include <3d/water_component.h>
 
 #include <physics/body_system.h>
@@ -32,7 +35,7 @@
 #include <scene/prefab_system.h>
 #include <scene/transform_system.h>
 
-// Twenty-three component types, thirteen of them with an intent queue and the
+// Twenty-four component types, thirteen of them with an intent queue and the
 // emitter and the sound with a second, their control, fifteen in all, each with room for a project's types and their
 // replace intents behind it. The entities are room for what a game spawns while
 // it runs, shells and enemies by the hundred, each a prefab's whole tree (0283
@@ -81,6 +84,7 @@ voe_ecs_world *voe_game_world_new(voe_base_arena *arena)
 	voe_3d_material_register(world, VOE_GAME_WORLD_MAX_DRAWN);
 	voe_3d_panel_register(world, MAX_PANELS);
 	voe_3d_shape_register(world, VOE_GAME_WORLD_MAX_DRAWN);
+	voe_3d_shape_changes_register(world, VOE_GAME_WORLD_MAX_DRAWN);
 	voe_3d_model_register(world, VOE_GAME_WORLD_MAX_DRAWN);
 	voe_3d_emitter_register(world, VOE_GAME_WORLD_EMITTERS);
 	voe_3d_water_register(world, VOE_GAME_WORLD_WATERS);
