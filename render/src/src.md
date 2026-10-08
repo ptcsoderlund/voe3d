@@ -85,10 +85,12 @@ which file to open — what each one owns, and where the seams between them run.
   to its reach, twelve cells, then copied into the atlases.
 - `bounce_shadow.c` — the relight's own sun maps: per frame slot a 1024-texel D32 image of a layer per sun,
   and the shadow pass that draws one sun's layer once per bounce begin that relights it.
-- `bounce_relight.c` — the relight: its three compute pipelines, set layout, pool, per-slot probe
-  lists and one record per volume with the begun light blockers, their kinds and the sun's mask,
-  and the call that settles changed
-  probes, relights each level in use and sums them.
+- `bounce_relight.h` — what the relight's two files share: the set layout's bindings, the push
+  block, the volume count and the holds bit of a list word; included by those two only.
+- `bounce_relight_build.c` — what the relight runs on: its three compute pipelines, set layout,
+  pool, per-slot probe lists and one record per volume, built at prepare and torn down at close.
+- `bounce_relight.c` — the relight: the record with the begun light blockers, their kinds and the
+  sun's mask, and the call that settles changed probes, relights each level in use and sums them.
 - `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
