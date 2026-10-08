@@ -1,6 +1,6 @@
 # VOE3D
 A general-purpose real-time 3D engine in C23 and Vulkan 1.3, with its editor and dev program built from the same
-tree. Linux desktop; Windows is paused until the engine cross-builds it (0339). Clang 19+ as the GNU-driver `clang`,
+tree. Windows and Linux desktop; every card writes both, only Linux is checked, and Windows bugs are fixed as they arrive (0381). Clang 19+ as the GNU-driver `clang`,
 CMake 3.28+, Ninja and `slangc` are installed by the programmer; everything else is fetched by the build.
 
 The engine's standing rules — givens, rules 1–14 as code cites them, the scope of a card, the world's
