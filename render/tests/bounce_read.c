@@ -207,7 +207,8 @@ static void draw_objects(struct scene *scene)
 // One frame onto the window: the first `begun` of BEGINS begun, the first
 // `captured` of them each capturing until a capture pass does not open and
 // relit, then the camera pass drawing the objects. `named` gets the pass's
-// bounce grids, `picture` the picture when not NULL. Whether anything was
+// bounce grids, VOE_RENDER_NO_BOUNCE for a volume the pass does not name,
+// including when the frame returns early; `picture` the picture when not NULL. Whether anything was
 // captured or relit.
 static bool draw_frame(struct scene *scene, uint32_t begun, uint32_t captured,
 		       uint32_t named[VOE_RENDER_BOUNCE_VOLUMES],
@@ -220,6 +221,8 @@ static bool draw_frame(struct scene *scene, uint32_t begun, uint32_t captured,
 	bool took = false;
 	uint32_t pass;
 
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+		named[v] = VOE_RENDER_NO_BOUNCE;
 	VOE_TEST_CHECK(voe_render_frame_begin(scene->device,
 					      (voe_platform_size){ SIDE, SIDE },
 					      &drawing));
