@@ -518,6 +518,11 @@ struct voe_render_target_slot {
 // two driver calls to say what one pointer already says. The pointer is kept
 // here; there is no second place that knows it.
 struct voe_render_frame {
+	// This slot's command buffer comes out of `pool`, which is reset whole
+	// once `submitted` says the card is done with the slot (ADR-0385). Per
+	// slot for the reason the command buffer is: one shared pool could not
+	// be reset while another slot's frame was still in flight.
+	VkCommandPool pool;
 	VkCommandBuffer commands;
 	VkSemaphore acquired;
 	VkFence submitted;

@@ -435,14 +435,18 @@ struct voe_render_device {
 	uint32_t image_count;
 	struct voe_render_image images[VOE_RENDER_MAX_IMAGES];
 
-	// The frame slots, and the one pool every command buffer in them comes
-	// out of. Startup's, apart from the target inside each one, which a
-	// resize rebuilds.
+	// The one-shot uploads' pool: their command buffers are allocated, run
+	// once and freed, and each frame slot has a pool of its own (ADR-0385).
+	// Made without the reset flag, because nothing in it is reset alone. The
+	// guard (ADR-0370) still keeps another thread's upload apart from an
+	// open frame.
 	//
-	// slot is the one the next frame will use, advanced modulo the constant
-	// the moment a submit succeeds — because a submit is what puts a slot in
-	// flight, and a frame that returns before submitting must come back to
-	// the same slot with its fence still signalled.
+	// The frame slots: startup's, apart from the target inside each one,
+	// which a resize rebuilds. slot is the one the next frame will use,
+	// advanced modulo the constant the moment a submit succeeds — because a
+	// submit is what puts a slot in flight, and a frame that returns before
+	// submitting must come back to the same slot with its fence still
+	// signalled.
 	VkCommandPool pool;
 	struct voe_render_frame frames[VOE_RENDER_FRAMES_IN_FLIGHT];
 	uint32_t slot;

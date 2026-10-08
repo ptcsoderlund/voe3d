@@ -341,7 +341,7 @@ static bool begin_frame(voe_render_device *device, voe_platform_size size,
 	}
 
 	voe_render_vk.reset_fences(device->device, 1, &frame->submitted);
-	voe_render_vk.reset_command_buffer(frame->commands, 0);
+	voe_render_vk.reset_command_pool(device->device, frame->pool, 0);
 
 	voe_render_vk.begin_command_buffer(frame->commands, &begin);
 
