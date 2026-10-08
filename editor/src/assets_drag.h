@@ -59,6 +59,7 @@
 
 #include "dock.h"
 #include "drag_ghost.h"
+#include "models.h"
 #include "session.h"
 #include "topbar.h"
 #include "undo.h"
@@ -110,7 +111,7 @@ void voe_editor_assets_drag_read(
 	voe_editor_undo *undo, voe_editor_scene *scene,
 	const voe_editor_views *views, const voe_editor_dock_root *root,
 	const voe_editor_topbar *bar, const voe_3d_shape_geometries *geometries,
-	const voe_3d_models *models, voe_math_float2 pointer, bool down,
+	voe_editor_models *models, voe_math_float2 pointer, bool down,
 	bool blocked);
 
 // While holding and dragging, the ghost named by the path's last segment,

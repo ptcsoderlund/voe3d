@@ -1,13 +1,18 @@
 // An entity tree's size and the distance that frames it: a scaled cube's box,
 // a parent's box from its child and round a far child, nothing for a bare
-// transform, a cube 100 km out to the millimetre, and the framing distance for
-// a square picture and a tall one. Needs no graphics card; the world is set up
+// transform, a cube 100 km out to the millimetre, the framing distance for a
+// square picture and a tall one, and a landscape's heights' box. Only the
+// landscape needs a graphics card, and skips without one; the world is set up
 // as 3d/tests/pick.c sets its own.
 #include <3d/bounds.h>
 #include <3d/model_component.h>
+#include <3d/models.h>
 #include <3d/shape_component.h>
 #include <3d/shape_geometry.h>
+#include <assets/landscape.h>
 #include <base/arena.h>
+#include <base/error.h>
+#include <render/device.h>
 #include <ecs/structure.h>
 #include <ecs/world.h>
 #include <scene/parent_system.h>
@@ -17,6 +22,7 @@
 #include <testing/test.h>
 
 #include <math.h>
+#include <stdio.h>
 
 // The three shapes' triangles and edges are a couple of hundred kilobytes
 // (3d/shape_geometry.h).
@@ -163,6 +169,66 @@ static void a_far_cube_keeps_its_centre(
 	VOE_TEST_CHECK_FLOAT(radius, sqrtf(3.0f), 1e-5f);
 }
 
+// A landscape's shape is empty, so its heights' box is its size (0379 point 2):
+// 16 m of 8 cells, flat but for a 4 m peak in the middle, at (10, 0, 0) is the
+// box 16 by 4 by 16 about (10, 2, 0). Loading uploads, so this skips with no
+// card.
+static void bounds_hold_a_landscape(voe_base_arena *arena,
+				    const voe_3d_shape_geometries *geometries)
+{
+	const voe_render_capacities capacities = {
+		.vertices = 16 * 9,
+		.indices = 16 * 24,
+		.geometries = 16,
+		.objects = 1,
+		.shadings = 2,
+		.passes = 1,
+	};
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_device *device = voe_render_device_new_headless(
+		arena, (voe_platform_size){ 4, 4 }, capacities, &error);
+	voe_assets_landscape land;
+	voe_3d_models *models;
+	voe_ecs_world *world;
+	voe_ecs_entity thing = { 0 };
+	voe_3d_model model = { 0 };
+	voe_math_double3 centre = { 0.0, 0.0, 0.0 };
+	float radius = 0.0f;
+
+	if (device == NULL) {
+		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
+		    error == VOE_BASE_ERROR_UNSUPPORTED)
+			printf("skip: %s\n", voe_base_error_string(error));
+		else
+			VOE_TEST_CHECK(device != NULL);
+		return;
+	}
+	land = voe_assets_landscape_flat(16.0f, 8, arena);
+	land.heights[4 * 9 + 4] = 4.0f;
+	models = voe_3d_models_new();
+	VOE_TEST_CHECK(voe_3d_models_load_landscape(
+		models, device, "Assets/hill.landscape", 1, &land, &error));
+
+	world = a_world(arena);
+	snprintf(model.path, sizeof(model.path), "%s", "Assets/hill.landscape");
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, thing,
+					       at(10.0, 0.0, 0.0, 1.0f)));
+	VOE_TEST_CHECK(voe_3d_model_add(world, thing, model));
+
+	VOE_TEST_CHECK(voe_3d_bounds(world, geometries, models, thing, &centre,
+				     &radius));
+	VOE_TEST_CHECK_FLOAT((float)centre.x, 10.0f, 1e-5f);
+	VOE_TEST_CHECK_FLOAT((float)centre.y, 2.0f, 1e-5f);
+	VOE_TEST_CHECK_FLOAT((float)centre.z, 0.0f, 1e-5f);
+	VOE_TEST_CHECK_FLOAT(radius, 0.5f * sqrtf(16.0f * 16.0f * 2.0f + 16.0f),
+			     1e-4f);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+	voe_render_device_destroy(device);
+}
+
 // A unit sphere filling a square picture seen at 90 degrees stands √2 away; a
 // tall picture's narrower width puts the eye further back.
 static void the_distance_frames_the_narrower_side(void)
@@ -187,6 +253,7 @@ int main(void)
 	a_bare_transform_has_no_size(arena, &geometries);
 	a_far_cube_keeps_its_centre(arena, &geometries);
 	the_distance_frames_the_narrower_side();
+	bounds_hold_a_landscape(arena, &geometries);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

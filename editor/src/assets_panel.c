@@ -1,6 +1,7 @@
 // The Assets panel's listing with the selected row kept, its one frame of `ui`
 // calls with the naming's field, and the read of its rows, the selection and
-// `keyboard`, the field's request, a fired prefab row's path and Up afterwards,
+// `keyboard`, the field's request, a fired prefab or landscape row's path and
+// Up afterwards,
 // with the rectangles the right button's menu and the drag are read from.
 // See the header for the arena, the once a second and what a missing
 // `Assets/` or a failed listing leaves.
@@ -29,6 +30,9 @@
 #define MISSING_LINE "No Assets folder in this project."
 #define ASSETS_GAP (2.0f * VOE_EDITOR_SPACING)
 #define NEW_FOLDER_NAME "New folder"
+#define NEW_LANDSCAPE_NAME "New landscape"
+// The empty strip under the rows, in millimetres.
+#define EMPTY_STRIP 6.0f
 
 static char *copy_string(voe_base_arena *arena, const char *text)
 {
@@ -151,11 +155,15 @@ static void rows_fill(voe_editor_assets *assets,
 				.node = VOE_UI_NODE_NONE,
 				.name = copy_string(assets->arena, e->name),
 				.folder = e->folder,
+				// A landscape is worn as a model (0379 point 2).
 				.model = !e->folder &&
-					 voe_editor_browser_names_model(e->name),
+					 (voe_editor_browser_names_model(e->name) ||
+					  name_ends(e->name, ".landscape")),
 				.prefab = !e->folder &&
 					  name_ends(e->name, ".prefab"),
 				.picture = !e->folder && names_picture(e->name),
+				.landscape = !e->folder &&
+					     name_ends(e->name, ".landscape"),
 			};
 		}
 	}
@@ -204,9 +212,9 @@ static void relist(voe_editor_assets *assets, const char *project,
 	if (!same || name != NULL || up)
 		assets->naming = VOE_EDITOR_ASSETS_NAMING_NONE;
 
+	// The join's copy is scratch's own, so it is writable.
 	if (name != NULL)
-		next = next[0] == '\0' ? copy_string(scratch, name) :
-			(char *)voe_platform_path_join(scratch, next, name);
+		next = (char *)voe_editor_assets_join(scratch, next, name);
 	else if (up)
 		cut_to_parent(next);
 
@@ -218,9 +226,8 @@ static void relist(voe_editor_assets *assets, const char *project,
 	assets->held = NULL;
 	assets->project =kept ? copy_string(assets->arena, kept) : NULL;
 	assets->shown = copy_string(assets->arena, next);
-	assets->path = next[0] == '\0' ?
-		ASSETS_FOLDER "/" :
-		voe_platform_path_join(assets->arena, ASSETS_FOLDER, next);
+	// `Assets/` itself at the top: the join of "Assets" and "".
+	assets->path = voe_editor_assets_join(assets->arena, ASSETS_FOLDER, next);
 	assets->missing = missing;
 	assets->listed_once = true;
 	rows_fill(assets, &listing);
@@ -242,6 +249,7 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 		assets->import_button = VOE_UI_NODE_NONE;
 		assets->naming_field = VOE_UI_NODE_NONE;
 		assets->empty = VOE_UI_NODE_NONE;
+		assets->fill = VOE_UI_NODE_NONE;
 		assets->body = VOE_UI_NODE_NONE;
 	}
 	if (!assets->listed_once ||
@@ -287,11 +295,11 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 	assets->import_button = VOE_UI_NODE_NONE;
 	assets->naming_field = VOE_UI_NODE_NONE;
 	assets->empty = VOE_UI_NODE_NONE;
-	// Round everything, spaced as the leaf's scroll area spaces it (dock.c),
-	// so the read knows the whole panel's rectangle.
+	assets->fill = VOE_UI_NODE_NONE;
+	// Round everything, spaced as the leaf's scroll area spaces it (dock.c).
+	// Natural along, so the area measures the rows and scrolls them.
 	assets->body = voe_ui_column_begin(
 		ui, (voe_ui_container){
-			    .size = { .along = { VOE_UI_SIZE_GROW, 1.0f } },
 			    .across = VOE_UI_ACROSS_FILL,
 			    .gap = ASSETS_GAP });
 	// Import needs a folder to copy into, so an untitled project has none;
@@ -324,6 +332,11 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 		voe_editor_assets_row *row = &assets->rows[i];
 		bool selected = row->name == assets->selected;
 
+		// The pending landscape before the first file.
+		if (!row->folder && (i == 0 || assets->rows[i - 1].folder) &&
+		    assets->naming == VOE_EDITOR_ASSETS_NAMING_LANDSCAPE)
+			naming_field_draw(ui, assets, NEW_LANDSCAPE_NAME);
+
 		if (selected &&
 		    assets->naming == VOE_EDITOR_ASSETS_NAMING_RENAME) {
 			row->node = VOE_UI_NODE_NONE;
@@ -336,11 +349,22 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 			voe_ui_label(ui, "/");
 		voe_ui_end(ui);
 	}
+	// No file row to go before: after the folders.
+	if (assets->naming == VOE_EDITOR_ASSETS_NAMING_LANDSCAPE &&
+	    (assets->row_count == 0 ||
+	     assets->rows[assets->row_count - 1].folder))
+		naming_field_draw(ui, assets, NEW_LANDSCAPE_NAME);
+	// A strip under the rows, so a scrolled-to-end list still has an
+	// empty part to right press; the filler takes what the rows leave.
 	assets->empty = voe_ui_column_begin(
+		ui, (voe_ui_container){
+			    .size = { .along = { VOE_UI_SIZE_FIXED, EMPTY_STRIP } } });
+	voe_ui_end(ui);
+	voe_ui_end(ui); // body
+	assets->fill = voe_ui_column_begin(
 		ui, (voe_ui_container){
 			    .size = { .along = { VOE_UI_SIZE_GROW, 1.0f } } });
 	voe_ui_end(ui);
-	voe_ui_end(ui); // body
 }
 
 // `folder` and `name` joined with `/` into `out`, or `name` alone at
@@ -359,8 +383,7 @@ static void joined_into(char *out, const char *folder, const char *name)
 			"a request's path past the room naming checked for");
 }
 
-// The committed `name` as the naming's request, the shown folder's `\` from
-// a joined subfolder made `/`, as assets_manage.h's paths are.
+// The committed `name` as the naming's request, in the shown folder.
 static void request_set(voe_editor_assets *assets, const char *name)
 {
 	voe_editor_assets_request *request = &assets->request;
@@ -373,9 +396,6 @@ static void request_set(voe_editor_assets *assets, const char *name)
 	*request = (voe_editor_assets_request){ .kind = assets->naming };
 	snprintf(request->name, sizeof request->name, "%s", name);
 	joined_into(request->folder, "", assets->shown);
-	for (char *c = request->folder; *c != '\0'; c++)
-		if (*c == '\\')
-			*c = '/';
 	if (request->kind != VOE_EDITOR_ASSETS_NAMING_RENAME)
 		return;
 	joined_into(request->from, request->folder, assets->selected);
@@ -405,27 +425,25 @@ static void naming_read(const voe_ui_context *ui, voe_editor_assets *assets)
 			"a naming field left standing after its read");
 }
 
-// `name` in the shown folder as `Assets/...` into `opened`, `\` from a joined
-// subfolder made `/`; left "" when it does not fit, as assets_drag.c refuses.
-static void opened_set(voe_editor_assets *assets, const char *name)
+// `name` in the shown folder as `Assets/...` into `out` of VOE_SCENE_PREFAB_PATH
+// bytes, joined in the panel's arena until its next listing; left "" when it
+// does not fit, as assets_drag.c refuses.
+static void opened_set(const voe_editor_assets *assets, const char *name,
+		       char *out)
 {
+	const char *path;
 	int length;
 
 	VOE_BASE_ASSERT(assets != NULL && assets->shown != NULL,
-			"opening a prefab from no listed panel");
-	VOE_BASE_ASSERT(name != NULL, "opening a prefab with no name");
-	length = assets->shown[0] == '\0' ?
-			 snprintf(assets->opened, sizeof assets->opened,
-				  "Assets/%s", name) :
-			 snprintf(assets->opened, sizeof assets->opened,
-				  "Assets/%s/%s", assets->shown, name);
-	if (length < 0 || (size_t)length >= sizeof assets->opened) {
-		assets->opened[0] = '\0';
-		return;
-	}
-	for (char *c = assets->opened; *c != '\0'; c++)
-		if (*c == '\\')
-			*c = '/';
+			"opening a row from no listed panel");
+	VOE_BASE_ASSERT(name != NULL && out != NULL,
+			"opening a row with no name or into nowhere");
+	path = voe_editor_assets_join(
+		assets->arena, ASSETS_FOLDER,
+		voe_editor_assets_join(assets->arena, assets->shown, name));
+	length = snprintf(out, VOE_SCENE_PREFAB_PATH, "%s", path);
+	if (length < 0 || length >= VOE_SCENE_PREFAB_PATH)
+		out[0] = '\0';
 }
 
 // Where `node` showed this frame, no size for one not drawn.
@@ -464,10 +482,12 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 	// button, no size for one not drawn.
 	assets->body_seen = seen(ui, assets->body);
 	assets->empty_seen = seen(ui, assets->empty);
+	assets->fill_seen = seen(ui, assets->fill);
 	assets->up_seen = seen(ui, assets->up_button);
 	assets->up_button = VOE_UI_NODE_NONE;
 	assets->import_button = VOE_UI_NODE_NONE;
 	assets->empty = VOE_UI_NODE_NONE;
+	assets->fill = VOE_UI_NODE_NONE;
 	assets->body = VOE_UI_NODE_NONE;
 	assets->held = NULL;
 	assets->held_model = false;
@@ -491,9 +511,12 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 		    row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
 			entered = row->name;
-		if (row->prefab && !dragged && row->node != VOE_UI_NODE_NONE &&
+		if ((row->prefab || row->landscape) && !dragged &&
+		    row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
-			opened_set(assets, row->name);
+			opened_set(assets, row->name,
+				   row->prefab ? assets->opened :
+						 assets->landscape_opened);
 		row->seen = seen(ui, row->node);
 		row->node = VOE_UI_NODE_NONE;
 	}
@@ -539,6 +562,16 @@ void voe_editor_assets_folder_begin(voe_editor_assets *assets)
 	VOE_BASE_ASSERT(assets->naming_focus, "a folder naming never focused");
 }
 
+void voe_editor_assets_landscape_begin(voe_editor_assets *assets)
+{
+	VOE_BASE_ASSERT(assets != NULL, "naming a landscape in no Assets panel");
+	if (!naming_fits(assets))
+		return;
+	assets->naming = VOE_EDITOR_ASSETS_NAMING_LANDSCAPE;
+	assets->naming_focus = true;
+	VOE_BASE_ASSERT(assets->naming_focus, "a landscape naming never focused");
+}
+
 bool voe_editor_assets_selected_path(const voe_editor_assets *assets, char *out,
 				     size_t size)
 {
@@ -557,10 +590,25 @@ bool voe_editor_assets_selected_path(const voe_editor_assets *assets, char *out,
 		out[0] = '\0';
 		return false;
 	}
-	for (char *c = out; *c != '\0'; c++)
-		if (*c == '\\')
-			*c = '/';
 	return true;
+}
+
+const char *voe_editor_assets_join(voe_base_arena *arena, const char *folder,
+				   const char *name)
+{
+	size_t size;
+	char *out;
+
+	VOE_BASE_ASSERT(arena != NULL && folder != NULL && name != NULL,
+			"joining no relative path");
+	if (folder[0] == '\0')
+		return copy_string(arena, name);
+	size = strlen(folder) + 1 + strlen(name) + 1;
+	out = voe_base_arena_push(arena, size);
+	VOE_BASE_ASSERT(out != NULL, "out of memory joining a relative path");
+	snprintf(out, size, "%s/%s", folder, name);
+	VOE_BASE_ASSERT(strlen(out) + 1 == size, "a relative path cut short");
+	return out;
 }
 
 void voe_editor_assets_delete_begin(voe_editor_assets *assets)
@@ -585,14 +633,17 @@ voe_editor_assets_at voe_editor_assets_row_at(const voe_editor_assets *assets,
 	VOE_BASE_ASSERT(assets != NULL, "asking what is under a point in no panel");
 	VOE_BASE_ASSERT(assets->row_count <= VOE_EDITOR_BROWSER_ROWS,
 			"more Assets rows than the panel holds");
-	if (!voe_editor_inspector_rect_contains(assets->body_seen, at))
+	// The panel's whole visible rectangle is the body plus the filler.
+	if (!voe_editor_inspector_rect_contains(assets->body_seen, at) &&
+	    !voe_editor_inspector_rect_contains(assets->fill_seen, at))
 		return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_OUTSIDE, 0 };
 	if (voe_editor_inspector_rect_contains(assets->up_seen, at))
 		return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_UP, 0 };
 	for (uint32_t i = 0; i < assets->row_count; i++)
 		if (voe_editor_inspector_rect_contains(assets->rows[i].seen, at))
 			return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_ROW, i };
-	if (voe_editor_inspector_rect_contains(assets->empty_seen, at))
+	if (voe_editor_inspector_rect_contains(assets->empty_seen, at) ||
+	    voe_editor_inspector_rect_contains(assets->fill_seen, at))
 		return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_EMPTY, 0 };
 	return (voe_editor_assets_at){ VOE_EDITOR_ASSETS_AT_NONE, 0 };
 }

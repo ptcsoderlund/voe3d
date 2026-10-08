@@ -33,6 +33,8 @@ and read through the description its own folder registered.
   and shared with `prefab_cook.c`; its header says what differs between the two.
 - `prefab_cook.c` — the prefab cook: finds the root, orders the entities root
   first and writes the spawning function.
+- `landscape_cook.c` — the landscape cook: heights as one `int32_t` array of
+  whole millimetres, grown through `cook_text.h`'s buffer.
 - `project.c` — the project file reader and writer. Its header says how a scene
   path is checked the same way on both sides.
 - `paths.c` — the one walk behind following and finding paths in scene text.

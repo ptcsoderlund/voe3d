@@ -10,9 +10,9 @@ again, or to find where a claim that has started failing is written down.
 - `shadow_cascades.c` — that the splits rise to the reach, each slice lies in
   its cascade's box, and a moved and turned eye moves the map by whole texels,
   near the origin and 100 km out. Needs no graphics card.
-- `bounce_grid.c` — that the probe volume fits the level's box, not the eye: the same cell and
-  spacing from three eyes, a centre across a cell edge one cell on, no box about the origin, and a
-  sun view that holds the volume and grows with the spacing. Needs no graphics card.
+- `bounce_grid.c` — that the probe volume fits the level's box, not the eye, the relight's sun view
+  holds it, and a nest about the eye starts, holds still, steps a cell and jumps home as the eye
+  moves. Needs no graphics card.
 - `depth_sort.c` — that the order visits the furthest away first, and that equal
   depths keep the order they came in. Needs no graphics card.
 - `normal_matrix.c` — that a normal stays perpendicular to a non-uniformly scaled
@@ -30,9 +30,8 @@ again, or to find where a claim that has started failing is written down.
   frames blind, the eye lags the last step and a red shape reads red. Skips without a graphics card.
 - `draw_gizmo.c` — that a gizmo's arrows and rings show through the cube it stands in. Skips
   without a graphics card.
-- `draw_markers.c` — that a marked camera or sun is one draw more and a zeroed marker none, that
-  two suns are one draw and one selected two, that a ray picks each sun, and that a bare place
-  is marked and one with a shape not. Skips without a graphics card.
+- `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
+  and a zeroed marker none, and that a ray picks each sun. Skips without a graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
   none with no store, and that a glowing one is unlit. Skips without a graphics card.
 - `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
@@ -51,18 +50,18 @@ again, or to find where a claim that has started failing is written down.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
-- `shadow_lights.c` — that a sun and a moon each cast their own shadow on the floor from the second
-  frame, a sun that does not cast leaves only the moon's, and one casting light fits one light's
-  passes without growing the array. Skips without a graphics card.
+- `shadow_lights.c` — that a sun and a moon each cast their own shadow, a sun not casting leaves
+  the moon's, one casting light fits one light's passes, a moon bounces, and each bouncing sun
+  draws its own map per volume. Skips without a graphics card.
 - `blocked_shadows.c` — that a moon inside an All, Direct or Fill box, or alone inside an All, is
   not shadowed by a roof outside it yet casts the cube inside, and that with no box the roof shadows
   the floor. Skips without a graphics card.
-- `bounce.c` — the shadows call's passes over two frames, captures and sun map for a sun or lamp
-  that bounces, two views in one frame each drawing their sun map, the stale spheres a moved wall
-  marks, and the still casters' box from two eyes and a turned one. Skips without a card.
-- `bounce_scene.c` — the probe bounce through the editor's and the game's calls: a red box tints the
-  ground it faces, open ground stays even, the grid settles, a light blocker keeps the tint out of
-  its patch, and camera turns and moves change nothing, nor does a far eye. Skips without a card.
+- `bounce.c` — the shadows call's passes over two frames, two views each drawing theirs, the
+  nests begun and captured, the caster-sized stale spheres and the still casters' box. Skips
+  without a card.
+- `bounce_scene.c` — the probe bounce as the editor draws it: a red box tints the ground it faces,
+  open ground stays even, it settles, a blocker keeps the tint out, and turns, moves and a far eye
+  change nothing. Skips without a card.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.
@@ -101,10 +100,9 @@ again, or to find where a claim that has started failing is written down.
 - `far.c` — that everything moved 100 km out picks the same cube at the same distance, grabs a
   millimetre as a millimetre, and frames about the camera's double position. Needs no graphics
   card.
-- `shape.c` — the shape table's description, default row casting, intents (cast_shadows false
-  among them) and runs, each kind's own
-  geometry, and the upload's two material records. The table and geometry half needs no graphics
-  card; the upload half skips without one.
+- `shape.c` — the shape table's description, default row, intents and runs, each kind's own
+  geometry, the changes table and the upload's material records. The table and geometry half needs
+  no graphics card; the upload half skips without one.
 - `model_component.c` — the model component's fields, its default and intents read back after a
   run, a dead entity's intent dropped and a long path cut. Needs no graphics card.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
@@ -118,3 +116,8 @@ again, or to find where a claim that has started failing is written down.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
   blended twin and none leaked, pictures and the uncounted dot, and a model drawn only with the
   store. Skips without a card.
+- `models_landscape.c` — a `.landscape` loaded as sixteen parts on one material, a brush marking it
+  edited and the frame drawing its chunks transient, the settle making them static, a put's rect
+  and a rename. Skips without a card.
+- `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, a chunk wound up
+  and a rect on a chunk edge in both. Needs no graphics card.

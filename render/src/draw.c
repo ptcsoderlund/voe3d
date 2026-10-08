@@ -16,11 +16,11 @@
 // in the slots at the volume's reach. In every other pass the mask is nought.
 //
 // WHICH PIPELINE IS BOUND, AND WHICH POOLS. A pass opens with the solid
-// pipeline and the static pools bound (pass.c). A blended draw needs the other
-// pipeline and a transient mesh the other pool pair; draw_with rebinds either
-// only when it differs from what device->bound and device->bound_transient say
-// was bound last, so a run of draws of one kind costs one bind and a caller that
-// interleaves them is still drawn right. In a shadow pass (pass.c) and the bounce
+// pipeline and no pools bound (pass.c); its first mesh draw binds its pair. A
+// blended draw needs the other pipeline and a transient mesh the other pool pair;
+// draw_with rebinds either only when it differs from what device->bound and
+// device->bound_transient say was bound last, so a run of draws of one kind
+// costs one bind and a caller that interleaves them is still drawn right. In a shadow pass (pass.c) and the bounce
 // shadow pass (bounce_shadow.c) every mesh draw goes through the shadow pipeline, in the point-shadow and capture passes through theirs; a blended draw and the
 // depth clear assert in each. The element pipeline (element.c) is
 // never bound here; it leaves `bound` different, and the next mesh rebinds.
@@ -36,20 +36,19 @@
 #include <string.h>
 
 // The vertex buffer and the index buffer a draw reads: the device's static pair
-// or this slot's transient pair. One function for both so that the rendering's
-// opening bind and draw_with's rebind cannot bind them differently, and so that
-// `bound_transient` is set in the one place the binding happens.
+// or this slot's transient pair. One function for both so that `pools_bound` and
+// `bound_transient` are set in the one place the binding happens.
 //
 // TWO PAIRS OF GEOMETRY POOLS CAN BE DRAWN FROM AND ONLY ONE PAIR IS BOUND AT A
-// TIME. The static pair is bound as a pass opens, because that is what a pass's
-// first draws come out of; a range in this slot's transient pair (card
-// 028) needs the other pair bound, and draw_with rebinds when — and only when —
-// the pool a range is in differs from the pair last bound. It is tracked exactly
-// as the pipeline is: a run of draws out of one pair costs one bind, and neither
-// pair is ever bound per draw. Forgetting the rebind draws one object wearing
-// another's shape out of the wrong buffer, which is the failure to look for.
-void voe_render_bind_pools(voe_render_device *device,
-			   const struct voe_render_frame *frame, bool transient)
+// TIME. A pass opens with the solid pipeline and no pools (ADR-0385); its first
+// mesh draw binds the pair its range is in, and draw_with rebinds when — and only
+// when — a later range's pool (the transient pair is card 028's) differs from the
+// pair last bound. It is tracked exactly as the pipeline is: a run of draws out
+// of one pair costs one bind, and neither pair is ever bound per draw. Forgetting
+// the rebind draws one object wearing another's shape out of the wrong buffer,
+// which is the failure to look for.
+static void bind_pools(voe_render_device *device,
+		       const struct voe_render_frame *frame, bool transient)
 {
 	VkDeviceSize vertex_offset = 0;
 	VkBuffer vertices = transient ?
@@ -63,6 +62,7 @@ void voe_render_bind_pools(voe_render_device *device,
 					      &vertex_offset);
 	voe_render_vk.cmd_bind_index_buffer(frame->commands, indices, 0,
 					    VK_INDEX_TYPE_UINT32);
+	device->pools_bound = true;
 	device->bound_transient = transient;
 }
 
@@ -195,10 +195,11 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 		device->bound = pipeline;
 	}
 
-	// Which pool pair the range is in, and a rebind only when that changes
-	// — tracked exactly as the pipeline is above, and for the same reason.
-	if (device->bound_transient != slot->transient)
-		voe_render_bind_pools(device, frame, slot->transient);
+	// Which pool pair the range is in, bound by the pass's first mesh draw
+	// and rebound only when that changes — tracked exactly as the pipeline
+	// is above, and for the same reason.
+	if (!device->pools_bound || device->bound_transient != slot->transient)
+		bind_pools(device, frame, slot->transient);
 
 	// The record, into this slot's own object buffer at this object's
 	// number. Written rather than staged because the buffer is host-visible

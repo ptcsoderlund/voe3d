@@ -29,18 +29,24 @@
 // A MOON BOUNCES (0357 point 1): a sun of intensity 0 and bounces 0 and a moon
 // of intensity 3 and bounces 1, and a wall 0.2 × 8 × 4 at x 4 up to y 7 whose
 // -x face the moon lights, since the floor in the cube's shadow otherwise sees
-// only the cube's dark side and the black sky above the probes. That floor,
-// read on the third frame, the one after the volume builds, is brighter than
+// only the cube's dark side and the black sky above the probes. That floor is
+// read on frame 3 + FADE: frame two captures the probes nearest the eye, and a
+// new picture fades in over FADE places (0389 point 4). It is brighter than
 // with the moon's bounces at 0.
 //
-// EACH CASTING SUN THAT BOUNCES DRAWS ITS OWN MAP (0357 point 4): the sun and
-// the moon both bouncing and casting, the second frame's shadows call, no view
-// pass, as bounce.c counts, is false on a device whose passes are one short of
-// both lights' cascades, the capture passes and two bounce shadow passes, and
-// true with one more. Both bounce cases skip, said, without shaderOutputLayer.
+// EACH CASTING SUN THAT BOUNCES DRAWS ITS OWN MAP (0357 point 4, 0389): the
+// world fits a 2 m level grid, so the 1 m nest begins beside it, as
+// volumes_begun works out from bounce_grid.h. The sun and the moon both
+// bouncing and casting, the second frame's shadows call, no view pass, as
+// bounce.c counts, is false on a device whose passes are one short of both
+// lights' cascades, the capture passes and a bounce shadow pass per casting sun
+// per begun volume, and true with one more. Every device has objects for the
+// most passes a frame here opens. Both bounce cases skip, said, without
+// shaderOutputLayer.
 //
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/shadows.c does.
+#include <3d/bounce_grid.h>
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
@@ -78,16 +84,25 @@
 // How far apart, in 8-bit levels, two pixels of the same lit floor may read.
 #define LIT_ALIKE 4
 
-// Up to three casters, the wall's included, drawn into every pass; point
-// shadows sized so their readiness says whether the card has
-// shaderOutputLayer, as bounce.c does.
+// Places a new probe picture takes to full weight (0389 point 4), render's
+// VOE_RENDER_BOUNCE_FADE, which render keeps to itself.
+#define FADE 16
+// The most passes a frame here opens: both lights' cascades and a sun map per
+// volume a target holds, the capture passes and the view.
+#define MOST_PASSES                                                       \
+	(2 * (VOE_RENDER_SHADOW_CASCADES + VOE_RENDER_BOUNCE_VOLUMES) +   \
+	 VOE_RENDER_BOUNCE_CAPTURE_PASSES + 1)
+
+// Up to three casters, the wall's included, drawn into every pass a frame can
+// open, as bounce.c sizes them; point shadows sized so their readiness says
+// whether the card has shaderOutputLayer, as bounce.c does.
 static voe_render_capacities capacities(uint32_t passes)
 {
 	return (voe_render_capacities){
 		.vertices = VOE_3D_SHAPES_VERTICES,
 		.indices = VOE_3D_SHAPES_INDICES,
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,
-		.objects = 3 * passes,
+		.objects = 3 * MOST_PASSES,
 		.shadings = VOE_3D_SHAPES_SHADINGS,
 		.passes = passes,
 		.targets = 1,
@@ -96,11 +111,29 @@ static voe_render_capacities capacities(uint32_t passes)
 	};
 }
 
-// The passes of the bounce's frame for `lights` casting and bouncing: their
-// cascades, the capture passes and a bounce shadow pass each.
-static uint32_t bounce_passes(uint32_t lights)
+// The volumes the world begins, with the wall when `wall`: the level grid
+// fitted to the still casters' box, the floor, the cube and the wall worked
+// out by hand about the eye at the origin, and each nest finer than it.
+static uint32_t volumes_begun(bool wall)
 {
-	return lights * (VOE_RENDER_SHADOW_CASCADES + 1) +
+	voe_math_double3 min = { -10.0, -1.05, -15.0 };
+	voe_math_double3 max = { 10.0, wall ? 7.0 : 1.5, 5.0 };
+	float level = voe_3d_bounce_grid_fit(min, max, (voe_math_double3){ 0 })
+			      .spacing;
+	uint32_t begun = 1;
+
+	for (uint32_t nest = 0; nest < VOE_3D_BOUNCE_NESTS; nest++)
+		if (voe_3d_bounce_nest_spacing(nest) < level)
+			begun++;
+	return begun;
+}
+
+// The passes of the bounce's frame for `lights` casting and bouncing in a
+// world of `begun` volumes: their cascades, the capture passes and a bounce
+// shadow pass each per volume.
+static uint32_t bounce_passes(uint32_t lights, uint32_t begun)
+{
+	return lights * (VOE_RENDER_SHADOW_CASCADES + begun) +
 	       VOE_RENDER_BOUNCE_CAPTURE_PASSES;
 }
 
@@ -321,7 +354,7 @@ static voe_render_device *a_device(voe_base_arena *arena, uint32_t passes,
 	return device;
 }
 
-// The floor in the moon's shadow on the third frame, on a fresh device, for a
+// The floor in the moon's shadow on frame 3 + FADE, on a fresh device, for a
 // sun of intensity 0 and bounces 0, a moon of intensity 3 and `bounces`, and
 // the wall the moon lights; 0 with no device or no shaderOutputLayer, which
 // `skipped` says.
@@ -329,8 +362,8 @@ static uint8_t moon_shadow(uint32_t bounces, bool *skipped)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	voe_3d_shapes shapes;
-	voe_render_device *device =
-		a_device(arena, bounce_passes(1) + 1, &shapes);
+	voe_render_device *device = a_device(
+		arena, bounce_passes(1, volumes_begun(true)) + 1, &shapes);
 	uint8_t pixel = 0;
 
 	*skipped = device == NULL || !voe_render_point_shadows_ready(device);
@@ -342,7 +375,7 @@ static uint8_t moon_shadow(uint32_t bounces, bool *skipped)
 		add_a_shape(world, WALL_X, 3.0,
 			    (voe_math_float3){ 0.2f, 8.0f, 4.0f });
 		voe_3d_shape_system_run(world, &shapes);
-		pixel = frames_of(world, device, arena, 3).moon;
+		pixel = frames_of(world, device, arena, 3 + FADE).moon;
 	}
 	if (device != NULL)
 		voe_render_device_destroy(device);
@@ -400,8 +433,10 @@ static void the_suns_bounce(void)
 	}
 	printf("moon's shadow: bounced %u, not %u\n", bounced, still);
 	VOE_TEST_CHECK(bounced > still);
-	VOE_TEST_CHECK(!both_bounce_on(bounce_passes(2) - 1, &skipped));
-	VOE_TEST_CHECK(both_bounce_on(bounce_passes(2), &skipped));
+	VOE_TEST_CHECK(!both_bounce_on(bounce_passes(2, volumes_begun(false)) - 1,
+				       &skipped));
+	VOE_TEST_CHECK(both_bounce_on(bounce_passes(2, volumes_begun(false)),
+				      &skipped));
 }
 
 int main(void)

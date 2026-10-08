@@ -1,7 +1,7 @@
 // The previous step's transforms: the table a stepping world registers, the
-// copy taken at the start of each step, and the blend the draw reads — each
+// copy taken at the start of each step, the blend the draw reads — each
 // link of the parent chain blended by the lag, then composed into a world
-// transform (0281 point 2).
+// transform (0281 point 2) — and whether an entity was remembered at all.
 //
 // THE TABLE IS FOUND BY WALKING THE WORLD'S TYPES, because a world that does not
 // step never registered it and voe_ecs_component_type asserts on a key nobody
@@ -179,4 +179,16 @@ voe_scene_transform voe_scene_transform_between(const voe_ecs_world *world,
 	VOE_BASE_DEBUG_ASSERT(isfinite(placed.position.x),
 			      "a blended world place that is not finite");
 	return placed;
+}
+
+// No assert by design: 3d asks this of every caster, in worlds with and
+// without a previous table, and a missing world or table is simply "no".
+bool voe_scene_transform_remembered(const voe_ecs_world *world,
+				    voe_ecs_entity entity)
+{
+	voe_ecs_type previous;
+
+	if (world == NULL || !previous_type(world, &previous))
+		return false;
+	return voe_ecs_component_get(world, previous, entity) != NULL;
 }

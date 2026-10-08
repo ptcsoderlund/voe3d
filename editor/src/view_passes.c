@@ -5,7 +5,9 @@
 // box lines, faint but the selected one's (0347 point 5, 0365 point 5), and
 // gizmo (none for a prefab's part) and the scene camera's, every directional
 // light's, every point light's (0360) and every meshless place's (0365)
-// markers, the selected one's in the outline's colour, and the pass ended; and
+// markers, the selected one's in the outline's colour, the brush's rings on
+// the hovered ground with the gizmo hidden while brushing a landscape (0379
+// point 3), and the pass ended; and
 // the preview's shadow passes and pass, drawn with the world's camera while the
 // selected entity has one and marking nothing. Every pass is lit by every
 // directional light, the first as `light` and the rest from the frame (0357
@@ -42,6 +44,39 @@ static voe_math_float3 marker_colour(const voe_ui_theme *palette,
 			   marked.generation == selected.generation;
 	return is_selected ? voe_editor_view_outline_colour(palette)
 			   : voe_editor_view_gizmo_colour(palette, false);
+}
+
+// The brush's two rings where the pointer meets the ground (0379 point 3),
+// zeroed when there is no hover hit: coloured from the gizmo's rest colour at
+// the weakest strength to the outline's at the strongest.
+static voe_3d_brush_marked brush_marked(const voe_editor_sculpt *sculpt,
+					const voe_ui_theme *palette,
+					voe_3d_material material, float pixels,
+					voe_platform_size size)
+{
+	VOE_BASE_ASSERT(sculpt != NULL && palette != NULL,
+			"marking the brush with no sculpt or palette");
+	if (!sculpt->hit)
+		return (voe_3d_brush_marked){ 0 };
+	float t = (sculpt->strength - VOE_EDITOR_SCULPT_STRENGTH_MIN) /
+		  (VOE_EDITOR_SCULPT_STRENGTH_MAX -
+		   VOE_EDITOR_SCULPT_STRENGTH_MIN);
+	voe_3d_brush_marked brush = {
+		.entity = sculpt->entity,
+		.x = sculpt->x,
+		.z = sculpt->z,
+		.radius = sculpt->radius,
+		.inner = sculpt->radius * (1.0f - sculpt->softness),
+		.material = material,
+		.colour = voe_math_float3_lerp(
+			voe_editor_view_gizmo_colour(palette, false),
+			voe_editor_view_outline_colour(palette), t),
+		.pixels = pixels,
+		.size = size
+	};
+	VOE_BASE_ASSERT(brush.inner <= brush.radius,
+			"a brush's full-weight radius past its radius");
+	return brush;
 }
 
 bool voe_editor_view_passes_preview(voe_render_device *gpu,
@@ -125,7 +160,10 @@ bool voe_editor_view_passes_draw(
 	voe_ecs_entity selected = voe_editor_scene_selected(scene);
 	voe_math_float3 camera_colour =
 		marker_colour(palette, camera_entity, selected);
-	// A prefab's part keeps its outline but has no gizmo (0283 point 5).
+	// A prefab's part keeps its outline but has no gizmo (0283 point 5),
+	// and a chosen brush on a landscape hides it (0379 point 3).
+	bool brushing = scene->sculpt.chosen &&
+			voe_editor_sculpt_wears(world, selected);
 	voe_ecs_entity gizmo_entity =
 		voe_editor_inspector_is_part(world, selected, NULL) ?
 			(voe_ecs_entity){ 0 } :
@@ -140,6 +178,7 @@ bool voe_editor_view_passes_draw(
 
 		if (!voe_editor_dock_shows_view(root, v))
 			continue;
+		voe_platform_size size = { (int)view->width, (int)view->height };
 
 		// This view's own view and eye first: its cascades are fitted
 		// to them before its pass opens.
@@ -167,9 +206,7 @@ bool voe_editor_view_passes_draw(
 		voe_base_arena_rewind(arena, mark);
 		if (!passed)
 			return false;
-		voe_3d_draw_system_run(
-			world, gpu, arena,
-			(voe_3d_frame){
+		voe_3d_frame drawn = (voe_3d_frame){
 				.view = camera.view,
 				.light = camera.light,
 				.eye = view->eye,
@@ -267,7 +304,17 @@ bool voe_editor_view_passes_draw(
 					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
 						  pixels_per_millimetre,
 					.size = { (int)view->width,
-						  (int)view->height } } });
+						  (int)view->height } },
+				// The brush where the pointer meets the ground.
+				.brush = brush_marked(
+					&scene->sculpt, palette,
+					shapes->outline,
+					VOE_EDITOR_OUTLINE_MILLIMETRES *
+						pixels_per_millimetre,
+					size) };
+		if (brushing)
+			drawn.gizmo = (voe_3d_gizmoed){ 0 };
+		voe_3d_draw_system_run(world, gpu, arena, drawn);
 		voe_render_pass_end(gpu);
 	}
 	VOE_BASE_ASSERT(views->count <= VOE_EDITOR_VIEWS,

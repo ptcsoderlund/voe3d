@@ -12,12 +12,13 @@
 // in the light. A capture draws every caster; a sun's map only those the
 // blockers holding the sun hold, as its cascades (0361 point 2).
 //
-// A STALE SPHERE IS WHERE A CASTER WAS AND IS. A caster whose transform at lag 1
-// (the previous table's) differs from lag 0 in position or rotation marks a
-// sphere at each place, about the frame's eye, of the larger of
-// VOE_3D_BOUNCE_REACH and 3 cells (0332 point 4); render captures the probes in
-// it again. A world with no previous table, or a caster never remembered,
-// blends as its current row and marks nothing.
+// A STALE SPHERE IS A CASTER'S OWN SIZE (0389 point 7): about the frame's eye,
+// of w its world bounding radius, render adding the probes' reach. A caster
+// whose transform at lag 1 (the previous table's) differs from lag 0 in
+// position, rotation or scale marks one at each place. One never remembered in
+// a world that has a previous table is new, and one the shape system changed
+// this step recoloured; each marks one where it is. A world with no previous
+// table marks only recolours; a removed caster marks nothing.
 //
 // THE GRID IS FITTED TO THE LEVEL, NOT THE EYE (0331): to the still casters'
 // box (0332 point 1), so a camera that moves never moves it.
@@ -50,11 +51,15 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 bool voe_3d_draw_light_casts(const voe_ecs_world *world, uint32_t light);
 
 // The stale spheres of this step into `spheres`, xyz about the frame's eye and
-// w the larger of VOE_3D_BOUNCE_REACH and 3 × `spacing`, the grid's, two for
-// each caster that moved; the count, never past `room`. A moved caster that
-// does not fit is left out.
+// w the caster's world bounding radius at that lag, half the diagonal of its
+// world box grown as voe_3d_bounce_box grows one from `device`'s geometry
+// boxes: two for each caster that moved (position by a millimetre, rotation or
+// scale by 1e-4), one for each new or recoloured one; the count, never past
+// `room`. A sphere that does not fit is left out, and a caster whose ids name
+// no geometry marks none.
 uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
-			     const voe_3d_frame *frame, float spacing,
+			     const voe_render_device *device,
+			     const voe_3d_frame *frame,
 			     voe_math_float4 *spheres, uint32_t room);
 
 // The world box, in double about the world origin, of every caster drawn into
@@ -76,7 +81,11 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 // of the fitted grid along its direction (voe_3d_bounce_grid_sun) and, when
 // render opens it, the casters its blockers hold drawn into it (0329, 0357
 // point 4, 0361 point 2); then
-// relights. False when a pass or a draw is refused.
+// relights. That is volume 0; then each nest finer than the level grid, coarse
+// to fine, the same at voe_3d_bounce_grid_nest from voe_render_bounce_placed,
+// the j-th of n volumes capturing until the call's count reaches
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES − (n − 1 − j) (0389 points 1 to 3). False
+// when a pass or a draw is refused.
 [[nodiscard]] bool voe_3d_draw_bounce(voe_ecs_world *world,
 				      voe_render_device *device,
 				      voe_3d_frame *frame);

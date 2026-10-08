@@ -105,8 +105,10 @@ void voe_scene_transform_system_run(voe_ecs_world *world);
 // by a script or an intent blends the same as a body, and physics owns no
 // transform it would have to copy (ADR-0011).
 //
-// IT IS OPT-IN. The editor steps nothing and never registers it, and a world
-// without it pays nothing: between() then hands back the world place. The table
+// IT IS OPT-IN. A world from voe_game_world_new registers it; a game remembers
+// each step, and the editor once a frame before its step (0389), drawing at
+// lag 0 as before. A world without it pays nothing: between() then hands back
+// the world place. The table
 // is runtime-only, so it is never saved, has no replace and is not in Add
 // component. The draw gets a world transform from it: each link of the parent
 // chain blended by the lag, then composed (0281 point 2).
@@ -134,3 +136,9 @@ void voe_scene_transform_remember(voe_ecs_world *world);
 voe_scene_transform voe_scene_transform_between(const voe_ecs_world *world,
 						voe_ecs_entity entity,
 						float lag);
+
+// Whether the last remember() held a row for the entity: false in a world with
+// no previous table, for a dead entity, or one given its transform since, which
+// is how a caster added this step is told apart (0389 point 7). Never asserts.
+bool voe_scene_transform_remembered(const voe_ecs_world *world,
+				    voe_ecs_entity entity);

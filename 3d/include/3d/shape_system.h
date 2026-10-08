@@ -150,4 +150,31 @@ typedef struct {
 // newer than the file it opened should not print one warning per unknown shape
 // in a scene that has many. A corrected intent is reported the same way, with a
 // run and a count of its own.
+//
+// IN A WORLD WITH THE CHANGES TABLE (below), THE RUN CLEARS IT FIRST, then marks
+// each drained intent whose colour or kind differs from the row it replaces.
 void voe_3d_shape_system_run(voe_ecs_world *world, const voe_3d_shapes *shapes);
+
+// WHICH SHAPES THE LAST RUN RECOLOURED, FOR THE PROBE BOUNCE (0389 point 8). A
+// recoloured or re-kinded shape bounces other light, so the bounce recaptures
+// the probes about it; without this it could tell only that something moved.
+//
+// IT IS OPT-IN, as the previous transforms are (scene/transform_system.h). The
+// game's world registers it; a world without it pays nothing, and the run then
+// marks nothing. The table is runtime-only, so it is never saved, has no replace
+// and is not in Add component. ONLY THE RUN WRITES IT. A row outlives its shape
+// and is cleared to false by the next run.
+//
+//     voe_3d_shape_changes_register(world, 4096);    // once, after shapes
+//     voe_3d_shape_system_run(world, &shapes);
+//     if (voe_3d_shape_changed(world, entity))
+//             ...                                    // recapture about it
+//
+// capacity is how many shapes may be marked: the shape table's. Registering
+// twice, or before the shapes, asserts.
+void voe_3d_shape_changes_register(voe_ecs_world *world, uint32_t capacity);
+
+// True when the last voe_3d_shape_system_run changed that entity's colour or
+// kind. False when the table is not registered or the entity has no row.
+[[nodiscard]] bool voe_3d_shape_changed(const voe_ecs_world *world,
+					voe_ecs_entity entity);

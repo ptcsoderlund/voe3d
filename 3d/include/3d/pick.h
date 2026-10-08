@@ -18,7 +18,8 @@
 // IT WALKS THE SHAPES, MODELS, WATERS, CAMERAS, SUNS, POINT LIGHTS AND PLACES
 // (ADR-0202, 0223, 0274, 0277, 0320, 0365). A mesh is runtime-only; models are
 // tested on their loaded entry's own triangles (3d/models.h) as a shape is, and
-// a NULL store walks none. A water is hit on its plane, either face. A camera is
+// a NULL store walks none. A landscape is met by its heights, not triangles
+// (0379 point 2). A water is hit on its plane, either face. A camera is
 // hit on its marker's box (3d/camera_marker.h), a sun, a point light and every
 // place marker (3d/place_marker.h) on their marker's cube, never their lines; a
 // world with no store of a kind walks none of it, nor a row with no transform.
@@ -47,10 +48,8 @@
 // matrix cannot be inverted (math/float4x4.h asserts on a singular one), and
 // there is no ray in its space to cast.
 //
-// TIES ARE BROKEN BY TABLE ORDER, AND THAT IS NOT WORTH A RULE. Two surfaces at
-// exactly the same distance along the ray is two coplanar faces under one pixel;
-// whichever came first in the shape table wins, and no person can tell which
-// they meant.
+// TIES ARE BROKEN BY TABLE ORDER: two coplanar faces under one pixel, and no
+// person can tell which they meant.
 //
 // IT WALKS EVERY ROW EVERY CALL. There is no acceleration structure and none is
 // wanted: a click is not a per-frame operation, and a scene with a thousand
@@ -109,3 +108,19 @@ voe_ecs_entity voe_3d_pick(const voe_ecs_world *world,
 			   const voe_3d_shape_geometries *geometries,
 			   const voe_3d_models *models, voe_3d_ray ray,
 			   float *distance);
+
+// Where a ray meets a landscape: `x` and `z` in the grid's own space (0379
+// point 1), `distance` along the ray in metres from its origin.
+typedef struct {
+	float x;
+	float z;
+	float distance;
+} voe_3d_landscape_hit;
+
+// Where `ray` meets the heights of the landscape `entity` wears, carried into
+// its own space as voe_3d_pick carries it, for a brush to stamp at. False, `hit`
+// untouched, for an entity with no transform or no loaded landscape, or a miss.
+[[nodiscard]] bool voe_3d_pick_landscape(const voe_ecs_world *world,
+					 const voe_3d_models *models,
+					 voe_ecs_entity entity, voe_3d_ray ray,
+					 voe_3d_landscape_hit *hit);

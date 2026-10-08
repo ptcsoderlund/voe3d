@@ -59,6 +59,7 @@
 // light tables already state below.
 #pragma once
 
+#include <3d/brush_marker.h>
 #include <3d/camera_marker.h>
 #include <3d/collider_marker.h>
 #include <3d/gizmo.h>
@@ -222,6 +223,28 @@ typedef struct {
 	voe_platform_size size;
 } voe_3d_rows_marked;
 
+// The sculpting brush a pass draws as two rings on a landscape (0379 point 3),
+// voe_3d_brush_marker_quads', with the world inside its depth after the
+// places, so a hill in front hides them. Only an editor's view sets it. One
+// transient range of VOE_3D_BRUSH_MARKER_VERTICES and _INDICES and one object;
+// an entity with no loaded landscape in `frame.models` or no transform draws
+// none, and a refused range draws none, as the outline does.
+typedef struct {
+	// The thing wearing the landscape, zeroed for none.
+	voe_ecs_entity entity;
+	// The brush's centre in the grid's own space, its radius and its
+	// full-weight radius, metres.
+	float x, z, radius, inner;
+	// The unlit record the quads wear — the outline's, voe_3d_shapes'.
+	voe_3d_material material;
+	// Linear, and the whole of what the rings look like.
+	voe_math_float3 colour;
+	// How wide a line is on the picture, in pixels, at any distance.
+	float pixels;
+	// The size of that picture, in pixels.
+	voe_platform_size size;
+} voe_3d_brush_marked;
+
 // The collider a pass draws as lines (0253), voe_3d_collider_marker_quads'.
 // It is drawn after the outline, behind the outline's depth clear, with the
 // outline's material and colour (`frame.outlined`), so it shows through what
@@ -352,6 +375,9 @@ typedef struct {
 	// and _INDICES per marked entity, two ranges and two objects; a pool too
 	// small draws none.
 	voe_3d_rows_marked places;
+	// THE SCULPTING BRUSH'S TWO RINGS (0379 point 3), drawn right after the
+	// places; a zeroed record draws none (voe_3d_brush_marked above).
+	voe_3d_brush_marked brush;
 	// The one entity whose collider this pass draws as lines, zeroed for
 	// none (voe_3d_collider_marked above).
 	voe_3d_collider_marked collider;
@@ -385,11 +411,6 @@ typedef struct {
 	voe_render_target target;
 } voe_3d_frame;
 
-// The least metres about a moved caster whose probes in the volume are captured
-// again (0326 point 4); on a coarser grid the radius is 3 of its cells (0332
-// point 4).
-#define VOE_3D_BOUNCE_REACH 6.0f
-
 // The share of D, the 17th casting lamp's distance, where a point light's
 // shadow starts fading (0325 point 5).
 #define VOE_3D_POINT_SHADOW_FADE 0.75f
@@ -403,9 +424,10 @@ typedef struct {
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
-// `point_lights`, `places`, `collider`, `light_blockers`, `points` and `blockers`
-// all come back zeroed and `models` NULL — hiding, outlining, standing a gizmo,
-// marking a camera, the suns, the point lights or the places, drawing a collider or the blockers' boxes,
+// `point_lights`, `places`, `brush`, `collider`, `light_blockers`, `points` and
+// `blockers` all come back zeroed and `models` NULL — hiding, outlining,
+// standing a gizmo, marking a camera, the suns, the point lights, the places or
+// the brush, drawing a collider or the blockers' boxes,
 // lighting by point lights, keeping
 // light out of blockers and drawing models are the caller's choice and it
 // sets the field on the answer, and `more_lights` and `more_count` come back
@@ -577,17 +599,26 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // with `bounces` of 1 or more and the frame's light of some strength and not
 // `unshaded`, or any of `more_lights` with `bounces` of 1 or more, some
 // strength and shaded — or a light in `frame->points` has `bounces` of 1 or
-// more. Every sun goes to the bounce (0357 point 1). It fits the probe volume to
+// more. Every sun goes to the bounce (0357 point 1). It fits the level grid to
 // the still casters' box, not about `frame->eye`, so the camera never moves it
-// (0331, 0332); begins `frame->target`'s bounce, opens capture passes while
-// render has probes to capture, drawing the casters into each, and relights.
-// That is up to VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes and that many more
-// objects per caster. On a frame that relights, for each sun that bounces and
-// casts it opens one more pass, and one more object per caster: that sun's
-// relight map (0357 point 4), fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades,
-// so the relight's sun shadow does not follow the view (0329). The first frame after a light starts bouncing builds the
-// volume and shows none. Stale spheres are marked where a caster moved this
-// step (lag 1 against lag 0), so a world without a previous table marks none.
+// (0331, 0332). Nests of 16, 4 and 1 m are placed about the eye, each only
+// when finer than the level grid, and move only when the eye goes past two
+// cells, so the camera moves the nests and never the level grid (0389). It
+// begins `frame->target`'s level grid, then each nest coarse to fine; for each
+// it opens capture passes while render has probes to capture, drawing the
+// casters into each, and relights. That is up to
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes in all, shared coarse to fine,
+// and that many more objects per caster. On a frame that relights a volume,
+// for each sun that bounces and casts it opens one more pass for that volume,
+// and one more object per caster: that sun's relight map (0357 point 4),
+// fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades, so the
+// relight's sun shadow does not follow the view (0329). The device needs room
+// for VOE_RENDER_BOUNCE_VOLUMES × the casting suns of those. The first frame
+// after a light starts bouncing builds the volumes and shows none. A stale sphere is a caster's own size, half its world
+// box's diagonal, render adding the reach: two where a caster moved, turned or
+// scaled this step (lag 1 against lag 0), one where it is when it is new or the
+// shape system changed it. A world without a previous table marks only
+// recolours, and a removed caster marks nothing yet (0389).
 // When nothing bounces nothing is begun, built or drawn (0316); false as before
 // when any call fails. The bounce is handed `frame->blockers` (0347 point 4), so
 // voe_3d_draw_system_light_blockers comes first, and a blocker that changes
@@ -606,7 +637,9 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // gizmo drawn after that, its arrows or its rings; `frame.marker`, when it names
 // a live camera with a transform, and `frame.sun`, when `shown`, every light
 // with a transform, are drawn with the world, `frame.places`, when `shown`,
-// with the world after the point lights, `frame.light_blockers`, when `shown`,
+// with the world after the point lights, `frame.brush`, when it names a loaded
+// landscape with a transform, with the world after the places,
+// `frame.light_blockers`, when `shown`,
 // every blocker but the selected one as its box's lines with the world after the
 // places, and `frame.collider`, when it names one with a collider, as lines
 // after the outline, and the selected blocker's box lines after those. Calling it with no pass open is the caller's bug

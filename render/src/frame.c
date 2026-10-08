@@ -15,10 +15,11 @@
 // cleared the window, device->object_count says how many objects have gone into
 // it, device->element_count says how many elements have been submitted to it,
 // device->draw_commands says how many draw commands it holds, device->bound says
-// which pipeline it last bound, device->bound_transient says which of the two
-// geometry pool pairs it last bound, and device->image_index says which swapchain
-// image _end has to blit into. _begin resets them; pass.c, draw.c and element.c
-// write them in between. There is exactly one frame open at a time, so a token
+// which pipeline it last bound, device->pools_bound whether the open pass has
+// bound a geometry pool pair yet and device->bound_transient which of the two it
+// last bound (both set by pass.c and draw.c), and device->image_index says which
+// swapchain image _end has to blit into. _begin resets them; pass.c, draw.c and
+// element.c write them in between. There is exactly one frame open at a time, so a token
 // handed to the caller would be a second place for that to live and a second
 // thing to get wrong.
 //
@@ -341,7 +342,7 @@ static bool begin_frame(voe_render_device *device, voe_platform_size size,
 	}
 
 	voe_render_vk.reset_fences(device->device, 1, &frame->submitted);
-	voe_render_vk.reset_command_buffer(frame->commands, 0);
+	voe_render_vk.reset_command_pool(device->device, frame->pool, 0);
 
 	voe_render_vk.begin_command_buffer(frame->commands, &begin);
 
@@ -372,12 +373,15 @@ static bool begin_frame(voe_render_device *device, voe_platform_size size,
 	device->pass_camera = false;
 	device->pass_count = 0;
 	device->window_cleared = false;
-	device->window_volume.begun[device->slot].begun = false;
 	device->bounce_begun = false;
 	device->capture_passes = 0;
-	for (uint32_t i = 0; i < device->capacities.targets; i++) {
+	for (uint32_t i = 0; i < device->capacities.targets; i++)
 		device->targets[i].cleared = false;
-		device->targets[i].volume.begun[device->slot].begun = false;
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++) {
+		device->window_volume[v].begun[device->slot].begun = false;
+		for (uint32_t i = 0; i < device->capacities.targets; i++)
+			device->targets[i].volume[v].begun[device->slot].begun =
+				false;
 	}
 	device->object_count = 0;
 	// Both start again with the frame: the elements because this slot's

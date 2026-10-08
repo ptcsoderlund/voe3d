@@ -178,12 +178,13 @@ function(voe_allowed_deps folder out_var)
         # mistake this map exists to catch (ADR-0121). It is a shorter row than
         # dev's on purpose. It names 3d because a scene view draws the world
         # into a target of its own (ADR-0151 point 3), and authoring because a
-        # scene is saved and opened through it (ADR-0151). It decodes no files and
-        # no sprite sheets itself, so assets and sprite are absent, and a card that
-        # wants one of them is a decision, not an edit here. It names theme
-        # because it reads the person's theme files into the palette it draws
-        # with, and theme is the one folder between a theme file and ui
-        # (ADR-0170); assets stays absent, theme's own row carries it. It names
+        # scene is saved and opened through it (ADR-0151). It names assets to
+        # read, make and resize .landscape files (0380); it still decodes no
+        # glTF, image or sound itself, those stay with 3d, audio and theme.
+        # sprite is absent, and a card that wants it is a decision, not an edit
+        # here. It names theme because it reads the person's theme files into
+        # the palette it draws with, and theme is the one folder between a
+        # theme file and ui (ADR-0170). It names
         # game for the one list of component types a project's world registers
         # (0237): the world the editor holds and the world the cook writes for
         # must register the same types, or the cook names one the game never did.
@@ -191,7 +192,7 @@ function(voe_allowed_deps folder out_var)
         # It names audio for a project library's symbols, not for sound of its
         # own: a library that plays sounds binds to the editor's exports (0265,
         # 0266).
-        set(deps base math ecs scene physics platform render text ui 3d authoring app theme game audio)
+        set(deps base math ecs scene physics platform assets render text ui 3d authoring app theme game audio)
     endif()
     set(${out_var} "${deps}" PARENT_SCOPE)
 endfunction()

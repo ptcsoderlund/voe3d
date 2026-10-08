@@ -113,10 +113,11 @@ typedef struct voe_render_device voe_render_device;
 // device's life, because nothing destroys one. A device made with none refuses
 // the first create with a message. Each target costs two texture slots of the
 // 1024 — its picture and its depth copy (ADR-0305) — as well as its images, and
-// the window's depth copy takes one more. A target or the window that voe_render_bounce_begin has begun also holds a
-// probe volume (ADR-0326) until 300 frames pass with no begin: three 1152 × 2304
-// atlases of 4, 8 and 4 bytes a texel and 22 3D images of 24 × 12 × 24, about
-// 43.6 MB. One that is never begun costs nothing (ADR-0316). The relight's sun
+// the window's depth copy takes one more. A target or the window holds up to
+// four probe volumes (ADR-0326, 0389 point 1), one for each volume
+// voe_render_bounce_begin has begun, each freed after 300 frames with no begin
+// onto it. Each is three 1152 × 2304 atlases of 4, 8 and 4 bytes a texel and 22
+// 3D images of 24 × 12 × 24, about 43.6 MB. One never begun costs nothing (ADR-0316). The relight's sun
 // map is 4 MB of depth a frame slot, only with shaderOutputLayer (ADR-0329).
 //
 // shadow_size IS THE FOURTH THAT MAY BE NOUGHT: texels a side of each of the
@@ -186,6 +187,9 @@ typedef struct {
 #define VOE_RENDER_BOUNCE_REACH 24.0f
 // Texels a side of the relight's own sun map, per frame slot (ADR-0329).
 #define VOE_RENDER_BOUNCE_SHADOW_TEXELS 1024u
+// Probe volumes a target holds: 0 the level grid, 1 to 3 the nests at 16, 4
+// and 1 m (0389 point 1).
+#define VOE_RENDER_BOUNCE_VOLUMES 4
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's
@@ -1495,7 +1499,9 @@ typedef struct {
 // Relights the target voe_render_bounce_begin began (ADR-0326 points 5 and 6),
 // after its capture passes, between passes: each probe captured or emptied since
 // the last relight gets its validity and distance moments, and (from card 09)
-// the grid is relit when a probe changed or the bouncing lights did. On a settled frame it
+// the grid is relit when a probe changed or the bouncing lights did. A frame
+// with only probes fading in records a settle alone, which writes their
+// readiness (ADR-0389 point 4). On a settled frame it
 // records nothing at all and only the read runs (ADR-0317 point 4); on a volume
 // not built, or a card without shaderOutputLayer, nothing either. Level 1's sun is
 // shadowed by this begin's bounce shadow map when one was drawn, lit outside its
@@ -1512,9 +1518,11 @@ void voe_render_pass_end(voe_render_device *device);
 // What one target's bounce is this frame (ADR-0326 point 8). `spacing` is the
 // metres between this volume's probes (0332 point 3), `cell` the volume's lowest
 // world cell counted in them and `corner` its lowest corner about the eye;
-// `stale` holds `stale_count` spheres about the eye, xyz centre and w radius,
-// whose probes are captured again. `sun` bounces `sun_bounces` times, scaled by
-// `sun_strength`; `points` are the frame's point lights, the first
+// `stale` holds `stale_count` spheres about the eye, xyz centre and w a
+// caster's own radius; render adds the reach, w + min(twelve cells, 16 w), and
+// captures the probes within again (ADR-0389 point 7). `sun` bounces
+// `sun_bounces` times, scaled by `sun_strength`; `points` are the frame's point
+// lights, the first
 // VOE_RENDER_BOUNCE_LAMPS with bounces bouncing. A struct tag and no typedef,
 // because the call below has the name and C has one name space for both.
 //
@@ -1524,7 +1532,8 @@ void voe_render_pass_end(voe_render_device *device);
 // sun and by a lamp by point 3, and a texel feeds its probe only when point 3
 // passes with the probe as source and the hit as surface. Blockers that change,
 // or a change of kinds or of the sun's mask, relight the grid; an eye that moves
-// does not, for they are compared about `corner`. Zero is none; more than
+// or a grid that scrolls does not, for blockers and lamps are compared about the
+// world origin, `corner` − `cell` × `spacing`. Zero is none; more than
 // VOE_RENDER_LIGHT_BLOCKERS, NULL with a count, a row not finite, walls and
 // indoors sharing a bit, or a kind or sun bit at or past the count asserts, as
 // at _pass_begin.
@@ -1535,6 +1544,10 @@ void voe_render_pass_end(voe_render_device *device);
 // change to any of them relights. A count past VOE_RENDER_DIRECTIONAL_LIGHTS − 1,
 // NULL with a count, bounces past VOE_RENDER_BOUNCES_MAX, or a mask bit at or
 // past the blocker count asserts. Zero is none, the old picture.
+//
+// `volume` IS WHICH OF THE TARGET'S VOE_RENDER_BOUNCE_VOLUMES THIS IS (0389
+// point 1): 0 the level grid, which a caller naming none gets, and 1 to 3 the
+// nests at 16, 4 and 1 m about the eye. It is below VOE_RENDER_BOUNCE_VOLUMES.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;
@@ -1547,28 +1560,43 @@ struct voe_render_bounce_frame {
 	float spacing;
 	voe_render_light_blockers blockers;
 	voe_render_directional_lights more;
+	uint32_t volume;
 };
 
 // Records `target`'s bounce for this frame, between passes; the arrays are
 // copied, so the caller's are its own again when this returns. The volume is
 // placed, captured, relit and read at `frame->spacing`; a spacing other than its
-// last empties the whole grid, as a jump does (0332 point 3).
+// last empties the whole grid, as a jump does (0332 point 3). Each stale sphere,
+// a caster's own radius, recaptures out to that radius plus the reach above.
 //
 // THE SUN IS SHADOWED IN THE RELIGHT BY THIS BEGIN'S BOUNCE SHADOW MAP when
 // voe_render_bounce_shadow_pass_begin opened it, lit outside its box, and
 // unshadowed when none was drawn (a sun that does not cast). The cascades never
 // reach the relight (ADR-0329).
 //
-// THE FIRST BEGIN ONTO A TARGET BUILDS ITS PROBE VOLUME AT THE TOP OF THE NEXT
-// FRAME, the GPU idling once as a resize does, and this frame bounces nothing. A
-// volume with no begin for 300 frames is freed the same way (ADR-0316). On a card
+// THE FIRST BEGIN ONTO A VOLUME BUILDS IT AT THE TOP OF THE NEXT FRAME, the GPU
+// idling once as a resize does, and this frame it bounces nothing. A volume
+// with no begin for 300 frames is freed the same way (ADR-0316). On a card
 // without shaderOutputLayer nothing bounces and no volume is built.
 //
-// Outside a frame, with a pass open, on a target not live, for a target already
-// begun this frame, with `sun_bounces` past VOE_RENDER_BOUNCES_MAX, or with a
+// CAPTURE, SHADOW AND RELIGHT CALLS ACT ON THE LATEST BEGIN. A target's volumes
+// are begun one after another, each followed by its own capture passes, bounce
+// shadow passes and relight (0389 point 1).
+//
+// Outside a frame, with a pass open, on a target not live, for this target's
+// volume already begun this frame, with a volume at or past
+// VOE_RENDER_BOUNCE_VOLUMES, `sun_bounces` past VOE_RENDER_BOUNCES_MAX, or a
 // spacing not finite or not above nought it asserts.
 void voe_render_bounce_begin(voe_render_device *device, voe_render_target target,
 			     const struct voe_render_bounce_frame *frame);
+
+// Writes into `cell` the lowest world cell volume `volume` of `target` was last
+// placed at, counted in its spacing (0389 point 2). False, `cell` untouched,
+// when the volume has never been placed or was freed since. A target not live
+// or a volume at or past VOE_RENDER_BOUNCE_VOLUMES asserts.
+[[nodiscard]] bool voe_render_bounce_placed(const voe_render_device *device,
+					    voe_render_target target,
+					    uint32_t volume, int32_t cell[3]);
 
 // Whether a pass is open: true from a _pass_begin that returned true until its
 // _pass_end. It exists so that a caller which issues draws on behalf of another —

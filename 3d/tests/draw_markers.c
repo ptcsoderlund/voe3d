@@ -1,7 +1,8 @@
 // A marked camera or the suns shown is one more draw than none, and a zeroed
 // marker is the same as none (0223, 0274). Two suns shown are one draw, one of
 // them selected two, and a ray through each sun's place picks it (0360). Places
-// shown mark the one bare transform, and not once it has a shape (0365).
+// shown mark the one bare transform, and not once it has a shape (0365). The
+// brush's rings lie 5 cm over the ground and are one draw more (0379).
 //
 // THE DRAW COUNT IS THE MEASUREMENT, BECAUSE A PICTURE SAYS LESS. What is
 // observable is voe_render_frame_draw_count — every mesh drawn is one command —
@@ -12,17 +13,23 @@
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITHOUT ONE, for the reason
 // 3d/tests/import.c gives at length: a box with no Vulkan is the box and not
 // this engine.
+#include <3d/brush_marker.h>
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/model_component.h>
+#include <3d/models.h>
 #include <3d/panel_component.h>
 #include <3d/pick.h>
+#include <3d/projection.h>
 #include <3d/shape_component.h>
 #include <3d/shape_geometry.h>
 #include <3d/shape_system.h>
+#include <assets/landscape.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <ecs/world.h>
+#include <math/float3.h>
 #include <render/device.h>
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
@@ -417,10 +424,162 @@ static void every_bare_place_is_marked(void)
 	voe_base_arena_destroy(arena);
 }
 
+// The ground of `sloped`, 16 m of 8 cells: a plane, so its bilinear height is
+// the plane's everywhere and a straight line between two ring points lies at
+// the same lift above it as the points do.
+static float slope(float x, float z)
+{
+	return 0.25f * x + 0.5f * z + 1.0f;
+}
+
+static voe_assets_landscape sloped(voe_base_arena *arena)
+{
+	voe_assets_landscape land = voe_assets_landscape_flat(16.0f, 8, arena);
+
+	for (uint32_t r = 0; r <= 8; r++)
+		for (uint32_t c = 0; c <= 8; c++)
+			land.heights[r * 9 + c] =
+				slope(-8.0f + 2.0f * (float)c, -8.0f + 2.0f * (float)r);
+	return land;
+}
+
+// Every built point's height is the ground's plus 5 cm (0379 point 3): each
+// quad's four corners average to a point on its segment, both ends of which
+// are 5 cm above the plane, so the average is too. The rings are taken about
+// an eye up and aside, looking down, and back to the world with it.
+static void brush_rings_lie_on_the_ground(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
+	voe_assets_landscape land = sloped(arena);
+	voe_scene_transform placed = at_depth(0.0f);
+	voe_scene_transform eye = {
+		.position = { 2.0, 20.0, 3.0 },
+		.rotation = { -0.70710678f, 0.0f, 0.0f, 0.70710678f },
+		.scale = { 1.0f, 1.0f, 1.0f },
+	};
+	voe_scene_camera lens = { .fov_y = 1.0471976f,
+				  .near_plane = 0.1f,
+				  .far_plane = 100.0f };
+	voe_render_view view;
+	voe_3d_outline_mesh mesh;
+
+	VOE_TEST_CHECK(voe_3d_view(eye, lens, 1.0f, &view));
+	VOE_TEST_CHECK(voe_3d_brush_marker_quads(
+		&land, placed, 1.0f, -2.0f, 4.0f, 2.0f, view, eye.position,
+		(voe_platform_size){ GIZMO_SIDE, GIZMO_SIDE }, 2.0f, arena,
+		&mesh));
+	VOE_TEST_CHECK_INT(mesh.vertex_count, VOE_3D_BRUSH_MARKER_VERTICES);
+	VOE_TEST_CHECK_INT(mesh.index_count, VOE_3D_BRUSH_MARKER_INDICES);
+	for (uint32_t q = 0; q < mesh.vertex_count / 4; q++) {
+		voe_math_float3 mean = { 0 };
+
+		for (uint32_t k = 0; k < 4; k++)
+			mean = voe_math_float3_add(
+				mean, voe_math_float3_scale(
+					      mesh.vertices[q * 4 + k].position,
+					      0.25f));
+		VOE_TEST_CHECK_FLOAT(
+			mean.y + (float)eye.position.y,
+			slope(mean.x + (float)eye.position.x,
+			      mean.z + (float)eye.position.z) +
+				0.05f,
+			1e-3f);
+	}
+	VOE_TEST_CHECK(!voe_3d_brush_marker_quads(
+		&land, placed, 1.0f, -2.0f, 4.0f, 2.0f, view, eye.position,
+		(voe_platform_size){ 0, GIZMO_SIDE }, 2.0f, arena, &mesh));
+
+	voe_base_arena_destroy(arena);
+}
+
+// A thing wearing a loaded landscape, drawn as its sixteen chunks: a brush on
+// it is one draw more, and a zeroed brush or one on the sun, which wears no
+// landscape, none more (0379 point 3).
+static void a_frame_with_a_brush_draws(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
+	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
+	voe_base_error error = VOE_BASE_OK;
+	// The shapes and one 8-cell landscape's chunks, a draw each and the
+	// brush's, and the rings' one range.
+	voe_render_capacities capacities = {
+		.vertices = VOE_3D_SHAPES_VERTICES + 16 * 9,
+		.indices = VOE_3D_SHAPES_INDICES + 16 * 24,
+		.geometries = VOE_3D_SHAPES_GEOMETRIES + 16,
+		.objects = 17,
+		.shadings = VOE_3D_SHAPES_SHADINGS + 2,
+		.transient_vertices = VOE_3D_BRUSH_MARKER_VERTICES,
+		.transient_indices = VOE_3D_BRUSH_MARKER_INDICES,
+		.transient_geometries = 1,
+		.passes = 1,
+	};
+	voe_render_device *device =
+		voe_render_device_new_headless(arena, size, capacities, &error);
+	const voe_3d_camera_marked no_marker = { 0 };
+	const voe_3d_sun_marked no_sun = { 0 };
+	voe_assets_landscape land;
+	voe_3d_models *models;
+	voe_3d_shapes shapes;
+	voe_ecs_world *world;
+	voe_ecs_entity ground = { 0 };
+	voe_ecs_entity sun;
+	voe_3d_model row = { .path = "Assets/Hill.landscape" };
+	voe_3d_frame frame;
+	uint32_t without;
+
+	if (device == NULL) {
+		voe_base_arena_destroy(arena);
+		return;
+	}
+	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
+	land = sloped(arena);
+	models = voe_3d_models_new();
+	VOE_TEST_CHECK(voe_3d_models_load_landscape(models, device, row.path, 1,
+						    &land, &error));
+
+	world = a_world(arena);
+	voe_3d_model_register(world, 2);
+	add_a_camera(world);
+	sun = add_a_sun(world, (voe_math_double3){ 0.0, 2.0, -4.0 });
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &ground));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, ground, at_depth(10.0f)));
+	VOE_TEST_CHECK(voe_3d_model_add(world, ground, row));
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	VOE_TEST_CHECK_INT(frame.brush.entity.generation, 0);
+	frame.models = models;
+
+	without = draws_with_a_marker(world, device, arena, frame, no_marker,
+				      no_sun);
+	VOE_TEST_CHECK_INT(without, 16);
+	frame.brush = (voe_3d_brush_marked){
+		.entity = ground,
+		.radius = 4.0f,
+		.inner = 2.0f,
+		.material = shapes.outline,
+		.colour = { 1.0f, 0.0f, 1.0f },
+		.pixels = 2.0f,
+		.size = size,
+	};
+	VOE_TEST_CHECK_INT(draws_with_a_marker(world, device, arena, frame,
+					       no_marker, no_sun),
+			   without + 1);
+	frame.brush.entity = sun;
+	VOE_TEST_CHECK_INT(draws_with_a_marker(world, device, arena, frame,
+					       no_marker, no_sun),
+			   without);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+	voe_render_device_destroy(device);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	a_marked_camera_is_one_more_draw();
 	every_sun_is_marked_and_picked();
 	every_bare_place_is_marked();
+	brush_rings_lie_on_the_ground();
+	a_frame_with_a_brush_draws();
 	return voe_test_result();
 }

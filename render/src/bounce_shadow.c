@@ -24,8 +24,9 @@
 // voe_render_bounce_begin, so every view the editor shows draws the maps for its
 // own volume, and a second open of one sun after one begin asserts.
 //
-// THE BEGIN opens only when the begun target will relight (card 04's call) and
-// the named sun bounces, shines and is shaded: its layer from UNDEFINED into its
+// THE BEGIN opens only when a probe of the begun volume changed or the lights
+// did, never for probes fading in alone, and the named sun bounces, shines and
+// is shaded: its layer from UNDEFINED into its
 // attachment layout, depth cleared to the far plane, the shadow pipeline, the
 // viewport and scissor at the map's side, `light` as the pass's camera, the begun
 // volume's spacing in its block. Its barrier out of UNDEFINED waits on the
@@ -232,8 +233,19 @@ static void move(const struct voe_render_frame *frame, uint32_t layer,
 	voe_render_vk.cmd_pipeline_barrier2(frame->commands, &dependency);
 }
 
+// Whether any probe of `probes` is marked changed.
+static bool any_changed(const voe_render_bounce_probes *probes)
+{
+	VOE_BASE_DEBUG_ASSERT(probes != NULL, "no probes to ask");
+	for (uint32_t i = 0; i < VOE_RENDER_BOUNCE_PROBES_TOTAL / 32; i++)
+		if (probes->changed[i] != 0)
+			return true;
+	return false;
+}
+
 // Whether this frame's begun bounce wants layer `layer`'s map: a built volume,
-// its sun bouncing, shining and shaded, and a relight to come.
+// its sun bouncing, shining and shaded, and a probe changed or the lights did;
+// a begin with only fading probes settles alone (ADR-0389 point 4).
 static bool wanted(const voe_render_device *device, uint32_t layer)
 {
 	const struct voe_render_bounce_frame *begun = &device->bounce_frame;
@@ -244,15 +256,18 @@ static bool wanted(const voe_render_device *device, uint32_t layer)
 					      device->bounce_suns[layer - 1].bounces;
 	voe_render_bounce_lights lights;
 	const struct voe_render_bounce_volume *volume = voe_render_bounce_volume_of(
-		(voe_render_device *)device, device->bounce_target);
+		(voe_render_device *)device, device->bounce_target,
+		device->bounce_volume);
 
 	VOE_BASE_DEBUG_ASSERT(device->bounce_begun,
 			      "asking whether a bounce no begin placed wants a map");
 	if (!volume->built || bounces == 0 || !(sun->intensity > 0.0f) ||
 	    sun->unshaded != 0)
 		return false;
+	if (any_changed(&volume->probes))
+		return true;
 	voe_render_bounce_begun_lights(device, &lights);
-	return voe_render_bounce_probes_relight_needed(&volume->probes, &lights);
+	return voe_render_bounce_probes_lights_changed(&volume->probes, &lights);
 }
 
 // Opens the cleared depth-only rendering onto layer `layer` of `frame`'s map.
@@ -338,8 +353,9 @@ bool voe_render_bounce_shadow_pass_begin(voe_render_device *device,
 
 	block.camera = *light;
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
-	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
-	block.bounce.spacing = device->bounce_frame.spacing;
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+		block.bounce[v].grid = VOE_RENDER_NO_BOUNCE;
+	block.bounce[0].spacing = device->bounce_frame.spacing;
 	record_open(frame, layer);
 	device->pass_target = NULL;
 	device->pass_extent = (VkExtent2D){ TEXELS, TEXELS };

@@ -16,7 +16,8 @@
 // surface on a cell boundary is not read from the probes level with it. Each is
 // weighted by:
 // - trilinear, its share of the pushed point's place in its cell;
-// - validity, 0 for a probe with no picture or inside something (point 5);
+// - validity, 0 for a probe with no picture or inside something (point 5), and
+//   with `ready` its readiness too, validity's G (0389 point 5);
 // - blockers (ADR-0350 point 5), 0 unless blockers.slangh's pass holds with
 //   the probe as source (its position's mask) and the surface, pushed
 //   VOE_BOUNCE_READ_BLOCKER_PUSH along n, as receiver: Room bits equal and no
@@ -28,8 +29,14 @@
 //   the face so the filter never reads a neighbouring face: full when the
 //   surface is nearer than the mean, else σ² / (σ² + (d − mean)²). This is what
 //   keeps a probe on the far side of a wall from lighting the near side (0312).
-// The sum is divided by the weights' sum; a sum of nought or not finite reads
-// nought, so a volume with nothing captured reads no bounce.
+// rgb is the sum divided by the weights' sum. a is how much of the volume is
+// there (0389 point 6 as 0390 amends it): the edge fade × the valid probes'
+// readiness, Σ trilinear × validity × readiness over Σ trilinear × validity,
+// with `ready`, and the edge fade alone without. A probe inside or behind
+// geometry only chooses what rgb is normalised over and never lowers a, so the
+// ground beside a box is not darkened by the box's own probes. Either sum of
+// nought or not finite reads all nought, so a volume with nothing captured
+// reads no bounce. rgb × a is E.
 //
 // E FROM SIX-AXIS IRRADIANCE (ADR-0327): a probe's E(n) = Σ_a n_a² ×
 // E(sign(n_a), axis a), from image a of the three at (2t.x, t.y, t.z) for + and
@@ -38,15 +45,16 @@
 // flat ground under sunlit ground reads no light from below its horizon, which
 // first-order harmonics gave it. Never below nought.
 //
-// THE EDGE. E fades to nothing over the grid's outer cell on each side, from the
-// outermost probe in, and a probe outside the grid weighs nothing, so the
-// toroidal index never reads the far side into a surface past the edge.
+// THE EDGE. a fades to nothing over the grid's outer `band` cells on each side,
+// from the outermost probe in: the product over axes of saturate((min(u, size −
+// u) − 0.5) / band), u the place in cells. A probe outside the grid weighs
+// nothing, so the toroidal index never reads the far side past the edge.
 //
 // CONSTRAINTS. Eight probes, eight bilinear moment taps and 32 loads a call
 // (validity and the three axes, the side n faces on each), and eight blocker
 // masks and pass tests, nothing with no blockers; no
-// probe beyond the eight, so a grid of mostly invalid probes reads dark where
-// DDGI would search further.
+// probe beyond the eight, so a grid of mostly invalid probes reads its few
+// valid ones at full weight where DDGI would search further.
 
 static const uint3 VOE_BOUNCE_READ_SIZE = uint3(24, 12, 24);
 static const float VOE_BOUNCE_READ_FACE = 8.0;
@@ -85,18 +93,20 @@ float voe_render_bounce_read_visibility(float2 moments, float reach)
 // E(n) at `world` facing unit `n` from the volume whose six-axis irradiance is
 // in `x_axis`, `y_axis` and `z_axis`, validity `validity` and moments
 // `moments`, placed at `corner`, `cell` and `spacing`, for a surface whose
-// mask over `blockers` is `mask`, of kinds `walls` and `indoors`. See the
-// header.
-float3 voe_render_bounce_read<L : voe_render_blocker_list>(
+// mask over `blockers` is `mask`, of kinds `walls` and `indoors`: rgb the
+// irradiance, a its share fading over `band` cells, readiness counted when
+// `ready`. See the header.
+float4 voe_render_bounce_read<L : voe_render_blocker_list>(
 	Sampler3D x_axis, Sampler3D y_axis, Sampler3D z_axis, Sampler3D validity,
-	Sampler2D moments, float3 corner, uint3 cell, float spacing, L blockers,
-	uint walls, uint indoors, uint mask, float3 world, float3 n)
+	Sampler2D moments, float3 corner, uint3 cell, float spacing, float band,
+	bool ready, L blockers, uint walls, uint indoors, uint mask, float3 world,
+	float3 n)
 {
 	float3 size = float3(VOE_BOUNCE_READ_SIZE);
 	float3 pushed = world + n * (VOE_BOUNCE_READ_PUSH * spacing);
 	float3 p = world + n * VOE_BOUNCE_READ_BLOCKER_PUSH;
 	float3 u = (pushed - corner) / spacing;
-	float3 edge = saturate(min(u, size - u) - 0.5);
+	float3 edge = saturate((min(u, size - u) - 0.5) / band);
 	float3 g = u - 0.5;
 	float3 low = floor(g);
 	float3 f = g - low;
@@ -105,6 +115,8 @@ float3 voe_render_bounce_read<L : voe_render_blocker_list>(
 	int3 side = int3(n.x < 0.0 ? 1 : 0, n.y < 0.0 ? 1 : 0, n.z < 0.0 ? 1 : 0);
 	float3 sum = float3(0.0, 0.0, 0.0);
 	float weights = 0.0;
+	float valids = 0.0;
+	float readies = 0.0;
 
 	for (uint k = 0; k < 8; k++) {
 		float3 o = float3(k & 1, (k >> 1) & 1, (k >> 2) & 1);
@@ -123,10 +135,13 @@ float3 voe_render_bounce_read<L : voe_render_blocker_list>(
 		float3 to_probe = far > 0.0 ? -d / far : n;
 		float3 share = lerp(1.0 - f, f, o);
 		float facing = (dot(n, to_probe) + 1.0) * 0.5;
-		float w = share.x * share.y * share.z *
-			  validity.Load(int4(int3(t), 0)).r *
-			  (facing * facing + 0.2);
+		float2 valid = validity.Load(int4(int3(t), 0)).rg;
+		float share_valid = share.x * share.y * share.z * valid.r;
+		float share_ready = share_valid * (ready ? valid.g : 1.0);
+		float w = share_ready * (facing * facing + 0.2);
 
+		valids += share_valid;
+		readies += share_ready;
 		if (w <= 0.0)
 			continue;
 		w *= voe_render_bounce_read_visibility(
@@ -137,11 +152,13 @@ float3 voe_render_bounce_read<L : voe_render_blocker_list>(
 			    squared.z * z_axis.Load(at + int4(side.z, 0, 0, 0)).rgb);
 		weights += w;
 	}
-	if (!(weights > 0.0) || !isfinite(weights))
-		return float3(0.0, 0.0, 0.0);
+	if (!(weights > 0.0) || !isfinite(weights) || !(valids > 0.0) ||
+	    !isfinite(valids) || !isfinite(readies))
+		return float4(0.0, 0.0, 0.0, 0.0);
 	float3 e = sum / weights;
+	float present = ready ? readies / valids : 1.0;
 
 	if (any(!isfinite(e)))
-		return float3(0.0, 0.0, 0.0);
-	return max(e, 0.0) * (edge.x * edge.y * edge.z);
+		return float4(0.0, 0.0, 0.0, 0.0);
+	return float4(max(e, 0.0), edge.x * edge.y * edge.z * present);
 }

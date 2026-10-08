@@ -116,7 +116,7 @@ static void four_passes(voe_render_device *device, voe_render_geometry cube,
 
 	if (!open_frame(device))
 		return;
-	VOE_TEST_CHECK(device->window_volume.built);
+	VOE_TEST_CHECK(device->window_volume[0].built);
 	VOE_TEST_CHECK(voe_render_bounce_capture_pass_begin(device, &opened));
 	VOE_TEST_CHECK(opened);
 	if (opened) {
@@ -257,7 +257,7 @@ static void read_strip(voe_render_device *device,
 		return;
 	voe_render_vk.begin_command_buffer(commands, &begin);
 	voe_render_vk.cmd_pipeline_barrier2(commands, &before);
-	copy(commands, device->window_volume.albedo.image,
+	copy(commands, device->window_volume[0].albedo.image,
 	     VK_IMAGE_LAYOUT_GENERAL, readback->buffer, 1, &region);
 	voe_render_vk.cmd_pipeline_barrier2(commands, &after);
 	voe_render_vk.end_command_buffer(commands);

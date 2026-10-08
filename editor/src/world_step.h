@@ -1,4 +1,5 @@
-// The world's step once a frame: one call to voe_game_world_step
+// The world's step once a frame: every transform remembered
+// (scene/transform_system.h), then one call to voe_game_world_step
 // (game/frame.h), which applies the structural queue, then the project's
 // replace intents, then runs every owning system, the collider's and the
 // body's drains among them. main.c calls it once a frame, after an undo step
@@ -9,6 +10,12 @@
 // order is written is game/frame.h. Which rows exist still changes before any
 // system reads a table (ADR-0193), and every owning system still runs every
 // frame whether anything submitted or not (ADR-0134 point 7).
+//
+// REMEMBERED FIRST (0389 point 7): voe_scene_transform_remember runs before
+// game's step, so this frame's edits, applied by the step, are a move between
+// lag 1 and lag 0, and a shape added this frame has no remembered row. Either
+// marks the bounce's stale spheres about that caster, so its probes are
+// recaptured. The editor draws at lag 0, so its picture does not change.
 //
 // NO MOVE: the editor steps no body (0254). A body's velocity is drained into
 // its row and never integrated, so what is edited stays where it is put.

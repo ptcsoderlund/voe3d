@@ -414,10 +414,11 @@ bool voe_render_frame_draw_elements(voe_render_device *device,
 	// draw rebind its own — it compares against device->pipeline and
 	// device->pipeline_blended, and this is neither.
 	//
-	// THE VERTEX AND INDEX BUFFER BINDINGS SURVIVE THIS AND SO DOES
-	// `bound_transient`. Binding a pipeline does not disturb them, and this
-	// pipeline binds nothing of its own, so a mesh draw after an element
-	// draw finds the pool pair it left bound. The descriptor set survives it
+	// THE VERTEX AND INDEX BUFFER BINDINGS SURVIVE THIS AND SO DO
+	// `pools_bound` AND `bound_transient`. Binding a pipeline does not
+	// disturb them, and this pipeline binds nothing of its own, so a mesh
+	// draw after an element draw finds whatever pair was bound, or binds one
+	// if none was. The descriptor set survives it
 	// too, because this pipeline shares device->layout — see the header.
 	voe_render_vk.cmd_bind_pipeline(frame->commands,
 					VK_PIPELINE_BIND_POINT_GRAPHICS,

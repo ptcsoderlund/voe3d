@@ -1,9 +1,9 @@
 // The states pushed once, the two lines swapped, the compare a settled edit
 // makes against the state the world is, a settled reveal's amend of that
-// state, and the step a take moves by. See the
-// header for what a step
-// is, what bounds it, where in the frame a take belongs and why the selection
-// is re-found by authored id.
+// state, a stroke pushed beside a copy of the text, every dropped state's
+// stroke freed, and the step a take moves by, writing a stroke stepped over.
+// See the header for what a step is, what bounds it, where in the frame a take
+// belongs and why the selection is re-found by authored id.
 #include "undo.h"
 
 #include <authoring/scene_write.h>
@@ -26,6 +26,55 @@ static void voe_editor_undo_state_set(voe_editor_undo *undo, uint32_t index,
 
 	undo->states[index].size = text.size;
 	memcpy(undo->states[index].text, text.text, text.size);
+}
+
+// Destroys the strokes of `states` from `from` up to `to`, leaving NULL: every
+// state outside a line's count carries none, so a state reused starts bare.
+static void voe_editor_undo_drop(voe_editor_undo_state *states, uint32_t from,
+				 uint32_t to)
+{
+	VOE_BASE_ASSERT(states != NULL, "dropping strokes of no line");
+	VOE_BASE_ASSERT(to <= VOE_EDITOR_UNDO_STEPS, "dropping past the line");
+
+	for (uint32_t i = from; i < to; i++) {
+		voe_editor_stroke_destroy(states[i].stroke);
+		states[i].stroke = NULL;
+	}
+}
+
+// Empties the line in force, freeing its strokes.
+static void voe_editor_undo_empty(voe_editor_undo *undo)
+{
+	voe_editor_undo_drop(undo->states, 0, undo->count);
+	undo->count = 0;
+	undo->at = 0;
+	VOE_BASE_ASSERT(undo->count == 0, "an emptied line still counts states");
+}
+
+// Pushes `text` and `stroke` (NULL for none) as the state after `at`: what
+// could have been redone is thrown away, because the world has gone somewhere
+// else from here, and count follows. The line full means the oldest state is
+// dropped and the rest shift down one, which the header's memmove is. `text`
+// must not point into the line.
+static void voe_editor_undo_push(voe_editor_undo *undo, voe_authoring_text text,
+				 voe_editor_stroke *stroke)
+{
+	VOE_BASE_ASSERT(undo->count > 0, "pushing onto a line with no states");
+
+	voe_editor_undo_drop(undo->states, undo->at + 1, undo->count);
+	if (undo->at + 1 == VOE_EDITOR_UNDO_STEPS) {
+		voe_editor_undo_drop(undo->states, 0, 1);
+		memmove(&undo->states[0], &undo->states[1],
+			(VOE_EDITOR_UNDO_STEPS - 1) * sizeof(undo->states[0]));
+		undo->states[VOE_EDITOR_UNDO_STEPS - 1].stroke = NULL;
+		undo->at--;
+	}
+	undo->at++;
+	voe_editor_undo_state_set(undo, undo->at, text);
+	undo->states[undo->at].stroke = stroke;
+	undo->count = undo->at + 1;
+	VOE_BASE_ASSERT(undo->count <= VOE_EDITOR_UNDO_STEPS,
+			"a push past the end of the line");
 }
 
 // Whether the state the world is says the same as `text`.
@@ -71,6 +120,10 @@ void voe_editor_undo_create(voe_editor_undo *undo, voe_base_arena *arena)
 		arena, VOE_EDITOR_UNDO_STEPS * sizeof(undo->states[0]));
 	VOE_BASE_ASSERT(undo->states != NULL && undo->aside_states != NULL,
 			"an undo created with no room for its lines");
+	for (uint32_t i = 0; i < VOE_EDITOR_UNDO_STEPS; i++) {
+		undo->states[i].stroke = NULL;
+		undo->aside_states[i].stroke = NULL;
+	}
 }
 
 // The line in force and the set-aside one change places.
@@ -94,8 +147,7 @@ void voe_editor_undo_aside(voe_editor_undo *undo)
 	VOE_BASE_ASSERT(undo->states != NULL, "setting an uncreated undo aside");
 
 	voe_editor_undo_swap(undo);
-	undo->count = 0;
-	undo->at = 0;
+	voe_editor_undo_empty(undo);
 	undo->edited = false;
 	undo->revealed = false;
 	VOE_BASE_ASSERT(undo->states != undo->aside_states,
@@ -107,9 +159,8 @@ void voe_editor_undo_restore(voe_editor_undo *undo)
 	VOE_BASE_ASSERT(undo != NULL, "restoring no undo");
 	VOE_BASE_ASSERT(undo->states != NULL, "restoring an uncreated undo");
 
+	voe_editor_undo_empty(undo);
 	voe_editor_undo_swap(undo);
-	undo->aside_count = 0;
-	undo->aside_at = 0;
 	undo->edited = false;
 	undo->revealed = false;
 	VOE_BASE_ASSERT(undo->states != undo->aside_states,
@@ -138,8 +189,8 @@ void voe_editor_undo_forget(voe_editor_undo *undo)
 	VOE_BASE_ASSERT(undo != NULL, "forgetting no undo");
 	VOE_BASE_ASSERT(undo->states != NULL, "forgetting an uncreated undo");
 
-	undo->count = 0;
-	undo->at = 0;
+	voe_editor_undo_empty(undo);
+	voe_editor_undo_drop(undo->aside_states, 0, undo->aside_count);
 	undo->aside_count = 0;
 	undo->aside_at = 0;
 	undo->edited = false;
@@ -172,8 +223,7 @@ void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 	}
 
 	if (text.size > VOE_EDITOR_UNDO_TEXT) {
-		undo->count = 0;
-		undo->at = 0;
+		voe_editor_undo_empty(undo);
 	} else if (undo->count == 0) {
 		voe_editor_undo_state_set(undo, 0, text);
 		undo->count = 1;
@@ -184,20 +234,7 @@ void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 		// still can.
 		voe_editor_undo_state_set(undo, undo->at, text);
 	} else if (!voe_editor_undo_state_same(undo, text)) {
-		// THE STATE AFTER `at` IS WHERE IT LANDS, AND count FOLLOWS IT:
-		// everything that could have been redone is thrown away,
-		// because the world has gone somewhere else from here. The line
-		// full means the oldest state is dropped and the rest shift
-		// down one, which is the header's memmove.
-		if (undo->at + 1 == VOE_EDITOR_UNDO_STEPS) {
-			memmove(&undo->states[0], &undo->states[1],
-				(VOE_EDITOR_UNDO_STEPS - 1) *
-					sizeof(undo->states[0]));
-			undo->at--;
-		}
-		undo->at++;
-		voe_editor_undo_state_set(undo, undo->at, text);
-		undo->count = undo->at + 1;
+		voe_editor_undo_push(undo, text, NULL);
 	}
 
 	voe_base_arena_rewind(scratch, mark);
@@ -205,12 +242,53 @@ void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 	undo->revealed = false;
 }
 
+void voe_editor_undo_stroke(voe_editor_undo *undo, voe_editor_project *project,
+			    voe_base_arena *scratch, voe_editor_stroke *stroke)
+{
+	struct voe_base_arena_mark mark;
+	voe_authoring_text text;
+	char *copy;
+
+	VOE_BASE_ASSERT(undo != NULL && undo->states != NULL,
+			"recording a stroke in no undo");
+	VOE_BASE_ASSERT(project != NULL && scratch != NULL && stroke != NULL,
+			"recording no stroke, or with no project or scratch");
+
+	mark = voe_base_arena_mark(scratch);
+	if (undo->count == 0) {
+		// The line empty, the scene is its first state, as a settle's
+		// first record is; one that will not be a state takes no stroke.
+		if (!voe_editor_project_scene_text(project, scratch, &text) ||
+		    text.size > VOE_EDITOR_UNDO_TEXT) {
+			voe_base_arena_rewind(scratch, mark);
+			voe_editor_stroke_destroy(stroke);
+			return;
+		}
+		voe_editor_undo_state_set(undo, 0, text);
+		undo->count = 1;
+		undo->at = 0;
+	}
+	// A copy, because a full line's shift moves the state it was read from.
+	copy = voe_base_arena_push(scratch, undo->states[undo->at].size + 1);
+	VOE_BASE_ASSERT(copy != NULL, "no room to copy a state's text");
+	memcpy(copy, undo->states[undo->at].text, undo->states[undo->at].size);
+	voe_editor_undo_push(undo,
+			     (voe_authoring_text){
+				     .text = copy,
+				     .size = undo->states[undo->at].size },
+			     stroke);
+	voe_base_arena_rewind(scratch, mark);
+	VOE_BASE_ASSERT(undo->states[undo->at].stroke == stroke,
+			"a stroke recorded off the state the world is");
+}
+
 bool voe_editor_undo_take(voe_editor_undo *undo, voe_editor_project *project,
-			  voe_editor_scene *scene, voe_editor_notice *why,
-			  bool forward)
+			  voe_editor_scene *scene, voe_editor_models *models,
+			  voe_editor_notice *why, bool forward)
 {
 	const voe_scene_identity *identity;
 	const voe_editor_undo_state *state;
+	const voe_editor_stroke *stroke;
 	voe_ecs_entity selected = { 0 };
 	uint64_t id = 0;
 	bool was_selected;
@@ -218,7 +296,8 @@ bool voe_editor_undo_take(voe_editor_undo *undo, voe_editor_project *project,
 
 	VOE_BASE_ASSERT(undo != NULL, "taking a step in no undo");
 	VOE_BASE_ASSERT(project != NULL, "taking a step in no project");
-	VOE_BASE_ASSERT(scene != NULL, "taking a step with no scene");
+	VOE_BASE_ASSERT(scene != NULL && models != NULL,
+			"taking a step with no scene or no store");
 	VOE_BASE_ASSERT(why != NULL, "taking a step with nowhere to say why");
 	VOE_BASE_ASSERT(undo->states != NULL, "taking a step in an uncreated undo");
 
@@ -236,14 +315,18 @@ bool voe_editor_undo_take(voe_editor_undo *undo, voe_editor_project *project,
 	if (was_selected)
 		id = identity->id;
 
+	// The stroke stepped over: back from the state the world is, or
+	// forward onto the next.
+	stroke = undo->states[forward ? to : undo->at].stroke;
 	state = &undo->states[to];
 	if (!voe_editor_project_scene_set(project, state->text, state->size,
 					  why)) {
-		undo->count = 0;
-		undo->at = 0;
+		voe_editor_undo_empty(undo);
 		return false;
 	}
 	undo->at = to;
+	if (stroke != NULL)
+		voe_editor_stroke_apply(stroke, models, forward);
 
 	if (was_selected)
 		selected = voe_editor_undo_entity_of(project->world, id);

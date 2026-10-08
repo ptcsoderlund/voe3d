@@ -7,16 +7,21 @@
 // orientation, so texel (u, v) of face f looks along the face's view
 // (2u − 1, 1 − 2v, 1), u and v at the texel's centre over the face.
 //
-// settle: one workgroup of 64 per listed probe (bit 31 set: it holds a picture).
-// - Validity, at the probe's coordinate: 1, or 0 when it holds no picture or
+// settle: one workgroup of 64 per listed probe. A list word: the probe in bits
+// 0–15, its readiness 0 to FADE in bits 16–20, bit 31 set when it holds a
+// picture. The first `changed` words are changed probes, the rest fading only.
+// - Readiness / FADE into the validity image's G, for every word.
+// - A fading-only word stops there: R and the moments stay as they are.
+// - Validity, R at the probe's coordinate: 1, or 0 when it holds no picture or
 //   more than a quarter of its texels (96) see a back face, normal · direction
 //   from the probe above nought: a probe inside something. No hit has a normal
 //   of nought, so it is never a back face.
 // - Moments, at the texel's own place: the mean and mean² of the distances
 //   over its 3×3 within its face, a neighbour past the edge clamped to it.
 //
-// relight: one workgroup of 64 per probe of the grid, over its 384 texels, into
-// level (chain, level) — grid chain(chain − 1)/2 + level − 1. Each texel weighs
+// relight: one workgroup of 64 per probe, over its 384 texels: each of the grid
+// with `whole` 1, else each of the first `changed` listed (ADR-0389 point 5);
+// into level (chain, level) — grid chain(chain − 1)/2 + level − 1. Each texel weighs
 // its solid angle; no hit (distance at the volume's reach, 12 × the record's
 // spacing) or a back face is nought;
 // else at the surface point (probe + direction × distance) radiance = albedo ×
@@ -31,8 +36,7 @@
 // values reduced in group memory. That is the exact clamped-cosine irradiance
 // along each axis, so flat ground and walls take nothing from behind their own
 // plane, where first-order harmonics lit an upward normal from a ring below
-// its horizon. An
-// invalid probe writes nought.
+// its horizon. An invalid probe writes nought.
 // BLOCKERS (ADR-0350 point 5), the record's by blockers.slangh's pass, with
 // its `walls` and `indoors`: a texel's p is its hit pushed PUSH along its
 // normal. It feeds its probe only when the pass holds from the probe to p;
@@ -41,8 +45,9 @@
 // through bounce_read.slangh's gated read.
 // THE TEXELS. Grid g's image 3g + a is axis a (x, y, z), 48 × 12 × 24: probe
 // t's E(+a) at (2t.x, t.y, t.z), E(−a) at (2t.x + 1, t.y, t.z), RGB, alpha 0.
-// sum: one thread per texel of the 48-wide images, grid 6 = the sum of grids 0
-// to 5; a level not in use is nought, bounce_relight.c clears it.
+// sum: grid 6 = the sum of grids 0 to 5, one thread per texel of the 48-wide
+// images with `whole`, else a listed probe's two texels in its own workgroup, as
+// relight; a level not in use is nought, bounce_relight.c clears it.
 //
 // The push block matches struct relight_push in bounce_relight.c, the record at
 // binding 11 its struct relight_record: the structs below repeat bindings.slangh's
@@ -65,6 +70,11 @@ static const uint FACE = 8;
 static const uint TEXELS = 6 * FACE * FACE;
 static const uint GROUP = 64;
 static const uint HOLDS = 0x80000000u;
+static const uint PROBE = 0xffffu;
+static const uint READY_SHIFT = 16;
+static const uint READY = 0x1fu;
+// VOE_RENDER_BOUNCE_FADE: the places a new picture takes to full weight.
+static const float FADE = 16.0;
 static const uint LAMPS = 16;
 static const uint BLOCKERS = 32;
 static const uint LEVELS = 6;
@@ -85,7 +95,8 @@ struct relight_push {
 	uint sun_chain;
 	uint lamps;
 	uint point_ready;
-	uint reserved;
+	uint changed;
+	uint whole;
 };
 
 struct relight_light {
@@ -163,8 +174,8 @@ RWTexture2D<float4> relight_normal;
 [format("rg16f")]
 RWTexture2D<float2> relight_moments;
 [[vk::binding(2, 0)]]
-[format("r16f")]
-RWTexture3D<float> relight_validity;
+[format("rg16f")]
+RWTexture3D<float2> relight_validity;
 [[vk::binding(3, 0)]]
 StructuredBuffer<uint> relight_list;
 [[vk::binding(4, 0)]]
@@ -237,9 +248,16 @@ uint2 picture_origin(uint3 t)
 void settle(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 {
 	uint entry = relight_list[relight_current.first + group.x];
-	uint3 t = probe_coordinate(entry & ~HOLDS);
+	uint3 t = probe_coordinate(entry & PROBE);
 	uint2 origin = picture_origin(t);
+	float readiness = float((entry >> READY_SHIFT) & READY) / FADE;
 
+	// Uniform over the group, so it leaves before any barrier together.
+	if (group.x >= relight_current.changed) {
+		if (thread == 0)
+			relight_validity[t] = float2(relight_validity[t].r, readiness);
+		return;
+	}
 	if (thread == 0)
 		settle_back_faces = 0;
 	GroupMemoryBarrierWithGroupSync();
@@ -265,10 +283,11 @@ void settle(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 	}
 	GroupMemoryBarrierWithGroupSync();
 	if (thread == 0)
-		relight_validity[t] = (entry & HOLDS) != 0 &&
-					      settle_back_faces <= TEXELS / 4 ?
-					      1.0 :
-					      0.0;
+		relight_validity[t] = float2((entry & HOLDS) != 0 &&
+						     settle_back_faces <= TEXELS / 4 ?
+						     1.0 :
+						     0.0,
+					     readiness);
 }
 
 // The solid angle of face texel `at`: the cube's area element integrated over
@@ -402,22 +421,20 @@ float3 direct_light(float3 world, float3 n, uint mask)
 }
 
 // Level (chain, level − 1)'s E at `world` facing `n`, whose mask is `mask`,
-// over π.
+// over π: rgb × a at an edge band of one cell, readiness not counted.
 float3 level_below(float3 world, float3 n, uint mask)
 {
 	relight_push push = relight_current;
 	record_blockers blockers;
 	uint below = 3 * (push.chain * (push.chain - 1) / 2 + push.level - 2);
+	float4 read = voe_render_bounce_read(
+		relight_levels[below], relight_levels[below + 1],
+		relight_levels[below + 2], relight_validity_read,
+		relight_moments_read, relight_lights.corner, relight_lights.cell,
+		relight_lights.spacing, 1.0, false, blockers,
+		relight_lights.walls, relight_lights.indoors, mask, world, n);
 
-	return voe_render_bounce_read(relight_levels[below],
-				      relight_levels[below + 1],
-				      relight_levels[below + 2],
-				      relight_validity_read, relight_moments_read,
-				      relight_lights.corner, relight_lights.cell,
-				      relight_lights.spacing, blockers,
-				      relight_lights.walls, relight_lights.indoors,
-				      mask, world, n) /
-	       PI;
+	return read.rgb * read.a / PI;
 }
 
 // Probe `t`'s six-axis irradiance `e` (+x, −x, +y, −y, +z, −z) into grid
@@ -444,7 +461,9 @@ void store_grid(uint grid, uint3 t, float3 e[6])
 void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 {
 	relight_push push = relight_current;
-	uint3 t = probe_coordinate(group.x);
+	uint3 t = probe_coordinate(
+		push.whole != 0 ? group.x :
+				  relight_list[push.first + group.x] & PROBE);
 	uint2 origin = picture_origin(t);
 	uint3 placed = (t + SIZE - relight_lights.cell % SIZE) % SIZE;
 	float3 centre = relight_lights.corner +
@@ -456,7 +475,7 @@ void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 
 	for (uint d = 0; d < 6; d++)
 		e[d] = float3(0.0);
-	if (relight_validity[t] > 0.5)
+	if (relight_validity[t].r > 0.5)
 		for (uint i = thread; i < TEXELS; i += GROUP) {
 			uint face = i / (FACE * FACE);
 			int2 at = int2(i % FACE, i / FACE % FACE);
@@ -504,12 +523,24 @@ void relight(uint3 group: SV_GroupID, uint thread: SV_GroupIndex)
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void sum(uint3 id: SV_DispatchThreadID)
+void sum(uint3 id: SV_DispatchThreadID, uint3 group: SV_GroupID,
+	 uint thread: SV_GroupIndex)
 {
-	if (id.x >= 2 * TOTAL)
-		return;
-	uint3 t = uint3(id.x % (2 * SIZE.x), id.x / (2 * SIZE.x) % SIZE.y,
-			id.x / (2 * SIZE.x * SIZE.y));
+	uint3 t;
+
+	if (relight_current.whole != 0) {
+		if (id.x >= 2 * TOTAL)
+			return;
+		t = uint3(id.x % (2 * SIZE.x), id.x / (2 * SIZE.x) % SIZE.y,
+			  id.x / (2 * SIZE.x * SIZE.y));
+	} else {
+		// A listed probe's two texels, E(+a) and E(−a).
+		if (thread >= 2)
+			return;
+		uint3 p = probe_coordinate(
+			relight_list[relight_current.first + group.x] & PROBE);
+		t = uint3(2 * p.x + thread, p.y, p.z);
+	}
 	float4 axes[3] = { float4(0.0), float4(0.0), float4(0.0) };
 
 	[ForceUnroll]

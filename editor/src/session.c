@@ -478,8 +478,8 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		// SAVE mode instead and gives it one — what its Confirm does
 		// is voe_editor_session_browser_do's.
 		if (session->project->folder != NULL)
-			(void)voe_editor_project_save(session->project, NULL,
-						      &session->notice);
+			session->saved |= voe_editor_project_save(
+				session->project, NULL, &session->notice);
 		else
 			session_browser_show(session, browser,
 					     VOE_EDITOR_BROWSER_SAVE);
@@ -600,6 +600,7 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 					     &session->notice))
 			return;
 
+		session->saved = true;
 		session->refresh_due = true;
 		if (!voe_editor_last_project_write(session->project->folder))
 			voe_editor_notice_set(

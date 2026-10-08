@@ -131,13 +131,14 @@ typedef struct {
 	PFN_vkCmdCopyImageToBuffer cmd_copy_image_to_buffer;
 	PFN_vkCreateCommandPool create_command_pool;
 	PFN_vkDestroyCommandPool destroy_command_pool;
+	// A frame slot's pool, reset whole at the top of its frame.
+	PFN_vkResetCommandPool reset_command_pool;
 	PFN_vkAllocateCommandBuffers allocate_command_buffers;
 	// Only the staging upload in buffer.c frees one: every other command
 	// buffer in the engine lives as long as the pool it came from.
 	PFN_vkFreeCommandBuffers free_command_buffers;
 	PFN_vkBeginCommandBuffer begin_command_buffer;
 	PFN_vkEndCommandBuffer end_command_buffer;
-	PFN_vkResetCommandBuffer reset_command_buffer;
 	PFN_vkCmdPipelineBarrier2 cmd_pipeline_barrier2;
 	PFN_vkCmdBeginRendering cmd_begin_rendering;
 	PFN_vkCmdEndRendering cmd_end_rendering;

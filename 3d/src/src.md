@@ -34,9 +34,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   defaults, the reads and the replace submit.
 - `water_system.c` — the replace drain, the waves rows added and dropped, and the clock stepped
   in double and wrapped with fmod.
-- `shape_system.c` — the one upload of the three shapes' geometry and of the two materials they
-  wear, the intent's submit and drain, and the run that gives a shape its mesh and material,
-  repoints a changed kind and drops both once the shape is gone.
+- `shape_system.c` — the one upload of the three shapes' geometry and their two materials, the
+  intent's submit and drain, the run that gives, repoints and drops a shape's mesh and material,
+  and the opt-in changes table.
 - `shape_geometry.c` — the three shapes kept on the CPU: the cube pointed at, the
   capsule and the cylinder built into an arena, and the build any triangles go
   through, whose edges are found by welding by position and walking twice.
@@ -52,9 +52,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
   this folder, and why its rim is built three times.
 - `cylinder.c` — the cylinder's side as two rows and each cap as a fan.
 - `pick.c` — the pixel's ray from the view's two matrices inverted, and the walk that tests
-  it against each shape's and loaded model's triangles, then the cameras' boxes and suns' cubes.
+  it against each shape's and loaded model's triangles or a landscape's heights, then the cameras'
+  boxes and suns' cubes, and the landscape's own-space hit a brush stamps at.
 - `bounds.c` — one float box about the first counted entity's double position, grown by every
-  shape's and loaded model's vertices on the tree, and the framing distance from the half angle.
+  shape's and loaded model's vertices or landscape box's corners on the tree, and the framing
+  distance from the half angle.
 - `outline.c` — the walk over one shape's or loaded model's edges that keeps the ones the eye
   is on two sides of, and the quad each of them becomes, a half width per vertex from that
   vertex's own depth.
@@ -66,6 +68,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and its world-axis cube's hit.
 - `place_marker.c` — a place's octahedron of 12 edges in world axes about its position, its
   world-axis cube's hit, and the eight tables an entity must have no row in to wear it.
+- `brush_marker.c` — the brush's two rings of 48 about its centre in the grid's space, each point
+  on the ground plus 5 cm, under the row's world matrix.
 - `marker_lines.h` — the markers' shared line quads and box slab test, and why they are outline.h's
   quads; internal.
 - `marker_lines.c` — each segment's quad with a half width per end and its winding towards the eye,
@@ -113,9 +117,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
   in it, why the quad is turned and why it casts no shadow; internal.
 - `draw_water.c` — the eye-relative matrix times the turned, scaled quad, and the row's colour,
   waves at its clock and sky in the object record.
-- `draw_marks.h` — the editor's marks over the world, bare places' and every blocker's among them,
-  and why each has its own depth; internal.
-- `draw_marks.c` — the camera's marker, every sun's, lamp's and bare place's, every blocker's lines,
+- `draw_marks.h` — the editor's marks over the world, bare places', the brush's and every
+  blocker's among them, and why each has its own depth; internal.
+- `draw_marks.c` — the camera's marker, every sun's, lamp's and bare place's, the brush's rings on
+  its landscape, every blocker's lines,
   the outline, a collider's and the selected blocker's lines, written once, and the gizmo's arrows
   or rings, each as transient quads.
 - `model_upload.h` — a read model's pictures and materials uploaded in one call, every id
@@ -131,7 +136,14 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models.c` — the store's table of entries with an arena each, and the load that reads, bakes,
   uploads with each part's blended twin and gives back what a failure made; pictures on the quad,
   the dot and the water apart.
+- `models_store.h` — the store's table and each entry's held ids, a landscape's static chunks
+  among them, and the helpers models.c lends models_landscape.c; internal.
+- `models_landscape.c` — a landscape's grid copied and uploaded as 16 chunk parts on one ground
+  material, the brush and put marking chunks dirty, the transient frame, the settle, the saved
+  mark and the rename.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow
   materials on one COLOUR texture, blended already so needing no twin.
+- `landscape.c` — the bilinear height, the marched and bisected ray, the brush's stamp and the
+  chunk meshes.

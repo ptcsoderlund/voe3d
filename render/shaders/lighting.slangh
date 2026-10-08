@@ -11,7 +11,7 @@
 // over 1 + more_count of them, a fixed VOE_RENDER_DIRECTIONAL_LIGHTS with an
 // early break, and sums each one's BRDF times its radiance by its reach, N·L
 // times its shadow. The indirect term is `base colour × max(E/π, Σ fill weight ×
-// fill)` per channel: E the bounce's irradiance out of the pass's probe volume
+// fill)` per channel: E the bounce's irradiance out of the pass's probe volumes
 // (ADR-0326 point 7), no gain (0317), and the fills a floor under it (0307). A
 // light's weight is whole where it does not reach, fading as its reach rises and
 // gone from 0.3 (ADR-0276); a fill of zero is no floor. more_count 0 is the
@@ -35,9 +35,10 @@
 // that rule passes to p (bounce_read.slangh). The water path takes mask 0 and
 // no gate. No blockers is every gate passing.
 //
-// THE BOUNCE IS READ ONLY WHEN THE PASS NAMES A VOLUME: grid ~0u is none.
-// Otherwise bounce_read.slangh reads its sum at binding 6's four entries from
-// `grid` and its moments at binding 10's grid / 4, with visibility (ADR-0312).
+// THE BOUNCE READS EACH VOLUME THE PASS NAMES (0389 point 6), grid ~0u none, by
+// bounce_read.slangh at binding 6 from `grid` and 10 at grid / 4 (ADR-0312): E
+// from 0, volume 0's rgb × a at band 1, then each nest in index order
+// lerp(E, rgb, a) at band 2, readiness counted in both.
 //
 // EACH LIGHT CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258, 0357 point 3). With
 // its shadow `count` above nought, a lit surface picks the first cascade whose
@@ -265,25 +266,33 @@ float3 voe_render_fill(voe_render_light light, float reach, bool reaches)
 }
 
 // The bounce's irradiance E(n) at `world` facing `n`, per channel, never below
-// nought, from the probes the blockers pass to a surface of `mask`; nought
-// with no volume named. See the header.
+// nought, from the probes the blockers pass to a surface of `mask`: the level
+// grid, then each named nest blended over it; nought with no volume named. See
+// the header.
 float3 voe_render_bounce_irradiance(float3 world, float3 n, uint mask)
 {
-	voe_render_frame_bounce bounce = voe_render_frame.bounce;
 	voe_render_pass_blockers blockers;
 	uint region = voe_render_frame.region;
+	float3 e = float3(0.0, 0.0, 0.0);
 
-	if (bounce.grid == ~0u)
-		return float3(0.0, 0.0, 0.0);
-	return voe_render_bounce_read(voe_render_bounce_grids[bounce.grid],
-				      voe_render_bounce_grids[bounce.grid + 1],
-				      voe_render_bounce_grids[bounce.grid + 2],
-				      voe_render_bounce_grids[bounce.grid + 3],
-				      voe_render_bounce_moments[bounce.grid / 4],
-				      bounce.corner, bounce.cell, bounce.spacing,
-				      blockers, voe_render_light_blockers[region].walls,
-				      voe_render_light_blockers[region].indoors, mask,
-				      world, n);
+	for (uint v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++) {
+		voe_render_frame_bounce bounce = voe_render_frame.bounce[v];
+
+		if (bounce.grid == ~0u)
+			continue;
+		float4 read = voe_render_bounce_read(
+			voe_render_bounce_grids[bounce.grid],
+			voe_render_bounce_grids[bounce.grid + 1],
+			voe_render_bounce_grids[bounce.grid + 2],
+			voe_render_bounce_grids[bounce.grid + 3],
+			voe_render_bounce_moments[bounce.grid / 4], bounce.corner,
+			bounce.cell, bounce.spacing, v == 0 ? 1.0 : 2.0, true,
+			blockers, voe_render_light_blockers[region].walls,
+			voe_render_light_blockers[region].indoors, mask, world, n);
+
+		e = v == 0 ? read.rgb * read.a : lerp(e, read.rgb, read.a);
+	}
+	return e;
 }
 
 // What lights `colour` besides the direct terms: the bounce from the probes of

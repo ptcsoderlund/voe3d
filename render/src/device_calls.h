@@ -76,10 +76,22 @@ voe_render_bounce_volume_build(voe_render_device *device,
 void voe_render_bounce_volume_teardown(voe_render_device *device,
 				       struct voe_render_bounce_volume *volume);
 [[nodiscard]] bool voe_render_bounce_volumes_apply(voe_render_device *device);
-// bounce_volume.c. The volume `target` names, the window's or a live target's;
-// asserts on a target id that names none.
+// bounce_volume.c. Volume `volume` of what `target` names, the window or a live
+// target; asserts on a target id that names none or a volume past
+// VOE_RENDER_BOUNCE_VOLUMES.
 struct voe_render_bounce_volume *
-voe_render_bounce_volume_of(voe_render_device *device, voe_render_target target);
+voe_render_bounce_volume_of(voe_render_device *device, voe_render_target target,
+			    uint32_t volume);
+
+// A volume's descriptor index: slot × VOE_RENDER_BOUNCE_VOLUMES + volume, the
+// window slot 0 and target n slot n (its id's index). Binding 6's entries 4 ×
+// it to 4 × it + 3 and binding 10's entry it are the volume's, and so are the
+// relight's set, list band and record region.
+static inline uint32_t voe_render_bounce_volume_index(uint32_t slot,
+						      uint32_t volume)
+{
+	return slot * VOE_RENDER_BOUNCE_VOLUMES + volume;
+}
 
 // bounce_capture.c. Every frame slot's capture scratch on a device with
 // output_layer, none without; startup's, after the point shadow maps. False with
@@ -266,8 +278,12 @@ void voe_render_debug_label_end(VkCommandBuffer commands);
 // allowlist. _other_vendor: `id_name` carries a vendor tag (NVIDIA, AMD, Arm,
 // IMG) that is not `vendor_id`'s. _classify: what the messenger does with one
 // message, an error or a warning — another vendor's dropped, an allowed warning
-// allowed, anything else counted in device->new_messages as new. _announce: the
-// one line saying the checks are on or missing, the vendor and the list's length.
+// allowed, anything else counted in device->new_messages as new and kept by its
+// id name with the first `message` text (may be NULL). _announce: the one line
+// saying the checks are on or missing, the vendor and the list's length.
+// _list_new: at close, when new_messages is not nought, one line per kept id —
+// error or warning, the id, how many times, the first text — and one for the
+// new messages no row had room for, printed before the count line.
 enum voe_render_message_verdict {
 	VOE_RENDER_MESSAGE_DROPPED,
 	VOE_RENDER_MESSAGE_ALLOWED,
@@ -278,8 +294,9 @@ enum voe_render_message_verdict {
 							  const char *id_name);
 [[nodiscard]] enum voe_render_message_verdict
 voe_render_best_practices_classify(voe_render_device *device, bool error,
-				   const char *id_name);
+				   const char *id_name, const char *message);
 void voe_render_best_practices_announce(const voe_render_device *device);
+void voe_render_best_practices_list_new(const voe_render_device *device);
 
 // buffer.c. A buffer of size with usage, in memory that has properties, and the
 // one allocation under it, the buffer named `name` (debug_names.c).
@@ -327,9 +344,9 @@ void voe_render_descriptors_teardown(voe_render_device *device);
 
 // descriptors.c. Names built `volume`'s sum and validity at binding 6's entries
 // 4 × index to 4 × index + 3, and its moments atlas at binding 10's entry
-// `index`, of every slot's set: volume index 0 the window's, n target n's. No
-// frame may be reading the sets: a volume is built outside one, and its build
-// idles.
+// `index`, of every slot's set: `index` its descriptor index
+// (voe_render_bounce_volume_index). No frame may be reading the sets: a volume
+// is built outside one, and its build idles.
 void voe_render_descriptors_write_volume(
 	voe_render_device *device, const struct voe_render_bounce_volume *volume,
 	uint32_t index);

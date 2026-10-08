@@ -346,7 +346,8 @@ bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 	if (!device->bounce_begun ||
 	    device->capture_passes >= VOE_RENDER_BOUNCE_CAPTURE_PASSES)
 		return true;
-	volume = voe_render_bounce_volume_of(device, device->bounce_target);
+	volume = voe_render_bounce_volume_of(device, device->bounce_target,
+					     device->bounce_volume);
 	if (!volume->built || !any_queued(&volume->probes))
 		return true;
 
@@ -362,8 +363,9 @@ bool voe_render_bounce_capture_pass_begin(voe_render_device *device,
 	frame = voe_render_frame_at(device, device->slot);
 	place_probes(device, frame, &volume->probes, taken, count);
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
-	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
-	block.bounce.spacing = volume->probes.spacing;
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+		block.bounce[v].grid = VOE_RENDER_NO_BOUNCE;
+	block.bounce[0].spacing = volume->probes.spacing;
 	block.region = device->pass_count;
 	block.lights = count;
 

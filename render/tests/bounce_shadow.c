@@ -9,7 +9,8 @@
 // that bounces once, the cube adds one draw, and the relight runs. A copy of
 // that slot's map to a host buffer holds a texel other than the clear.
 //
-// WHEN IT DOES NOT OPEN. A following frame with nothing changed: no relight is
+// WHEN IT DOES NOT OPEN. After VOE_RENDER_BOUNCE_FADE frames for the captured
+// pictures to fade in, a frame with nothing changed: no relight is
 // needed. A sun of bounces 0 with a lamp of bounces 1: the lights changed, but
 // the sun does not bounce. Then, the sun bouncing again, a frame whose `passes`
 // are spent: false, and nothing opened.
@@ -213,7 +214,7 @@ static bool window_relit(voe_render_device *device, voe_render_geometry cube,
 
 	if (!open_frame(device, &frame))
 		return false;
-	VOE_TEST_CHECK(device->window_volume.built);
+	VOE_TEST_CHECK(device->window_volume[0].built);
 	for (int i = 0; i < VOE_RENDER_BOUNCE_CAPTURE_PASSES; i++) {
 		VOE_TEST_CHECK(voe_render_bounce_capture_pass_begin(device, &opened));
 		VOE_TEST_CHECK(opened);
@@ -275,12 +276,13 @@ static void two_targets(voe_render_device *device, voe_render_geometry cube,
 	}
 	if (!window_relit(device, cube, grey))
 		return;
-	VOE_TEST_CHECK(device->targets[0].volume.built);
+	VOE_TEST_CHECK(device->targets[0].volume[0].built);
 	voe_render_bounce_begin(device, id, &sun);
 	shadow_pass(device, cube, grey, true);
 	voe_render_bounce_relight(device);
 	region_says(device, 0, true);
-	region_says(device, id.index, true);
+	region_says(device, voe_render_bounce_volume_index(id.index, 0),
+		    true);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 
 	if (!window_relit(device, cube, grey))
@@ -289,7 +291,8 @@ static void two_targets(voe_render_device *device, voe_render_geometry cube,
 	shadow_pass(device, cube, grey, false);
 	voe_render_bounce_relight(device);
 	region_says(device, 0, true);
-	region_says(device, id.index, false);
+	region_says(device, voe_render_bounce_volume_index(id.index, 0),
+		    false);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
@@ -487,6 +490,27 @@ static void moon_layers(voe_render_device *device, voe_render_geometry cube,
 	with_moon(device, cube, grey, &moon, false);
 }
 
+// A frame of the captured pictures fading in: no capture, the bounce shadow
+// pass with the cube when it opens, and the relight.
+static void faded(voe_render_device *device, voe_render_geometry cube,
+		  voe_render_shading grey)
+{
+	const struct voe_render_bounce_frame frame = bounce(1, false);
+	const voe_render_view light = sun_view(HEIGHT);
+	bool opened = false;
+
+	if (!open_frame(device, &frame))
+		return;
+	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(device, 0, &light,
+							   &opened));
+	if (opened) {
+		VOE_TEST_CHECK(voe_render_frame_draw(device, cube, cube_object(grey)));
+		voe_render_pass_end(device);
+	}
+	voe_render_bounce_relight(device);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+}
+
 // A frame whose passes are spent before the bounce shadow pass is asked for.
 static void passes_spent(voe_render_device *device)
 {
@@ -520,6 +544,8 @@ static void sun_map(voe_render_device *device)
 	if (open_frame(device, &sun))
 		VOE_TEST_CHECK(voe_render_frame_end(device));
 	check_map(device, captures(device, cube, grey));
+	for (uint32_t i = 0; i < VOE_RENDER_BOUNCE_FADE; i++)
+		faded(device, cube, grey);
 	not_opened(device, &sun);
 	not_opened(device, &lamp);
 	passes_spent(device);

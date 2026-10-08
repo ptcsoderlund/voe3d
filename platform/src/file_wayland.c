@@ -6,9 +6,8 @@
 // whose name ends in _wayland is compiled on Linux only and nowhere else, which
 // is the whole of what this file needs; there is no _linux suffix in
 // cmake/voe.cmake and inventing one to be tidy would put a second rule in the
-// build for the sake of one file. platform/src/library_wayland.c and
-// platform/src/clock_wayland.c carry the same name for the same reason. Nothing
-// in here knows there is a compositor.
+// build for the sake of one file. library_wayland.c and clock_wayland.c carry
+// the same name for the same reason; nothing here knows there is a compositor.
 //
 // _GNU_SOURCE is what makes <fcntl.h> and <unistd.h> declare open, read, write
 // and close, and <stdio.h> renameat2, under -std=c23, which the engine builds
@@ -17,7 +16,10 @@
 // A MOVE IS renameat2 WITH RENAME_NOREPLACE, NOT rename. rename replaces what
 // is at the target without a word, and a check before it races whatever lands
 // in between; the kernel refusing a taken name in the same step is the one
-// test that cannot be stale. EEXIST and ENOTEMPTY are that refusal.
+// test that cannot be stale. EEXIST and ENOTEMPTY are that refusal. Where the
+// filesystem lacks the flag it answers EINVAL (WSL's drvfs, where the tree
+// lives), and the move checks with lstat, then renames: a window accepted
+// only there (0383).
 //
 // 0644 is the mode a new file is created with — readable by anyone, writable by
 // its owner — and the process umask narrows it further. It is what an ordinary
@@ -254,17 +256,43 @@ bool voe_platform_file_write(const char *path, const uint8_t *bytes,
 	return true;
 }
 
+// renameat2 answered EINVAL: the filesystem lacks RENAME_NOREPLACE (0383).
+// Anything at the target is EEXIST, the refusal the flag would have given;
+// otherwise plain rename. Returns the errno that decides, 0 once moved.
+static int move_without_noreplace(const char *from, const char *to)
+{
+	struct stat info;
+
+	VOE_BASE_ASSERT(from != NULL, "moving no path");
+	VOE_BASE_ASSERT(to != NULL, "moving to no path");
+
+	if (lstat(to, &info) == 0)
+		return EEXIST;
+	if (errno != ENOENT)
+		return errno;
+	if (rename(from, to) != 0)
+		return errno;
+	return 0;
+}
+
 bool voe_platform_file_move(const char *from, const char *to,
 			    voe_base_error *error)
 {
+	int failure = 0;
+
 	VOE_BASE_ASSERT(from != NULL, "moving no path");
 	VOE_BASE_ASSERT(to != NULL, "moving to no path");
 
 	if (renameat2(AT_FDCWD, from, AT_FDCWD, to, RENAME_NOREPLACE) != 0) {
-		bool taken = errno == EEXIST || errno == ENOTEMPTY;
+		failure = errno;
+		if (failure == EINVAL)
+			failure = move_without_noreplace(from, to);
+	}
+	if (failure != 0) {
+		bool taken = failure == EEXIST || failure == ENOTEMPTY;
 
 		VOE_BASE_ERROR("platform", "moving %s to %s failed: %s", from,
-			       to, strerror(errno));
+			       to, strerror(failure));
 		report(error, taken ? VOE_BASE_ERROR_REFUSED
 				    : VOE_BASE_ERROR_UNAVAILABLE);
 		return false;

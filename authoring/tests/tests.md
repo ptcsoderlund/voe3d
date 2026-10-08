@@ -27,6 +27,8 @@ file; the rest hand the writer a world and the reader text held in memory.
 - `scene_cook.c` — the exact source for a small scene, the sun's bounces,
   `cast_shadows` and `bounce_strength` included, that source compiled by `clang`, the refusals leaving
   `*out` untouched, and an empty world.
+- `landscape_cook.c` — the cooked array's name and length, and heights as the
+  whole millimetres the file holds, a rounded -0 as 0.
 - `paths.c` — a renamed file and a moved folder followed, a longer name left
   alone, an array and a kept section reached, the longest value, an open string
   refused, and the named check ignoring keys and section names.

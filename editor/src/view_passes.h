@@ -5,7 +5,9 @@
 // the world and its models (voe_3d_draw_system_run), the selection's outline,
 // a model's too (ADR-0203), its collider as lines (0253), its move gizmo
 // (ADR-0205), the scene camera's marker (0223), every sun's (0360) and every
-// point light's (0320) and every meshless place's (0365), and every light
+// point light's (0320) and every meshless place's (0365), the brush's two
+// rings where the pointer meets the ground, the gizmo hidden while a brush is
+// chosen on a landscape (0379 point 3), and every light
 // blocker's box, faint but the selected one (0347, 0365). Before
 // those, the preview's shadow passes and one pass with the world's own camera
 // (view.h). Every directional and point light lights every pass; the light
@@ -31,12 +33,14 @@
 // twice the room for drawn entities (VOE_GAME_WORLD_MAX_DRAWN, game/world.h's,
 // the room every project's world is registered with), one more for the
 // selection's outline, two for the gizmo's handles at rest and its marked one,
-// one for the camera's marker and the selection's collider, and two each for
+// one for the camera's marker, the selection's collider and the brush, and two each for
 // the suns', point lights' and places' markers and the blockers' boxes, times
 // the room for views, and the drawn entities once more for the preview's pass,
 // which draws the world alone; and every caster once per cascade of each of
 // VOE_RENDER_DIRECTIONAL_LIGHTS lights, point-shadow pass, capture pass and
-// bounce shadow pass (each sun's relight map), per view and for the preview
+// bounce shadow pass (one sun map per volume per casting sun on a frame that
+// relights, VOE_RENDER_BOUNCE_VOLUMES × VOE_RENDER_DIRECTIONAL_LIGHTS, 0389),
+// per view and for the preview
 // (0325 point 7, 0326 points 3 and 8, 0357 points 3 and 4); and every
 // emitter's particles, VOE_GAME_WORLD_EMITTERS
 // × VOE_3D_EMITTER_PARTICLES, and every water, VOE_GAME_WORLD_WATERS, an object
@@ -46,7 +50,7 @@
 // view and the preview a shadow pass per cascade of each of
 // VOE_RENDER_DIRECTIONAL_LIGHTS lights, one point-shadow pass, up to
 // VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes and one bounce shadow pass
-// per casting sun on a frame that relights (`shadow_size` is VOE_3D_SHADOW_TEXELS,
+// per volume per casting sun on a frame that relights (0389; `shadow_size` is VOE_3D_SHADOW_TEXELS,
 // 3d/shadow_cascades.h, `point_shadow_size` VOE_3D_POINT_SHADOW_TEXELS), and
 // `targets` a target per view and the preview's, each with its own probe volume
 // (0326 point 2) and two texture slots, its colour and its depth copy (0305
@@ -120,7 +124,11 @@
 // in two ranges likewise (0320 point 9); the places', in two ranges, sized by
 // VOE_GAME_WORLD_AUTHORED because the editor's world holds only authored
 // entities (0365); and the other blockers' boxes,
-// VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more.
+// VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more; and the
+// brush's rings, one range (VOE_3D_BRUSH_MARKER_*, 0379 point 3). On top,
+// once a frame and not per view, a whole landscape's chunks drawn transient
+// while a stroke is held (VOE_3D_LANDSCAPE_TRANSIENT_*, 0379 point 4): they are
+// made once after the draw opens and every pass draws the same ones.
 #define VOE_EDITOR_CAPACITIES                                                \
 	(voe_render_capacities)                                               \
 	{                                                                     \
@@ -128,14 +136,15 @@
 		.indices = VOE_3D_SHAPES_INDICES + VOE_3D_MODELS_INDICES,      \
 		.geometries =                                                  \
 			VOE_3D_SHAPES_GEOMETRIES + VOE_3D_MODELS_GEOMETRIES,  \
-		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 13) *               \
+		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 14) *               \
 				   VOE_EDITOR_VIEWS +                          \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
 				   (VOE_RENDER_SHADOW_CASCADES *               \
 					    VOE_RENDER_DIRECTIONAL_LIGHTS +    \
 				    1 + VOE_RENDER_BOUNCE_CAPTURE_PASSES +     \
-				    VOE_RENDER_DIRECTIONAL_LIGHTS) *           \
+				    VOE_RENDER_BOUNCE_VOLUMES *                \
+					    VOE_RENDER_DIRECTIONAL_LIGHTS) *   \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES * \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
@@ -146,7 +155,8 @@
 			  (VOE_RENDER_SHADOW_CASCADES *                        \
 				   VOE_RENDER_DIRECTIONAL_LIGHTS +             \
 			   1 + VOE_RENDER_BOUNCE_CAPTURE_PASSES +              \
-			   VOE_RENDER_DIRECTIONAL_LIGHTS) *                    \
+			   VOE_RENDER_BOUNCE_VOLUMES *                         \
+				   VOE_RENDER_DIRECTIONAL_LIGHTS) *            \
 				  (VOE_EDITOR_VIEWS + 1),                      \
 		.shadow_size = VOE_3D_SHADOW_TEXELS,                           \
 		.point_shadow_size = VOE_3D_POINT_SHADOW_TEXELS,               \
@@ -162,8 +172,10 @@
 				       VOE_3D_PLACE_MARKER_VERTICES *          \
 					       VOE_GAME_WORLD_AUTHORED +       \
 				       VOE_3D_COLLIDER_MARKER_VERTICES *       \
-					       VOE_GAME_WORLD_LIGHT_BLOCKERS) * \
-				      VOE_EDITOR_VIEWS,                        \
+					       VOE_GAME_WORLD_LIGHT_BLOCKERS + \
+				       VOE_3D_BRUSH_MARKER_VERTICES) *         \
+					      VOE_EDITOR_VIEWS +                \
+				      VOE_3D_LANDSCAPE_TRANSIENT_VERTICES,     \
 		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
 				      VOE_EDITOR_GIZMO_INDICES +               \
 				      VOE_3D_CAMERA_MARKER_INDICES +           \
@@ -175,9 +187,12 @@
 				      VOE_3D_PLACE_MARKER_INDICES *            \
 					      VOE_GAME_WORLD_AUTHORED +        \
 				      VOE_3D_COLLIDER_MARKER_INDICES *         \
-					      VOE_GAME_WORLD_LIGHT_BLOCKERS) * \
-				     VOE_EDITOR_VIEWS,                         \
-		.transient_geometries = 13 * VOE_EDITOR_VIEWS                  \
+					      VOE_GAME_WORLD_LIGHT_BLOCKERS +  \
+				      VOE_3D_BRUSH_MARKER_INDICES) *           \
+					     VOE_EDITOR_VIEWS +                 \
+				     VOE_3D_LANDSCAPE_TRANSIENT_INDICES,       \
+		.transient_geometries = 14 * VOE_EDITOR_VIEWS +                \
+					VOE_3D_LANDSCAPE_TRANSIENT_RANGES      \
 	}
 
 // Sets `preview_shown` to whether the selected entity has a camera and, when

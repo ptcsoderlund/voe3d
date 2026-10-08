@@ -13,9 +13,9 @@ header.
   Its header says why not the millisecond tick counts.
 - `file_wayland.c` — open, read/write, close, the rename that makes a write
   atomic, and renameat2 for a move that never replaces, on Linux.
-- `file_win32.c` — CreateFileW, GetFileAttributesW, ReadFile/WriteFile, CloseHandle, and the
-  MoveFileExW that makes a write atomic, a UTF-8 path converted on the way in. Its header says why
-  a 64-bit count is moved in steps, and why a path too long for its stack buffer fails as an open.
+- `file_win32.c` — the Windows half of `platform/file.h` through CreateFileW,
+  GetFileAttributesW, ReadFile/WriteFile and CloseHandle, a write made atomic
+  and a move that never replaces both by MoveFileExW.
 - `folder_wayland.c` — opendir/readdir, mkdir, and $HOME/$XDG_CONFIG_HOME. Its
   header says why listing is two passes and the sort is by hand, and when
   `fstatat` decides `folder` instead of `d_type`.
@@ -23,6 +23,8 @@ header.
   GetEnvironmentVariableW for %USERPROFILE%/%APPDATA%, each name made UTF-8. Its header says why a
   directory symlink needs no extra call here, unlike the Linux side.
 - `trash_wayland.c` — realpath, an exclusive `.trashinfo` create, and rename into the home trash.
+- `trash_win32.c` — SHFileOperationW into the Recycle Bin, a fixed drive only. Its header says why
+  not IFileOperation, why the nuke warning stays, and why the double NUL.
 - `wide_win32.h` — UTF-8 to UTF-16 into a caller's buffer and UTF-16 to UTF-8 into an arena, for
   the Windows files here only. Its header says why the "W" calls and not a manifest, and why a path
   that does not fit is the caller's ordinary failure.

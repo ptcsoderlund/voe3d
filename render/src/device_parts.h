@@ -54,11 +54,12 @@
 // VOE_RENDER_NO_DEPTH_COPY until voe_render_frame_copy_depth runs in the pass,
 // then the texture slot of the copy.
 //
-// `bounce` IS THE PASS'S PROBE VOLUME (ADR-0326 point 7): `grid` the first of
-// its four entries at binding 6, 4 × its volume index, VOE_RENDER_NO_BOUNCE for
-// none; `corner` its lowest corner about the eye, `cell` its lowest cell wrapped
-// per axis into 24 × 12 × 24, and `spacing` the metres between probes. Only a
-// camera pass whose volume this frame slot began and is built names one.
+// `bounce` ARE THE PASS'S PROBE VOLUMES (ADR-0326 point 7, 0389 point 6), entry
+// v its target's volume v: `grid` the first of its four entries at binding 6,
+// 4 × its volume index, VOE_RENDER_NO_BOUNCE for none; `corner` its lowest
+// corner about the eye, `cell` its lowest cell wrapped per axis into 24 × 12 ×
+// 24, and `spacing` the metres between probes. Only a camera pass names one, and
+// only a volume this frame slot began and is built.
 //
 // `more_count` AND `more` ARE THE PASS'S LIGHTS AFTER THE FIRST (ADR-0357 point
 // 1): how many of `more` a camera pass carries, nought in every other pass, and
@@ -87,7 +88,7 @@ struct voe_render_frame_block {
 	uint32_t lights;
 	uint32_t region;
 	uint32_t blockers;
-	struct voe_render_frame_bounce bounce;
+	struct voe_render_frame_bounce bounce[VOE_RENDER_BOUNCE_VOLUMES];
 	uint32_t more_count;
 	uint32_t reserved[3];
 	struct voe_render_frame_light more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
@@ -420,7 +421,7 @@ static_assert(offsetof(struct voe_render_relight_record, sun_map) == 48 &&
 		      sizeof(struct voe_render_relight_record) == 3440,
 	      "the relight record as bounce_relight.slang lays it out");
 
-// Whether one frame slot's frame began a probe volume, and the lowest cell,
+// Whether one frame slot's frame began this probe volume, and the lowest cell,
 // corner and spacing that begin placed it at (ADR-0326 point 7, 0332 point 3).
 struct voe_render_bounce_begun {
 	bool begun;
@@ -431,14 +432,15 @@ struct voe_render_bounce_begun {
 
 // One target's probe volume, bounce_volume.c's (ADR-0326 points 2 to 6): the
 // albedo (RGBA8 sRGB), normal-and-distance (RGBA16F) and moments (RG16F) atlases,
-// 1152 × 2304; the validity (R16F), 24 × 12 × 24; and seven grids of six-axis
+// 1152 × 2304; the validity (RG16F, G the readiness), 24 × 12 × 24; and seven grids of six-axis
 // irradiance (ADR-0327), levels L(n, k) then the sum, three RGBA16F images each,
 // image a axis a, probe (i, j, k) at (2i, j, k) for + and (2i + 1, j, k) for −,
 // 48 × 12 × 24. Every image storage, sampled,
 // transfer-dst and -src, cleared to nought, resting in GENERAL. `wanted` is set by a
 // begin, `built` when the images exist, `idle` the frame tops since the last
 // begin; `chains_lit` bit n while chain n's levels may hold light, the relight's.
-// ONE COPY, NOT PER FRAME SLOT, which is why `begun` is.
+// ONE COPY, NOT PER FRAME SLOT, which is why `begun` is; and `begun` is the
+// volume's own, so two volumes of one target begin in one frame (0389 point 1).
 struct voe_render_bounce_volume {
 	struct voe_render_allocated_image albedo;
 	struct voe_render_allocated_image normal;
@@ -473,8 +475,9 @@ struct voe_render_target_slot {
 	// copy. Neither changes.
 	uint32_t texture;
 	uint32_t depth_texture;
-	// Built on the first begin onto the target, kept through a resize.
-	struct voe_render_bounce_volume volume;
+	// The target's probe volumes (0389 point 1), each built on the first
+	// begin onto it, kept through a resize.
+	struct voe_render_bounce_volume volume[VOE_RENDER_BOUNCE_VOLUMES];
 	uint32_t generation;
 	bool live;
 	// The clear rule: false until the first pass onto this target in a
@@ -518,6 +521,11 @@ struct voe_render_target_slot {
 // two driver calls to say what one pointer already says. The pointer is kept
 // here; there is no second place that knows it.
 struct voe_render_frame {
+	// This slot's command buffer comes out of `pool`, which is reset whole
+	// once `submitted` says the card is done with the slot (ADR-0385). Per
+	// slot for the reason the command buffer is: one shared pool could not
+	// be reset while another slot's frame was still in flight.
+	VkCommandPool pool;
 	VkCommandBuffer commands;
 	VkSemaphore acquired;
 	VkFence submitted;

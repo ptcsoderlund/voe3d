@@ -23,15 +23,18 @@ which file to open — what each one owns, and where the seams between them run.
   one-frame record and a pass's blocker region with its kinds; included only through
   `device_internal.h`.
 - `device.c` — opening, and the one place its order is: the surface, the logical device, the
-  format, timing, present modes, frame objects, the layout and element pipeline but no mesh
+  format, frame objects, the layout and element pipeline but no mesh
   pipeline, the guard's take and give, and close-down, plus the headless device the tests run on.
 - `startup.h` — the startup steps that live beside device.c, why open_device calls them in the
   order it does, and the card facts and ranking a test can call with no card.
+- `pacing.c` — the card's clock and the present modes learnt at startup, the present mode set and
+  read, and the frame's GPU time.
 - `instance.c` — the Vulkan instance, its extensions with debug-utils whenever offered, and in a
   debug build the validation layer with Best Practices and vendor checks, its messenger, or the
   checks recorded missing.
 - `best_practices.c` — the Best Practices allowlist, which vendor a message is for, the classifier
-  that counts new messages, and the start line saying the checks are on or missing.
+  that counts new messages, keeps each new message and names it again at close, and the start line
+  saying the checks are on or missing.
 - `debug_names.c` — the one helper that names an object and labels a span of a command buffer for a
   capture tool; each does nothing without debug-utils.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,
@@ -74,7 +77,7 @@ which file to open — what each one owns, and where the seams between them run.
 - `bounce_probes.c` — its place at a grid's own spacing, nearest-first take, relight-needed (lamps
   and light blockers about the corner, so an eye that moves relights nothing; a change of kinds or
   the sun's mask relights) and relit calls over bit sets.
-- `bounce_volume.c` — a target's probe volume: its atlases and six-axis irradiance 3D images, built
+- `bounce_volume.c` — a target's probe volumes: their atlases and six-axis irradiance 3D images, built
   at the top of the frame after the first `voe_render_bounce_begin` and named at bindings 6 and 10,
   freed after 300 frames unbegun, and that begin, which keeps its spacing per frame slot.
 - `bounce_capture.c` — the capture pass: per frame slot a 96-layer scratch of albedo, normal and
@@ -82,10 +85,12 @@ which file to open — what each one owns, and where the seams between them run.
   to its reach, twelve cells, then copied into the atlases.
 - `bounce_shadow.c` — the relight's own sun maps: per frame slot a 1024-texel D32 image of a layer per sun,
   and the shadow pass that draws one sun's layer once per bounce begin that relights it.
-- `bounce_relight.c` — the relight: its three compute pipelines, set layout, pool, per-slot probe
-  lists and one record per volume with the begun light blockers, their kinds and the sun's mask,
-  and the call that settles changed
-  probes, relights each level in use and sums them.
+- `bounce_relight.h` — what the relight's two files share: the set layout's bindings, the push
+  block, the volume count and the holds bit of a list word; included by those two only.
+- `bounce_relight_build.c` — what the relight runs on: its three compute pipelines, set layout,
+  pool, per-slot probe lists and one record per volume, built at prepare and torn down at close.
+- `bounce_relight.c` — the relight: the record with the begun light blockers, their kinds and the
+  sun's mask, and the call that settles changed probes, relights each level in use and sums them.
 - `light_bins.h` — which of 16 × 9 screen tiles and 32 exponential depth slices each point light of
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC

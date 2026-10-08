@@ -348,7 +348,8 @@ bool voe_render_point_shadow_pass_begin(voe_render_device *device,
 	frame = voe_render_frame_at(device, device->slot);
 	place_casters(device, frame, device->pass_count, lights);
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
-	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+		block.bounce[v].grid = VOE_RENDER_NO_BOUNCE;
 	block.region = device->pass_count;
 	block.lights = VOE_RENDER_POINT_SHADOWS;
 	extent = (VkExtent2D){ device->point_shadow_size,

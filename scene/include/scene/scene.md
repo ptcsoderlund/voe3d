@@ -5,8 +5,8 @@ stays on `scene/scene.md`.
 
 - `transform_component.h` — position, rotation and scale, and the matrix the
   three of them become.
-- `transform_system.h` — the intent that moves one, and the direct call that
-  creates one.
+- `transform_system.h` — the intent that moves one, the direct call that
+  creates one, and the previous step: remember, between and remembered.
 - `parent_component.h` — the entity a thing hangs under, and the walks of the tree.
 - `parent_system.h` — registering the parent table.
 - `prefab_component.h` — the prefab a placed copy is, and the copy a part was

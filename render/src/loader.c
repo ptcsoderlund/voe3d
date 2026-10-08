@@ -216,11 +216,11 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 
 	DEVICE_FUNCTION(create_command_pool, vkCreateCommandPool);
 	DEVICE_FUNCTION(destroy_command_pool, vkDestroyCommandPool);
+	DEVICE_FUNCTION(reset_command_pool, vkResetCommandPool);
 	DEVICE_FUNCTION(allocate_command_buffers, vkAllocateCommandBuffers);
 	DEVICE_FUNCTION(free_command_buffers, vkFreeCommandBuffers);
 	DEVICE_FUNCTION(begin_command_buffer, vkBeginCommandBuffer);
 	DEVICE_FUNCTION(end_command_buffer, vkEndCommandBuffer);
-	DEVICE_FUNCTION(reset_command_buffer, vkResetCommandBuffer);
 
 	// Both core in 1.3, which is the version the physical device had to
 	// claim to be picked at all.

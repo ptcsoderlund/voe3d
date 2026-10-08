@@ -1,6 +1,13 @@
 // The Windows half of platform/file.h: CreateFileW, ReadFile/WriteFile,
-// CloseHandle, and the MoveFileExW that makes a write atomic. Read the header
-// first — what the path means and which failure is which is written there.
+// CloseHandle, the MoveFileExW that makes a write atomic, and the one that
+// moves without replacing. Read the header first — what the path means and
+// which failure is which is written there.
+//
+// A MOVE IS MoveFileExW WITH NO FLAGS. Without MOVEFILE_REPLACE_EXISTING a
+// taken target fails in the same step, the test that cannot be stale (the
+// Linux side's RENAME_NOREPLACE). Without MOVEFILE_COPY_ALLOWED a move to
+// another volume fails rather than copying, which a folder cannot do in one
+// step and a failed copy could leave half done.
 //
 // A PATH IS UTF-8 AND IS CONVERTED ON THE WAY IN (ADR-0247, ADR-0248). Every
 // call here is the "W" one, given the path through platform/src/wide_win32.h,
@@ -262,6 +269,42 @@ bool voe_platform_file_write(const char *path, const uint8_t *bytes,
 			       path, path, (unsigned long)GetLastError());
 		report(error, VOE_BASE_ERROR_REFUSED);
 		(void)DeleteFileW(partial);
+		return false;
+	}
+
+	report(error, VOE_BASE_OK);
+	return true;
+}
+
+bool voe_platform_file_move(const char *from, const char *to,
+			    voe_base_error *error)
+{
+	wchar_t wide_from[MAX_PATH];
+	wchar_t wide_to[MAX_PATH];
+	DWORD reason;
+	bool taken;
+
+	VOE_BASE_ASSERT(from != NULL, "moving no path");
+	VOE_BASE_ASSERT(to != NULL, "moving to no path");
+
+	if (!voe_platform_wide_from_utf8(from, wide_from, MAX_PATH) ||
+	    !voe_platform_wide_from_utf8(to, wide_to, MAX_PATH)) {
+		VOE_BASE_ERROR("platform", "moving %s to %s failed: the path is too long",
+			       from, to);
+		report(error, VOE_BASE_ERROR_UNAVAILABLE);
+		return false;
+	}
+
+	// No flags: see the header comment for why neither
+	// MOVEFILE_REPLACE_EXISTING nor MOVEFILE_COPY_ALLOWED.
+	if (!MoveFileExW(wide_from, wide_to, 0)) {
+		reason = GetLastError();
+		taken = reason == ERROR_ALREADY_EXISTS ||
+			reason == ERROR_FILE_EXISTS;
+		VOE_BASE_ERROR("platform", "moving %s to %s failed: error %lu",
+			       from, to, (unsigned long)reason);
+		report(error, taken ? VOE_BASE_ERROR_REFUSED
+				    : VOE_BASE_ERROR_UNAVAILABLE);
 		return false;
 	}
 

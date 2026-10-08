@@ -10,6 +10,8 @@ and the questions each header answers, stays on `authoring/authoring.md`.
 - `scene_read.h` — scene text read into a world, the one load that may create
   rows.
 - `scene_cook.h` — a world cooked into C source, one function the game compiles in.
+- `landscape_cook.h` — a landscape's heights cooked into one C array of whole
+  millimetres.
 - `paths.h` — project-relative paths in scene text followed through a rename and
   looked for before a delete.
 - `project.h` — `project.voe3d` read and written, holding the one key that names

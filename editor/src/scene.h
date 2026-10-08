@@ -61,6 +61,7 @@
 
 #include "assets_panel.h"
 #include "inspector.h"
+#include "sculpt.h"
 
 #include <ecs/world.h>
 #include <game/world.h>
@@ -207,6 +208,9 @@ typedef struct voe_editor_scene {
 	// Whether the selection's gizmo is rings that turn it, or arrows that
 	// move it when false, so zeroed is move. See the header.
 	bool rings;
+	// The sculpting brush, the person's as `rings` is (sculpt.h); started
+	// by main.c beside `world`, drawn and read by the Inspector.
+	voe_editor_sculpt sculpt;
 } voe_editor_scene;
 
 // Which entity is selected, or a zeroed one when nothing is — including when

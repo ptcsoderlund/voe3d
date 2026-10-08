@@ -5,11 +5,12 @@
 // open_device below is the one place that order is written; the steps that grew
 // too long for this file are beside it, declared in startup.h: the instance and
 // validation in instance.c, the card and the `render` line in card.c, the
-// pipeline layout in pipeline.c, the shadow maps in shadow.c and point_shadow.c.
+// pipeline layout in pipeline.c, the shadow maps in shadow.c and point_shadow.c,
+// the timing and the present modes in pacing.c.
 // A device opens unprepared: the mesh pipelines and the relight's startup are
 // built later by voe_render_device_prepare (pipeline.c), and close-down is safe
 // for every one never built. This file keeps the logical device, the format,
-// timing, present modes, the frame objects, the guard (device_internal.h says
+// the frame objects, the guard (device_internal.h says
 // what it excludes) and close-down. The parts that happen
 // again live in target.c, swapchain.c and frame.c — see device_internal.h for
 // why the split is where it is.
@@ -299,141 +300,25 @@ bool voe_render_device_choose_format(voe_render_device *device,
 	return true;
 }
 
-// ---------------------------------------------------------- timing and pacing
-
-// What the card's clock is worth, asked once. Two numbers and they are separate
-// questions: the period is the card's, out of its limits, and the valid bits are
-// the queue family's — a card can write timestamps and the family this device
-// took can still be one that does not.
-//
-// A CARD THAT CANNOT TIME IS NOT A FAILURE AND IS NOT WORTH A MESSAGE AT
-// STARTUP. Every desktop card measured writes timestamps; the ones that do not
-// are compute-only queues and virtualised drivers, and the answer there is a
-// frame loop that reports CPU time and says the GPU number is missing. So this
-// returns nothing: it sets three fields and the caller carries on either way.
-static void learn_timing(voe_render_device *device, voe_base_arena *arena)
-{
-	VkPhysicalDeviceProperties properties;
-	VkQueueFamilyProperties *families;
-	uint32_t count = 0;
-
-	voe_render_vk.get_physical_device_properties(device->physical,
-						     &properties);
-
-	// Zero means the card cannot do it at all, and the specification says so
-	// in exactly those words.
-	if (properties.limits.timestampPeriod == 0.0f)
-		return;
-
-	voe_render_vk.get_queue_family_properties(device->physical, &count, NULL);
-	if (count == 0 || device->queue_family >= count)
-		return;
-
-	families = voe_base_arena_push(arena, (size_t)count * sizeof(*families));
-	voe_render_vk.get_queue_family_properties(device->physical, &count,
-						  families);
-
-	if (families[device->queue_family].timestampValidBits == 0)
-		return;
-
-	device->timestamp_period = properties.limits.timestampPeriod;
-	device->timestamp_valid_bits =
-		families[device->queue_family].timestampValidBits;
-	device->timestamps = true;
-}
-
-// Whether this surface offers MAILBOX, asked once for the same reason the format
-// is: it is a property of a physical device and a surface, and a resize changes
-// neither. A headless device has no surface and presents nothing.
-//
-// FALSE IS AN ORDINARY ANSWER AND NOT A FAILURE. MAILBOX is optional in the
-// specification; only FIFO is required of everyone. So a query that will not
-// answer is read as "no mailbox here" and the device stays on the mode every
-// driver has to support.
-static void learn_present_modes(voe_render_device *device, voe_base_arena *arena)
-{
-	VkPresentModeKHR *modes;
-	uint32_t count = 0;
-
-	if (device->headless)
-		return;
-
-	if (voe_render_vk.get_surface_present_modes(device->physical,
-						    device->surface, &count,
-						    NULL) != VK_SUCCESS ||
-	    count == 0)
-		return;
-
-	modes = voe_base_arena_push(arena, (size_t)count * sizeof(*modes));
-	if (voe_render_vk.get_surface_present_modes(device->physical,
-						    device->surface, &count,
-						    modes) != VK_SUCCESS)
-		return;
-
-	for (uint32_t i = 0; i < count; i++) {
-		if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-			device->mailbox_offered = true;
-			return;
-		}
-	}
-}
-
-void voe_render_present_set(voe_render_device *device, voe_render_present mode)
-{
-	VOE_BASE_ASSERT(device != NULL, "asking no device to present differently");
-	VOE_BASE_ASSERT(mode == VOE_RENDER_PRESENT_FIFO ||
-				mode == VOE_RENDER_PRESENT_MAILBOX,
-			"asking for a present mode that is not one of the two");
-
-	device->present_wanted = mode;
-
-	// The swapchain is what carries the mode, so changing it is building
-	// another one — and that happens at the top of a frame, where every
-	// other rebuild happens, because the images the presentation engine is
-	// still reading are not ours to destroy from here.
-	if (device->present_wanted != device->present_in_force)
-		device->rebuild = true;
-}
-
-voe_render_present voe_render_present_get(const voe_render_device *device)
-{
-	VOE_BASE_ASSERT(device != NULL, "asking no device how it presents");
-
-	return device->present_in_force;
-}
-
-bool voe_render_frame_gpu_time(const voe_render_device *device, double *seconds)
-{
-	VOE_BASE_ASSERT(device != NULL, "asking no device what the card's clock said");
-	VOE_BASE_ASSERT(seconds != NULL,
-			"asking for a GPU time with nowhere to put it");
-
-	if (!device->gpu_measured)
-		return false;
-
-	*seconds = device->gpu_seconds;
-	return true;
-}
-
 // ------------------------------------------------------------- the frame's own
 
-// One of everything per frame slot, and one pool behind all of it. Nothing here
-// is indexed by anything but a slot, and the loop below is the whole of that: a
-// per-frame resource added by a later card gets a line in it and needs no array
-// of its own.
+// One of everything per frame slot, its command pool included, and the uploads'
+// pool beside them. Nothing here is indexed by anything but a slot, and the loop
+// below is the whole of that: a per-frame resource added by a later card gets a
+// line in it and needs no array of its own.
 static bool create_frame_objects(voe_render_device *device)
 {
+	// No flags, for the uploads' pool and every slot's: nothing is reset
+	// alone, a slot's pool is reset whole by frame.c (ADR-0385).
 	VkCommandPoolCreateInfo pool = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-		.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
 		.queueFamilyIndex = device->queue_family,
 	};
 	VkCommandBufferAllocateInfo commands = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = VOE_RENDER_FRAMES_IN_FLIGHT,
+		.commandBufferCount = 1,
 	};
-	VkCommandBuffer buffers[VOE_RENDER_FRAMES_IN_FLIGHT];
 	VkSemaphoreCreateInfo semaphore = {
 		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 	};
@@ -458,17 +343,6 @@ static bool create_frame_objects(voe_render_device *device)
 		return false;
 	}
 
-	// One call for every slot, because vkAllocateCommandBuffers takes a
-	// count and there is nothing to be had from asking it that many times.
-	// The handles are spread one to a slot below, and the pool takes every
-	// one of them back when it is destroyed.
-	commands.commandPool = device->pool;
-	if (voe_render_vk.allocate_command_buffers(device->device, &commands,
-						   buffers) != VK_SUCCESS) {
-		VOE_BASE_ERROR("render", "vkAllocateCommandBuffers failed");
-		return false;
-	}
-
 	// The breakdown last read, and each slot's room for its passes' names
 	// below (ADR-0367 point 2), whether or not the card can time.
 	device->pass_times = calloc(voe_render_timed_passes(device),
@@ -477,7 +351,24 @@ static bool create_frame_objects(voe_render_device *device)
 			"out of memory making room for the pass times");
 
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
-		device->frames[i].commands = buffers[i];
+		// The slot's one command buffer, which its pool takes back when
+		// it is destroyed.
+		if (voe_render_vk.create_command_pool(device->device, &pool,
+						      NULL,
+						      &device->frames[i].pool) !=
+		    VK_SUCCESS) {
+			VOE_BASE_ERROR("render", "vkCreateCommandPool failed");
+			return false;
+		}
+		commands.commandPool = device->frames[i].pool;
+		if (voe_render_vk.allocate_command_buffers(device->device,
+							   &commands,
+							   &device->frames[i].commands) !=
+		    VK_SUCCESS) {
+			VOE_BASE_ERROR("render", "vkAllocateCommandBuffers failed");
+			return false;
+		}
+
 		device->frames[i].pass_names =
 			calloc(voe_render_timed_passes(device),
 			       sizeof(*device->frames[i].pass_names));
@@ -535,12 +426,15 @@ static void close_down(voe_render_device *device)
 		voe_render_swapchain_teardown(device);
 		voe_render_target_teardown(device);
 		// Before the table that holds the targets' volumes goes.
-		voe_render_bounce_volume_teardown(device, &device->window_volume);
-		for (uint32_t i = 0; device->targets != NULL &&
-				     i < device->capacities.targets;
-		     i++)
-			voe_render_bounce_volume_teardown(device,
-							  &device->targets[i].volume);
+		for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++) {
+			voe_render_bounce_volume_teardown(
+				device, &device->window_volume[v]);
+			for (uint32_t i = 0; device->targets != NULL &&
+					     i < device->capacities.targets;
+			     i++)
+				voe_render_bounce_volume_teardown(
+					device, &device->targets[i].volume[v]);
+		}
 		voe_render_targets_shutdown(device);
 
 		// Before the layout below, which it shares.
@@ -585,9 +479,13 @@ static void close_down(voe_render_device *device)
 		voe_render_bounce_capture_shutdown(device);
 		voe_render_bounce_shadow_shutdown(device);
 		voe_render_bounce_relight_shutdown(device);
-		// The command buffers are not freed one at a time: destroying the
-		// pool below takes every one of them with it.
+		// The command buffers are not freed one at a time: destroying a
+		// slot's pool takes its one with it.
 		for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+			if (device->frames[i].pool != VK_NULL_HANDLE)
+				voe_render_vk.destroy_command_pool(device->device,
+								   device->frames[i].pool,
+								   NULL);
 			if (device->frames[i].timestamps != VK_NULL_HANDLE)
 				voe_render_vk.destroy_query_pool(device->device,
 								 device->frames[i].timestamps,
@@ -728,10 +626,10 @@ static voe_render_device *open_device(voe_base_arena *arena,
 	// do not change while this device is open, so they are asked here rather
 	// than on the frame or the resize that wants them. Neither can fail: a
 	// card that cannot time and a surface with no mailbox are answers.
-	// learn_timing is before create_frame_objects because that is what
-	// decides whether there are query pools to make.
-	learn_timing(device, arena);
-	learn_present_modes(device, arena);
+	// The timing is learnt before create_frame_objects because that is what
+	// decides whether there are query pools to make. Both are in pacing.c.
+	voe_render_timing_learn(device, arena);
+	voe_render_present_modes_learn(device, arena);
 	// THE REST OF STARTUP IS IN THIS ORDER AND THE ORDER IS FORCED, NOT
 	// PREFERRED. The frame objects come first because the command pool is one
 	// of them and every staging upload below records into a command buffer
@@ -814,7 +712,9 @@ voe_render_device *voe_render_device_new_headless(voe_base_arena *arena,
 // that opens a device closes it, so a new message anywhere fails that test,
 // without a check per folder; and a person's debug session is not aborted at
 // the message, only told the count when the device goes. The count is read
-// after close_down, so a message the teardown itself raised is counted too.
+// after close_down, so a message the teardown itself raised is counted too, and
+// the new messages the device kept are listed before it, so the lines above the
+// count and the assert say what was counted.
 void voe_render_device_destroy(voe_render_device *device)
 {
 	uint32_t new_messages;
@@ -823,6 +723,8 @@ void voe_render_device_destroy(voe_render_device *device)
 
 	close_down(device);
 	new_messages = device->new_messages;
+	if (new_messages > 0)
+		voe_render_best_practices_list_new(device);
 	release(device);
 
 	if (new_messages > 0)

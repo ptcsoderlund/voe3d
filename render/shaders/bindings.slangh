@@ -56,10 +56,11 @@ struct voe_render_shadow {
 // that matches it, asserts on both structs' sizes and offsets, and pass.c
 // writes one of these per pass, bound at that pass's dynamic offset.
 // depth_copy is the pass's depth copy texture slot, ~0u until it copied;
-// only the water path reads it. bounce is the pass's probe volume (ADR-0326):
-// grid the first of its four entries at binding 6, ~0u for none, its moments at
-// binding 10's grid / 4; corner its lowest corner about the eye; cell its
-// lowest cell wrapped per axis into 24 × 12 × 24. lighting.slangh reads it. lights is how many point lights the pass carries, 0 for none, and
+// only the water path reads it. bounce are the pass's probe volumes (ADR-0326,
+// 0389 point 6), entry v its target's volume v: grid the first of its four
+// entries at binding 6, ~0u for none, its moments at binding 10's grid / 4;
+// corner its lowest corner about the eye; cell its lowest cell wrapped per axis
+// into 24 × 12 × 24. lighting.slangh reads them. lights is how many point lights the pass carries, 0 for none, and
 // region the pass's number, which picks its records at binding 7 and its bins
 // at binding 8 (ADR-0320). blockers is how many light blockers it carries, 0
 // for none, in its region at binding 11 (ADR-0347).
@@ -73,6 +74,10 @@ struct voe_render_frame_bounce {
 // render/device.h's number, which this must equal: the most directional lights
 // a pass draws, the first and `more` (ADR-0357).
 static const uint VOE_RENDER_DIRECTIONAL_LIGHTS = 4;
+
+// render/device.h's VOE_RENDER_BOUNCE_VOLUMES, which this must equal: the probe
+// volumes a target has, the level grid and its nests (ADR-0389).
+static const uint VOE_RENDER_BOUNCE_VOLUMES = 4;
 
 // A light after the pass's first (ADR-0357): struct voe_render_frame_light, its
 // light, shadow record and the mask of the blockers holding its place. Three
@@ -94,7 +99,7 @@ struct voe_render_frame_block {
 	uint lights;
 	uint region;
 	uint blockers;
-	voe_render_frame_bounce bounce;
+	voe_render_frame_bounce bounce[VOE_RENDER_BOUNCE_VOLUMES];
 	// How many of `more` the pass carries; lighting.slangh lights by them.
 	uint more_count;
 	uint more_reserved0;
@@ -191,7 +196,8 @@ Sampler2DArrayShadow voe_render_point_shadow_maps;
 // binding 10: every
 // volume's moments atlas, one each, through a linear, clamping sampler
 // (render/src/descriptors.c). UNSIZED because the C side's lengths are
-// (capacities.targets + 1) × 4 and + 1, runtime numbers; reading them needs
+// (capacities.targets + 1) × VOE_RENDER_BOUNCE_VOLUMES × 4 and × 1, runtime
+// numbers; reading them needs
 // runtimeDescriptorArray, and the entries of volumes not built are partially
 // bound — render/src/device.c enables both.
 [[vk::binding(6, 0)]]

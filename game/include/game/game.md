@@ -2,7 +2,7 @@
 
 The public headers, one entry each.
 
-- `world.h` — the twenty-three component types a project's world registers, the sound, its voice row, the water, its waves, the point light and the light blocker among them, the room for each, and room for a project's own.
+- `world.h` — the twenty-four component types a project's world registers, the sound, its voice row, the water, its waves, the point light and the light blocker among them, the room for each, and room for a project's own.
 - `scene.h` — the include the cook is handed: `voe_game_scene_build`, defined by a project's cooked `scene.c`.
 - `frame.h` — the world step (structural queue, project replaces, every owning system, the sounds last with no mixer) and one frame: that step, then one window pass a lag behind, kept out of light blockers, with the interface over it; the device capacities it needs.
 - `steps.h` — the fixed steps: elapsed time banked, up to four steps of 1/60 s a frame, the project's systems in two slots, before and after the bodies' move, the lag the draw sits behind, and the mixer put in every step and playing the sounds last.
@@ -12,4 +12,5 @@ The public headers, one entry each.
 - `starting.h` — the starting frame, plain (one line centred on the theme's ground) or a splash picture with the line beneath; the wait that shows it while a worker runs a start's work; the shaders step with its cache.
 - `progress.h` — the record a splash wait's worker reports its phase and count into and the main thread reads its line from, with the stop flag; all atomic.
 - `run.h` — the game's whole run in the window it is handed, its start on a worker behind the splash, until the window closes or the interface ends it.
-- `models.h` — the model files a world names read from a folder into a store, and re-read when their stamp changes, reporting progress and stopping in a splash wait; shared by the game and the editor.
+- `models.h` — the model files a world names read from a folder into a store, and re-read when their stamp changes, reporting progress and stopping in a splash wait; the cooked landscape table loaded into it; shared by the game and the editor.
+- `landscapes.h` — the cooked landscape table a game loads into its model store, defined by a project's cooked `landscapes.c`.

@@ -118,6 +118,13 @@
 
 #include "device_parts.h"
 
+// The new validation messages the device keeps to name again at close
+// (best_practices.c): how many distinct id names, and the bytes each row keeps of
+// an id name and of its first text, the terminator included. A longer one is cut.
+#define VOE_RENDER_KEPT_MESSAGES 8
+#define VOE_RENDER_KEPT_ID_BYTES 128
+#define VOE_RENDER_KEPT_TEXT_BYTES 384
+
 struct voe_render_device {
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT messenger;
@@ -188,11 +195,12 @@ struct voe_render_device {
 	VkPipeline pipeline_capture;
 	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
 	// settle, relight and sum pipelines; per frame slot a mapped list buffer,
-	// a mapped record buffer of (targets + 1) regions, volume n's at n ×
+	// a mapped record buffer of a region per volume, each at its descriptor
+	// index (voe_render_bounce_volume_index) ×
 	// `relight_record_stride` (the record's size rounded up to the card's
 	// uniform offset alignment, as `pass_stride` is), and one set per volume
-	// (calloc'd); and how many dispatches it has recorded. All nought without
-	// output_layer.
+	// (calloc'd); how many dispatches it has recorded, and how many
+	// workgroups they held. All nought without output_layer.
 	VkDescriptorSetLayout relight_set_layout;
 	VkPipelineLayout relight_layout;
 	VkDescriptorPool relight_pool;
@@ -206,6 +214,7 @@ struct voe_render_device {
 	VkDeviceSize relight_record_stride;
 	VkDescriptorSet *relight_sets[VOE_RENDER_FRAMES_IN_FLIGHT];
 	uint32_t relight_dispatches;
+	uint32_t relight_groups;
 	// Whether the relight's startup has finished, which prepare does
 	// (pipeline.c); until then the relight does nothing. Never true
 	// without output_layer.
@@ -361,17 +370,18 @@ struct voe_render_device {
 	// The texture slot that shows the window's depth copy, each frame slot
 	// its own; claimed by the first voe_render_target_build, never freed.
 	uint32_t window_depth_texture;
-	// The window's probe volume, built on the first begin onto the window.
-	struct voe_render_bounce_volume window_volume;
+	// The window's probe volumes, each built on the first begin onto it.
+	struct voe_render_bounce_volume window_volume[VOE_RENDER_BOUNCE_VOLUMES];
 
 	// This frame's last voe_render_bounce_begin, bounce_volume.c's: whether
-	// there was one, its target, and a copy of its record whose `stale` is
+	// there was one, its target and volume, and a copy of its record whose `stale` is
 	// none and whose `points` are `bounce_lamps`, the bouncing lamps, and
 	// `blockers` `bounce_blockers`, and `more` `bounce_suns`, the bouncing
 	// further suns — none of any while the target's volume is not built.
 	// Reset by voe_render_frame_begin.
 	bool bounce_begun;
 	voe_render_target bounce_target;
+	uint32_t bounce_volume;
 	struct voe_render_bounce_frame bounce_frame;
 	voe_render_point_light bounce_lamps[VOE_RENDER_BOUNCE_LAMPS];
 	voe_render_light_blocker bounce_blockers[VOE_RENDER_LIGHT_BLOCKERS];
@@ -401,11 +411,15 @@ struct voe_render_device {
 	// meaningless while `recording` is false.
 	VkPipeline bound;
 
+	// Whether the open pass has bound a pool pair yet: false as a pass opens,
+	// set by its first mesh draw (draw.c), so a pass of elements alone binds
+	// no vertex buffer (ADR-0385). Meaningless while `recording` is false.
+	bool pools_bound;
 	// Which geometry pools the open recording last bound: false for the
 	// static pair, true for this slot's transient pair. The same shape as
 	// `bound` and for the same reason — a run of draws out of one pool costs
 	// one bind, and a caller that interleaves the two is still drawn right.
-	// Meaningless while `recording` is false.
+	// Read only once `pools_bound` is true.
 	bool bound_transient;
 
 	// The size every slot's target is, and the resolution the engine draws
@@ -428,14 +442,18 @@ struct voe_render_device {
 	uint32_t image_count;
 	struct voe_render_image images[VOE_RENDER_MAX_IMAGES];
 
-	// The frame slots, and the one pool every command buffer in them comes
-	// out of. Startup's, apart from the target inside each one, which a
-	// resize rebuilds.
+	// The one-shot uploads' pool: their command buffers are allocated, run
+	// once and freed, and each frame slot has a pool of its own (ADR-0385).
+	// Made without the reset flag, because nothing in it is reset alone. The
+	// guard (ADR-0370) still keeps another thread's upload apart from an
+	// open frame.
 	//
-	// slot is the one the next frame will use, advanced modulo the constant
-	// the moment a submit succeeds — because a submit is what puts a slot in
-	// flight, and a frame that returns before submitting must come back to
-	// the same slot with its fence still signalled.
+	// The frame slots: startup's, apart from the target inside each one,
+	// which a resize rebuilds. slot is the one the next frame will use,
+	// advanced modulo the constant the moment a submit succeeds — because a
+	// submit is what puts a slot in flight, and a frame that returns before
+	// submitting must come back to the same slot with its fence still
+	// signalled.
 	VkCommandPool pool;
 	struct voe_render_frame frames[VOE_RENDER_FRAMES_IN_FLIGHT];
 	uint32_t slot;
@@ -513,6 +531,20 @@ struct voe_render_device {
 	bool vendor_checks;
 	uint32_t vendor_id;
 	uint32_t new_messages;
+	// What those new messages were, one row per distinct id name, a row free
+	// while its count is nought: the id name ("(no id)" for none), whether
+	// one was an error, how many came, and the first one's text. Then how
+	// many new messages found no free row. Fixed and in the struct because a
+	// messenger callback must not allocate or fail; written where
+	// new_messages is counted, so it shares that counter's threading; read
+	// once, at close.
+	struct {
+		char id_name[VOE_RENDER_KEPT_ID_BYTES];
+		bool error;
+		uint32_t count;
+		char text[VOE_RENDER_KEPT_TEXT_BYTES];
+	} kept[VOE_RENDER_KEPT_MESSAGES];
+	uint32_t kept_overflow;
 
 	// ---- the guard; see the top of this file.
 

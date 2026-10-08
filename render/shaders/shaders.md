@@ -28,7 +28,8 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   direct light passes by Rooms and crossings, the sun's segment (0350).
 - `bounce_read.slangh` — the bounce's one read, E(n) from a probe volume's six-axis irradiance:
   eight probes weighted by trilinear, validity, facing, Chebyshev visibility and the blockers'
-  pass from probe to surface (0350), normalised, faded at the edge (0326).
+  pass from probe to surface (0350), normalised; a the edge fade (0326) × the valid probes'
+  readiness (0390).
 - `lighting.slangh` — every directional light, each by its own shadow slot, mask and fill: glTF's metalness-roughness BRDF terms, its shadow by
   cascades, its radiance, the bounce read from the pass's probe volume with no gain (0317), the
   fill, a floor under the bounce (0307 amends 0275), and the binned point lights (0320), each fading

@@ -1,9 +1,12 @@
-// A fresh game world has every one of the twenty-three types registered: each
+// A fresh game world has every one of the twenty-four types registered: each
 // public key resolves through voe_ecs_component_type, which asserts on a key
 // nothing registered, the twenty-two answers, the parent, prefab, emitter,
 // particles, sound, sound voice, water, waves, point light and light blocker
-// tables' among them, are twenty-two different types, and the world counts twenty-three, the
-// one more the transforms' previous table, whose key is scene's own. Needs no window and no graphics card.
+// tables' among them, are twenty-two different types, and the world counts
+// twenty-four, the two more the transforms' previous table, whose key is
+// scene's own, and the shape changes table, whose key is 3d's own: the type
+// walk finds exactly one type named voe_3d_shape_changes, and it is
+// runtime-only. Needs no window and no graphics card.
 //
 // The keys come through game/scene.h, the one header a cooked scene.c sees,
 // and no component header of their own: a type game/world.h registers that
@@ -23,7 +26,10 @@
 
 #include <testing/test.h>
 
-// The public keys; the previous table is the one more the world counts.
+#include <string.h>
+
+// The public keys; the previous and the shape changes tables are the two more
+// the world counts.
 #define TYPES 22
 
 // More colliders than the authored room, as spawned things carry.
@@ -57,6 +63,29 @@ static void colliders_case(void)
 	voe_base_arena_destroy(arena);
 }
 
+// The type walk over a fresh world finds the shape changes table once, by its
+// key's name, and it is runtime-only.
+static void changes_case(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(1 << 20);
+	voe_ecs_world *world = voe_game_world_new(arena);
+	const uint32_t count = voe_ecs_component_type_count(world);
+	int found = 0;
+
+	for (uint32_t i = 0; i < count; i++) {
+		const voe_ecs_type type = voe_ecs_component_type_at(world, i);
+
+		if (strcmp(voe_ecs_component_key(world, type)->name,
+			   "voe_3d_shape_changes") != 0)
+			continue;
+		found++;
+		VOE_TEST_CHECK(voe_ecs_component_runtime_only(world, type));
+	}
+	VOE_TEST_CHECK(found == 1);
+
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	const struct voe_ecs_key *keys[TYPES] = {
@@ -86,6 +115,7 @@ int main(void)
 		       VOE_GAME_WORLD_TYPES);
 
 	voe_base_arena_destroy(arena);
+	changes_case();
 	colliders_case();
 	return voe_test_result();
 }

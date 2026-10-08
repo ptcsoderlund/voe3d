@@ -24,30 +24,33 @@
 // A PLACE moves the grid to its new lowest cell, counted in `spacing`, the
 // metres between its probes (ADR-0332 point 3). Probes it brings in (all on the
 // first place, a jump of a whole grid on any axis, or a spacing other than the
-// last) lose their picture, are queued and marked changed; probes whose centre
-// at that spacing lies in a stale sphere are queued. It writes the bouncing
-// lights: the sun record with its bounces and strength, every further sun with
-// bounces and intensity (ADR-0357), the first VOE_RENDER_BOUNCE_LAMPS point
-// lights with bounces, and every light blocker with the kinds and the sun's mask.
+// last) lose their picture, are queued, marked changed and not ready. A stale
+// sphere of radius w queues the probes whose centre at that spacing lies within
+// w + min(VOE_RENDER_BOUNCE_REACH × spacing / VOE_RENDER_BOUNCE_SPACING,
+// VOE_RENDER_BOUNCE_UNSEEN_RADII × w): a probe's reach, but no further than
+// where the caster is under one face texel (ADR-0389 point 7). Every fading
+// probe gains 1 of readiness, up to VOE_RENDER_BOUNCE_FADE, and stops fading
+// the place after it reached it. It writes the
+// bouncing lights: the sun, every further sun with bounces and intensity, the
+// first VOE_RENDER_BOUNCE_LAMPS point lights with bounces, and every blocker.
 //
 // A TAKE lists up to `room` queued probes, nearest the eye first (centre at
 // the cell's middle at the placed spacing, ties to the lower index), unqueues
-// them and marks them holding a picture and changed.
+// them and marks them holding a picture and changed. One that held no picture
+// starts fading at readiness 0; one that held one keeps its readiness.
 //
-// A RELIGHT IS NEEDED when any probe is marked changed or the bouncing lights
-// differ from the last relit: field for field, but a lamp's position about the
-// grid's lowest corner within a millimetre per axis and its shadow by whether
-// it is slotted. Positions and corner are both about the eye, so an eye that
-// moves shifts them alike, and the point shadows reorder slots as it moves;
-// neither changes the bounce, so neither relights (ADR-0332 point 5). Blockers
-// likewise (ADR-0347 point 4): a different count relights, and so does a row's
-// xyz or the sphere's radius beyond 1e-4, its centre about the corner beyond a
-// millimetre, or row.w + row.xyz · corner beyond 1e-4, both eye-invariant.
-// Any of walls, indoors or the sun's mask that differs relights (ADR-0350
-// point 5), and so does a further sun added, taken away, or with its light,
-// bounces, strength or mask changed.
+// A RELIGHT IS NEEDED when any probe is changed or fading, or the bouncing
+// lights differ from the last relit: field for field, but a lamp's position
+// about the grid's world origin (corner − cell × spacing, about the eye) within
+// a millimetre per axis and its shadow by whether it is slotted. An eye that
+// moves shifts both alike, a grid that scrolls keeps the origin, and the point
+// shadows reorder slots; none relights (ADR-0389 point 5). Blockers likewise:
+// a different count relights, and so does a row's xyz or the sphere's radius
+// beyond 1e-4, its centre about the origin beyond a millimetre, or row.w +
+// row.xyz · origin beyond 1e-4. Walls, indoors, the sun's mask, or a further
+// sun added, taken away or changed relight (ADR-0350, 0357).
 //
-// CONSTRAINTS. A place scans the whole grid once, and once more per stale
+// CONSTRAINTS. A place scans the whole grid twice, and once more per stale
 // sphere; a take scans it once per probe taken, room × 6912 compares. Fine at
 // 16 a pass; a per-axis box for spheres and a sort for takes would lift them.
 #pragma once
@@ -61,6 +64,11 @@
 #define VOE_RENDER_BOUNCE_PROBES_TOTAL                                        \
 	(VOE_RENDER_BOUNCE_PROBES_XZ * VOE_RENDER_BOUNCE_PROBES_Y *           \
 	 VOE_RENDER_BOUNCE_PROBES_XZ)
+
+// Places a new picture takes to reach full weight (ADR-0389 point 4).
+#define VOE_RENDER_BOUNCE_FADE 16
+// Past this many of its radii a caster is under one face texel (ADR-0389 7).
+#define VOE_RENDER_BOUNCE_UNSEEN_RADII 16
 
 // World cell `cell` mod `size`, in 0..size − 1 for a negative cell too.
 static inline uint32_t voe_render_bounce_probe_wrap(int64_t cell, uint32_t size)
@@ -117,13 +125,16 @@ typedef struct voe_render_bounce_probes {
 	uint32_t holds[VOE_RENDER_BOUNCE_PROBES_TOTAL / 32];
 	uint32_t queued[VOE_RENDER_BOUNCE_PROBES_TOTAL / 32];
 	uint32_t changed[VOE_RENDER_BOUNCE_PROBES_TOTAL / 32];
+	uint32_t fading[VOE_RENDER_BOUNCE_PROBES_TOTAL / 32];
+	uint8_t ready[VOE_RENDER_BOUNCE_PROBES_TOTAL];
 	voe_render_bounce_lights relit;
-	voe_math_float3 relit_corner;
+	voe_math_float3 relit_origin;
 } voe_render_bounce_probes;
 
 // `cell` is the grid's new lowest world cell in `spacing` metres, finite and
 // above nought, and `corner` its lowest corner about the eye; `stale` holds
-// spheres about the eye, xyz centre and w radius; `blockers` are about the eye
+// spheres about the eye, xyz centre and w the caster's own radius, to which
+// the place adds the reach above; `blockers` are about the eye
 // too, at most VOE_RENDER_LIGHT_BLOCKERS; `more` are the further suns, at most
 // VOE_RENDER_DIRECTIONAL_LIGHTS − 1. Writes this update's bouncing lights, the
 // blockers copied, into `lights`.
@@ -143,12 +154,19 @@ void voe_render_bounce_probes_place(voe_render_bounce_probes *p,
 uint32_t voe_render_bounce_probes_take(voe_render_bounce_probes *p,
 				       uint32_t *probes, uint32_t room);
 
-// Whether a probe changed or `lights`, about the placed corner, differ from
-// those last relit about theirs.
+// Whether `lights`, about the placed world origin, differ from those last relit
+// about theirs.
+bool voe_render_bounce_probes_lights_changed(const voe_render_bounce_probes *p,
+					     const voe_render_bounce_lights *lights);
+
+// Whether any probe is fading in.
+bool voe_render_bounce_probes_fading(const voe_render_bounce_probes *p);
+
+// Whether a probe changed or fades, or the lights changed.
 bool voe_render_bounce_probes_relight_needed(const voe_render_bounce_probes *p,
 					     const voe_render_bounce_lights *lights);
 
-// Clears every changed mark and keeps `lights` and the placed corner as the
-// last relit.
+// Clears every changed mark and keeps `lights` and the placed world origin as
+// the last relit.
 void voe_render_bounce_probes_relit(voe_render_bounce_probes *p,
 				    const voe_render_bounce_lights *lights);

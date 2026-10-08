@@ -7,7 +7,10 @@
 // relight's sun view puts the volume's centre in the map's middle within a
 // texel and its eight corners inside, for a sun at 45 degrees and one straight
 // down, and its sphere, half-diagonal plus the volume's reach, grows with the
-// spacing. Needs no graphics card.
+// spacing. A nest about the eye starts with the eye nine cells up, holds still
+// while the eye stays within two cells, moves one cell when it crosses three,
+// jumps home on a move of a whole grid, and gives two eyes in one cell one
+// world place. Needs no graphics card.
 #include <3d/bounce_grid.h>
 #include <math/double3.h>
 #include <math/float4x4.h>
@@ -159,6 +162,90 @@ static void the_sun_map_grows_with_the_spacing(void)
 				     .projection.m[0][0]) < 1e-6f);
 }
 
+// Where the 4 m nest examples start: the eye's cell (75, 1, -11).
+static const voe_math_double3 NEST_EYE = { 300.5, 5.3, -40.2 };
+
+// `eye` moved by `x`, `y`, `z` metres.
+static voe_math_double3 moved(voe_math_double3 eye, double x, double y,
+			      double z)
+{
+	return (voe_math_double3){ eye.x + x, eye.y + y, eye.z + z };
+}
+
+// Placed afresh: the eye's cell less (12, 9, 12), the corner that cell's
+// lowest corner about the eye; and the three spacings coarse to fine.
+static void a_nest_starts_with_the_eye_nine_cells_up(void)
+{
+	voe_3d_bounce_grid grid = voe_3d_bounce_grid_nest(4.0f, NULL, NEST_EYE);
+
+	VOE_TEST_CHECK(fitted(grid, 4.0f, 63, -8, -23));
+	VOE_TEST_CHECK(fabs(NEST_EYE.x + grid.corner.x - 252.0) < 1e-3 &&
+		       fabs(NEST_EYE.y + grid.corner.y + 32.0) < 1e-3 &&
+		       fabs(NEST_EYE.z + grid.corner.z + 92.0) < 1e-3);
+	VOE_TEST_CHECK(voe_3d_bounce_nest_spacing(0) == 16.0f &&
+		       voe_3d_bounce_nest_spacing(1) == 4.0f &&
+		       voe_3d_bounce_nest_spacing(2) == 1.0f);
+}
+
+// Two cells, 8 m, up and down every axis at once: the same cell.
+static void a_nest_holds_still_while_the_eye_stays_within_two_cells(void)
+{
+	voe_3d_bounce_grid start = voe_3d_bounce_grid_nest(4.0f, NULL, NEST_EYE);
+
+	VOE_TEST_CHECK(fitted(voe_3d_bounce_grid_nest(
+				      4.0f, start.cell,
+				      moved(NEST_EYE, 8.0, 8.0, 8.0)),
+			      4.0f, 63, -8, -23));
+	VOE_TEST_CHECK(fitted(voe_3d_bounce_grid_nest(
+				      4.0f, start.cell,
+				      moved(NEST_EYE, -8.0, -8.0, -8.0)),
+			      4.0f, 63, -8, -23));
+}
+
+// Three cells up x and down y: one cell each way, z still.
+static void a_nest_moves_one_cell_when_the_eye_crosses_three(void)
+{
+	voe_3d_bounce_grid start = voe_3d_bounce_grid_nest(4.0f, NULL, NEST_EYE);
+
+	VOE_TEST_CHECK(fitted(voe_3d_bounce_grid_nest(
+				      4.0f, start.cell,
+				      moved(NEST_EYE, 12.0, -12.0, 0.0)),
+			      4.0f, 64, -9, -23));
+}
+
+// Held two cells low in y, the eye then goes 25 and 26 cells along x: a move
+// of 23 keeps y; a move of a whole grid, 24, gives home on every axis.
+static void a_nest_jumps_home_when_the_eye_leaves_it(void)
+{
+	voe_math_double3 up = moved(NEST_EYE, 0.0, 8.0, 0.0);
+	voe_3d_bounce_grid held = voe_3d_bounce_grid_nest(
+		4.0f, voe_3d_bounce_grid_nest(4.0f, NULL, NEST_EYE).cell, up);
+
+	VOE_TEST_CHECK(fitted(held, 4.0f, 63, -8, -23));
+	VOE_TEST_CHECK(fitted(voe_3d_bounce_grid_nest(4.0f, held.cell,
+						      moved(up, 100.0, 0.0, 0.0)),
+			      4.0f, 86, -8, -23));
+	VOE_TEST_CHECK(fitted(voe_3d_bounce_grid_nest(4.0f, held.cell,
+						      moved(up, 104.0, 0.0, 0.0)),
+			      4.0f, 89, -6, -23));
+}
+
+// Two eyes 100 km out in one 1 m cell: one cell, and corner plus eye the
+// same world place.
+static void two_eyes_in_one_cell_give_one_world_place(void)
+{
+	voe_math_double3 first = { 100000.1, 2.2, -3.9 };
+	voe_math_double3 second = { 100000.9, 2.8, -3.1 };
+	voe_3d_bounce_grid a = voe_3d_bounce_grid_nest(1.0f, NULL, first);
+	voe_3d_bounce_grid b = voe_3d_bounce_grid_nest(1.0f, NULL, second);
+
+	VOE_TEST_CHECK(fitted(a, 1.0f, 99988, -7, -16));
+	VOE_TEST_CHECK(fitted(b, 1.0f, 99988, -7, -16));
+	VOE_TEST_CHECK(fabs(first.x + a.corner.x - second.x - b.corner.x) < 1e-3 &&
+		       fabs(first.y + a.corner.y - second.y - b.corner.y) < 1e-3 &&
+		       fabs(first.z + a.corner.z - second.z - b.corner.z) < 1e-3);
+}
+
 int main(void)
 {
 	the_eye_moves_nothing((voe_math_double3){ 0.0, 0.0, 0.0 });
@@ -168,6 +255,11 @@ int main(void)
 	a_centre_across_a_cell_edge_moves_one_cell();
 	no_box_is_the_origin();
 	the_sun_map_grows_with_the_spacing();
+	a_nest_starts_with_the_eye_nine_cells_up();
+	a_nest_holds_still_while_the_eye_stays_within_two_cells();
+	a_nest_moves_one_cell_when_the_eye_crosses_three();
+	a_nest_jumps_home_when_the_eye_leaves_it();
+	two_eyes_in_one_cell_give_one_world_place();
 
 	return voe_test_result();
 }

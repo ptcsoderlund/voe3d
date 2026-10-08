@@ -15,9 +15,10 @@
 // layer of the slot's shadow map instead: depth only, always cleared, drawn
 // through the shadow pipeline, and closed by the same _pass_end.
 //
-// A camera pass names its target's probe volume in its block only when this
-// frame slot's frame began it and it is built (ADR-0326 point 7), at that
-// begin's spacing (0332 point 3); a block naming none leaves the spacing nought.
+// A camera pass names each of its target's probe volumes in its block, entry v
+// volume v, only when this frame slot's frame began it and it is built (ADR-0326
+// point 7, 0389 point 6), at that begin's spacing (0332 point 3); an entry
+// naming none leaves its spacing nought.
 //
 // THE POINT-SHADOW PASS (ADR-0325) opens in point_shadow.c through this file's
 // start and light copy, and is closed by the same _pass_end. A capture pass
@@ -248,16 +249,17 @@ void voe_render_open_rendering(VkCommandBuffer commands,
 
 // What every pass does once its rendering block is open: `block` into this
 // pass's own block of the slot's uniform buffer, `pipeline` bound, the slot's set
-// bound at that block's offset, the static pools bound, and the pass counted.
+// bound at that block's offset, no pools bound yet, and the pass counted.
 //
 // THE BLOCK IS SAFE TO WRITE because the fence at the top of the frame says the
 // GPU has finished reading what was in here two frames ago. The offset is the
 // whole of how the shader comes to read this pass's camera and not another's.
 //
-// THE STATIC POOLS ARE BOUND HERE because a pass's first draws come out of them.
-// Every static mesh is a range inside them, which is what makes one bind serve
-// all of those; a transient range makes draw_with (draw.c) bind the other pair,
-// and `bound_transient` is what keeps that to one bind per run.
+// NO POOL IS BOUND AS A PASS OPENS (ADR-0385). The first mesh draw binds the pair
+// it needs (draw_with, draw.c), and `bound_transient` keeps that to one bind per
+// run. Binding the static pair here left a pass of elements alone, an interface,
+// with a vertex buffer bound that nothing read, which the Best Practices layer
+// reports at the end of the command buffer (bug 04).
 //
 // THE PASS IS TIMED AND LABELLED HERE (pass_timing.c), its first stamp written
 // before anything it binds, and closed by voe_render_pass_end.
@@ -281,7 +283,7 @@ void voe_render_pass_start(voe_render_device *device,
 					       VK_PIPELINE_BIND_POINT_GRAPHICS,
 					       device->layout, 0, 1,
 					       &frame->descriptor, 1, &offset);
-	voe_render_bind_pools(device, frame, false);
+	device->pools_bound = false;
 
 	device->pass_open = true;
 	device->pass_count++;
@@ -290,9 +292,10 @@ void voe_render_pass_start(voe_render_device *device,
 	device->pass_bounce_shadow = false;
 }
 
-// The bounce record of a camera pass onto the target owning `volume`, volume
-// `index`: its first entry at binding 6, the corner, the lowest cell wrapped
-// per axis and the spacing of frame slot `slot`'s begin, when that begin
+// The bounce record of a camera pass onto the target owning `volume`, at
+// descriptor index `index`: its first entry at binding 6, the corner, the
+// lowest cell wrapped per axis and the spacing of frame slot `slot`'s begin,
+// when that begin
 // happened and the volume is built; left at VOE_RENDER_NO_BOUNCE otherwise
 // (ADR-0326 point 7).
 static void name_volume(struct voe_render_frame_bounce *bounce,
@@ -568,13 +571,19 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 		block.shadow = camera->shadow;
 	}
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
-	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+		block.bounce[v].grid = VOE_RENDER_NO_BOUNCE;
 	if (camera != NULL) {
-		name_volume(&block.bounce,
-			    own != NULL ? &own->volume : &device->window_volume,
-			    own != NULL ? (uint32_t)(own - device->targets) + 1 :
-					  0,
-			    device->slot);
+		for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+			name_volume(&block.bounce[v],
+				    own != NULL ? &own->volume[v] :
+						  &device->window_volume[v],
+				    voe_render_bounce_volume_index(
+					    own != NULL ?
+						    (uint32_t)(own - device->targets) + 1 :
+						    0,
+					    v),
+				    device->slot);
 		place_lights(frame, device->pass_count, &camera->view,
 			     camera->points,
 			     voe_render_point_shadows_ready(device), &block);
@@ -683,7 +692,8 @@ bool voe_render_shadow_pass_begin(voe_render_device *device, uint32_t layer,
 			       device->capacities.shadow_size };
 	block.camera = *light;
 	block.depth_copy = VOE_RENDER_NO_DEPTH_COPY;
-	block.bounce.grid = VOE_RENDER_NO_BOUNCE;
+	for (uint32_t v = 0; v < VOE_RENDER_BOUNCE_VOLUMES; v++)
+		block.bounce[v].grid = VOE_RENDER_NO_BOUNCE;
 	depth.imageView = frame->shadow.layers[layer];
 	rendering.renderArea.extent = extent;
 	scissor.extent = extent;

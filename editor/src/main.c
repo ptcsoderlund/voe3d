@@ -204,6 +204,9 @@ int main(int argc, char *argv[])
 	voe_editor_preferences preferences = { 0 };
 	// Shown by the bar's Project, hidden the same ways (project_panel.h).
 	voe_editor_project_panel project_panel = { 0 };
+	// Shown by a `.landscape` row or Create's, hidden the same ways
+	// (landscape_panel.h).
+	voe_editor_landscape_panel landscape_panel = { 0 };
 	// Shown from the Panels list, hidden by it or its ×; never shown in a
 	// capture, so its take there copies nothing (frame_breakdown.h).
 	voe_editor_frame_breakdown breakdown = { 0 };
@@ -388,6 +391,7 @@ int main(int argc, char *argv[])
 	// project.h on why every project owns its own world. NEW replaces it
 	// later, and session.c keeps this in step when it does (session.h).
 	scene.world = session.project->world;
+	voe_editor_sculpt_start(&scene.sculpt);
 
 	// The views open where the scene's camera is, not at the origin (0255).
 	voe_editor_views_focus_camera(&views, scene.world);
@@ -399,13 +403,16 @@ int main(int argc, char *argv[])
 	commands = (voe_editor_frame_commands){
 		.session = &session, .scene = &scene, .browser = &browser,
 		.preferences = &preferences, .project_panel = &project_panel,
-		.views = &views, .undo = &undo, .gizmo = &gizmo, .ui = ui };
+		.landscape_panel = &landscape_panel,
+		.views = &views, .undo = &undo, .models = models,
+		.gizmo = &gizmo, .ui = ui };
 	reads = (voe_editor_frame_pointer){
 		.commands = &commands, .session = &session, .scene = &scene,
 		.browser = &browser, .preferences = &preferences,
 		.project_panel = &project_panel, .views = &views, .undo = &undo,
 		.gizmo = &gizmo, .drag = &drag, .root = &roots[0], .bar = &bar,
-		.geometries = &geometries, .models = models, .window = window,
+		.geometries = &geometries, .models = models, .scratch = arena,
+		.window = window,
 		.resize = { .held = UINT32_MAX } };
 
 	voe_editor_startup_say_descriptions();
@@ -481,6 +488,20 @@ int main(int argc, char *argv[])
 		case VOE_EDITOR_THEMES_UNCHANGED:
 			break;
 		}
+
+		// A SAVE THAT WROTE THE PROJECT WRITES ITS EDITED LANDSCAPES, a
+		// refusal said and the project unsaved again; a different
+		// project reads its edited ones back, before the history step
+		// clears `replaced` (models.h).
+		if (session.saved) {
+			session.saved = false;
+			if (!voe_editor_models_save(models, session.project->folder,
+						    scratch, &session.notice))
+				session.project->unsaved = true;
+		}
+		if (session.replaced)
+			voe_editor_models_revert(models, session.project->folder,
+						 gpu, scratch);
 
 		// The history's step, before world_step.h (frame_commands.h).
 		voe_editor_frame_commands_history(&commands);
@@ -570,7 +591,7 @@ int main(int argc, char *argv[])
 		};
 
 		// The fly, the shortcuts, the borders, the middle drag, the
-		// gizmo, the Assets drag and the pick, in that order
+		// brush, the gizmo, the Assets drag and the pick, in that order
 		// (frame_pointer.h); `ui`'s keyboard comes back.
 		roots[0].keyboard =
 			voe_editor_frame_pointer_read(
@@ -597,6 +618,10 @@ int main(int argc, char *argv[])
 		// The files this frame's rows name, before the draw opens (models.h).
 		voe_editor_models_update(models, &session, gpu, arena,
 					 opened.tick.now, NULL);
+		// Static again only between strokes: a held one draws transient
+		// each frame instead (0379 point 4).
+		if (!scene.sculpt.stroking)
+			voe_editor_models_settle(models, gpu, scratch);
 		voe_editor_assets_update(&scene.assets, session.project->folder,
 					 opened.tick.now);
 		if (!voe_app_draw_open(app, opened.size, &drawing)) {
@@ -606,6 +631,8 @@ int main(int argc, char *argv[])
 		if (!drawing)
 			continue;
 
+		// The landscapes' dirty chunks, transient for this frame's passes.
+		voe_editor_models_frame(models, gpu, scratch);
 		light = voe_editor_view_light(session.project->world);
 
 		// A pass per view the tree shows (view_passes.h). If one is
@@ -631,9 +658,10 @@ int main(int argc, char *argv[])
 			drawn = voe_editor_interface_draw(
 				gpu, ui, arena, roots,
 				(uint32_t)(sizeof roots / sizeof roots[0]),
-				&scene, &drag, &views, &undo, &session, &bar,
+				&scene, &drag, &views, &undo, models, &session, &bar,
 				&browser,
-				&preferences, &project_panel, &themes,
+				&preferences, &project_panel, &landscape_panel,
+				&themes,
 				&breakdown, commands.escape_free);
 			// The acts that wait for the draw (frame_commands.h).
 			voe_editor_frame_commands_after_draw(&commands);

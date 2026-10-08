@@ -1,7 +1,7 @@
 // main.c's loop's run of pointer and view reads, moved here with its comments:
 // the glide, the fly and the shortcuts, the borders, the Assets panel's right
-// button, then the middle drag, the gizmo, the Assets drag and the pick, in the
-// order frame_pointer.h gives. See there.
+// button, then the middle drag, the brush, the gizmo, the Assets drag and the
+// pick, in the order frame_pointer.h gives. See there.
 #include "frame_pointer.h"
 
 #include "frame_selection.h"
@@ -58,6 +58,7 @@ static bool borders(voe_editor_frame_pointer *frame, bool flying)
 		&frame->resize, frame->root, frame->bar,
 		!frame->browser->showing && !frame->preferences->showing &&
 			!frame->project_panel->showing &&
+			!frame->commands->landscape_panel->showing &&
 			!frame->session->errors.showing &&
 			!frame->scene->picking.open &&
 			!frame->scene->dropdown.open &&
@@ -94,6 +95,7 @@ static void assets_right(voe_editor_frame_pointer *frame,
 	const bool covered = frame->browser->showing ||
 			     frame->preferences->showing ||
 			     frame->project_panel->showing ||
+			     frame->commands->landscape_panel->showing ||
 			     frame->session->errors.showing ||
 			     frame->session->asking.open || frame->bar->menu.open;
 
@@ -109,22 +111,31 @@ static void assets_right(voe_editor_frame_pointer *frame,
 	VOE_BASE_ASSERT(frame->right_was, "a right edge not kept");
 }
 
-// The gizmo, the Assets drag and the pick, against the left press the fly and
-// the borders left.
+// The brush, the gizmo, the Assets drag and the pick, against the left press
+// the fly and the borders left.
 static void presses(voe_editor_frame_pointer *frame,
 		    const voe_editor_frame_pointer_input *input, bool left)
 {
 	const voe_math_float2 at = frame->root->pointer.at;
 	const bool down = left && input->pointer.over;
-	const bool panel = frame->browser->showing ||
-			   frame->preferences->showing ||
-			   frame->project_panel->showing ||
-			   frame->session->errors.showing ||
-			   frame->scene->picking.open || frame->bar->menu.open ||
-			   frame->scene->assets.menu.open;
+	bool panel = frame->browser->showing || frame->preferences->showing ||
+		     frame->project_panel->showing ||
+		     frame->commands->landscape_panel->showing ||
+		     frame->session->errors.showing ||
+		     frame->scene->picking.open || frame->bar->menu.open ||
+		     frame->scene->assets.menu.open;
 
 	VOE_BASE_ASSERT(frame->gizmo != NULL && frame->drag != NULL,
 			"presses with no gizmo or drag");
+	// A press on the selection's ground, with a brush chosen, sculpts it
+	// (sculpt.h); while it takes the press or a stroke is held, the rest
+	// below are blocked as under a panel.
+	if (voe_editor_sculpt_read(&frame->scene->sculpt, frame->scene,
+				   frame->views, frame->models, frame->undo,
+				   frame->session, at, down, !panel,
+				   input->seconds, frame->scratch) ||
+	    frame->scene->sculpt.stroking)
+		panel = true;
 	// The left half of the same division: a press on an arrow of the
 	// selected entity's gizmo drags it (gizmo.h), unless a panel over the
 	// views has the press instead.
@@ -138,7 +149,7 @@ static void presses(voe_editor_frame_pointer *frame,
 	voe_editor_assets_drag_read(
 		frame->drag, frame->session, frame->undo, frame->scene,
 		frame->views, frame->root, frame->bar, frame->geometries,
-		voe_editor_models_store(frame->models), at, down,
+		frame->models, at, down,
 		panel || voe_editor_gizmo_taking(frame->gizmo));
 
 	// Then a press over a view picks what is under it (pick.h). A press

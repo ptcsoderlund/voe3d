@@ -35,6 +35,7 @@
 #include "inspector.h"
 
 #include "entity_field.h"
+#include "inspector_sculpt.h"
 #include "inspector_value.h"
 #include "themes.h"
 
@@ -658,7 +659,8 @@ bool voe_editor_inspector_is_part(const voe_ecs_world *world,
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
-			       const voe_ecs_type *kept, uint32_t kept_count)
+			       const voe_ecs_type *kept, uint32_t kept_count,
+			       voe_editor_sculpt *sculpt)
 {
 	uint32_t types;
 	voe_ecs_entity root = { 0 };
@@ -671,6 +673,7 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(world != NULL, "drawing an inspector on no world");
 	VOE_BASE_ASSERT(kept != NULL || kept_count == 0,
 			"kept types counted but not handed in");
+	VOE_BASE_ASSERT(sculpt != NULL, "drawing an inspector with no brush");
 
 	inspector->entity = selected;
 
@@ -733,6 +736,9 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 		component_panel(ui, inspector, world, i, type, removable, part,
 				(const uint8_t *)row);
 	}
+
+	if (voe_editor_sculpt_wears(world, selected))
+		voe_editor_inspector_sculpt_draw(ui, sculpt);
 
 	if (part) {
 		voe_ui_end(ui);

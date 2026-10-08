@@ -34,6 +34,16 @@
 // even the header"), else game/models.c's category. The thing draws as
 // nothing and the file is not read again until its stamp changes, so the
 // notice is set once, not once a frame.
+//
+// A LANDSCAPE IS EDITED IN THE STORE AND ONLY THROUGH THIS FILE (0379 points
+// 4 and 6): its grid is the store's, so the calls into 3d/models.h that draw,
+// settle, write and re-read it are made here and nowhere else. Each frame
+// _frame, inside the draw, draws its dirty chunks transient, and _settle,
+// between frames beside the update, uploads them static again. Save writes
+// every edited one to its file; a New or Open reads every edited one again.
+// The Landscape panel's size is written at once and re-read at the next
+// update; one re-read waits at a time, enough for a panel that writes at most
+// one a frame, and a second before the update would replace the first.
 #pragma once
 
 #include "session.h"
@@ -65,6 +75,70 @@ void voe_editor_models_update(voe_editor_models *models,
 			      voe_render_device *device,
 			      voe_base_arena *scratch, double now,
 			      voe_game_progress *progress);
+
+// Once a frame, after the draw opens and before any pass: every dirty
+// landscape chunk drawn transient this frame. `scratch` is rewound.
+void voe_editor_models_frame(voe_editor_models *models,
+			     voe_render_device *device, voe_base_arena *scratch);
+
+// Once a frame, between frames: every dirty landscape chunk uploaded static
+// again. A device with no room is one stderr line; the chunk stays dirty.
+void voe_editor_models_settle(voe_editor_models *models,
+			      voe_render_device *device,
+			      voe_base_arena *scratch);
+
+// Every edited landscape written to `<folder>/<path>` and marked saved. False
+// at the first refused write, `why` naming the file; those before it saved.
+// `scratch` is rewound.
+[[nodiscard]] bool voe_editor_models_save(voe_editor_models *models,
+					  const char *folder,
+					  voe_base_arena *scratch,
+					  voe_editor_notice *why);
+
+// Every edited landscape read from `<folder>/<path>` again and loaded over
+// itself. A file that will not read keeps its entry as an update's failure
+// does, the reason on stderr. Nothing for a NULL folder. Between frames.
+void voe_editor_models_revert(voe_editor_models *models, const char *folder,
+			      voe_render_device *device,
+			      voe_base_arena *scratch);
+
+// One stamp of `brush` at (x, z) in `path`'s grid's own space over `seconds`
+// (3d/models.h): the rect of heights it changed, empty for a path that is no
+// loaded landscape. `scratch` is rewound.
+voe_3d_landscape_rect voe_editor_models_brush(voe_editor_models *models,
+					      const char *path,
+					      const voe_3d_brush *brush,
+					      float x, float z, float seconds,
+					      voe_base_arena *scratch);
+
+// `rect`'s heights, row-major, written into `path`'s landscape: an undo step's
+// stroke put back (strokes.h). Nothing for a path that is no loaded landscape.
+void voe_editor_models_put(voe_editor_models *models, const char *path,
+			   voe_3d_landscape_rect rect, const float *values);
+
+// Every entry at `from` or under `from/` takes `to` in its place, both under
+// `Assets/`: a rename or move keeps a landscape's unsaved heights (0379 point 6).
+void voe_editor_models_rename(voe_editor_models *models, const char *from,
+			      const char *to);
+
+// The size of `path`'s landscape (`Assets/...`) into `size`: the store's entry
+// when loaded, else read from `<folder>/<path>` in `scratch`, which is
+// rewound. False, `why` naming the file, when it will not read.
+[[nodiscard]] bool voe_editor_models_landscape_size_found(
+	voe_editor_models *models, const char *folder, const char *path,
+	voe_base_arena *scratch, float *size, voe_editor_notice *why);
+
+// `path`'s landscape written to `<folder>/<path>` at `size` metres, heights
+// kept and so stretched (0379 point 6): from the store's entry when loaded,
+// else from the file. A loaded entry is marked saved, its edits being in the
+// file now, and loaded again from it at the next update, between frames,
+// since a load may not run inside one. False, `why` naming the file and
+// nothing written, when it will not read or write. `scratch` is rewound.
+[[nodiscard]] bool voe_editor_models_landscape_size(voe_editor_models *models,
+						    const char *folder,
+						    const char *path, float size,
+						    voe_base_arena *scratch,
+						    voe_editor_notice *why);
 
 // The store to read, for what draws, picks and outlines.
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models);

@@ -12,8 +12,9 @@
 // missing for best_practices.c's start line to say so.
 //
 // A NEW MESSAGE NOW COUNTS (0358). The messenger's user data is the device;
-// every message goes to best_practices.c's classifier, which drops another
-// vendor's and counts an error or a warning not on the allowlist as new. What
+// every message, its id name and its text, goes to best_practices.c's
+// classifier, which drops another vendor's and counts an error or a warning not
+// on the allowlist as new, keeping its text to name again at close. What
 // is kept is printed through base's report, one line with its id name and
 // whether it was allowed.
 //
@@ -71,7 +72,8 @@ debug_message(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 	assert(data != NULL);
 
 	verdict = voe_render_best_practices_classify(user, error,
-						     data->pMessageIdName);
+						     data->pMessageIdName,
+						     data->pMessage);
 	if (verdict == VOE_RENDER_MESSAGE_DROPPED)
 		return VK_FALSE;
 

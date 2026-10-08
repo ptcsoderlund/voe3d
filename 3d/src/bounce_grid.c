@@ -1,8 +1,9 @@
 // The fit of the probe volume to the still casters' box: the smallest
 // power-of-two spacing whose grid, its lowest cell the box centre's cell less
 // (12, 6, 12), holds the box's cells with one spare, in double about the world
-// origin, and its corner about the eye; and the relight's sun view of that
-// volume through light_box.h. See 3d/bounce_grid.h for why each step is there.
+// origin, and its corner about the eye; a nest's cell about the eye, held
+// within 2 cells; and the relight's sun view of either volume through
+// light_box.h. See 3d/bounce_grid.h for why each step is there.
 #include "light_box.h"
 
 #include <3d/bounce_grid.h>
@@ -71,6 +72,60 @@ voe_3d_bounce_grid voe_3d_bounce_grid_fit(voe_math_double3 min,
 	VOE_BASE_ASSERT(isfinite(grid.corner.x) && isfinite(grid.corner.y) &&
 				isfinite(grid.corner.z),
 			"a corner that is not a number");
+	return grid;
+}
+
+float voe_3d_bounce_nest_spacing(uint32_t nest)
+{
+	VOE_BASE_ASSERT(nest < VOE_3D_BOUNCE_NESTS, "a nest past the last");
+	return ldexpf(16.0f, -2 * (int)nest);
+}
+
+// How far the nest at `placed` moves on one axis: by as much as brings `home`,
+// the eye's own home cell, within 2 cells of it, else not at all.
+static int32_t nest_move(int32_t placed, int32_t home)
+{
+	if (home - placed > 2)
+		return home - placed - 2;
+	if (home - placed < -2)
+		return home - placed + 2;
+	return 0;
+}
+
+voe_3d_bounce_grid voe_3d_bounce_grid_nest(float spacing, const int32_t *placed,
+					   voe_math_double3 eye)
+{
+	const int32_t below[3] = { VOE_RENDER_BOUNCE_PROBES_XZ / 2, 9,
+				   VOE_RENDER_BOUNCE_PROBES_XZ / 2 };
+	const int32_t count[3] = { VOE_RENDER_BOUNCE_PROBES_XZ,
+				   VOE_RENDER_BOUNCE_PROBES_Y,
+				   VOE_RENDER_BOUNCE_PROBES_XZ };
+	const double at[3] = { eye.x, eye.y, eye.z };
+	voe_3d_bounce_grid grid = { .spacing = spacing };
+	int32_t home[3];
+	bool kept = placed != NULL;
+	float corner[3];
+
+	VOE_BASE_ASSERT(isfinite(spacing) && spacing > 0.0f,
+			"a nest with no spacing");
+	VOE_BASE_ASSERT(isfinite(eye.x) && isfinite(eye.y) && isfinite(eye.z),
+			"an eye that is not a number");
+	for (int axis = 0; axis < 3; axis++) {
+		home[axis] = (int32_t)floor(at[axis] / (double)spacing) - below[axis];
+		if (kept) {
+			int32_t move = nest_move(placed[axis], home[axis]);
+
+			grid.cell[axis] = placed[axis] + move;
+			kept = move < count[axis] && move > -count[axis];
+		}
+	}
+	for (int axis = 0; axis < 3; axis++) {
+		if (!kept)
+			grid.cell[axis] = home[axis];
+		corner[axis] = (float)((double)grid.cell[axis] * (double)spacing -
+				       at[axis]);
+	}
+	grid.corner = (voe_math_float3){ corner[0], corner[1], corner[2] };
 	return grid;
 }
 

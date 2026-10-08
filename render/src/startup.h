@@ -1,5 +1,6 @@
 // The steps of startup that live beside device.c: create the instance, choose
-// the graphics card and say which, create the pipeline layout. Internal to
+// the graphics card and say which, learn the card's clock and the surface's
+// present modes (pacing.c), create the pipeline layout. Internal to
 // render; device.c's open_device is the only caller of each, once per device.
 // voe_render_card_rank is also called by tests/card.c, which needs no card.
 //
@@ -52,6 +53,13 @@ uint32_t voe_render_card_rank(const voe_render_card_facts *cards, uint32_t count
 // line saying which card and why. Needs device->surface unless headless.
 [[nodiscard]] bool voe_render_card_choose(voe_render_device *device,
 					  voe_base_arena *arena);
+
+// Sets device->timestamps with the clock's period and bits when the card can time.
+void voe_render_timing_learn(voe_render_device *device, voe_base_arena *arena);
+
+// Sets device->mailbox_offered when the surface offers MAILBOX; never headless.
+void voe_render_present_modes_learn(voe_render_device *device,
+				    voe_base_arena *arena);
 
 // Fills device->layout, the one every graphics pipeline here shares. The mesh
 // pipelines themselves are voe_render_device_prepare's, pipeline.c's too.

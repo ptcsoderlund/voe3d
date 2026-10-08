@@ -20,6 +20,14 @@
 // region 0 holds spacing 2 and the target's region spacing 4, as its slot's
 // begin keeps.
 //
+// TWO VOLUMES OF ONE TARGET APART (0389 point 1). One frame begins the window's
+// volumes 0 and 3 at 2 m and 1 m, each captured and relit after its own begin,
+// frame on frame until one captures and relights nothing: both are built, and
+// voe_render_bounce_placed gives back each one's own lowest cell.
+//
+// AN UNPLACED VOLUME IS NOT PLACED: one never begun says false and leaves the
+// cell alone, as does the window's volume 0 once freed.
+//
 // A card without shaderOutputLayer bounces nothing and builds nothing: that is
 // checked instead, and said. A machine with no usable Vulkan skips and says so.
 #include "../src/device_internal.h"
@@ -33,6 +41,8 @@
 #include <stdio.h>
 
 #define SIDE 16
+// Frames two volumes may take to settle: about 108 each to capture, 16 to fade.
+#define FRAMES_MAX 400
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 8,
@@ -91,8 +101,9 @@ static void sum_is_wide(voe_render_device *device,
 
 static void built_on_first_use(voe_render_device *device, voe_render_target id)
 {
-	const struct voe_render_bounce_volume *window = &device->window_volume;
-	const struct voe_render_bounce_volume *own = &device->targets[0].volume;
+	const struct voe_render_bounce_volume *window = &device->window_volume[0];
+	const struct voe_render_bounce_volume *own = &device->targets[0].volume[0];
+	int32_t cell[3] = { 0 };
 
 	one_frame(device, true, false, id);
 	VOE_TEST_CHECK(window->wanted && !window->built);
@@ -116,6 +127,8 @@ static void built_on_first_use(voe_render_device *device, voe_render_target id)
 	VOE_TEST_CHECK(!window->built && !window->wanted);
 	VOE_TEST_CHECK(window->albedo.image == VK_NULL_HANDLE);
 	VOE_TEST_CHECK(!own->built && !own->wanted);
+	VOE_TEST_CHECK(!voe_render_bounce_placed(device, VOE_RENDER_TARGET_WINDOW,
+						 0, cell));
 }
 
 // Volume `index`'s region of the open slot's record buffer holds `cell`, wrapped,
@@ -153,14 +166,15 @@ static void each_relit_apart(voe_render_device *device, voe_render_target id)
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
 		return;
-	VOE_TEST_CHECK(device->window_volume.built &&
-		       device->targets[0].volume.built);
+	VOE_TEST_CHECK(device->window_volume[0].built &&
+		       device->targets[0].volume[0].built);
 	voe_render_bounce_begin(device, VOE_RENDER_TARGET_WINDOW, &BOUNCE);
 	voe_render_bounce_relight(device);
 	voe_render_bounce_begin(device, id, &moved);
 	voe_render_bounce_relight(device);
 	region_holds(device, 0, BOUNCE.cell, VOE_RENDER_BOUNCE_SPACING);
-	region_holds(device, id.index, moved.cell, VOE_RENDER_BOUNCE_SPACING);
+	region_holds(device, voe_render_bounce_volume_index(id.index, 0),
+		     moved.cell, VOE_RENDER_BOUNCE_SPACING);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 }
 
@@ -185,10 +199,94 @@ static void each_at_its_spacing(voe_render_device *device, voe_render_target id)
 	voe_render_bounce_begin(device, id, &coarse);
 	voe_render_bounce_relight(device);
 	region_holds(device, 0, window.cell, 2.0f);
-	region_holds(device, id.index, coarse.cell, 4.0f);
-	VOE_TEST_CHECK(device->targets[0].volume.begun[device->slot].spacing ==
+	region_holds(device, voe_render_bounce_volume_index(id.index, 0),
+		     coarse.cell, 4.0f);
+	VOE_TEST_CHECK(device->targets[0].volume[0].begun[device->slot].spacing ==
 		       4.0f);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
+}
+
+// One frame beginning each of `begins` onto the window, capturing it until a
+// pass does not open, then relighting it. Whether it captured or relit at all.
+static bool captured_or_relit(voe_render_device *device,
+			      const struct voe_render_bounce_frame *begins,
+			      uint32_t count)
+{
+	const uint32_t before = device->relight_dispatches;
+	bool drawing = false;
+	bool captured = false;
+
+	VOE_TEST_CHECK(voe_render_frame_begin(device, (voe_platform_size){ SIDE, SIDE },
+					      &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return false;
+	for (uint32_t i = 0; i < count; i++) {
+		bool opened = true;
+
+		voe_render_bounce_begin(device, VOE_RENDER_TARGET_WINDOW, &begins[i]);
+		for (uint32_t p = 0; p < VOE_RENDER_BOUNCE_CAPTURE_PASSES && opened;
+		     p++) {
+			VOE_TEST_CHECK(voe_render_bounce_capture_pass_begin(device,
+									    &opened));
+			if (opened) {
+				voe_render_pass_end(device);
+				captured = true;
+			}
+		}
+		voe_render_bounce_relight(device);
+	}
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	return captured || device->relight_dispatches != before;
+}
+
+// The window's volume `volume` was last placed at `expected`.
+static void placed_at(const voe_render_device *device, uint32_t volume,
+		      const int32_t expected[3])
+{
+	int32_t cell[3] = { 0 };
+
+	VOE_TEST_CHECK(voe_render_bounce_placed(device, VOE_RENDER_TARGET_WINDOW,
+						volume, cell));
+	printf("volume %u placed at %d %d %d\n", volume, cell[0], cell[1],
+	       cell[2]);
+	for (uint32_t a = 0; a < 3; a++)
+		VOE_TEST_CHECK_INT(cell[a], expected[a]);
+}
+
+static void two_volumes_of_one_target_build_and_relight_apart(
+	voe_render_device *device)
+{
+	struct voe_render_bounce_frame begins[2] = { BOUNCE, BOUNCE };
+	uint32_t frames = 0;
+
+	begins[1].volume = 3;
+	begins[1].spacing = 1.0f;
+	begins[1].cell[1] = -9;
+	begins[1].corner = (voe_math_float3){ -12.0f, -9.0f, -12.0f };
+	// The first frame wants volume 3; the next builds it.
+	captured_or_relit(device, begins, 2);
+	while (frames < FRAMES_MAX && captured_or_relit(device, begins, 2))
+		frames++;
+	printf("two volumes settled in %u frames\n", frames);
+	VOE_TEST_CHECK(frames > 0 && frames < FRAMES_MAX);
+	VOE_TEST_CHECK(device->window_volume[0].built &&
+		       device->window_volume[3].built);
+	VOE_TEST_CHECK(device->window_volume[0].albedo.image !=
+		       device->window_volume[3].albedo.image);
+	placed_at(device, 0, begins[0].cell);
+	placed_at(device, 3, begins[1].cell);
+}
+
+static void an_unplaced_volume_is_not_placed(const voe_render_device *device,
+					     voe_render_target id)
+{
+	int32_t cell[3] = { 7, 7, 7 };
+
+	VOE_TEST_CHECK(!voe_render_bounce_placed(device, VOE_RENDER_TARGET_WINDOW,
+						 1, cell));
+	VOE_TEST_CHECK(!voe_render_bounce_placed(device, id, 2, cell));
+	VOE_TEST_CHECK(cell[0] == 7 && cell[1] == 7 && cell[2] == 7);
 }
 
 static void nothing_without_output_layer(voe_render_device *device,
@@ -197,9 +295,9 @@ static void nothing_without_output_layer(voe_render_device *device,
 	printf("note: no shaderOutputLayer, so nothing bounces\n");
 	one_frame(device, true, true, id);
 	one_frame(device, false, false, id);
-	VOE_TEST_CHECK(!device->window_volume.wanted &&
-		       !device->window_volume.built);
-	VOE_TEST_CHECK(!device->targets[0].volume.built);
+	VOE_TEST_CHECK(!device->window_volume[0].wanted &&
+		       !device->window_volume[0].built);
+	VOE_TEST_CHECK(!device->targets[0].volume[0].built);
 }
 
 int main(void)
@@ -221,10 +319,12 @@ int main(void)
 	if (device != NULL) {
 		VOE_TEST_CHECK(voe_render_target_create(device, SIDE, SIDE, &id,
 							&texture, &error));
+		an_unplaced_volume_is_not_placed(device, id);
 		if (device->output_layer) {
 			built_on_first_use(device, id);
 			each_relit_apart(device, id);
 			each_at_its_spacing(device, id);
+			two_volumes_of_one_target_build_and_relight_apart(device);
 		} else {
 			nothing_without_output_layer(device, id);
 		}

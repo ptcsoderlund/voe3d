@@ -1,7 +1,8 @@
 // The three per-frame command stretches of main.c's loop, in the order main.c
 // calls them: the history's step, the keyboard's read and acts (F2's rename
 // and Delete's question among them, the Assets panel's keyboard a guard,
-// Escape closing that question first), and the acts
+// Escape closing that question first and hiding the Landscape panel with the
+// Project panel), and the acts
 // that wait for the interface to have drawn, a reveal's unfold marked among
 // them. See frame_commands.h.
 #include "frame_commands.h"
@@ -26,8 +27,10 @@ void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 	// unsaved and is never itself an edit to record.
 	// A prefab opened sets the level's line aside, and Back puts it
 	// back (0283 point 8).
+	// The Landscape panel's path is the old project's, so it closes too.
 	if (session->replaced) {
 		session->replaced = false;
+		voe_editor_landscape_panel_hide(commands->landscape_panel);
 		voe_editor_undo_forget(commands->undo);
 		voe_editor_views_focus_camera(commands->views,
 					      commands->scene->world);
@@ -43,7 +46,8 @@ void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 					      commands->scene->world);
 	} else if ((commands->step_back || commands->step_forward) &&
 		   voe_editor_undo_take(commands->undo, session->project,
-					commands->scene, &session->notice,
+					commands->scene, commands->models,
+					&session->notice,
 					commands->step_forward)) {
 		voe_editor_session_edited(session);
 	}
@@ -125,6 +129,14 @@ voe_editor_frame_commands_read(voe_editor_frame_commands *commands,
 		voe_editor_scene_picker_close(scene);
 		commands->escape_free = false;
 	}
+	// A chosen brush is put down once no Inspector list or Assets menu is
+	// open to take the edge first (interface.c closes those on it).
+	if (commands->escape_free && scene->sculpt.chosen &&
+	    !scene->dropdown.open && !scene->inspector.adding &&
+	    !scene->assets.menu.open) {
+		voe_editor_sculpt_choose_none(&scene->sculpt);
+		commands->escape_free = false;
+	}
 	// THE BROWSER KEEPS ESCAPE WHILE IT SHOWS; otherwise it hides
 	// Preferences and the Errors panel, which it does nothing else
 	// to. Neither while a person is typing: then it cancels that
@@ -132,6 +144,7 @@ voe_editor_frame_commands_read(voe_editor_frame_commands *commands,
 	if (commands->escape_free && !browser->showing) {
 		voe_editor_preferences_hide(commands->preferences);
 		voe_editor_project_panel_hide(commands->project_panel);
+		voe_editor_landscape_panel_hide(commands->landscape_panel);
 		voe_editor_errors_hide(&session->errors);
 	}
 
