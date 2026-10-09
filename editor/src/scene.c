@@ -350,7 +350,18 @@ bool voe_editor_scene_picker_showing(voe_editor_scene *scene,
 	if (!scene->picking.open)
 		return false;
 
-	row = voe_editor_scene_is_selected(scene, scene->picking.entity)
+	if (scene->picking.material) {
+		if (scene->material_open[0] == '\0') {
+			scene->picking.open = false;
+			return false;
+		}
+		*colour = (voe_math_float3){ scene->material.colour[0],
+					     scene->material.colour[1],
+					     scene->material.colour[2] };
+		return true;
+	}
+
+	row =voe_editor_scene_is_selected(scene, scene->picking.entity)
 		      ? voe_ecs_component_get(scene->world,
 					      scene->picking.type,
 					      scene->picking.entity)

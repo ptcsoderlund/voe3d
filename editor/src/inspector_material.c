@@ -7,6 +7,7 @@
 // roughness.
 #include "inspector_material.h"
 
+#include "scene.h"
 #include "themes.h"
 
 #include <base/assert.h>
@@ -90,6 +91,7 @@ void voe_editor_inspector_material_forget(
 		controls->maps[i] = VOE_UI_NODE_NONE;
 		controls->clears[i] = VOE_UI_NODE_NONE;
 	}
+	controls->section = VOE_UI_NODE_NONE;
 	controls->colour = VOE_UI_NODE_NONE;
 	controls->repeat = VOE_UI_NODE_NONE;
 
@@ -143,7 +145,8 @@ void voe_editor_inspector_material_draw(
 	VOE_BASE_ASSERT(path != NULL && material != NULL,
 			"drawing a material section of no material");
 
-	voe_ui_panel_begin(ui, "material", 0, VOE_UI_SURFACE_RAISED,
+	controls->section = voe_ui_panel_begin(ui, "material", 0,
+					       VOE_UI_SURFACE_RAISED,
 			   (voe_ui_container){
 				   .across = VOE_UI_ACROSS_FILL,
 				   .gap = SECTION_GAP,
@@ -201,13 +204,15 @@ void voe_editor_inspector_material_draw(
 	voe_ui_end(ui);
 }
 
-void voe_editor_inspector_material_read(
-	const voe_ui_context *ui, const voe_editor_inspector_material *controls,
-	voe_assets_material_file *material)
+void voe_editor_inspector_material_read(const voe_ui_context *ui,
+					struct voe_editor_scene *scene)
 {
-	VOE_BASE_ASSERT(ui != NULL && controls != NULL,
+	VOE_BASE_ASSERT(ui != NULL && scene != NULL,
 			"reading no material section or of no interface");
-	VOE_BASE_ASSERT(material != NULL, "reading into no material");
+
+	const voe_editor_inspector_material *controls =
+		&scene->material_controls;
+	voe_assets_material_file *material = &scene->material;
 
 	// Indexed as map_path's.
 	char *const maps[VOE_EDITOR_MATERIAL_MAPS] = {
@@ -243,4 +248,17 @@ void voe_editor_inspector_material_read(
 		if (controls->clears[i] != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, controls->clears[i]).fired)
 			maps[i][0] = '\0';
+
+	// The swatch opens the picker beside the section's left edge, as the
+	// Inspector's opens it beside its content column's.
+	if (controls->colour != VOE_UI_NODE_NONE &&
+	    voe_ui_button_action(ui, controls->colour).fired)
+		voe_editor_scene_picker_open(
+			scene, (voe_editor_picking){
+				       .material = true,
+				       .left = controls->section != VOE_UI_NODE_NONE
+						       ? voe_ui_node_rect(ui,
+									  controls->section)
+								 .min.x
+						       : 0.0f });
 }

@@ -9,18 +9,18 @@
 //     voe_editor_inspector_material_draw(ui, &scene->material_controls,
 //                                        scene->material_open, &scene->material);
 //     ...voe_ui_frame_end...
-//     voe_editor_inspector_material_read(ui, &scene->material_controls,
-//                                        &scene->material);
+//     voe_editor_inspector_material_read(ui, scene);
 //
 // THE NODES LIVE IN THE SCENE, which outlives the call that drew them, for
 // the reason every Inspector control does (inspector.h): a widget answers only
 // after voe_ui_frame_end. Each frame forgets them first, and a frame that does
 // not draw the section reads nothing.
 //
-// THE READ CHANGES THE SHOWN COPY ONLY. Whether it now differs from the
-// table's row, and what the store does about it, is interface_read.c's. The
-// Colour swatch is recorded but opens nothing yet (card 40); each map row's
-// node is kept for a picture dropped on it (card 42).
+// THE READ CHANGES THE SHOWN COPY ONLY, and opens the picker. Whether the copy
+// now differs from the table's row, and what the store does about it, is
+// interface_read.c's. A fired Colour swatch opens scene.h's picker with
+// `material` set, anchored at the section's left as the Inspector's swatch is
+// at its column's; each map row's node is kept for a picture dropped on it.
 //
 // Constraints: draw, forget and read are called in one frame's window, read
 // before the frame's arena is rewound; nothing here allocates. Every label the
@@ -47,6 +47,8 @@
 // The section's controls as drawn this frame, VOE_UI_NODE_NONE when not, and
 // the figures beside the sliders and in the number box.
 typedef struct {
+	// The section's panel, whose left edge anchors the picker.
+	voe_ui_node section;
 	voe_ui_node shaders[VOE_EDITOR_MATERIAL_SHADERS];
 	voe_ui_node colour;
 	voe_ui_node sliders[VOE_EDITOR_MATERIAL_SLIDERS];
@@ -68,8 +70,11 @@ void voe_editor_inspector_material_draw(
 	voe_ui_context *ui, voe_editor_inspector_material *controls,
 	const char *path, const voe_assets_material_file *material);
 
-// After voe_ui_frame_end: a fired shader button chooses it, each drawn
-// slider's value taken, Repeat's taken clamped, a fired × empties its map.
-void voe_editor_inspector_material_read(
-	const voe_ui_context *ui, const voe_editor_inspector_material *controls,
-	voe_assets_material_file *material);
+struct voe_editor_scene;
+
+// After voe_ui_frame_end, on `scene->material` through
+// `scene->material_controls`: a fired shader button chooses it, each drawn
+// slider's value taken, Repeat's taken clamped, a fired × empties its map, a
+// fired swatch opens the picker on the material.
+void voe_editor_inspector_material_read(const voe_ui_context *ui,
+					struct voe_editor_scene *scene);

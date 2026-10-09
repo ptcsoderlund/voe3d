@@ -81,8 +81,11 @@
 #define VOE_EDITOR_SCENE_ROWS VOE_GAME_WORLD_AUTHORED
 
 // What the colour picker edits while it is open. Zeroed is a closed picker.
+// `material` set, it edits the open material's `material.colour` and the
+// entity, type and offset are unused.
 typedef struct {
 	bool open;
+	bool material;
 	voe_ecs_entity entity;
 	voe_ecs_type type;
 	// Bytes from the start of the row to the colour's three floats.
@@ -174,11 +177,13 @@ typedef struct voe_editor_scene {
 	// outlives the frame the Inspector's swatch fired in and the
 	// Inspector's own struct forgets its controls every frame. It names an
 	// entity, a component type and the colour's offset in the row, never a
-	// component. It is opened by the Inspector (inspector.h) and closed by
-	// interface.c on a press outside the picker, by main.c on Escape, and
-	// here, on the next ask, when its entity is gone, no longer selected or
-	// without the row. Closing changes no colour: every change was already
-	// submitted as it happened.
+	// component — or, with `material` set, the open material's colour,
+	// opened by its section's swatch (inspector_material.h). It is opened by
+	// the Inspector (inspector.h) and closed by interface.c on a press
+	// outside the picker, by main.c on Escape, and here, on the next ask,
+	// when its entity is gone, no longer selected or without the row, or,
+	// for a material, when `material_open` is empty. Closing changes no
+	// colour: every change was already submitted as it happened.
 	//
 	// The colour picker's target, kept across frames.
 	voe_editor_picking picking;
@@ -320,9 +325,10 @@ void voe_editor_scene_picker_open(voe_editor_scene *scene,
 // Closes the picker. The colour stays whatever it last became.
 void voe_editor_scene_picker_close(voe_editor_scene *scene);
 
-// Whether the picker shows this frame, and the colour in its row when it does.
-// Closes it first when its entity is not alive, is no longer the selection or
-// no longer has the row — a change of selection is what closes it.
+// Whether the picker shows this frame, and the colour in its row, or the open
+// material's, when it does. Closes it first when its entity is not alive, is
+// no longer the selection or no longer has the row — a change of selection is
+// what closes it — or, for a material, when none is open.
 [[nodiscard]] bool voe_editor_scene_picker_showing(voe_editor_scene *scene,
 						   voe_math_float3 *colour);
 

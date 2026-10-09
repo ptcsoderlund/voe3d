@@ -14,8 +14,9 @@
 // THE COLOUR PICKER'S RESULT IS READ HERE, for the same reason: it is a `ui`
 // widget answering after voe_ui_frame_end. A `changed` goes through
 // inspector.h's voe_editor_inspector_colour_submit at once, so the shape
-// changes live; an `outside` press closes it. So is the open material's
-// section: an edit the table's row takes, and the store told (models.h).
+// changes live, or, for the open material, into its shown copy; an `outside`
+// press closes it. So is the open material's section: an edit the table's row
+// takes, and the store told (models.h).
 //
 // THE SCENE LIST'S DROP IS CARRIED OUT HERE, through scene_list.h's
 // voe_editor_scene_list_drop, after the rows' clicks. Released over the Assets
@@ -61,7 +62,15 @@ static void voe_editor_interface_picker_read(voe_ui_context *ui,
 	if (picker == VOE_UI_NODE_NONE)
 		return;
 	result = voe_ui_colour_picker_action(ui, picker);
-	if (result.changed)
+	// The open material's colour is the shown copy's; its read below
+	// carries it to the table's row and the store this same frame.
+	if (result.changed && picked->material) {
+		if (scene->material_open[0] != '\0') {
+			scene->material.colour[0] = result.value.x;
+			scene->material.colour[1] = result.value.y;
+			scene->material.colour[2] = result.value.z;
+		}
+	} else if (result.changed)
 		voe_editor_inspector_colour_submit(&scene->inspector,
 						   scene->world, picked->entity,
 						   picked->type, picked->offset,
@@ -83,8 +92,7 @@ static void voe_editor_interface_material_read(const voe_ui_context *ui,
 
 	VOE_BASE_ASSERT(ui != NULL && scene != NULL && models != NULL,
 			"reading a material with no frame, scene or store");
-	voe_editor_inspector_material_read(ui, &scene->material_controls,
-					   &scene->material);
+	voe_editor_inspector_material_read(ui, scene);
 	if (scene->material_open[0] == '\0')
 		return;
 	row = voe_editor_materials_find(voe_editor_models_materials(models),
