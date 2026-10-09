@@ -41,3 +41,11 @@ fails MALFORMED and the entry is failed; `voe_3d_models_rename` finds it at the 
 
 ## Done when
 `ctest --test-dir build/debug -R '^3d/(models_material|models|material)$'` passes.
+
+## Blocked
+`assets` has two types named `voe_assets_material`: card 01's file values in `assets/material.h` and the
+glTF material in `assets/model.h`, so no translation unit can include both, and `3d/include/3d/models.h`
+(which must name the file's type) breaks `3d/src/models.c`, `3d/tests/models.c` and every caller that also
+reaches `assets/model.h` (typedef redefinition). Unblocked by a card in `assets` renaming one of them (e.g.
+the glTF one to `voe_assets_model_material`, or card 01's to `voe_assets_material_file`) and its callers;
+the work here (`models_material.c`, the test, the header and doc changes) is written and committed as is.

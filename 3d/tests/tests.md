@@ -130,6 +130,9 @@ again, or to find where a claim that has started failing is written down.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid with a heights
   texture, a brush's dirt written by a frame, a put wider than the budget taking five frames, a
   put's pyramid equal to a fresh build, and a rename. Skips without a card.
+- `models_material.c` — a `.material` with three maps loaded as one part with a live record and
+  twin, a set written by a frame, a map that is no picture failing MALFORMED, and a rename. Skips
+  without a card.
 - `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates. Needs
   no graphics card.
 - `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
