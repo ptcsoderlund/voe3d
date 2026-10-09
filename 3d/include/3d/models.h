@@ -28,7 +28,8 @@
 // change with each load.
 //
 // THE STORE IS CHANGED ONLY BETWEEN FRAMES: every upload and free waits for the
-// card to go idle. _landscape_frame alone runs inside one, and uploads nothing.
+// card to go idle. _landscape_frame alone runs inside one, and only writes
+// into textures already made.
 //
 // PICTURES SHARE THE STORE (ADR-0298 point 5): a `.png`, `.jpg` or `.jpeg` path
 // has two BLENDED parts on the store's one quad, 0 lit and 1 unlit, the glow,
@@ -41,14 +42,14 @@
 // EACH PART NOT ALREADY BLENDED HAS A TWIN (ADR-0336 point 2), its material
 // BLENDED, uploaded at load and freed with it; otherwise `faded` is `shading`.
 //
-// A `.landscape` IS 16 CHUNK PARTS (0379 points 2, 4, 6), its grid owned by the
-// entry, all wearing one lit opaque ground and one twin, so 085 paints one
-// record. Its shape is empty: the pick and the bounds meet the heights, not
-// 2 × 512² triangles. A brush or _put marks chunks dirty and the entry edited;
-// _landscape_frame draws them transient, since a static upload waits for the
-// card and would stutter a drag; _landscape_settle makes them static again
-// between frames. The static ids are kept apart from the parts, so a part
-// pointed at a frame's transient never loses the one to draw or destroy.
+// A `.landscape` IS ONE PART (0379 points 2, 6; 0396 points 3, 5): the store's
+// shared grid wearing one lit opaque ground and its twin, so 085 paints one
+// record; the entry owns its grid's copy, a heights texture and a min/max
+// pyramid. Its shape is empty: the pick and the bounds meet the heights, not
+// 2 × 2048² triangles. A brush or _put updates the pyramid over its rect,
+// grows the entry's dirty rect and marks it edited; _landscape_frame writes
+// the dirt into the texture inside a frame, a budget a frame, since an upload
+// between frames waits for the card and would stutter a drag.
 #pragma once
 
 #include <3d/landscape.h>
@@ -70,20 +71,23 @@
 
 // The device room the store's models are given, which a program adds to its
 // own capacities: 2 M vertices, 6 M indices, 512 geometries, four parts for each
-// of the VOE_3D_MODELS files, and one geometry more for the pictures' quad; 1024
-// shading records, two for each of those parts (its own and its blended twin),
-// and one more for the water.
+// of the VOE_3D_MODELS files, and one geometry more each for the pictures' quad
+// and the landscapes' shared grid; 1024 shading records, two for each of those
+// parts (its own and its blended twin), and one more for the water.
 #define VOE_3D_MODELS_VERTICES (1u << 21)
 #define VOE_3D_MODELS_INDICES (3u << 21)
-#define VOE_3D_MODELS_GEOMETRIES 513
+#define VOE_3D_MODELS_GEOMETRIES 514
 #define VOE_3D_MODELS_SHADINGS 1025
 
-// One whole 512-cell landscape's 16 chunks drawn transient in one frame, which
-// a program adds to its transient capacities: 129² vertices, 128² · 6 indices
-// and one range each.
-#define VOE_3D_LANDSCAPE_TRANSIENT_VERTICES (16u * 129u * 129u)
-#define VOE_3D_LANDSCAPE_TRANSIENT_INDICES (16u * 128u * 128u * 6u)
-#define VOE_3D_LANDSCAPE_TRANSIENT_RANGES 16u
+// Nodes one landscape draws in one pass at most (0396 point 4), which a
+// program adds to its objects for each landscape and pass.
+#define VOE_3D_LANDSCAPE_NODES 1024
+// Landscape rows drawn a frame at most, by which a program multiplies
+// VOE_3D_LANDSCAPE_NODES in its objects.
+#define VOE_3D_LANDSCAPES_DRAWN 4
+// Heights texels written a frame, every landscape together (0396 point 5),
+// which a program adds to its heights_texels.
+#define VOE_3D_LANDSCAPE_WRITE_TEXELS (512u * 512u)
 
 // One material's worth of a model, in model space.
 typedef struct {
@@ -135,42 +139,35 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 				      const uint8_t *bytes, size_t size,
 				      voe_base_error *error);
 
-// `landscape`'s grid copied into `path`'s entry and uploaded as one part per
-// chunk, all wearing one ground material and one blended twin; its shape
-// empty. Replaces and fails as _load does.
+// `landscape`'s grid copied into `path`'s entry, uploaded as its heights
+// texture and built into its pyramid; one part, the store's grid wearing one
+// ground material and its blended twin; its shape empty. Replaces and fails as
+// _load does.
 [[nodiscard]] bool voe_3d_models_load_landscape(
 	voe_3d_models *models, voe_render_device *device, const char *path,
 	uint64_t stamp, const voe_assets_landscape *landscape,
 	voe_base_error *error);
 
 // One stamp of `brush` at (x, z) on `path`'s grid (3d/landscape.h): the
-// chunks it touched marked dirty and the entry edited. The height rect it
-// changed; empty for a path that is no loaded landscape.
+// pyramid updated over it, the dirty rect grown by it and the entry edited.
+// The height rect it changed; empty for a path that is no loaded landscape.
 voe_3d_landscape_rect
 voe_3d_models_landscape_brush(voe_3d_models *models, const char *path,
 			      const voe_3d_brush *brush, float x, float z,
 			      float seconds, voe_base_arena *scratch);
 
-// `rect`'s heights, row-major, written into `path`'s grid; dirty and edited
-// as a brush. Nothing for a path that is no loaded landscape.
+// `rect`'s heights, row-major, written into `path`'s grid; the pyramid, dirt
+// and edited as a brush. Nothing for a path that is no loaded landscape.
 void voe_3d_models_landscape_put(voe_3d_models *models, const char *path,
 				 voe_3d_landscape_rect rect,
 				 const float *values);
 
-// After the frame's begin: each dirty chunk built on `scratch`, which is
-// rewound, and made transient, its part drawing that this frame. A refused
-// one keeps its static geometry and says so on stderr.
+// Inside a frame, before its first pass: each entry's dirty rect written into
+// its heights texture, whole rows of it while VOE_3D_LANDSCAPE_WRITE_TEXELS
+// last, the rest kept dirty for the next frame. A refused write keeps its
+// rows dirty and says so on stderr.
 void voe_3d_models_landscape_frame(voe_3d_models *models,
-				   voe_render_device *device,
-				   voe_base_arena *scratch);
-
-// Between frames: each dirty chunk uploaded static again, its old static
-// destroyed, its dirt cleared. True at once with nothing dirty; false, `error`
-// REFUSED and the chunk still dirty, when the device has no room.
-[[nodiscard]] bool voe_3d_models_landscape_settle(voe_3d_models *models,
-						  voe_render_device *device,
-						  voe_base_arena *scratch,
-						  voe_base_error *error);
+				   voe_render_device *device);
 
 // Clears `path`'s `edited`, once its grid is written to its file.
 void voe_3d_models_landscape_saved(voe_3d_models *models, const char *path);

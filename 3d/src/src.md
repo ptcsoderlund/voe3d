@@ -138,16 +138,16 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models.c` — the store's table of entries with an arena each, and the load that reads, bakes,
   uploads with each part's blended twin and gives back what a failure made; pictures on the quad,
   the dot and the water apart.
-- `models_store.h` — the store's table and each entry's held ids, a landscape's static chunks
-  among them, and the helpers models.c lends models_landscape.c; internal.
-- `models_landscape.c` — a landscape's grid copied and uploaded as 16 chunk parts on one ground
-  material, the brush and put marking chunks dirty, the transient frame, the settle, the saved
-  mark and the rename.
+- `models_store.h` — the store's table, the shared landscape grid, each entry's held ids, a
+  landscape's heights texture, pyramid and dirt among them, the terrain lookup the draw files ask,
+  and the helpers models.c lends models_landscape.c; internal.
+- `models_landscape.c` — a landscape's grid copied, uploaded as a heights texture with a pyramid
+  and worn as one part on the shared grid, the brush and put growing the dirt, the frame writing
+  it within a budget, the terrain lookup, the saved mark and the rename.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow
   materials on one COLOUR texture, blended already so needing no twin.
-- `landscape.c` — the bilinear height, the marched and bisected ray, the brush's stamp and the
-  chunk meshes.
+- `landscape.c` — the bilinear height, the marched and bisected ray, and the brush's stamp.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.

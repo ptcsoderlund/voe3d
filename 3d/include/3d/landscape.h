@@ -1,8 +1,8 @@
 // The arithmetic on a landscape's grid of heights (assets/landscape.h) that
 // the model store, the pick and the editor share (0379 points 2 and 3): the
-// height under a point, the ray that meets the ground, a brush's stamp, the
-// 4 × 4 chunks it is drawn as, and the nodes chosen by the eye's distance from
-// a min/max pyramid (0396 points 3 and 4). CPU only; no device.
+// height under a point, the ray that meets the ground, a brush's stamp, and
+// the nodes chosen by the eye's distance from a min/max pyramid (0396 points 3
+// and 4). CPU only; no device.
 //
 //     float distance;
 //     if (voe_3d_landscape_ray(&land, origin, direction, &distance)) {
@@ -28,10 +28,6 @@
 // Seconds are clamped to 0.1 so a stalled frame stamps no more than a tenth of
 // a second does: one long frame must not raise a mountain.
 //
-// CHUNKS SHARE THEIR EDGE HEIGHTS. Chunk (cx, cz) holds heights cx·k to
-// cx·k + k with k = cells/4, so neighbours hold the same edge row and their
-// vertices meet without a crack. A stamp on that row touches both chunks.
-//
 // THE NODE GRID. A level-L node is 32 × 32 quads stepping 2^L cells; levels
 // run until one node covers the grid, and a node past its edge holds nothing
 // and is never chosen. Level 0's range is twice a leaf's diagonal, each next
@@ -52,13 +48,9 @@
 #include <assets/landscape.h>
 #include <base/arena.h>
 #include <math/float3.h>
-#include <render/device.h>
 
 #include <stdbool.h>
 #include <stdint.h>
-
-// Chunks per side: 16 in all, one per model part.
-#define VOE_3D_LANDSCAPE_CHUNKS 4
 
 // Quads a node side; a level-L node steps 2^L cells.
 #define VOE_3D_LANDSCAPE_NODE_QUADS 32
@@ -87,8 +79,7 @@ typedef struct {
 	float *highs;
 } voe_3d_landscape_lod;
 
-// Height indices, end exclusive; empty when x0 ≥ x1 or z0 ≥ z1. Chunk
-// ranges come back in the same struct.
+// Height indices, end exclusive; empty when x0 ≥ x1 or z0 ≥ z1.
 typedef struct {
 	uint32_t x0, z0, x1, z1;
 } voe_3d_landscape_rect;
@@ -112,13 +103,6 @@ typedef struct {
 	float target;
 } voe_3d_brush;
 
-typedef struct {
-	voe_render_vertex *vertices;
-	uint32_t vertex_count;
-	uint32_t *indices;
-	uint32_t index_count;
-} voe_3d_landscape_mesh;
-
 // The bilinear height at (x, z), the point clamped onto the grid.
 float voe_3d_landscape_height(const voe_assets_landscape *landscape, float x,
 			      float z);
@@ -136,16 +120,6 @@ voe_3d_landscape_rect voe_3d_landscape_brush(voe_assets_landscape *landscape,
 					     const voe_3d_brush *brush, float x,
 					     float z, float seconds,
 					     voe_base_arena *scratch);
-
-// Chunk cz·4 + cx's (cells/4 + 1)² vertices and its triangles, on `arena`.
-voe_3d_landscape_mesh
-voe_3d_landscape_chunk(const voe_assets_landscape *landscape, uint32_t chunk,
-		       voe_base_arena *arena);
-
-// The chunk x and z ranges a height rect touches; empty for an empty rect.
-voe_3d_landscape_rect
-voe_3d_landscape_chunks(const voe_assets_landscape *landscape,
-			voe_3d_landscape_rect heights);
 
 // The grid's box in its own space: the square, from the lowest height to the
 // highest.

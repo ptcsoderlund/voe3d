@@ -1,15 +1,19 @@
-// The model store's landscapes (3d/models.h, 0379 points 2, 4 and 6): a grid
-// copied into its entry and uploaded as 16 chunk parts, a brush or a put
-// marking chunks dirty, the frame drawing dirty chunks transient, the settle
-// uploading them static again, the saved mark and the rename.
+// The model store's landscapes (3d/models.h; 0379 points 2 and 6, 0396 points
+// 3 and 5): a grid copied into its entry, uploaded as a heights texture and
+// built into a min/max pyramid, worn as one part on the store's shared grid; a
+// brush or a put updating the pyramid and growing the dirty rect; the frame
+// writing the dirt into the texture a budget at a time; the lookup the draw
+// files ask; the saved mark and the rename.
 //
-// Used by models.c's _load for a `.landscape` path, and by the editor: the
-// brush and the frame while a stroke is held, the settle between frames, the
-// put for an undo step, the rename for a moved file.
+// Used by models.c's _load for a `.landscape` path, by the draw files through
+// voe_3d_models_terrain_of, and by the editor: the brush and the frame while a
+// stroke is held, the put for an undo step, the rename for a moved file.
 //
-// Constraints: dirt is per chunk, so one stamp rebuilds whole chunks, at 512
-// cells 129² vertices each, and a height on a chunk edge rebuilds two; a dirty
-// rect per chunk would lift it. A frame and a settle walk every entry.
+// Constraints: an entry's dirt is one rect, so two stamps far apart write all
+// the heights between them; a list of rects would lift it. The frame writes
+// whole rows of the rect, the first entries first, so one big put can hold
+// another landscape's dirt back a few frames. The frame, the rename and the
+// lookup walk every entry.
 #include "models_store.h"
 
 #include <3d/landscape.h>
@@ -21,12 +25,9 @@
 
 #include <string.h>
 
-#define CHUNKS (VOE_3D_LANDSCAPE_CHUNKS * VOE_3D_LANDSCAPE_CHUNKS)
-// A chunk's mesh starts this big on the load's own scratch, and grows.
-#define SCRATCH_BLOCK (1024 * 1024)
-
-static_assert(CHUNKS <= VOE_3D_MODEL_PARTS, "a part per chunk");
-static_assert(CHUNKS <= 16, "a dirty bit per chunk");
+// The shared grid's quads a side.
+#define GRID VOE_3D_LANDSCAPE_NODE_QUADS
+#define GRID_BLOCK (128 * 1024)
 
 // 0379 point 2's ground until 085 paints it: lit, opaque, linear olive.
 static voe_3d_material ground(void)
@@ -62,75 +63,78 @@ static voe_assets_landscape *copy_grid(voe_base_arena *memory,
 	return to;
 }
 
-// Chunk `chunk` of `landscape` built on `scratch`, which is rewound, and
-// uploaded static or, `transient`, into this frame.
-static bool upload_chunk(voe_render_device *device,
-			 const voe_assets_landscape *landscape, uint32_t chunk,
-			 bool transient, voe_base_arena *scratch,
-			 voe_render_geometry *out, voe_base_error *error)
+// The store's grid (models_store.h), made on the first landscape. Corner
+// (i, j) then (i, j + 1) then (i + 1, j) turns counter-clockwise seen from +Y.
+static bool grid_ready(voe_3d_models *models, voe_render_device *device,
+		       voe_base_error *error)
 {
-	const struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
-	const voe_3d_landscape_mesh mesh =
-		voe_3d_landscape_chunk(landscape, chunk, scratch);
-	const bool made =
-		transient ? voe_render_geometry_create_transient(
-				    device, mesh.vertices, mesh.vertex_count,
-				    mesh.indices, mesh.index_count, out, error) :
-			    voe_render_geometry_create(
-				    device, mesh.vertices, mesh.vertex_count,
-				    mesh.indices, mesh.index_count, out, error);
+	const uint32_t side = GRID + 1;
+	voe_base_arena *arena;
+	voe_render_vertex *vertices;
+	uint32_t *indices, *out;
 
-	voe_base_arena_rewind(scratch, mark);
-	return made;
-}
+	if (models->has_grid)
+		return true;
+	arena = voe_base_arena_new(GRID_BLOCK);
+	vertices = voe_base_arena_push(arena, sizeof(*vertices) * side * side);
+	indices = voe_base_arena_push(arena, sizeof(*indices) * GRID * GRID * 6);
+	for (uint32_t j = 0; j < side; j++) {
+		for (uint32_t i = 0; i < side; i++) {
+			const float x = (float)i / GRID, z = (float)j / GRID;
 
-// Every chunk a static geometry, kept in `held->statics`; false at the first
-// the device refuses, `made` saying how many it made.
-static bool upload_chunks(voe_render_device *device,
-			  const voe_assets_landscape *landscape,
-			  entry_held *held, uint32_t *made,
-			  voe_base_error *error)
-{
-	voe_base_arena *scratch = voe_base_arena_new(SCRATCH_BLOCK);
-	bool uploaded = true;
-
-	for (uint32_t c = 0; uploaded && c < CHUNKS; c++) {
-		uploaded = upload_chunk(device, landscape, c, false, scratch,
-					&held->statics[c], error);
-		*made = uploaded ? c + 1 : c;
+			vertices[j * side + i] = (voe_render_vertex){
+				.position = { x, j == GRID ? 1.0f : 0.0f, z },
+				.normal = { 0.0f, 1.0f, 0.0f },
+				.uv = { x, z },
+			};
+		}
 	}
-	voe_base_arena_destroy(scratch);
-	return uploaded;
+	out = indices;
+	for (uint32_t j = 0; j < GRID; j++) {
+		for (uint32_t i = 0; i < GRID; i++) {
+			const uint32_t a = j * side + i, b = a + side;
+
+			*out++ = a, *out++ = b, *out++ = a + 1;
+			*out++ = a + 1, *out++ = b, *out++ = b + 1;
+		}
+	}
+	models->has_grid = voe_render_geometry_create(
+		device, vertices, side * side, indices, GRID * GRID * 6,
+		&models->grid, error);
+	voe_base_arena_destroy(arena);
+	return models->has_grid;
 }
 
-// Uploads `entry`'s grid as its parts; on failure gives back what it made.
-static bool upload_landscape(voe_render_device *device,
+// `entry`'s heights as its texture and pyramid, its one part the grid; on
+// failure gives back what it made, the grid kept for the store.
+static bool upload_landscape(voe_3d_models *models, voe_render_device *device,
 			     voe_3d_model_entry *entry, entry_held *held,
 			     voe_base_error *error)
 {
+	const uint32_t n = entry->landscape->cells + 1;
 	voe_3d_model_part part = { .material = ground() };
-	uint32_t made = 0;
-	const bool material =
-		voe_3d_material_upload(device, &part.material, error);
+	const bool material = grid_ready(models, device, error) &&
+			      voe_3d_material_upload(device, &part.material,
+						     error);
 	bool twin = false;
 
 	part.faded = part.material.shading;
 	twin = material && voe_3d_models_twin(device, &part, error);
-	if (twin && upload_chunks(device, entry->landscape, held, &made, error)) {
-		for (uint32_t c = 0; c < CHUNKS; c++) {
-			entry->parts[c] = part;
-			entry->parts[c].geometry = held->statics[c];
-		}
+	if (twin && voe_render_texture_create_heights(device, n, n,
+						      entry->landscape->heights,
+						      &held->heights, error)) {
+		part.geometry = models->grid;
+		entry->parts[0] = part;
+		entry->part_count = 1;
+		entry->loaded = true;
 		held->shadings = voe_base_arena_push(held->memory,
 						     sizeof(*held->shadings));
 		held->shadings[0] = part.material.shading;
 		held->shading_count = 1;
-		entry->part_count = CHUNKS;
-		entry->loaded = true;
+		held->lod = voe_3d_landscape_lod_build(entry->landscape,
+						       held->memory);
 		return true;
 	}
-	for (uint32_t c = 0; c < made; c++)
-		(void)voe_render_geometry_destroy(device, held->statics[c]);
 	if (twin)
 		(void)voe_render_shading_destroy(device, part.faded);
 	if (material)
@@ -151,20 +155,42 @@ bool voe_3d_models_load_landscape(voe_3d_models *models,
 	VOE_BASE_ASSERT(models != NULL && device != NULL && path != NULL,
 			"loading a landscape needs a store, a device and a path");
 	VOE_BASE_ASSERT(landscape != NULL && landscape->heights != NULL &&
-				landscape->cells % VOE_3D_LANDSCAPE_CHUNKS == 0,
-			"loading a landscape of whole chunks");
+				landscape->cells >= 1 &&
+				landscape->cells <= VOE_ASSETS_LANDSCAPE_CELLS_MAX,
+			"loading a landscape of 1 to the most cells");
 
 	if (!voe_3d_models_room(models, path, error))
 		return false;
 	voe_3d_models_entry_new(path, stamp, &entry, &held);
 	entry.landscape = copy_grid(held.memory, landscape);
-	loaded = upload_landscape(device, &entry, &held, error);
+	loaded = upload_landscape(models, device, &entry, &held, error);
 	if (!loaded) {
 		VOE_BASE_ERROR("3d", "could not load the landscape %s", path);
 		entry.landscape = NULL;
 	}
 	(void)voe_3d_models_keep(models, device, &entry, &held);
 	return loaded;
+}
+
+bool voe_3d_models_terrain_of(const voe_3d_models *models,
+			      const voe_3d_model_entry *entry,
+			      voe_3d_models_terrain *out)
+{
+	VOE_BASE_ASSERT(models != NULL && entry != NULL,
+			"a terrain needs a store and an entry");
+	VOE_BASE_ASSERT(out != NULL, "somewhere to put the terrain");
+
+	for (uint32_t i = 0; i < models->count; i++) {
+		if (&models->entries[i] != entry)
+			continue;
+		if (!entry->loaded || entry->landscape == NULL)
+			return false;
+		*out = (voe_3d_models_terrain){ .heights = models->held[i].heights,
+						.lod = &models->held[i].lod,
+						.grid = models->grid };
+		return true;
+	}
+	return false;
 }
 
 // `path`'s index when it is a loaded landscape, else VOE_3D_MODELS.
@@ -178,20 +204,32 @@ static uint32_t landscape_index(const voe_3d_models *models, const char *path)
 	return index;
 }
 
-// The chunks `heights` touches marked dirty, and the entry edited when any.
-static void mark_dirty(voe_3d_models *models, uint32_t index,
-		       voe_3d_landscape_rect heights)
+static bool is_empty(voe_3d_landscape_rect rect)
 {
-	const voe_3d_landscape_rect chunks = voe_3d_landscape_chunks(
-		models->entries[index].landscape, heights);
+	return rect.x0 >= rect.x1 || rect.z0 >= rect.z1;
+}
 
-	for (uint32_t cz = chunks.z0; cz < chunks.z1; cz++) {
-		for (uint32_t cx = chunks.x0; cx < chunks.x1; cx++)
-			models->held[index].dirty |= (uint16_t)(
-				1u << (cz * VOE_3D_LANDSCAPE_CHUNKS + cx));
+// The heights `changed` refreshed in the pyramid, added to the dirty rect, and
+// the entry edited; nothing for an empty rect.
+static void grow_dirt(voe_3d_models *models, uint32_t index,
+		      voe_3d_landscape_rect changed)
+{
+	entry_held *held = &models->held[index];
+	voe_3d_landscape_rect *dirty = &held->dirty;
+
+	if (is_empty(changed))
+		return;
+	voe_3d_landscape_lod_update(&held->lod,
+				    models->entries[index].landscape, changed);
+	if (is_empty(*dirty)) {
+		*dirty = changed;
+	} else {
+		dirty->x0 = changed.x0 < dirty->x0 ? changed.x0 : dirty->x0;
+		dirty->z0 = changed.z0 < dirty->z0 ? changed.z0 : dirty->z0;
+		dirty->x1 = changed.x1 > dirty->x1 ? changed.x1 : dirty->x1;
+		dirty->z1 = changed.z1 > dirty->z1 ? changed.z1 : dirty->z1;
 	}
-	if (chunks.x0 < chunks.x1 && chunks.z0 < chunks.z1)
-		models->entries[index].edited = true;
+	models->entries[index].edited = true;
 }
 
 voe_3d_landscape_rect
@@ -210,7 +248,7 @@ voe_3d_models_landscape_brush(voe_3d_models *models, const char *path,
 		return (voe_3d_landscape_rect){ 0 };
 	rect = voe_3d_landscape_brush(models->entries[index].landscape, brush,
 				      x, z, seconds, scratch);
-	mark_dirty(models, index, rect);
+	grow_dirt(models, index, rect);
 	return rect;
 }
 
@@ -221,7 +259,7 @@ void voe_3d_models_landscape_put(voe_3d_models *models, const char *path,
 			"putting heights needs a store and a path");
 	const uint32_t index = landscape_index(models, path);
 
-	if (index == VOE_3D_MODELS || rect.x0 >= rect.x1 || rect.z0 >= rect.z1)
+	if (index == VOE_3D_MODELS || is_empty(rect))
 		return;
 	voe_assets_landscape *land = models->entries[index].landscape;
 	const uint32_t n = land->cells + 1;
@@ -233,82 +271,58 @@ void voe_3d_models_landscape_put(voe_3d_models *models, const char *path,
 		memcpy(&land->heights[(size_t)r * n + rect.x0],
 		       &values[(size_t)(r - rect.z0) * width],
 		       width * sizeof(float));
-	mark_dirty(models, index, rect);
+	grow_dirt(models, index, rect);
+}
+
+// Entry `i`'s dirty rows written into its texture while `budget` texels last,
+// gathered in the store's `written`; the budget left, nought after a refusal.
+static uint32_t write_dirt(voe_3d_models *models, voe_render_device *device,
+			   uint32_t i, uint32_t budget)
+{
+	entry_held *held = &models->held[i];
+	const voe_3d_landscape_rect dirty = held->dirty;
+	const voe_3d_model_entry *entry = &models->entries[i];
+	voe_base_error error = VOE_BASE_OK;
+
+	if (is_empty(dirty))
+		return budget;
+	VOE_BASE_ASSERT(entry->loaded && entry->landscape != NULL,
+			"dirt only on a loaded landscape");
+	const uint32_t n = entry->landscape->cells + 1;
+	const uint32_t width = dirty.x1 - dirty.x0;
+	const uint32_t most = budget / width;
+	const uint32_t rows =
+		dirty.z1 - dirty.z0 < most ? dirty.z1 - dirty.z0 : most;
+
+	if (rows == 0)
+		return budget;
+	for (uint32_t r = 0; r < rows; r++)
+		memcpy(&models->written[(size_t)r * width],
+		       &entry->landscape->heights[(size_t)(dirty.z0 + r) * n +
+						  dirty.x0],
+		       width * sizeof(float));
+	if (!voe_render_texture_write_heights(device, held->heights, dirty.x0,
+					      dirty.z0, width, rows,
+					      models->written, &error)) {
+		VOE_BASE_ERROR("3d", "the heights of %s wait for a later frame",
+			       entry->path);
+		return 0;
+	}
+	held->dirty.z0 += rows;
+	if (is_empty(held->dirty))
+		held->dirty = (voe_3d_landscape_rect){ 0 };
+	return budget - rows * width;
 }
 
 void voe_3d_models_landscape_frame(voe_3d_models *models,
-				   voe_render_device *device,
-				   voe_base_arena *scratch)
+				   voe_render_device *device)
 {
-	VOE_BASE_ASSERT(models != NULL && device != NULL,
-			"a landscape frame needs a store and a device");
-	VOE_BASE_ASSERT(scratch != NULL, "a landscape frame needs scratch");
+	VOE_BASE_ASSERT(models != NULL, "a landscape frame needs a store");
+	VOE_BASE_ASSERT(device != NULL, "a landscape frame needs a device");
+	uint32_t budget = VOE_3D_LANDSCAPE_WRITE_TEXELS;
 
-	for (uint32_t i = 0; i < models->count; i++) {
-		voe_3d_model_entry *entry = &models->entries[i];
-		const entry_held *held = &models->held[i];
-
-		for (uint32_t c = 0; held->dirty != 0 && c < CHUNKS; c++) {
-			voe_base_error error = VOE_BASE_OK;
-			voe_render_geometry drawn;
-
-			if ((held->dirty & (1u << c)) == 0)
-				continue;
-			if (upload_chunk(device, entry->landscape, c, true,
-					 scratch, &drawn, &error)) {
-				entry->parts[c].geometry = drawn;
-			} else {
-				VOE_BASE_ERROR("3d",
-					       "chunk %u of %s drawn as last settled",
-					       c, entry->path);
-				entry->parts[c].geometry = held->statics[c];
-			}
-		}
-	}
-}
-
-// Chunk `c` of entry `i` uploaded static, its old static destroyed and its
-// dirt cleared; false, the old kept and drawn, when the device has no room.
-static bool settle_chunk(voe_3d_models *models, voe_render_device *device,
-			 uint32_t i, uint32_t c, voe_base_arena *scratch,
-			 voe_base_error *error)
-{
-	voe_3d_model_entry *entry = &models->entries[i];
-	entry_held *held = &models->held[i];
-	voe_render_geometry fresh;
-
-	if (!upload_chunk(device, entry->landscape, c, false, scratch, &fresh,
-			  error)) {
-		VOE_BASE_ERROR("3d", "chunk %u of %s could not settle", c,
-			       entry->path);
-		entry->parts[c].geometry = held->statics[c];
-		return false;
-	}
-	(void)voe_render_geometry_destroy(device, held->statics[c]);
-	held->statics[c] = fresh;
-	entry->parts[c].geometry = fresh;
-	held->dirty &= (uint16_t)~(1u << c);
-	return true;
-}
-
-bool voe_3d_models_landscape_settle(voe_3d_models *models,
-				    voe_render_device *device,
-				    voe_base_arena *scratch,
-				    voe_base_error *error)
-{
-	VOE_BASE_ASSERT(models != NULL && device != NULL,
-			"settling needs a store and a device");
-	VOE_BASE_ASSERT(scratch != NULL, "settling needs scratch");
-
-	for (uint32_t i = 0; i < models->count; i++) {
-		for (uint32_t c = 0; models->held[i].dirty != 0 && c < CHUNKS;
-		     c++) {
-			if ((models->held[i].dirty & (1u << c)) != 0 &&
-			    !settle_chunk(models, device, i, c, scratch, error))
-				return false;
-		}
-	}
-	return true;
+	for (uint32_t i = 0; budget > 0 && i < models->count; i++)
+		budget = write_dirt(models, device, i, budget);
 }
 
 void voe_3d_models_landscape_saved(voe_3d_models *models, const char *path)

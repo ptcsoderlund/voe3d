@@ -177,9 +177,10 @@ static void bounds_hold_a_landscape(voe_base_arena *arena,
 				    const voe_3d_shape_geometries *geometries)
 {
 	const voe_render_capacities capacities = {
-		.vertices = 16 * 9,
-		.indices = 16 * 24,
-		.geometries = 16,
+		.vertices = 33 * 33,
+		.indices = 32 * 32 * 6,
+		.geometries = 1,
+		.heights_texels = VOE_3D_LANDSCAPE_WRITE_TEXELS,
 		.objects = 1,
 		.shadings = 2,
 		.passes = 1,

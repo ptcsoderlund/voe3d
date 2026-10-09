@@ -71,29 +71,21 @@ static bool has_twin(const voe_3d_model_part *part)
 }
 
 // Everything `entry` put on the card and its memory, given back; a picture's
-// parts are on the store's quad, which is not the entry's to free. A
-// landscape's geometries are its statics, its parts maybe a frame's transients,
-// and its sixteen parts share one twin.
+// parts are on the store's quad and a landscape's on its grid, neither the
+// entry's to free. A loaded landscape gives back its heights texture.
 static void release(voe_render_device *device, const voe_3d_model_entry *entry,
 		    const entry_held *held)
 {
-	const uint32_t twins = entry->landscape != NULL && entry->part_count > 0 ?
-				       1 :
-				       entry->part_count;
-
 	for (uint32_t i = 0; i < entry->part_count; i++) {
-		if (entry->landscape != NULL)
-			(void)voe_render_geometry_destroy(device,
-							  held->statics[i]);
-		else if (!entry->picture)
+		if (!entry->picture && entry->landscape == NULL)
 			(void)voe_render_geometry_destroy(
 				device, entry->parts[i].geometry);
-	}
-	for (uint32_t i = 0; i < twins; i++) {
 		if (has_twin(&entry->parts[i]))
 			(void)voe_render_shading_destroy(
 				device, entry->parts[i].faded);
 	}
+	if (entry->loaded && entry->landscape != NULL)
+		(void)voe_render_texture_destroy(device, held->heights);
 	for (uint32_t i = 0; i < held->shading_count; i++)
 		(void)voe_render_shading_destroy(device, held->shadings[i]);
 	for (uint32_t i = 0; i < held->texture_count; i++)
@@ -119,6 +111,9 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device)
 	if (models->has_quad)
 		(void)voe_render_geometry_destroy(device, models->quad);
 	models->has_quad = false;
+	if (models->has_grid)
+		(void)voe_render_geometry_destroy(device, models->grid);
+	models->has_grid = false;
 }
 
 void voe_3d_models_destroy(voe_3d_models *models)

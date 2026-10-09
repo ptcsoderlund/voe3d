@@ -1,14 +1,18 @@
-// The model store's private shape, shared by models.c and models_landscape.c:
-// the table, what each entry holds that its readers do not see, and the few
-// helpers both files call. Internal to this folder.
+// The model store's private shape, shared by models.c, models_landscape.c and
+// the draw files: the table, what each entry holds that its readers do not
+// see, and the few helpers they call. Internal to this folder.
 //
-// A LANDSCAPE'S STATIC CHUNK IDS LIVE IN `statics`, APART FROM ITS PARTS. A
-// frame points a dirty chunk's part at a transient range that is gone at the
-// next begin; the static id it replaced is still here to draw again, to
-// destroy at the settle, and to free on a replace or a clear. `dirty` is one
-// bit per chunk, cz·4 + cx.
+// A LANDSCAPE'S TEXTURE, PYRAMID AND DIRT ARE HELD, NOT SHOWN (0396 points 3
+// and 5): its one part draws the store's shared grid, and what makes that grid
+// its ground is here. The pyramid lives in the entry's arena; the dirty rect is
+// the heights not yet written into the texture, empty when x0 ≥ x1.
+//
+// THE GRID IS 33 × 33 VERTICES at x, z in 0..1, normals up, uv = xz, y 0 but
+// the last row's 1, so its box is a unit cube; the shader ignores y. Made at
+// the first landscape load, given back by _clear.
 #pragma once
 
+#include <3d/landscape.h>
 #include <3d/models.h>
 #include <base/arena.h>
 #include <base/error.h>
@@ -18,15 +22,18 @@
 #include <stdint.h>
 
 // What an entry holds that its readers do not see: its arena, every texture
-// and shading record its load made, and a landscape's static chunks and dirt.
+// and shading record its load made, and a landscape's heights and dirt.
 typedef struct {
 	voe_base_arena *memory;
 	voe_render_texture *textures;
 	uint32_t texture_count;
 	voe_render_shading *shadings;
 	uint32_t shading_count;
-	voe_render_geometry statics[VOE_3D_MODEL_PARTS];
-	uint16_t dirty;
+	// A loaded landscape's heights texture, pyramid on `memory`, and the
+	// heights changed since last written.
+	voe_render_texture heights;
+	voe_3d_landscape_lod lod;
+	voe_3d_landscape_rect dirty;
 } entry_held;
 
 struct voe_3d_models {
@@ -36,6 +43,11 @@ struct voe_3d_models {
 	// The quad every picture's parts are drawn on, when `has_quad`.
 	voe_render_geometry quad;
 	bool has_quad;
+	// The grid every landscape's part is drawn on, when `has_grid`.
+	voe_render_geometry grid;
+	bool has_grid;
+	// The rows one frame writes, gathered row-major for the write.
+	float written[VOE_3D_LANDSCAPE_WRITE_TEXELS];
 	// The soft dot, found at "", when `has_dot`.
 	voe_3d_model_entry dot;
 	entry_held dot_held;
@@ -44,6 +56,19 @@ struct voe_3d_models {
 	voe_3d_model_part water;
 	bool has_water;
 };
+
+// What a draw needs of a loaded landscape beside its part.
+typedef struct {
+	voe_render_texture heights;
+	const voe_3d_landscape_lod *lod;
+	voe_render_geometry grid;
+} voe_3d_models_terrain;
+
+// `entry`'s heights texture, pyramid and the store's grid in `out`; false,
+// `out` untouched, for an entry that is no loaded landscape of this store.
+bool voe_3d_models_terrain_of(const voe_3d_models *models,
+			      const voe_3d_model_entry *entry,
+			      voe_3d_models_terrain *out);
 
 // `path`'s index, or VOE_3D_MODELS when the store does not hold it.
 uint32_t voe_3d_models_index(const voe_3d_models *models, const char *path);

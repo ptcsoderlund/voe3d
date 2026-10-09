@@ -705,12 +705,13 @@ destroy:
 	voe_render_device_destroy(device);
 }
 
-// Room for one 16-chunk landscape of 8 cells: 9 vertices and 24 indices a
-// chunk, its ground and the ground's twin.
+// Room for one landscape: the shared grid, its heights texture, its ground and
+// the ground's twin.
 static const voe_render_capacities LANDSCAPE_CAPACITIES = {
-	.vertices = 16 * 9,
-	.indices = 16 * 24,
-	.geometries = 16,
+	.vertices = 33 * 33,
+	.indices = 32 * 32 * 6,
+	.geometries = 1,
+	.heights_texels = VOE_3D_LANDSCAPE_WRITE_TEXELS,
 	.objects = 1,
 	.shadings = 2,
 	.passes = 1,
