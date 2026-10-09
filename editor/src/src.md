@@ -142,10 +142,10 @@ carries it out.
 - `project_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
   a number rounded and clamped to the project file's range.
 - `landscape_panel.h` — the Landscape panel: a title row with the file's name and its ×, and the
-  size as a number box written at once, never unsaved or undone, as an anchored panel over the dock,
+  size and cells as number boxes written at once, never unsaved or undone, as an anchored panel over the dock,
   carrying out nothing.
 - `landscape_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
-  a drag handed back once on release, a number rounded and clamped to the file's range.
+  a drag handed back once on release, each number rounded and clamped to the file's range.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
@@ -285,10 +285,10 @@ carries it out.
   the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file in the notice, a splash wait's progress passed on,
-  and its landscapes drawn, saved, reverted, put back by a stroke and resized.
+  and its landscapes drawn, saved, reverted, put back by a stroke and reshaped.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed; landscapes' heights written
-  in the frame, written on Save, read again on a New or Open, and a size written and re-read.
+  in the frame, written on Save, read again on a New or Open, and a size and cells written and re-read.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode and the reveal of a selection made elsewhere.
 - `scene.c` — the selection, Delete and Duplicate, the gizmo's switch, the colour picker and

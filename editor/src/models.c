@@ -2,7 +2,7 @@
 // different folder, filled and re-read through game/models.h once a frame,
 // cleared through the device and destroyed, and handed out read-only; its
 // landscapes' heights written in the frame, written on Save and read again,
-// and one resized, written at once and loaded again at the next update.
+// and one reshaped, written at once and loaded again at the next update.
 #include "models.h"
 
 #include <base/assert.h>
@@ -319,31 +319,34 @@ static bool landscape_got(const voe_editor_models *models, const char *folder,
 	return true;
 }
 
-bool voe_editor_models_landscape_size_found(voe_editor_models *models,
-					    const char *folder,
-					    const char *path,
-					    voe_base_arena *scratch,
-					    float *size, voe_editor_notice *why)
+bool voe_editor_models_landscape_found(voe_editor_models *models,
+				       const char *folder, const char *path,
+				       voe_base_arena *scratch, float *size,
+				       uint32_t *cells, voe_editor_notice *why)
 {
 	struct voe_base_arena_mark mark;
 	voe_assets_landscape grid;
 	bool found;
 
-	VOE_BASE_ASSERT(models != NULL && scratch != NULL && size != NULL,
-			"a landscape's size from no store, scratch or out");
+	VOE_BASE_ASSERT(models != NULL && scratch != NULL && size != NULL &&
+				cells != NULL,
+			"a landscape's shape from no store, scratch or out");
 	VOE_BASE_ASSERT(why != NULL, "a landscape's size with no notice");
 	mark = voe_base_arena_mark(scratch);
 	found = landscape_got(models, folder, path, scratch, &grid, why);
-	if (found)
+	if (found) {
 		*size = grid.size;
+		*cells = grid.cells;
+	}
 	voe_base_arena_rewind(scratch, mark);
 	return found;
 }
 
-bool voe_editor_models_landscape_size(voe_editor_models *models,
-				      const char *folder, const char *path,
-				      float size, voe_base_arena *scratch,
-				      voe_editor_notice *why)
+bool voe_editor_models_landscape_shape(voe_editor_models *models,
+				       const char *folder, const char *path,
+				       float size, uint32_t cells,
+				       voe_base_arena *scratch,
+				       voe_editor_notice *why)
 {
 	const voe_3d_model_entry *entry;
 	struct voe_base_arena_mark mark;
@@ -357,9 +360,14 @@ bool voe_editor_models_landscape_size(voe_editor_models *models,
 	VOE_BASE_ASSERT(size >= VOE_ASSETS_LANDSCAPE_SIZE_MIN &&
 				size <= VOE_ASSETS_LANDSCAPE_SIZE_MAX,
 			"a landscape's size out of range");
+	VOE_BASE_ASSERT(cells >= 4 && cells <= VOE_ASSETS_LANDSCAPE_CELLS_MAX &&
+				cells % 4 == 0,
+			"a landscape's cells out of range");
 	mark = voe_base_arena_mark(scratch);
 	if (!landscape_got(models, folder, path, scratch, &grid, why))
 		goto rewind;
+	if (grid.cells != cells)
+		grid = voe_assets_landscape_resample(&grid, cells, scratch);
 	grid.size = size;
 	text = voe_assets_landscape_write(&grid, scratch);
 	written = voe_platform_file_write(
