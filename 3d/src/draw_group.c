@@ -70,12 +70,12 @@ voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transfo
 					      voe_math_double3 eye)
 {
 	voe_render_object object = { 0 };
-	const voe_3d_material *worn =
+	const voe_3d_model_part *worn =
 		shape != NULL ? voe_3d_draw_material_named(models, shape->material) :
 				NULL;
 
 	if (worn != NULL) {
-		material = worn;
+		material = &worn->material;
 		shape = NULL;
 	}
 
@@ -95,6 +95,30 @@ voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transfo
 				(voe_math_float4){ 1.0f, 1.0f, 1.0f, 1.0f };
 
 	return object;
+}
+
+// Part `part` of `model` as `row` wears it (0399 point 6): the model's geometry,
+// and for part i < VOE_3D_MODEL_MATERIALS whose `materials[i]` names a loaded
+// material in `models`, that entry's record and blended twin; else the model's
+// own. `row` NULL, or no store, is the model's own part.
+voe_3d_model_part voe_3d_draw_group_part_worn(const voe_3d_models *models,
+					      const voe_3d_model *row,
+					      const voe_3d_model_entry *model,
+					      uint32_t part)
+{
+	voe_3d_model_part worn;
+	const voe_3d_model_part *named = NULL;
+
+	VOE_BASE_ASSERT(model != NULL && part < model->part_count,
+			"wearing a part the model has not got");
+	worn = model->parts[part];
+	if (row != NULL && part < VOE_3D_MODEL_MATERIALS)
+		named = voe_3d_draw_material_named(models, row->materials[part]);
+	if (named != NULL) {
+		worn.material = named->material;
+		worn.faded = named->faded;
+	}
+	return worn;
 }
 
 // Room in the arena for one group, sized for the whole mesh table — see below

@@ -159,10 +159,11 @@ static void grow(struct still_box *box, const voe_render_device *device,
 		grow_corners(box, low, high, placed);
 }
 
-// `model`'s casting parts under `placed` into `box`; a landscape's by its
-// pyramid's box (0396), not the shared grid's unit cube.
+// `model`'s casting parts as `row` (NULL for none) wears them under `placed`
+// into `box`; a landscape's by its pyramid's box (0396), not the shared grid's
+// unit cube.
 static void grow_model(struct still_box *box, const voe_render_device *device,
-		       const voe_3d_models *models,
+		       const voe_3d_models *models, const voe_3d_model *row,
 		       const voe_3d_model_entry *model,
 		       const voe_scene_transform *placed)
 {
@@ -181,9 +182,13 @@ static void grow_model(struct still_box *box, const voe_render_device *device,
 		grow_corners(box, low, high, placed);
 		return;
 	}
-	for (uint32_t part = 0; part < model->part_count; part++)
-		if (voe_3d_draw_casts(&model->parts[part].material))
-			grow(box, device, model->parts[part].geometry, placed);
+	for (uint32_t part = 0; part < model->part_count; part++) {
+		voe_3d_model_part piece =
+			voe_3d_draw_group_part_worn(models, row, model, part);
+
+		if (voe_3d_draw_casts(&piece.material))
+			grow(box, device, piece.geometry, placed);
+	}
 }
 
 // One call's marking: what it reads, whether the world remembers, and the
@@ -216,7 +221,8 @@ float voe_3d_bounce_caster_sphere(const voe_ecs_world *world,
 	if (model == NULL)
 		grow(&box, device, geometry, &placed);
 	else
-		grow_model(&box, device, models, model, &placed);
+		grow_model(&box, device, models,
+			   voe_3d_model_get(world, entity), model, &placed);
 	if (!box.any)
 		return 0.0f;
 	return (float)(0.5 * sqrt((box.max.x - box.min.x) * (box.max.x - box.min.x) +
@@ -274,7 +280,8 @@ static bool remembers(const voe_ecs_world *world)
 	return false;
 }
 
-// Whether the model row's entry in the frame's store has a part that casts.
+// Whether the model row's entry in the frame's store has a part that casts, as
+// the row wears it.
 static bool model_casts(const voe_3d_frame *frame, const voe_3d_model *row)
 {
 	const voe_3d_model_entry *model = voe_3d_models_find(frame->models, row->path);
@@ -282,9 +289,13 @@ static bool model_casts(const voe_3d_frame *frame, const voe_3d_model *row)
 	VOE_BASE_ASSERT(frame->models != NULL, "casting models from no store");
 	if (model == NULL || !model->loaded)
 		return false;
-	for (uint32_t part = 0; part < model->part_count; part++)
-		if (voe_3d_draw_casts(&model->parts[part].material))
+	for (uint32_t part = 0; part < model->part_count; part++) {
+		voe_3d_model_part piece = voe_3d_draw_group_part_worn(
+			frame->models, row, model, part);
+
+		if (voe_3d_draw_casts(&piece.material))
 			return true;
+	}
 	return false;
 }
 
@@ -379,7 +390,8 @@ static void box_models(const voe_ecs_world *world,
 		if (model == NULL || !model->loaded || moved(world, owners[row]))
 			continue;
 		placed = voe_scene_transform_between(world, owners[row], 0.0f);
-		grow_model(box, device, frame->models, model, &placed);
+		grow_model(box, device, frame->models, &rows[row], model,
+			   &placed);
 	}
 	VOE_BASE_ASSERT(!box->any || box->min.x <= box->max.x, "a box turned out");
 }

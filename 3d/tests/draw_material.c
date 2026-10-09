@@ -3,16 +3,23 @@
 // names a loaded unlit red material reads red at the centre; the same cube with
 // an empty path, or a path the store does not hold, reads its own grey.
 //
+// A MODEL'S PART WEARS ONE TOO: model_data.inc's model, stood as
+// 3d/tests/models.c stands it so its green part covers the centre, reads red
+// with `materials[1]` naming the red material, and green with it empty or with
+// `materials[0]` naming it instead. Part 0 is already red, which is why the
+// worn part read is the green part 1: a red part wearing red proves nothing.
+//
 // UNLIT RED, SO THE CENTRE IS RED WHATEVER THE SUN DOES: a lit grey cube reads
 // its three channels alike, and red with nought green and blue is no grey.
 //
-// THE DEVICE HOLDS THE BUILT-IN SHAPES and two records more, the material's
-// own and its blended twin; the material has no maps, so no texture.
+// THE DEVICE HOLDS THE BUILT-IN SHAPES, the model's two parts and their twins,
+// and two records more, the material's own and its blended twin.
 //
 // IT SKIPS WITHOUT A GRAPHICS CARD, for the reason 3d/tests/import.c gives.
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
+#include <3d/model_component.h>
 #include <3d/models.h>
 #include <3d/panel_component.h>
 #include <3d/shape_component.h>
@@ -35,13 +42,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "model_data.inc"
+
 #define SCRATCH (256 * 1024)
 #define SIDE 16
 #define RED_MATERIAL "Assets/red.material"
+#define MODEL "Assets/two.glb"
 
-// A world with a camera at the origin looking down −Z, a sun from above and in
-// front, and one cube three metres ahead wearing `material`.
-static voe_ecs_world *a_world(voe_base_arena *arena, const char *material)
+// A world with a camera at the origin looking down −Z and a sun from above and
+// in front.
+static voe_ecs_world *a_lit_world(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = 8,
@@ -53,10 +63,6 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const char *material)
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 	voe_ecs_entity eye = { 0 };
 	voe_ecs_entity sun = { 0 };
-	voe_ecs_entity cube = { 0 };
-	voe_3d_shape shape = { .kind = VOE_3D_SHAPE_CUBE,
-			       .colour = VOE_3D_SHAPE_GREY,
-			       .cast_shadows = true };
 
 	voe_scene_transform_register(world, 8);
 	voe_scene_camera_register(world, 2);
@@ -90,6 +96,17 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const char *material)
 		world, sun,
 		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 3.0f }));
+	return world;
+}
+
+// The lit world and one cube three metres ahead wearing `material`.
+static voe_ecs_world *a_world(voe_base_arena *arena, const char *material)
+{
+	voe_ecs_world *world = a_lit_world(arena);
+	voe_ecs_entity cube = { 0 };
+	voe_3d_shape shape = { .kind = VOE_3D_SHAPE_CUBE,
+			       .colour = VOE_3D_SHAPE_GREY,
+			       .cast_shadows = true };
 
 	strncpy(shape.material, material, sizeof(shape.material) - 1);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
@@ -99,6 +116,27 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const char *material)
 				       .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 				       .scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_3d_shape_add(world, cube, shape));
+	return world;
+}
+
+// The lit world and one thing wearing MODEL, its `materials[part]` `material`,
+// turned and stood as 3d/tests/models.c stands it, five metres out.
+static voe_ecs_world *a_model_world(voe_base_arena *arena, uint32_t part,
+				    const char *material)
+{
+	voe_ecs_world *world = a_lit_world(arena);
+	voe_ecs_entity thing = { 0 };
+	voe_3d_model row = { .path = MODEL, .cast_shadows = true };
+
+	strncpy(row.materials[part], material, sizeof(row.materials[part]) - 1);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, thing,
+		(voe_scene_transform){
+			.position = { 2.0 / 3.0, -4.0 / 3.0, -6.0 },
+			.rotation = { 0.0f, -0.70710678f, 0.0f, 0.70710678f },
+			.scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_3d_model_add(world, thing, row));
 	return world;
 }
 
@@ -163,17 +201,38 @@ static void the_cube_reads(voe_render_device *device, voe_base_arena *arena,
 	}
 }
 
+// The model whose `materials[part]` is `material` drawn once; whether its
+// centre reads red, else its green part's own green.
+static void the_model_reads(voe_render_device *device, voe_base_arena *arena,
+			    const voe_3d_models *models, uint32_t part,
+			    const char *material, bool red)
+{
+	voe_ecs_world *world = a_model_world(arena, part, material);
+	uint8_t centre[4] = { 0 };
+
+	if (!centre_of_a_frame(world, device, arena, models, centre))
+		return;
+	if (red) {
+		VOE_TEST_CHECK(centre[0] > 128);
+		VOE_TEST_CHECK(centre[1] < 32);
+	} else {
+		VOE_TEST_CHECK(centre[0] < 32);
+		VOE_TEST_CHECK(centre[1] > 32);
+	}
+	VOE_TEST_CHECK(centre[2] < 32);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	voe_platform_size size = { SIDE, SIDE };
 	voe_base_error error = VOE_BASE_OK;
 	voe_render_capacities capacities = {
-		.vertices = VOE_3D_SHAPES_VERTICES,
-		.indices = VOE_3D_SHAPES_INDICES,
-		.geometries = VOE_3D_SHAPES_GEOMETRIES,
-		.objects = 1,
-		.shadings = VOE_3D_SHAPES_SHADINGS + 2,
+		.vertices = VOE_3D_SHAPES_VERTICES + 6,
+		.indices = VOE_3D_SHAPES_INDICES + 6,
+		.geometries = VOE_3D_SHAPES_GEOMETRIES + 2,
+		.objects = 2,
+		.shadings = VOE_3D_SHAPES_SHADINGS + 4 + 2,
 		.passes = 1,
 	};
 	voe_render_device *device =
@@ -204,6 +263,12 @@ int main(void)
 	the_cube_reads(device, arena, &shapes, models, "", false);
 	the_cube_reads(device, arena, &shapes, models, "Assets/none.material",
 		       false);
+	VOE_TEST_CHECK(voe_3d_models_load(models, device, MODEL, 1,
+					  TWO_PRIMITIVES_GLB,
+					  sizeof(TWO_PRIMITIVES_GLB), &error));
+	the_model_reads(device, arena, models, 1, RED_MATERIAL, true);
+	the_model_reads(device, arena, models, 1, "", false);
+	the_model_reads(device, arena, models, 0, RED_MATERIAL, false);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);

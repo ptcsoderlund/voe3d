@@ -1,4 +1,4 @@
-// A shape's material path looked up in the model store. See draw_material.h.
+// A shape's or model part's material path looked up in the model store. See draw_material.h.
 //
 // The empty path is refused before the find, because the store answers "" with
 // the soft dot (3d/models.h), which is no material.
@@ -9,8 +9,8 @@
 
 #include <string.h>
 
-const voe_3d_material *voe_3d_draw_material_named(const voe_3d_models *models,
-						  const char *path)
+const voe_3d_model_part *voe_3d_draw_material_named(const voe_3d_models *models,
+						    const char *path)
 {
 	const voe_3d_model_entry *entry;
 
@@ -21,5 +21,5 @@ const voe_3d_material *voe_3d_draw_material_named(const voe_3d_models *models,
 	entry = voe_3d_models_find(models, path);
 	if (entry == NULL || !entry->loaded || !entry->material)
 		return NULL;
-	return &entry->parts[0].material;
+	return &entry->parts[0];
 }

@@ -29,7 +29,8 @@ again, or to find where a claim that has started failing is written down.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
   frames blind, the eye lags the last step and a red shape reads red. Skips without a graphics card.
 - `draw_material.c` — that a cube wearing a loaded unlit red material reads red, and one with an
-  empty or unheld path its own grey. Skips without a graphics card.
+  empty or unheld path its own grey; a model's green part wearing it red, and green with none or
+  with only its other part wearing it. Skips without a graphics card.
 - `draw_gizmo.c` — that a gizmo's arrows and rings show through the cube it stands in. Skips
   without a graphics card.
 - `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
@@ -117,7 +118,7 @@ again, or to find where a claim that has started failing is written down.
   geometry, the changes table and the upload's material records. The table and geometry half needs
   no graphics card; the upload half skips without one.
 - `model_component.c` — the model component's fields, its default and intents read back after a
-  run, a dead entity's intent dropped and a long path cut. Needs no graphics card.
+  run, a dead entity's intent dropped and a long path or material cut. Needs no graphics card.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,

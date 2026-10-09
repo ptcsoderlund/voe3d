@@ -16,7 +16,8 @@
 // cutout casts as solid since the depth-only pipeline has no fragment stage to
 // discard with. Panels and the editor's marks cast nothing, and the frame's
 // `hidden` is left out here as in _run. A model part in the frame's store casts
-// by the same rule, its material the part's, in the world layer as every part is.
+// by the same rule, its material the part's or the one its row's `materials`
+// names (0399 point 6), in the world layer as every part is.
 // The ground casts by nodes: a landscape draws those the view's eye chooses,
 // the bounce's passes taking it coarse (0397).
 // A mesh whose shape, or a model whose row, has `cast_shadows` false casts
@@ -146,12 +147,13 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 			continue;
 		}
 		for (uint32_t part = 0; part < model->part_count; part++) {
-			const voe_3d_model_part *piece = &model->parts[part];
+			voe_3d_model_part piece = voe_3d_draw_group_part_worn(
+				frame->models, &rows[row], model, part);
 
-			if (voe_3d_draw_casts(&piece->material) &&
-			    !voe_render_frame_draw(device, piece->geometry,
+			if (voe_3d_draw_casts(&piece.material) &&
+			    !voe_render_frame_draw(device, piece.geometry,
 						   voe_3d_draw_group_object_of(
-							   &drawn, &piece->material,
+							   &drawn, &piece.material,
 							   NULL, NULL, frame->eye)))
 				return false;
 		}
