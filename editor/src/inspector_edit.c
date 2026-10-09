@@ -190,9 +190,11 @@ static void apply(voe_ecs_world *world, voe_ecs_entity entity,
 	VOE_BASE_ASSERT(false, "a control writing a kind no control is drawn for");
 }
 
-// A text field's commit, as the row's CHAR bytes: the text truncated to leave
-// its terminating zero, the rest zeroed, submitted only when it differs from
-// what the row holds now. True when an intent was submitted.
+// A text field's commit, as the CHAR bytes at the control's recorded offset and
+// size — the whole field, or one string of a rank-2 list, so the others are
+// left as they are: the text truncated to leave its terminating zero, the rest
+// zeroed, submitted only when it differs from what the row holds now. True when
+// an intent was submitted.
 static bool typed(voe_ecs_world *world, voe_ecs_entity entity,
 		  const voe_editor_inspector_control *control,
 		  voe_ui_field_result result)

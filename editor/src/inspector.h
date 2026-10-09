@@ -187,9 +187,16 @@ typedef struct {
 	// control writes.
 	size_t offset;
 	voe_base_field_kind writes;
-	// Bytes the field takes, for a CHAR field's text box: what its text is
-	// read back into and truncated to. Nought for every other kind.
+	// Bytes the text box's string takes: the whole field for a CHAR of rank
+	// 1, one string of a rank-2 CHAR, a list of strings drawn as a text
+	// box per string. What its text is read back into and truncated to.
+	// Nought for every other kind.
 	size_t size;
+	// A rank-2 CHAR's string box: the field's name, from its description,
+	// and the string's 0-based index, so a drop finds the row under the
+	// pointer. NULL and nought for every other control.
+	const char *name;
+	uint32_t index;
 	// Which of a rotation's three shown angles this is — 0, 1 or 2 for the
 	// world's X, Y and Z — and the angle in degrees it was showing when it
 	// was drawn. The edit is the difference between the two, about that

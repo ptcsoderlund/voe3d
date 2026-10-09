@@ -16,8 +16,9 @@
 // typed into a box (ADR-0192) is the same `changed` a drag is and goes the same
 // way, so a rotation's angle, a whole number's rounding and a read-only label
 // behave alike for both. A CHAR array (rank 1) is a `ui` text field, which is
-// how the name is edited: on `committed` with text that differs from the row,
-// the text is copied into the row's bytes, truncated to leave room for its
+// how the name is edited, and a list of strings (rank 2) a text field per
+// string: on `committed` with text that differs from the row, the text is
+// copied into the recorded string's bytes, truncated to leave room for its
 // terminating zero, and submitted the same way. Tab walks the fields and boxes
 // in the order they are drawn — the name, then each number.
 //

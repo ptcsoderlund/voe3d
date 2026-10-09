@@ -247,9 +247,12 @@ carries it out.
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
 - `inspector.c` — the Duplicate and Delete row, the walk over described component types, each
-  section's heading, Remove and "Needs" line, a row per field, each control's record, Add component
-  and its menu, the open list, a part shown read-only, the Sculpt section on a landscape, and an
-  open material's section in place of it all.
+  section's heading, Remove and "Needs" line, Add component and its menu, the open list, a part
+  shown read-only, the Sculpt section on a landscape, and an open material's section in place of it.
+- `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
+  strings a text field per string, labels when it cannot be edited.
+- `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, and a
+  rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
 - `sculpt.h` — the brush a person holds: chosen or not, its kind, radius, strength and softness
   with their ranges, never saved or undone, whether a thing wears a landscape, and the held drag
   that sculpts it as one undo step.
@@ -284,7 +287,8 @@ carries it out.
 - `inspector_value.h` — what a field's bytes say: a kind and an offset in, a number, three shown
   angles or the one string a label is given out.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
-  decomposition of a rotation, a type's heading from its key, a field as one string, and how many
+  decomposition of a rotation, a type's heading from its key, a name's title, a field or one of a
+  list's strings as one string, and how many
   boxes a kind is worth.
 - `entity_field.h` — what an ENTITY field offers and says: None and the authored entities by name,
   and why names and only authored ones.
