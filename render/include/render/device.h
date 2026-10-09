@@ -1229,6 +1229,18 @@ bool voe_render_texture_destroy(voe_render_device *device,
 bool voe_render_shading_destroy(voe_render_device *device,
 				voe_render_shading shading);
 
+// Rewrites a live record's values (ADR-0399 point 4), inside a frame and before
+// its first pass; asserts outside a frame, after a pass began, or on a stale id.
+//
+// THE WRITE IS RECORDED INTO THE FRAME'S COMMANDS, NOT MADE NOW. A barrier orders
+// it after earlier frames' reads of the record and another before this frame's
+// passes, so no frame in flight is waited for: the same order
+// voe_render_texture_write_heights gives. Every pass of this frame, and every
+// frame after, reads the new values.
+void voe_render_shading_write(voe_render_device *device,
+			      voe_render_shading shading,
+			      voe_render_shading_values values);
+
 // ------------------------------------------------------------------ frames
 
 // Starts the frame: rebuilds what a resize invalidated, waits for the slot this
