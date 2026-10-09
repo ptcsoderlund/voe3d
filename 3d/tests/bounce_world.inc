@@ -70,6 +70,7 @@
 #define FADE 16
 #define TINT 3
 #define SHADOW 4
+#define EVEN 2
 // The cascades, the capture passes, a bounce shadow pass for each volume a
 // target holds and the window's.
 #define PASSES                                                          \

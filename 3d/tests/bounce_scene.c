@@ -43,7 +43,6 @@
 
 #include "bounce_world.inc"
 
-#define EVEN 2
 #define BLOCKED 2
 #define OPEN 5
 #define TURNED 3
