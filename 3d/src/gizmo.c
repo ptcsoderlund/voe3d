@@ -21,9 +21,16 @@
 #include <stddef.h>
 
 // A gizmo at the eye itself would divide by nothing. A tenth of a millimetre is
-// nearer than any near plane this engine is used with, so a floor there changes
-// no gizmo anybody can see.
+// nearer than any near plane this engine is used with, so a gizmo whose origin
+// is no deeper is one nobody can see, and it is given no size.
 #define NEAREST_DEPTH 1e-4f
+
+// Nor can anybody see a gizmo whose depth is less than this share of its
+// distance, its origin within a sixteenth of a degree of the eye's own plane:
+// off any picture, and so small against its distance that its float corners
+// round together and a stroke between them has no direction (084, a selected
+// landscape flown past).
+#define BESIDE 1e-3f
 
 // A ray this nearly along an axis, or this nearly in a plane, has no one point
 // on it worth calling the answer: the divisions below would be by nearly
@@ -243,16 +250,18 @@ voe_3d_gizmo voe_3d_gizmo_at(voe_math_double3 origin, voe_render_view view,
 			     float pixels)
 {
 	// `view` is about the eye, so the origin is too.
-	float depth = depth_of(view, voe_math_double3_to_float3(
-					     voe_math_double3_sub(origin, eye)));
+	voe_math_float3 about =
+		voe_math_double3_to_float3(voe_math_double3_sub(origin, eye));
+	float depth = depth_of(view, about);
 
 	VOE_BASE_ASSERT(size.height > 0,
 			"a gizmo sized against a picture of no height");
 	VOE_BASE_ASSERT(pixels > 0.0f, "a gizmo asked to cover no pixels");
 	VOE_BASE_ASSERT(view.projection.m[1][1] > 0.0f,
 			"a projection with no vertical field of view");
-	if (depth < NEAREST_DEPTH)
-		depth = NEAREST_DEPTH;
+	if (depth < NEAREST_DEPTH ||
+	    depth < BESIDE * voe_math_float3_length(about))
+		return (voe_3d_gizmo){ .origin = origin, .eye = eye };
 	return (voe_3d_gizmo){
 		.origin = origin,
 		.eye = eye,
