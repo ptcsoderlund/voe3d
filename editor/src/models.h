@@ -36,10 +36,9 @@
 // notice is set once, not once a frame.
 //
 // A LANDSCAPE IS EDITED IN THE STORE AND ONLY THROUGH THIS FILE (0379 points
-// 4 and 6): its grid is the store's, so the calls into 3d/models.h that draw,
-// settle, write and re-read it are made here and nowhere else. Each frame
-// _frame, inside the draw, draws its dirty chunks transient, and _settle,
-// between frames beside the update, uploads them static again. Save writes
+// 4 and 6): its grid is the store's, so the calls into 3d/models.h that write
+// and re-read it are made here and nowhere else. Each frame _frame, inside the
+// draw, writes its dirty heights into its texture (0396 point 5). Save writes
 // every edited one to its file; a New or Open reads every edited one again.
 // The Landscape panel's size is written at once and re-read at the next
 // update; one re-read waits at a time, enough for a panel that writes at most
@@ -76,16 +75,11 @@ void voe_editor_models_update(voe_editor_models *models,
 			      voe_base_arena *scratch, double now,
 			      voe_game_progress *progress);
 
-// Once a frame, after the draw opens and before any pass: every dirty
-// landscape chunk drawn transient this frame. `scratch` is rewound.
+// Once a frame, after the draw opens and before any pass: the landscapes'
+// dirty heights written into their textures, up to
+// VOE_3D_LANDSCAPE_WRITE_TEXELS, the rest carried to the next frame.
 void voe_editor_models_frame(voe_editor_models *models,
-			     voe_render_device *device, voe_base_arena *scratch);
-
-// Once a frame, between frames: every dirty landscape chunk uploaded static
-// again. A device with no room is one stderr line; the chunk stays dirty.
-void voe_editor_models_settle(voe_editor_models *models,
-			      voe_render_device *device,
-			      voe_base_arena *scratch);
+			     voe_render_device *device);
 
 // Every edited landscape written to `<folder>/<path>` and marked saved. False
 // at the first refused write, `why` naming the file; those before it saved.

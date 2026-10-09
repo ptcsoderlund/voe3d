@@ -6,7 +6,7 @@ carries it out.
 
 - `main.c` — opens the project, window and device, starts and loads scenes on a worker behind a
   live splash, and runs the loop until a close goes ahead or the picture is written, taking the
-  frame breakdown's timings each frame and drawing, settling, saving and reverting landscapes.
+  frame breakdown's timings each frame and writing, saving and reverting landscapes.
 - `loading.h` — the start's and a New or Open load's works for a splash wait: shaders with the
   editor's pipeline cache, shapes and models, or the scene and its models, and what the worker owns.
 - `loading.c` — the two works, each step after a stop check, in the worker's own scratch.
@@ -287,8 +287,8 @@ carries it out.
   emptied on a different project, a broken file in the notice, a splash wait's progress passed on,
   and its landscapes drawn, saved, reverted, put back by a stroke and resized.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
-  with a failure's notice, cleared through the device and destroyed; landscapes drawn transient,
-  settled, written on Save, read again on a New or Open, and a size written and re-read.
+  with a failure's notice, cleared through the device and destroyed; landscapes' heights written
+  in the frame, written on Save, read again on a New or Open, and a size written and re-read.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode and the reveal of a selection made elsewhere.
 - `scene.c` — the selection, Delete and Duplicate, the gizmo's switch, the colour picker and

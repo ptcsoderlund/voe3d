@@ -1,8 +1,8 @@
 // The editor's one model store models.h describes: made empty, emptied on a
 // different folder, filled and re-read through game/models.h once a frame,
 // cleared through the device and destroyed, and handed out read-only; its
-// landscapes drawn transient, settled, written on Save and read again, and one
-// resized, written at once and loaded again at the next update.
+// landscapes' heights written in the frame, written on Save and read again,
+// and one resized, written at once and loaded again at the next update.
 #include "models.h"
 
 #include <base/assert.h>
@@ -144,29 +144,12 @@ void voe_editor_models_update(voe_editor_models *models,
 }
 
 void voe_editor_models_frame(voe_editor_models *models,
-			     voe_render_device *device, voe_base_arena *scratch)
+			     voe_render_device *device)
 {
 	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
-			"drawing landscapes of no store");
-	VOE_BASE_ASSERT(device != NULL && scratch != NULL,
-			"drawing landscapes with no device or scratch");
-	voe_3d_models_landscape_frame(models->store, device, scratch);
-}
-
-void voe_editor_models_settle(voe_editor_models *models,
-			      voe_render_device *device,
-			      voe_base_arena *scratch)
-{
-	voe_base_error error = VOE_BASE_OK;
-
-	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
-			"settling landscapes of no store");
-	VOE_BASE_ASSERT(device != NULL && scratch != NULL,
-			"settling landscapes with no device or scratch");
-	if (!voe_3d_models_landscape_settle(models->store, device, scratch,
-					    &error))
-		VOE_BASE_ERROR("editor", "a landscape stays transient: %s",
-			       voe_base_error_string(error));
+			"writing landscapes of no store");
+	VOE_BASE_ASSERT(device != NULL, "writing landscapes with no device");
+	voe_3d_models_landscape_frame(models->store, device);
 }
 
 // Whether `entry` is a landscape changed since it was loaded or saved.

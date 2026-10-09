@@ -618,10 +618,6 @@ int main(int argc, char *argv[])
 		// The files this frame's rows name, before the draw opens (models.h).
 		voe_editor_models_update(models, &session, gpu, arena,
 					 opened.tick.now, NULL);
-		// Static again only between strokes: a held one draws transient
-		// each frame instead (0379 point 4).
-		if (!scene.sculpt.stroking)
-			voe_editor_models_settle(models, gpu, scratch);
 		voe_editor_assets_update(&scene.assets, session.project->folder,
 					 opened.tick.now);
 		if (!voe_app_draw_open(app, opened.size, &drawing)) {
@@ -631,8 +627,9 @@ int main(int argc, char *argv[])
 		if (!drawing)
 			continue;
 
-		// The landscapes' dirty chunks, transient for this frame's passes.
-		voe_editor_models_frame(models, gpu, scratch);
+		// The landscapes' sculpted heights, written before this frame's
+		// passes (models.h).
+		voe_editor_models_frame(models, gpu);
 		light = voe_editor_view_light(session.project->world);
 
 		// A pass per view the tree shows (view_passes.h). If one is
