@@ -406,6 +406,22 @@ void voe_render_texture_shutdown(voe_render_device *device);
 void voe_render_texture_write_descriptors(voe_render_device *device,
 					  uint32_t slot);
 
+// texture.c, for texture_heights.c too. Builds free `slot`'s image of `format`
+// and `levels`, uploads `size` bytes of `pixels` into level 0 (the chain blitted
+// when `levels` > 1), leaves it shader-readable and idles. False with a message
+// and the slot's handles given back; the caller claims the slot.
+[[nodiscard]] bool voe_render_texture_fill(voe_render_device *device,
+					   struct voe_render_texture_slot *slot,
+					   VkFormat format, uint32_t width,
+					   uint32_t height, uint32_t levels,
+					   const void *pixels, VkDeviceSize size);
+
+// texture_heights.c. Every frame slot's heights staging, capacities.heights_texels
+// floats, mapped; none when nought. Startup's, false with a message; _shutdown is
+// safe on a device that never got that far.
+[[nodiscard]] bool voe_render_texture_heights_startup(voe_render_device *device);
+void voe_render_texture_heights_shutdown(voe_render_device *device);
+
 // texture_levels.c. Record the blits that fill levels 1 .. level_count - 1 of
 // a texture from level 0, into the upload's own command buffer. Level 0 and
 // every other level arrive in TRANSFER_DST and all leave in SHADER_READ_ONLY.

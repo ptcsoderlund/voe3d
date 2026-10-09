@@ -317,6 +317,8 @@ static bool begin_frame(voe_render_device *device, voe_platform_size size,
 	// pools are what the card was reading two frames ago, and the fence is
 	// what says it has stopped.
 	voe_render_geometry_frame_reset(device, frame);
+	// And its heights staging, for the same fence.
+	frame->heights_used = 0;
 
 	if (!device->headless) {
 		result = voe_render_vk.acquire_next_image(device->device,

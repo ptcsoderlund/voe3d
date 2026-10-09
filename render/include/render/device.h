@@ -132,6 +132,11 @@ typedef struct voe_render_device voe_render_device;
 // shaderOutputLayer; on a card without it the device says so once and takes
 // nought. Nought is no point shadows; one texel stays for the binding, and
 // voe_render_point_shadows_ready says which.
+//
+// heights_texels IS THE SIXTH THAT MAY BE NOUGHT, and per frame slot like the
+// transient ones: how many texels one frame may write into heights textures with
+// voe_render_texture_write_heights, staged at 4 bytes each per slot (ADR-0396
+// point 5). Nought is no writes; the first is refused with a message.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
@@ -146,6 +151,7 @@ typedef struct {
 	uint32_t targets;
 	uint32_t shadow_size;
 	uint32_t point_shadow_size;
+	uint32_t heights_texels;
 } voe_render_capacities;
 
 // How many depth maps the sun renders into, near to far: the layers of one frame
@@ -1148,6 +1154,38 @@ bool voe_render_geometry_destroy(voe_render_device *device,
 // target.
 bool voe_render_texture_destroy(voe_render_device *device,
 				voe_render_texture texture);
+
+// A landscape's heights (ADR-0396 point 3): `width` × `height` metres as given,
+// row-major, in an R32F texture of one level that the vertex stage reads with
+// texel loads and no sampler. A startup operation like voe_render_texture_create
+// (it waits for the GPU to go idle) and destroyed by voe_render_texture_destroy.
+// Fails REFUSED with no slot left, a side above 4096 or the card refusing.
+[[nodiscard]] bool voe_render_texture_create_heights(voe_render_device *device,
+						     uint32_t width,
+						     uint32_t height,
+						     const float *heights,
+						     voe_render_texture *out,
+						     voe_base_error *error);
+
+// Writes `values`, `width` × `height` row-major, into a heights texture at
+// (x, y), inside a frame and before its first pass (ADR-0396 point 5). The values
+// are copied into the frame slot's staging and the copy recorded at once, so
+// every pass of the frame reads them.
+//
+// THE ORDER: the staging copy, then a barrier from vertex reads of earlier frames
+// to the transfer, the copy, and a barrier back to vertex reads. A frame still in
+// flight reading the texture is ordered by the queue, not waited for.
+//
+// REFUSED, with the frame still drawing, when the slot's remaining
+// heights_texels are fewer than width × height. Asserts outside a frame, after a
+// pass began, on a rectangle past the texture or a texture not a heights one.
+[[nodiscard]] bool voe_render_texture_write_heights(voe_render_device *device,
+						    voe_render_texture texture,
+						    uint32_t x, uint32_t y,
+						    uint32_t width,
+						    uint32_t height,
+						    const float *values,
+						    voe_base_error *error);
 
 // ---------------------------------------------------------------- shading
 

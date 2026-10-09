@@ -254,6 +254,11 @@ struct voe_render_texture_slot {
 	bool is_target;
 	bool depth;
 	uint32_t target;
+	// A landscape's heights (texture_heights.c): R32F, one level, `width` ×
+	// `height` texels, the one kind voe_render_texture_write_heights takes.
+	bool heights;
+	uint32_t width;
+	uint32_t height;
 };
 
 #define VOE_RENDER_WINDOW_DEPTH UINT32_MAX
@@ -597,6 +602,13 @@ struct voe_render_frame {
 	// at the capacity before it touches either.
 	struct voe_render_transient_pool transient_vertices;
 	struct voe_render_transient_pool transient_indices;
+
+	// This slot's heights staging (ADR-0396 point 5): capacities.heights_texels
+	// floats, mapped for its life, `heights_used` of them spent this frame and
+	// reset at its top. Unbuilt, NULL and nought with no heights_texels.
+	struct voe_render_buffer heights;
+	void *heights_mapped;
+	uint32_t heights_used;
 
 	// Points at this slot's uniform buffer — a dynamic binding, so every bind
 	// of it names a pass's offset — this slot's object buffer, the

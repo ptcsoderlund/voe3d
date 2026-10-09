@@ -471,6 +471,7 @@ static void close_down(voe_render_device *device)
 		// because nothing in here needs one and the order still reads the
 		// way the build order reversed.
 		voe_render_texture_shutdown(device);
+		voe_render_texture_heights_shutdown(device);
 		voe_render_geometry_shutdown(device);
 		voe_render_shading_shutdown(device);
 		voe_render_descriptors_teardown(device);
@@ -656,7 +657,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_geometry_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
-	if (!voe_render_texture_startup(device))
+	if (!voe_render_texture_startup(device) ||
+	    !voe_render_texture_heights_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		voe_render_descriptors_write_shadings(device,
