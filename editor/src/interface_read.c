@@ -99,9 +99,9 @@ static void voe_editor_interface_material_read(const voe_ui_context *ui,
 					scene->material_open);
 	if (row == NULL || memcmp(&row->values, shown, sizeof *shown) == 0)
 		return;
-	maps = strcmp(row->values.colour_map, shown->colour_map) != 0 ||
-	       strcmp(row->values.normal_map, shown->normal_map) != 0 ||
-	       strcmp(row->values.roughness_map, shown->roughness_map) != 0;
+	maps = strcmp(row->values.colormap, shown->colormap) != 0 ||
+	       strcmp(row->values.normalmap, shown->normalmap) != 0 ||
+	       strcmp(row->values.ormmap, shown->ormmap) != 0;
 	row->values = *shown;
 	voe_editor_models_material_changed(models, scene->material_open, maps);
 	VOE_BASE_ASSERT(memcmp(&row->values, shown, sizeof *shown) == 0,

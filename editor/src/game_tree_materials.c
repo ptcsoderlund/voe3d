@@ -70,16 +70,16 @@ static const char *material_entry(voe_base_arena *arena, const char *path,
 		arena,
 		"\t\t{ \"Assets/%s\", { .shader = %s,\n"
 		"\t\t  .colour = { %af, %af, %af }, .roughness = %af, .metal = %af,\n"
-		"\t\t  .repeat = %af, .colour_map = \"%s\", .normal_map = \"%s\",\n"
-		"\t\t  .roughness_map = \"%s\" } },\n",
+		"\t\t  .repeat = %af, .colormap = \"%s\", .normalmap = \"%s\",\n"
+		"\t\t  .ormmap = \"%s\" } },\n",
 		voe_editor_game_tree_c_string(arena, path),
 		m->shader == VOE_ASSETS_MATERIAL_UNLIT ? "VOE_ASSETS_MATERIAL_UNLIT"
 						       : "VOE_ASSETS_MATERIAL_LIT",
 		(double)m->colour[0], (double)m->colour[1], (double)m->colour[2],
 		(double)m->roughness, (double)m->metal, (double)m->repeat,
-		voe_editor_game_tree_c_string(arena, m->colour_map),
-		voe_editor_game_tree_c_string(arena, m->normal_map),
-		voe_editor_game_tree_c_string(arena, m->roughness_map));
+		voe_editor_game_tree_c_string(arena, m->colormap),
+		voe_editor_game_tree_c_string(arena, m->normalmap),
+		voe_editor_game_tree_c_string(arena, m->ormmap));
 	VOE_BASE_ASSERT(out[0] != '\0', "a material entry with no text");
 	return out;
 }

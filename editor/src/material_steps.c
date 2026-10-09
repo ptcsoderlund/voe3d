@@ -82,9 +82,9 @@ void voe_editor_material_step_apply(const voe_editor_material_step *step,
 					step->path);
 	if (row == NULL || folder == NULL)
 		return;
-	maps = strcmp(row->values.colour_map, values->colour_map) != 0 ||
-	       strcmp(row->values.normal_map, values->normal_map) != 0 ||
-	       strcmp(row->values.roughness_map, values->roughness_map) != 0;
+	maps = strcmp(row->values.colormap, values->colormap) != 0 ||
+	       strcmp(row->values.normalmap, values->normalmap) != 0 ||
+	       strcmp(row->values.ormmap, values->ormmap) != 0;
 	row->values = *values;
 	if (!voe_editor_material_step_write(folder, step->path, values, scratch,
 					    &error))

@@ -353,8 +353,8 @@ static void map_fill(voe_assets_material_file *material, uint32_t index,
 		     const char *path)
 {
 	char *const maps[VOE_EDITOR_MATERIAL_MAPS] = {
-		material->colour_map, material->normal_map,
-		material->roughness_map
+		material->colormap, material->normalmap,
+		material->ormmap
 	};
 
 	VOE_BASE_ASSERT(index < VOE_EDITOR_MATERIAL_MAPS, "no such map");

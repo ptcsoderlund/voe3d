@@ -2,7 +2,7 @@
 // `.material` is open (scene.h's `material_open`, 0399 point 8): the file's
 // name as heading, Lit and Unlit with the chosen one lit, Colour as a swatch
 // inside a button, Roughness and Metal as sliders 0–1, Repeat as a number box
-// clamped 0.01–1000, and the Colour, Normal and Roughness map rows, each the
+// clamped 0.01–1000, and the Colormap, Normalmap and ORMmap rows, each the
 // map's file name or "None" with × while set.
 //
 //     voe_editor_inspector_material_forget(&scene->material_controls);
@@ -39,7 +39,7 @@
 // Roughness and Metal: one slider each.
 #define VOE_EDITOR_MATERIAL_SLIDERS 2
 
-// The Colour, Normal and Roughness maps: one row each.
+// The Colormap, Normalmap and ORMmap: one row each.
 #define VOE_EDITOR_MATERIAL_MAPS 3
 
 // Room for a shown figure.

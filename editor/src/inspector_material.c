@@ -46,7 +46,7 @@ static const char *const SLIDER_NAMES[VOE_EDITOR_MATERIAL_SLIDERS] = {
 };
 
 static const char *const MAP_NAMES[VOE_EDITOR_MATERIAL_MAPS] = {
-	"Colour map", "Normal map", "Roughness map"
+	"Colormap", "Normalmap", "ORMmap"
 };
 
 // The number slider `i` writes: roughness, metal.
@@ -63,9 +63,9 @@ static const char *map_path(const voe_assets_material_file *material,
 {
 	VOE_BASE_ASSERT(material != NULL, "a map of no material");
 	VOE_BASE_ASSERT(i < VOE_EDITOR_MATERIAL_MAPS, "no such map");
-	return i == 0 ? material->colour_map :
-	       i == 1 ? material->normal_map :
-			material->roughness_map;
+	return i == 0 ? material->colormap :
+	       i == 1 ? material->normalmap :
+			material->ormmap;
 }
 
 // What follows the last `/` of `path`, `path` itself without one.
@@ -216,8 +216,8 @@ void voe_editor_inspector_material_read(const voe_ui_context *ui,
 
 	// Indexed as map_path's.
 	char *const maps[VOE_EDITOR_MATERIAL_MAPS] = {
-		material->colour_map, material->normal_map,
-		material->roughness_map
+		material->colormap, material->normalmap,
+		material->ormmap
 	};
 
 	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_SHADERS; i++)
