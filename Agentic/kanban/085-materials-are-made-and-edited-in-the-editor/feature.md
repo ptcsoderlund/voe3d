@@ -11,7 +11,7 @@ Edits are undoable and are saved in the project.
 0374 has me edit materials at least far enough to make the ground's layers. Those layers are 086's input.
 
 ## How to test
-1. Import a dirt texture set (colour, normal, roughness) into Assets. Create → Material, named Dirt, and
+1. Import a dirt texture set (colour, normal, ORM) into Assets. Create → Material, named Dirt, and
    drag the three textures into its slots.
 2. Give Dirt to a cube. The cube shows the dirt, with bumps in the light.
 3. Change the repeat from 1 to 4. The texture tiles four times across each face at once.
