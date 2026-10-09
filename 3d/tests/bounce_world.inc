@@ -16,8 +16,8 @@
 // as the editor's step does; a move is an intent that frame applies.
 //
 // THE FRAME: voe_3d_draw_system_frame, _point_lights, _light_blockers,
-// _shadows with `frame.target` the window, the window's pass, _run, frame end.
-// Nothing hand-fitted.
+// _shadows with `frame.target` the window and `frame.casters` the memory the
+// world keeps (0394), the window's pass, _run, frame end. Nothing hand-fitted.
 //
 // SETTLED, COUNTED AS bounce.c COUNTS: by `passes`. A full frame has room for
 // the cascades, VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes, a sun map per
@@ -97,6 +97,7 @@ typedef struct {
 	voe_ecs_entity camera;
 	voe_ecs_entity box;
 	voe_ecs_entity sun;
+	voe_3d_bounce_casters *casters;
 	voe_render_device *device;
 	voe_base_arena *scratch;
 	voe_base_arena *keep;
@@ -146,6 +147,7 @@ static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces,
 	float pitch = atan2f(5.0f, 8.0f);
 
 	s->world = voe_ecs_world_new(s->keep, limits);
+	s->casters = voe_base_arena_push(s->keep, sizeof(*s->casters));
 	voe_scene_transform_register(s->world, 8);
 	voe_scene_transform_previous_register(s->world, 8);
 	voe_scene_camera_register(s->world, 2);
@@ -220,6 +222,7 @@ static voe_3d_frame begin_a_frame(scene *s, bool *drawing)
 	voe_scene_transform_system_run(s->world);
 	frame = voe_3d_draw_system_frame(s->world, size, 0.0f);
 	frame.target = VOE_RENDER_TARGET_WINDOW;
+	frame.casters = s->casters;
 	VOE_TEST_CHECK(voe_3d_draw_system_point_lights(s->world, &frame,
 						       s->scratch));
 	VOE_TEST_CHECK(voe_3d_draw_system_light_blockers(s->world, &frame,

@@ -65,7 +65,8 @@ again, or to find where a claim that has started failing is written down.
   `bounce_world.inc`'s. Skips without a card.
 - `bounce_tint.c` — that a 1 m purple cube under a low sun tints the ground beside it, more at
   strength 5 and back at 2; a red slab reddens its face; moved, it leaves no ring; recoloured, it
-  tints green; and a whole relight after a move keeps the tint. Skips without a card.
+  tints green; a whole relight after a move keeps the tint; and removed, it leaves no tint, a new
+  one where it stood tinting again. Skips without a card.
 - `bounce_world.inc` — the bounce tests' harness: the floor, sun and placed box, the reference at
   bounces 0, one frame through the shadows call, the settle, the window read and a point's pixel.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and

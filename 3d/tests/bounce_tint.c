@@ -50,11 +50,13 @@
 // every channel, and its red less green above the reference's by at least
 // TINT/255.
 //
-// Follows 0387 and 0389 (the nests and what a lights change relights), 0390
-// (the read beside a box) and 0393 (the tint back after a whole relight).
+// A REMOVED BOX LEAVES NO TINT (step 5, 0394): the purple cube destroyed and
+// settled, the 0.25 m ground within EVEN/255 of the reference; then a new cube
+// where it stood, as the editor's undo makes one, raised from under the floor
+// as the slab is, settled: that ground tinted as in the first case again.
 //
-// IT NEEDS A GRAPHICS CARD WITH shaderOutputLayer AND SKIPS WITH A REASON
-// WITHOUT ONE, as bounce_scene.c does.
+// Follows 0387, 0389, 0390, 0393 and 0394. IT NEEDS A GRAPHICS CARD WITH
+// shaderOutputLayer AND SKIPS WITH A REASON WITHOUT ONE, as bounce_scene.c does.
 #include <scene/light_system.h>
 
 #include <stdlib.h>
@@ -332,7 +334,7 @@ static void the_patch(scene *s, uint8_t rgb[3])
 		rgb[c] = p[c];
 }
 
-// The last case of the header.
+// The fifth case of the header.
 static void a_whole_relight_after_a_move_keeps_the_tint(scene *s,
 							 const voe_3d_shapes *shapes)
 {
@@ -379,6 +381,46 @@ static void a_whole_relight_after_a_move_keeps_the_tint(scene *s,
 		       TINT);
 }
 
+// The last case of the header.
+static void a_removed_box_leaves_no_tint(scene *s, const voe_3d_shapes *shapes)
+{
+	voe_scene_transform stood;
+	voe_math_float3 near;
+	uint8_t removed[1][3];
+	uint8_t back[1][3];
+	uint8_t reference[1][3];
+	scene plain;
+	bool even;
+	bool tinted;
+
+	a_purple_world(s, shapes);
+	stood = *voe_scene_transform_get(s->world, s->box);
+	near = beside(s, 0.25f);
+	plain = a_low_reference(s, shapes);
+	looks(&plain, 1, &near, reference);
+	voe_ecs_entity_destroy(s->world, s->box);
+	VOE_TEST_CHECK(settles(s));
+	looks(s, 1, &near, removed);
+	s->box = add_a_shape(s->world,
+			     (voe_math_double3){ stood.position.x, -1.0,
+						 stood.position.z },
+			     stood.scale, PURPLE);
+	voe_3d_shape_system_run(s->world, shapes);
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		s->world, (voe_scene_transform_intent){ s->box, stood }));
+	VOE_TEST_CHECK(settles(s));
+	looks(s, 1, &near, back);
+
+	even = within(removed[0], reference[0], EVEN);
+	tinted = purple_tinted(back[0], reference[0]);
+	if (!(even && tinted)) {
+		print_reads("removed", 1, removed, reference);
+		print_reads("new where it stood", 1, back, reference);
+	}
+	VOE_TEST_CHECK(even);
+	VOE_TEST_CHECK(tinted);
+}
+
 // `run` on a new device and arenas. Returns false when the device skips.
 static bool on_a_device_of_its_own(void (*run)(scene *, const voe_3d_shapes *))
 {
@@ -418,6 +460,7 @@ int main(void)
 		a_moved_box_leaves_no_ring,
 		a_recoloured_box_tints_its_new_colour,
 		a_whole_relight_after_a_move_keeps_the_tint,
+		a_removed_box_leaves_no_tint,
 	};
 
 	for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)

@@ -101,8 +101,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
   the eye with its rows and sphere, flat ones and those past 32 left out, the Direct and Fill bits,
   the sun's mask, and light rows 2 to 4 each masked at its place.
-- `draw_bounce.h` — the frame's probe bounce, this step's stale spheres, the still casters' box
-  and the cascades' caster walk and casting test it shares; internal.
+- `draw_bounce.h` — the frame's probe bounce, this step's stale spheres and the removed casters'
+  after them, the caster walk and measure bounce_casters.c shares, the still casters' box, and the
+  cascades' caster walk and casting test; internal.
+- `bounce_casters.c` — a removed caster's sphere where the target's memory saw it last, then the
+  memory refilled with this frame's casters.
 - `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' world
   box, the bounce begun with every sun, lamp, blocker and stale sphere, the casters drawn into each
   capture pass and casting sun's map, and the relight; after a refused pass the later volumes

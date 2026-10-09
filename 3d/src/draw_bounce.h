@@ -18,7 +18,8 @@
 // position, rotation or scale marks one at each place. One never remembered in
 // a world that has a previous table is new, and one the shape system changed
 // this step recoloured; each marks one where it is. A world with no previous
-// table marks only recolours; a removed caster marks nothing.
+// table marks only recolours. A removed caster marks one where the frame's
+// memory saw it last (0394), bounce_casters.c's.
 //
 // THE GRID IS FITTED TO THE LEVEL, NOT THE EYE (0331): to the still casters'
 // box (0332 point 1), so a camera that moves never moves it.
@@ -62,6 +63,40 @@ uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
 			     const voe_3d_frame *frame,
 			     voe_math_float4 *spheres, uint32_t room);
 
+// Every caster a capture draws, as voe_3d_bounce_stale marks them: world-layer
+// meshes with a casting material and a transform, then, with `frame->models`,
+// model rows with a transform and a casting part, the frame's `hidden` left
+// out. Each goes to `visit` with `context`, its mesh's geometry, and its
+// model's entry or NULL; the walk stops when `visit` returns false.
+void voe_3d_bounce_walk(const voe_ecs_world *world, const voe_3d_frame *frame,
+			bool (*visit)(void *context, voe_ecs_entity entity,
+				      voe_render_geometry geometry,
+				      const voe_3d_model_entry *model),
+			void *context);
+
+// A caster's place at `lag` into `centre`, in double about the world origin,
+// and its world bounding radius there: half the diagonal of the box of
+// `geometry` when `model` is NULL, else of `model`'s casting parts, grown as
+// voe_3d_bounce_box grows one; nought when no id names anything.
+float voe_3d_bounce_caster_sphere(const voe_ecs_world *world,
+				  const voe_render_device *device,
+				  voe_ecs_entity entity,
+				  voe_render_geometry geometry,
+				  const voe_3d_model_entry *model, float lag,
+				  voe_math_double3 *centre);
+
+// The removed casters' spheres into `spheres` (0394): one for each caster
+// `frame->casters` remembers that this walk no longer visits, at its
+// remembered centre about the frame's eye, w its remembered radius; the
+// count, never past `room`. Then the memory holds this frame's casters, centre
+// and radius at lag 0 as voe_3d_bounce_caster_sphere gives them, those of no
+// size left out. With `frame->casters` NULL, none and nothing written.
+// bounce_casters.c.
+uint32_t voe_3d_bounce_removed(const voe_ecs_world *world,
+			       const voe_render_device *device,
+			       const voe_3d_frame *frame,
+			       voe_math_float4 *spheres, uint32_t room);
+
 // The world box, in double about the world origin, of every caster drawn into
 // a capture pass (meshes and the frame's model parts) that did not move this
 // step, into `min` and `max`; false and nothing written when none is still. A
@@ -73,7 +108,8 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 
 // Fits the probe volume to the still casters' box (voe_3d_bounce_box), not the
 // eye, begins `frame->target`'s bounce at the fitted spacing with this step's
-// stale spheres, the frame's light with light row 0's
+// stale spheres and after them the removed casters' (voe_3d_bounce_removed),
+// in the room left, the frame's light with light row 0's
 // `bounces` and `bounce_strength` (nought with no row), the frame's further
 // lights as `more` (0357 point 1) and `frame->points`; then opens capture
 // passes while render opens one, drawing the casters into each. Then one bounce

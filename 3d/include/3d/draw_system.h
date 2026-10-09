@@ -59,6 +59,7 @@
 // light tables already state below.
 #pragma once
 
+#include <3d/bounce_casters.h>
 #include <3d/brush_marker.h>
 #include <3d/camera_marker.h>
 #include <3d/collider_marker.h>
@@ -409,6 +410,10 @@ typedef struct {
 	// begins, captures and relights (0326 point 8). Zero, VOE_RENDER_TARGET_WINDOW, is the
 	// window, so a caller that sets nothing is unchanged; _frame sets that.
 	voe_render_target target;
+	// Where the casters of `target`'s last bounce stood, so a removed one
+	// marks there (0394), NULL for none. _frame leaves it NULL; the caller
+	// sets it per target, and only the shadows call writes it.
+	voe_3d_bounce_casters *casters;
 } voe_3d_frame;
 
 // The share of D, the 17th casting lamp's distance, where a point light's
@@ -618,7 +623,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // box's diagonal, render adding the reach: two where a caster moved, turned or
 // scaled this step (lag 1 against lag 0), one where it is when it is new or the
 // shape system changed it. A world without a previous table marks only
-// recolours, and a removed caster marks nothing yet (0389).
+// recolours. A removed caster marks one where `frame->casters` remembers it
+// standing, and nothing with NULL (0394).
 // When nothing bounces nothing is begun, built or drawn (0316); false as before
 // when any call fails. The bounce is handed `frame->blockers` (0347 point 4), so
 // voe_3d_draw_system_light_blockers comes first, and a blocker that changes
