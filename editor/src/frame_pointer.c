@@ -37,7 +37,8 @@ static bool fly(voe_editor_frame_pointer *frame,
 				       .up = down[VOE_PLATFORM_KEY_E],
 				       .down = down[VOE_PLATFORM_KEY_Q],
 				       .fast = input->shift,
-				       .notches = -input->wheel.y },
+				       .notches = -input->wheel.y,
+				       .middle = input->middle },
 		input->seconds);
 	if (flying != frame->flew && frame->window != NULL)
 		voe_platform_input_lock_pointer(frame->window, flying);

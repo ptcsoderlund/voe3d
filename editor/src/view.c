@@ -37,7 +37,8 @@
 // The fly's rates (0233): radians per unit of the platform's pointer motion,
 // the speed a view starts at in metres a second, and how many times that
 // while `fast` is held. A wheel notch while flying scales the view's own
-// speed by FLY_NOTCH, kept between FLY_SLOWEST and FLY_FASTEST (0396 point 7).
+// speed by FLY_NOTCH, kept between FLY_SLOWEST and FLY_FASTEST (0396 point 7);
+// a middle press while flying puts it back to FLY_METRES_PER_SECOND first.
 #define FLY_RADIANS_PER_UNIT 0.004f
 #define FLY_METRES_PER_SECOND 4.0f
 #define FLY_FAST 3.0f
@@ -420,7 +421,8 @@ void voe_editor_views_drag(voe_editor_views *views, voe_math_float2 pointer,
 // yaw falling; moving it down looks down, which is pitch falling. The eye stays
 // and the focus is put `distance` ahead of it along the new look.
 static void fly_view(voe_editor_view *view, voe_math_float2 turn,
-		     voe_editor_fly_keys keys, float seconds)
+		     voe_editor_fly_keys keys, bool middle_pressed,
+		     float seconds)
 {
 	view->yaw -= turn.x * FLY_RADIANS_PER_UNIT;
 	view->pitch -= turn.y * FLY_RADIANS_PER_UNIT;
@@ -437,6 +439,8 @@ static void fly_view(voe_editor_view *view, voe_math_float2 turn,
 	view->focus =
 		moved(view->eye, voe_math_float3_scale(forward, view->distance));
 
+	if (middle_pressed)
+		view->fly_speed = FLY_METRES_PER_SECOND;
 	view->fly_speed *= powf(FLY_NOTCH, keys.notches);
 	if (view->fly_speed < FLY_SLOWEST)
 		view->fly_speed = FLY_SLOWEST;
@@ -482,7 +486,8 @@ bool voe_editor_views_fly(voe_editor_views *views, voe_math_float2 pointer,
 		views->flying = VOE_EDITOR_VIEW_NONE;
 
 	if (views->flying != VOE_EDITOR_VIEW_NONE)
-		fly_view(&views->views[views->flying], turn, keys, seconds);
+		fly_view(&views->views[views->flying], turn, keys,
+			 keys.middle && !views->middle_was_down, seconds);
 
 	views->right_was_down = right;
 	VOE_BASE_ASSERT(views->flying == VOE_EDITOR_VIEW_NONE ||
