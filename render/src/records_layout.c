@@ -104,6 +104,8 @@ static_assert(offsetof(voe_render_shading_values, base_colour_texture) == 48,
 	      "the shading record's texture ids moved; draw.slang has them at 48");
 static_assert(offsetof(voe_render_shading_values, water) == 72,
 	      "the shading record's water flag moved; draw.slang has it at 72");
+static_assert(offsetof(voe_render_shading_values, uv_repeat) == 76,
+	      "the shading record's uv repeat moved; draw.slang has it at 76");
 static_assert(offsetof(voe_render_shading_values, base_colour_uv_rect) == 80,
 	      "the shading record's UV rect moved; draw.slang has it at 80");
 

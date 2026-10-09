@@ -431,12 +431,17 @@ typedef struct {
 	// Zero is every other surface, drawn as before. The second word that
 	// used to be reserved_c; draw it blended.
 	uint32_t water;
-	uint32_t reserved_c;
+	// How many times the maps repeat across the mesh (ADR-0399 point 3): the
+	// fragment stage multiplies the mesh's texture coordinates by it before
+	// any of the five maps is read and before `base_colour_uv_rect` below.
+	// Zero reads as one, so a zeroed record is unchanged. The third word that
+	// used to be reserved_c; same offset, same size.
+	float uv_repeat;
 	// Which rectangle of the base colour texture this record reads: `xy` is
 	// the offset added and `zw` the scale multiplied, so the fragment stage
-	// samples `uv * zw + xy`. One multiply-add, applied to the base colour
-	// texture and to nothing else — the other four maps are read at the
-	// vertex's own coordinates.
+	// samples `uv * uv_repeat * zw + xy`. One multiply-add after the repeat,
+	// applied to the base colour texture and to nothing else — the other
+	// four maps are read at the vertex's own coordinates times `uv_repeat`.
 	//
 	// IT IS WHAT MAKES A SHEET OF FRAMES ONE GEOMETRY AND ONE TEXTURE. The
 	// quad's own coordinates are 0..1 and every frame in a sprite sheet

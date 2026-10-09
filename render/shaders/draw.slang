@@ -347,6 +347,13 @@ float3 voe_render_mapped_normal(float3 normal, float3 texel, float3 world_dx,
 
 #include "water.slangh"
 
+// The mesh's uv times the record's repeat, 0 read as 1 so a zeroed record is
+// unchanged: what every map read in this file starts from.
+float2 voe_render_repeated_uv(voe_render_shading shading, float2 uv)
+{
+	return uv * (shading.uv_repeat != 0.0 ? shading.uv_repeat : 1.0);
+}
+
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 {
@@ -378,10 +385,14 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// AND THE BASE COLOUR IS THE ONE MAP READ THROUGH A RECT. `uv * zw + xy`
 	// puts a whole sheet of frames behind one geometry — see
 	// voe_render_shading_values in render/device.h. The other four maps are
-	// read at the vertex's own coordinates: a sheet of frames is what a
+	// read at the repeated coordinates alone: a sheet of frames is what a
 	// picture on a surface is not, and a material whose roughness came out
 	// of a grid of cells is a card nothing has asked for.
-	float2 base_uv = vertex.uv * shading.base_colour_uv_rect.zw +
+	//
+	// THE REPEAT COMES FIRST, ONCE, FOR ALL FIVE (ADR-0399 point 3): every
+	// map below and the rect read `uv`, never vertex.uv.
+	float2 uv = voe_render_repeated_uv(shading, vertex.uv);
+	float2 base_uv = uv * shading.base_colour_uv_rect.zw +
 			 shading.base_colour_uv_rect.xy;
 	float4 sheet =
 		voe_render_textures[shading.base_colour_texture].Sample(base_uv);
@@ -390,18 +401,18 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// that puts its occlusion in the same picture points its occlusion
 	// texture at it as well, and then this samples the same slot twice.
 	float4 orm =
-		voe_render_textures[shading.metallic_roughness_texture].Sample(vertex.uv);
+		voe_render_textures[shading.metallic_roughness_texture].Sample(uv);
 	float occlusion =
-		voe_render_textures[shading.occlusion_texture].Sample(vertex.uv).r;
+		voe_render_textures[shading.occlusion_texture].Sample(uv).r;
 	float3 tilt =
-		voe_render_textures[shading.normal_texture].Sample(vertex.uv).rgb;
+		voe_render_textures[shading.normal_texture].Sample(uv).rgb;
 	float3 glow =
-		voe_render_textures[shading.emissive_texture].Sample(vertex.uv).rgb;
+		voe_render_textures[shading.emissive_texture].Sample(uv).rgb;
 	// The tangent frame's derivatives, taken here for the same reason.
 	float3 world_dx = ddx(vertex.world);
 	float3 world_dy = ddy(vertex.world);
-	float2 uv_dx = ddx(vertex.uv);
-	float2 uv_dy = ddy(vertex.uv);
+	float2 uv_dx = ddx(uv);
+	float2 uv_dy = ddy(uv);
 
 	// The distance-field reading of that same sample, worked out here whether
 	// or not this material wants it. Unconditional because of fwidth: see the
@@ -586,7 +597,8 @@ voe_render_capture_targets voe_render_capture_fragment(voe_render_capture_in ver
 	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
 	voe_render_shading shading = voe_render_shadings[object.shading];
 	float4 factor = shading.base_colour * object.colour;
-	float2 base_uv = vertex.uv * shading.base_colour_uv_rect.zw +
+	float2 base_uv = voe_render_repeated_uv(shading, vertex.uv) *
+				 shading.base_colour_uv_rect.zw +
 			 shading.base_colour_uv_rect.xy;
 	float4 sheet =
 		voe_render_textures[shading.base_colour_texture].Sample(base_uv);
