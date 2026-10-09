@@ -9,6 +9,7 @@ and the questions each header answers, stays on `assets/assets.md`.
   RGBA8 encoded back as a PNG.
 - `sectioned.h` — the engine's own authored text format: `[Section]` headers and
   `key=value` lines, handed back as text and never interpreted.
-- `landscape.h` — a `.landscape` file's text to a grid of heights, and back.
+- `landscape.h` — a `.landscape` file's text to a grid of up to 2048 cells of
+  heights, and back, and a grid resampled to another count.
 - `sound.h` — sounds: 16-bit PCM and 32-bit float WAV decoded to interleaved
   float.

@@ -1,5 +1,6 @@
-// The landscape file: a written grid reads back as itself, heights round to the
-// millimetre, and each refusal comes with its category.
+// The landscape file: a written grid reads back as itself up to 2048 cells,
+// heights round to the millimetre, a resample keeps a plane and its corners,
+// and each refusal comes with its category.
 //
 // The files refused are written by hand at four cells, the smallest a file may
 // have, so each case shows the one thing wrong with it.
@@ -8,6 +9,7 @@
 
 #include <testing/test.h>
 
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -48,6 +50,83 @@ static void flat_written_reads_back_the_same(voe_base_arena *arena)
 	for (size_t i = 0; i < count; i++)
 		all_zero = all_zero && back.heights[i] == 0.0f;
 	VOE_TEST_CHECK(all_zero);
+}
+
+static void the_largest_grid_reads_back_the_same(voe_base_arena *arena)
+{
+	const uint32_t cells = VOE_ASSETS_LANDSCAPE_CELLS_MAX;
+	const size_t count = ((size_t)cells + 1) * ((size_t)cells + 1);
+	voe_assets_landscape big = voe_assets_landscape_flat(4096.0f, cells,
+							     arena);
+	voe_assets_landscape_text text;
+	voe_assets_landscape back;
+	bool same = true;
+
+	for (size_t i = 0; i < count; i++)
+		big.heights[i] = (float)((double)(i % 1000) / 1000.0);
+	text = voe_assets_landscape_write(&big, arena);
+	VOE_TEST_CHECK(voe_assets_landscape_read(text.text, text.size, arena,
+						 &back, NULL));
+	VOE_TEST_CHECK_INT(back.cells, cells);
+	for (size_t i = 0; i < count; i++)
+		same = same && back.heights[i] == big.heights[i];
+	VOE_TEST_CHECK(same);
+}
+
+// The plane h = 0.5 x + 0.25 z over a 64 m square at `cells`.
+static voe_assets_landscape tilted_plane(uint32_t cells, voe_base_arena *arena)
+{
+	voe_assets_landscape plane = voe_assets_landscape_flat(64.0f, cells,
+							       arena);
+	const float step = 64.0f / (float)cells;
+
+	for (uint32_t r = 0; r <= cells; r++)
+		for (uint32_t c = 0; c <= cells; c++)
+			plane.heights[r * (cells + 1) + c] =
+				0.5f * (-32.0f + (float)c * step) +
+				0.25f * (-32.0f + (float)r * step);
+	return plane;
+}
+
+static void a_plane_resampled_up_and_down_is_the_same(voe_base_arena *arena)
+{
+	const voe_assets_landscape eight = tilted_plane(8, arena);
+	const voe_assets_landscape sixteen_expected = tilted_plane(16, arena);
+	const voe_assets_landscape sixteen =
+		voe_assets_landscape_resample(&eight, 16, arena);
+	const voe_assets_landscape back =
+		voe_assets_landscape_resample(&sixteen, 8, arena);
+	bool close = true;
+
+	VOE_TEST_CHECK_INT(sixteen.cells, 16);
+	VOE_TEST_CHECK(sixteen.size == 64.0f && back.size == 64.0f);
+	for (size_t i = 0; i < 17 * 17; i++)
+		close = close && fabsf(sixteen.heights[i] -
+				       sixteen_expected.heights[i]) < 1e-4f;
+	for (size_t i = 0; i < 9 * 9; i++)
+		close = close && fabsf(back.heights[i] - eight.heights[i]) < 1e-4f;
+	VOE_TEST_CHECK(close);
+}
+
+static void a_resample_keeps_corners_and_the_same_count_copies(
+	voe_base_arena *arena)
+{
+	voe_assets_landscape rough = voe_assets_landscape_flat(64.0f, 8, arena);
+	voe_assets_landscape twelve;
+	voe_assets_landscape copy;
+
+	for (size_t i = 0; i < 9 * 9; i++)
+		rough.heights[i] = (float)((i * 37) % 11) - 5.0f;
+	twelve = voe_assets_landscape_resample(&rough, 12, arena);
+	VOE_TEST_CHECK(twelve.heights[0] == rough.heights[0]);
+	VOE_TEST_CHECK(twelve.heights[12] == rough.heights[8]);
+	VOE_TEST_CHECK(twelve.heights[12 * 13] == rough.heights[8 * 9]);
+	VOE_TEST_CHECK(twelve.heights[13 * 13 - 1] == rough.heights[9 * 9 - 1]);
+
+	copy = voe_assets_landscape_resample(&rough, 8, arena);
+	VOE_TEST_CHECK(copy.heights != rough.heights);
+	VOE_TEST_CHECK(memcmp(copy.heights, rough.heights,
+			      9 * 9 * sizeof(float)) == 0);
 }
 
 static void heights_round_to_the_millimetre(voe_base_arena *arena)
@@ -124,7 +203,7 @@ static void cells_not_a_multiple_of_four_is_unsupported(voe_base_arena *arena)
 		   VOE_BASE_ERROR_UNSUPPORTED);
 	refused_as(arena, "[Landscape]\nsize=64\ncells=0\n[Heights]\n",
 		   VOE_BASE_ERROR_UNSUPPORTED);
-	refused_as(arena, "[Landscape]\nsize=64\ncells=516\n[Heights]\n",
+	refused_as(arena, "[Landscape]\nsize=64\ncells=2052\n[Heights]\n",
 		   VOE_BASE_ERROR_UNSUPPORTED);
 }
 
@@ -141,6 +220,9 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
 
 	flat_written_reads_back_the_same(arena);
+	the_largest_grid_reads_back_the_same(arena);
+	a_plane_resampled_up_and_down_is_the_same(arena);
+	a_resample_keeps_corners_and_the_same_count_copies(arena);
 	heights_round_to_the_millimetre(arena);
 	a_short_row_is_malformed(arena);
 	a_missing_row_is_malformed(arena);
