@@ -16,8 +16,9 @@
 
 // THE RIGHT BUTTON FLIES THE VIEW IT WENT DOWN OVER (view.h), never while the
 // browser shows, turned by the mouse's motion and moved by W, S, A, D, E and
-// Q, Shift three times as fast. While it flies the pointer is locked and
-// hidden, and put back where it was on the frame it stops.
+// Q, Shift three times as fast, the wheel setting its speed. While it flies
+// the pointer is locked and hidden, and put back where it was on the frame it
+// stops. The wheel's +y is towards the person, so a notch up is −y.
 static bool fly(voe_editor_frame_pointer *frame,
 		const voe_editor_frame_pointer_input *input)
 {
@@ -35,7 +36,8 @@ static bool fly(voe_editor_frame_pointer *frame,
 				       .right = down[VOE_PLATFORM_KEY_D],
 				       .up = down[VOE_PLATFORM_KEY_E],
 				       .down = down[VOE_PLATFORM_KEY_Q],
-				       .fast = input->shift },
+				       .fast = input->shift,
+				       .notches = -input->wheel.y },
 		input->seconds);
 	if (flying != frame->flew && frame->window != NULL)
 		voe_platform_input_lock_pointer(frame->window, flying);
@@ -192,9 +194,11 @@ voe_editor_frame_pointer_read(voe_editor_frame_pointer *frame,
 			frame->views, frame->scene, frame->geometries,
 			voe_editor_models_store(frame->models),
 			frame->root->pointer.at);
+	// A flying view took the wheel too, so `ui` scrolls nothing under it.
 	if (result.flying) {
 		frame->root->pointer.over = false;
 		frame->root->pointer.down = false;
+		frame->root->pointer.scroll = (voe_math_float2){ 0 };
 		left = false;
 	}
 

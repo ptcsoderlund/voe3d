@@ -552,9 +552,10 @@ int main(int argc, char *argv[])
 		// handed values and never asks a window anything.
 		// EVERY READ OF THE WINDOW IS IN HERE. Notches since the last
 		// poll are turned into a length once, and nothing else reads the
-		// wheel: a scene view takes the middle button and no wheel at
-		// all, so a wheel over one is a scroll no area under the pointer
-		// can take and is dropped.
+		// wheel: a scene view takes the middle button and no wheel
+		// unless it is flying (frame_pointer.c), so a wheel over one is
+		// otherwise a scroll no area under the pointer can take and is
+		// dropped.
 		if (window != NULL) {
 			pointer = voe_platform_input_pointer(window);
 			wheel = voe_platform_input_wheel(window);
@@ -598,6 +599,7 @@ int main(int argc, char *argv[])
 				&reads,
 				&(voe_editor_frame_pointer_input){
 					.pointer = pointer, .motion = motion,
+					.wheel = wheel,
 					.keyboard = &keyboard, .text = &text,
 					.left = left, .middle = middle,
 					.right = right, .shift = shift,

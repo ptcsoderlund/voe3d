@@ -89,6 +89,8 @@ typedef struct {
 typedef struct {
 	voe_platform_pointer pointer;
 	voe_platform_motion motion;
+	// The wheel's notches since the last poll, as platform reports them.
+	voe_platform_wheel wheel;
 	const voe_editor_keys_frame *keyboard;
 	const voe_platform_text *text;
 	bool left;

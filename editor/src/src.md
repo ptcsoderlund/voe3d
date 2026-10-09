@@ -271,7 +271,8 @@ carries it out.
   and why names and only authored ones.
 - `entity_field.c` — the identity table sorted by id into the choices, and a name or "None" as the
   label.
-- `view.h` — a scene view: its orbit, target, remembered casters and input, the glide to a focus,
+- `view.h` — a scene view: its orbit, target, remembered casters and input, the fly's speed the
+  wheel sets, the glide to a focus,
   the view under the pointer, the colours it is drawn with, and the preview of what the world's
   camera sees.
 - `view.c` — the views' orbit, which owns the eye, the drag's and fly's rates, the glide, their

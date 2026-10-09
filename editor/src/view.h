@@ -107,6 +107,9 @@ typedef struct {
 	// the eye stands from it. The distance is always above nought.
 	voe_math_double3 focus;
 	float distance;
+	// The metres a second this view flies at before Shift, set by the wheel
+	// while it flies and kept for its next fly (0396 point 7).
+	float fly_speed;
 
 	// The glide: whether one is under way, the focus and distance it left
 	// and is going to, and the seconds gone since it began.
@@ -135,7 +138,8 @@ typedef struct {
 } voe_editor_view;
 
 // The keys the fly moves by, each the level of whichever key the caller maps
-// to it: along the look, across it level, along world ±Y, and three times as fast.
+// to it: along the look, across it level, along world ±Y, and three times as fast;
+// and the wheel's notches this frame, positive turned away from the person (up).
 typedef struct {
 	bool forward;
 	bool back;
@@ -144,6 +148,7 @@ typedef struct {
 	bool up;
 	bool down;
 	bool fast;
+	float notches;
 } voe_editor_fly_keys;
 
 // Every view, the middle-button drag and the right-button fly. `captured` is
@@ -253,7 +258,9 @@ void voe_editor_views_drag(voe_editor_views *views, voe_math_float2 pointer,
 // view (as voe_editor_views_under reads it), while no middle drag holds a view,
 // makes that view the flying one until `right` goes up. While it flies, `turn`
 // — the pointer's motion in the platform's units, +x right, +y down — turns it
-// about its eye, and `keys` move it for `seconds`. `pointer` is in the root
+// about its eye, and `keys` move it for `seconds` at the view's own speed. Each
+// notch up multiplies that speed by 1.25 and each down divides it, clamped to
+// 0.5 .. 1000 m/s and kept for the view's next fly. `pointer` is in the root
 // surface's millimetres. Returns whether a view is flying after this call.
 bool voe_editor_views_fly(voe_editor_views *views, voe_math_float2 pointer,
 			  bool right, voe_math_float2 turn,

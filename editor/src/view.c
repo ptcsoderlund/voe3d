@@ -35,10 +35,15 @@
 #define DOLLY_METRES_PER_MILLIMETRE 0.05f
 
 // The fly's rates (0233): radians per unit of the platform's pointer motion,
-// metres a second, and how many times that while `fast` is held.
+// the speed a view starts at in metres a second, and how many times that
+// while `fast` is held. A wheel notch while flying scales the view's own
+// speed by FLY_NOTCH, kept between FLY_SLOWEST and FLY_FASTEST (0396 point 7).
 #define FLY_RADIANS_PER_UNIT 0.004f
 #define FLY_METRES_PER_SECOND 4.0f
 #define FLY_FAST 3.0f
+#define FLY_NOTCH 1.25f
+#define FLY_SLOWEST 0.5f
+#define FLY_FASTEST 1000.0f
 
 // How close a dolly may bring the eye to the focus. Above nought, because an eye
 // on its focus has no direction to look in.
@@ -49,10 +54,12 @@
 // turn that axis is nothing.
 #define PITCH_LIMIT 1.55f
 
-// What every view sees with. Radians and metres.
+// What every view sees with. Radians and metres. The far plane reaches an
+// 8 km landscape's far corner from its opposite one (8000 · √2 ≈ 11.3 km)
+// with room above it, so a view sees a whole terrain to its edge (0396).
 #define FIELD_OF_VIEW 0.9f
 #define NEAR_PLANE 0.1f
-#define FAR_PLANE 200.0f
+#define FAR_PLANE 16000.0f
 
 // The size a target is made at, before a panel has said how big it is. It is
 // drawn at this for one frame and resized on the next.
@@ -119,6 +126,7 @@ bool voe_editor_views_create(voe_editor_views *views, voe_render_device *gpu,
 			.far_plane = FAR_PLANE,
 		};
 		view->distance = first_cameras[i].distance;
+		view->fly_speed = FLY_METRES_PER_SECOND;
 		orbit_place(view);
 
 		view->width = FIRST_WIDTH;
@@ -429,6 +437,12 @@ static void fly_view(voe_editor_view *view, voe_math_float2 turn,
 	view->focus =
 		moved(view->eye, voe_math_float3_scale(forward, view->distance));
 
+	view->fly_speed *= powf(FLY_NOTCH, keys.notches);
+	if (view->fly_speed < FLY_SLOWEST)
+		view->fly_speed = FLY_SLOWEST;
+	if (view->fly_speed > FLY_FASTEST)
+		view->fly_speed = FLY_FASTEST;
+
 	way = voe_math_float3_add(
 		way, voe_math_float3_scale(forward, (float)keys.forward -
 							    (float)keys.back));
@@ -441,7 +455,7 @@ static void fly_view(voe_editor_view *view, voe_math_float2 turn,
 	if (voe_math_float3_length(way) > 0.0f) {
 		voe_math_float3 step = voe_math_float3_scale(
 			voe_math_float3_normalize(way),
-			FLY_METRES_PER_SECOND * (keys.fast ? FLY_FAST : 1.0f) *
+			view->fly_speed * (keys.fast ? FLY_FAST : 1.0f) *
 				seconds);
 
 		view->eye = moved(view->eye, step);
