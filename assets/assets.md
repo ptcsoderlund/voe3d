@@ -20,6 +20,9 @@ way out: a decoder takes a buffer and an encoder hands one back, since
 - `include/assets/landscape.h` — a `.landscape` file's text to a grid of up
   to 2048 cells of heights in whole millimetres, and back, and a grid resampled
   bilinearly to another count.
+- `include/assets/material.h` — a `.material` file's text to a shader, its
+  factors, repeat and three map paths, and back. Its header says the defaults
+  and why a missing key reads as one.
 - `include/assets/sound.h` — sounds: 16-bit PCM and 32-bit float WAV decoded
   to interleaved float. Its header says what is unsupported, what is malformed,
   and why only WAV.
