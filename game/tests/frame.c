@@ -29,6 +29,10 @@
 // cast_shadows beside them; the lamp takes slot 1, the point-shadow pass
 // opens after the sun's, and both frames come back true (0325).
 //
+// THE LANDSCAPE CASE: a 64-cell, 512 m flat landscape table loaded with
+// voe_game_models_landscapes and a row wearing it under the sun; its nodes
+// are drawn into every pass and both frames come back true (0396 point 4).
+//
 // THE INTERFACE CASE: a context holding a label, laid out as
 // tests/interface.c lays one out, is drawn over the world and the frame comes
 // back true: the records fit VOE_GAME_CAPACITIES and draw in the window pass.
@@ -54,6 +58,8 @@
 // says so.
 #include <game/frame.h>
 #include <game/interface.h>
+#include <game/landscapes.h>
+#include <game/models.h>
 #include <game/world.h>
 
 #include <app/app.h>
@@ -286,6 +292,45 @@ static void lamp_case(voe_app *app, voe_base_arena *arena,
 				      0.0f, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
 				      0.0f, NULL, NULL));
+}
+
+// A flat 64-cell landscape, (64 + 1)² heights of nought.
+#define LAND_CELLS 64
+#define LAND_PATH "Terrain/Flat.landscape"
+static const int32_t FLAT[(LAND_CELLS + 1) * (LAND_CELLS + 1)];
+
+// A fresh lit world with a row wearing a 512 m landscape loaded from a table,
+// two frames, both true: its nodes in every pass fit VOE_GAME_CAPACITIES.
+static void landscape_case(voe_app *app, voe_base_arena *arena,
+			   voe_base_arena *scratch, const voe_3d_shapes *shapes)
+{
+	const voe_game_landscapes table = {
+		(const voe_game_landscape[]){
+			{ LAND_PATH, 512.0f, LAND_CELLS, FLAT } },
+		1
+	};
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_3d_models *models = voe_3d_models_new();
+	voe_ecs_entity land;
+	voe_game_models_failures failures;
+
+	failures = voe_game_models_landscapes(models, voe_app_device(app),
+					      &table, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	(void)build(world, true);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &land));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, land,
+					       placed(-256.0f, -1.0f, -256.0f)));
+	VOE_TEST_CHECK(voe_3d_model_add(world, land,
+					(voe_3d_model){ .path = LAND_PATH,
+							.cast_shadows = true }));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch, size,
+				      0.0f, NULL, NULL));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch, size,
+				      0.0f, NULL, NULL));
+	voe_3d_models_clear(models, voe_app_device(app));
+	voe_3d_models_destroy(models);
 }
 
 // The camera four metres up looking down, `light_row` shining `toward`, a ground
@@ -531,6 +576,7 @@ int main(void)
 	shadow_case(app, arena, scratch, &shapes, false);
 	sun_and_moon_case(app, arena, scratch, &shapes);
 	lamp_case(app, arena, scratch, &shapes);
+	landscape_case(app, arena, scratch, &shapes);
 	blocker_case(app, arena, scratch, &shapes);
 	direct_case(app, arena, scratch, &shapes);
 	interface_case(app, arena, scratch, &shapes);

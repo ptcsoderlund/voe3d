@@ -22,7 +22,7 @@
 // reads nothing, and a second one without a progress loads the file.
 //
 // THE LANDSCAPES, on a fifth store: a 4-cell table loads at stamp 0 with its
-// millimetres as metres; with a text file at its path a watch reports nothing
+// millimetres as metres, one part; with a text file at its path a watch reports nothing
 // and leaves it loaded at 0.
 //
 // The files and the folder are removed at the end, pass or fail. It skips
@@ -68,10 +68,18 @@
 // Room for the triangle twice over a reload, the pictures' quad, and the
 // shadings of the triangle, the picture and the dot, plus two blended twins:
 // one for each triangle part held at once over the reload (ADR-0336 point 2).
-// Then a 4-cell landscape's 16 chunks, its ground and its twin.
+// Then a landscape as the store makes it (0396 point 3): the shared grid of
+// VOE_3D_LANDSCAPE_NODE_QUADS² quads, its ground and its twin, and the
+// heights texture, which takes a texture slot and no capacity.
+#define GRID_SIDE (VOE_3D_LANDSCAPE_NODE_QUADS + 1)
 static const voe_render_capacities CAPACITIES = {
-	.vertices = 16 + 16 * 9, .indices = 16 + 16 * 24, .geometries = 4 + 16,
-	.objects = 1,		 .shadings = 10 + 2,	   .passes = 1,
+	.vertices = 16 + GRID_SIDE * GRID_SIDE,
+	.indices = 16 + VOE_3D_LANDSCAPE_NODE_QUADS *
+				VOE_3D_LANDSCAPE_NODE_QUADS * 6,
+	.geometries = 4 + 1,
+	.objects = 1,
+	.shadings = 10 + 2,
+	.passes = 1,
 };
 
 // A 4-cell, 64 m landscape: a 1.5 m bump in the middle, -0.25 m at a corner.
@@ -275,6 +283,7 @@ static void check_hill(const voe_3d_models *models)
 	if (entry == NULL || entry->landscape == NULL)
 		return;
 	VOE_TEST_CHECK_INT(entry->stamp, 0);
+	VOE_TEST_CHECK_INT(entry->part_count, 1);
 	VOE_TEST_CHECK_INT(entry->landscape->cells, 4);
 	VOE_TEST_CHECK(entry->landscape->size == 64.0f);
 	VOE_TEST_CHECK(entry->landscape->heights[0] == -0.25f);
