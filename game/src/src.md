@@ -1,7 +1,8 @@
 # src
 
 `game`'s implementation, one file per public header except `scene.h`,
-`prefabs.h` and `landscapes.h`, which a project's cooked C defines.
+`prefabs.h`, `landscapes.h` and `materials.h`, which a project's cooked C
+defines, and `models.h`, which has two.
 
 - `world.c` — the twenty-four registrations and fifteen intent queues, the emitter, its particles, the sound, its voice row, the water, its waves, the point light and the light blocker among them, their capacities and the room for a project's types.
 - `frame.c` — the world step's drains in order and the frame: that step, the light blockers, the point lights, the lights after the first, the shadow passes, then the window pass lit by them with the interface over the world.
@@ -13,3 +14,4 @@
 - `run.c` — the run's steps in the handed window and its threads, and the only file naming the cooked scene, prefabs and landscapes.
 - `splashscreen.png` — the engine's splash, read by the editor from the source and put beside a game's program by `cmake/game.cmake` when the project has none (0356).
 - `models.c` — a path joined onto the folder, stamped, read into rewound scratch and loaded, the dot and the water record when the world needs them; a cooked landscape's millimetres as metres, never watched; each failure a stderr line and counted.
+- `models_materials.c` — a table material's maps read from the folder into rewound scratch and loaded; each row's material path the store lacks found in the table or kept failed, each failure counted.

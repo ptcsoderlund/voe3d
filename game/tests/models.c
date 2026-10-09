@@ -25,6 +25,11 @@
 // millimetres as metres, one part; with a text file at its path a watch reports nothing
 // and leaves it loaded at 0.
 //
+// THE MATERIALS, on a sixth world and store: a shape naming a table material
+// whose colour map is the PNG loads it, `material`; a shape naming a path not
+// in the table is one failure, named, and a second call counts none; with the
+// material on disk as text a watch reports nothing and leaves it loaded.
+//
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include <game/models.h>
@@ -34,6 +39,7 @@
 #include <3d/emitter_component.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
+#include <3d/shape_component.h>
 #include <3d/water_component.h>
 
 #include <base/arena.h>
@@ -64,13 +70,18 @@
 #define PICTURE_ON_DISK FOLDER "/" PICTURE
 #define LANDSCAPE "hill.landscape"
 #define LANDSCAPE_ON_DISK FOLDER "/" LANDSCAPE
+#define MATERIAL "Assets/m.material"
+#define NO_MATERIAL "Assets/none.material"
+#define ASSETS_ON_DISK FOLDER "/Assets"
+#define MATERIAL_ON_DISK FOLDER "/" MATERIAL
 
 // Room for the triangle twice over a reload, the pictures' quad, and the
 // shadings of the triangle, the picture and the dot, plus two blended twins:
 // one for each triangle part held at once over the reload (ADR-0336 point 2).
 // Then a landscape as the store makes it (0396 point 3): the shared grid of
 // VOE_3D_LANDSCAPE_NODE_QUADS² quads, its ground and its twin, and the
-// heights texture, which takes a texture slot and no capacity.
+// heights texture, which takes a texture slot and no capacity. Then a
+// material's record and twin, with no geometry.
 #define GRID_SIDE (VOE_3D_LANDSCAPE_NODE_QUADS + 1)
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 16 + GRID_SIDE * GRID_SIDE,
@@ -78,7 +89,7 @@ static const voe_render_capacities CAPACITIES = {
 				VOE_3D_LANDSCAPE_NODE_QUADS * 6,
 	.geometries = 4 + 1,
 	.objects = 1,
-	.shadings = 10 + 2,
+	.shadings = 10 + 2 + 2,
 	.passes = 1,
 };
 
@@ -90,6 +101,16 @@ static const int32_t HILL[25] = {
 
 static const voe_game_landscapes HILLS = {
 	(const voe_game_landscape[]){ { LANDSCAPE, 64.0f, 4, HILL } }, 1
+};
+
+// A lit, white material with the PNG as its colour map.
+static const voe_game_materials MATERIALS = {
+	(const voe_game_material[]){ { MATERIAL,
+				       { .colour = { 1.0f, 1.0f, 1.0f },
+					 .roughness = 0.5f,
+					 .repeat = 1.0f,
+					 .colour_map = PICTURE } } },
+	1
 };
 
 // A 1x1 white RGBA PNG: signature, IHDR, one zlib IDAT row, IEND.
@@ -317,6 +338,60 @@ static void watch_leaves_a_landscape_alone(voe_3d_models *models,
 	check_hill(models);
 }
 
+// A grey cube at the origin wearing the material `path`.
+static void shade(voe_ecs_world *world, const char *path)
+{
+	voe_3d_shape shape = { .kind = VOE_3D_SHAPE_CUBE,
+			       .colour = VOE_3D_SHAPE_GREY,
+			       .cast_shadows = true };
+
+	strcpy(shape.material, path);
+	VOE_TEST_CHECK(voe_3d_shape_add(world, place(world), shape));
+}
+
+static bool material_loaded(const voe_3d_models *models)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, MATERIAL);
+
+	return entry != NULL && entry->loaded && entry->material;
+}
+
+static void check_materials(voe_ecs_world *world, voe_render_device *device,
+			    voe_base_arena *scratch)
+{
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_models_failures failures;
+
+	// ---- a shape naming a table material: loaded, a material
+	shade(world, MATERIAL);
+	failures = voe_game_models_materials(world, models, device, FOLDER,
+					     &MATERIALS, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(material_loaded(models));
+
+	// ---- a path not in the table: one failure, named, then none
+	shade(world, NO_MATERIAL);
+	failures = voe_game_models_materials(world, models, device, FOLDER,
+					     &MATERIALS, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 1);
+	VOE_TEST_CHECK(failures.first != NULL &&
+		       strcmp(failures.first, NO_MATERIAL) == 0);
+	failures = voe_game_models_materials(world, models, device, FOLDER,
+					     &MATERIALS, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+
+	// ---- the material on disk as text: a watch leaves it alone
+	VOE_TEST_CHECK(voe_platform_folder_create(ASSETS_ON_DISK, NULL));
+	VOE_TEST_CHECK(voe_platform_file_write(MATERIAL_ON_DISK, NOT_A_GLB,
+					       sizeof(NOT_A_GLB), NULL));
+	failures = voe_game_models_watch(models, device, FOLDER, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(material_loaded(models));
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 static void check_files(voe_ecs_world *world, voe_render_device *device,
 			voe_base_arena *scratch, const uint8_t *glb,
 			uint32_t size)
@@ -388,6 +463,8 @@ int main(void)
 	remove(GOOD_ON_DISK);
 	remove(PICTURE_ON_DISK);
 	remove(LANDSCAPE_ON_DISK);
+	remove(MATERIAL_ON_DISK);
+	remove(ASSETS_ON_DISK);
 	remove(FOLDER);
 	VOE_TEST_CHECK(voe_platform_folder_create(FOLDER, NULL));
 	VOE_TEST_CHECK(voe_platform_file_write(GOOD_ON_DISK, glb, length, NULL));
@@ -402,9 +479,12 @@ int main(void)
 	watch_leaves_a_landscape_alone(landscapes, device, scratch);
 	voe_3d_models_clear(landscapes, device);
 	voe_3d_models_destroy(landscapes);
+	check_materials(voe_game_world_new(arena), device, scratch);
 	remove(GOOD_ON_DISK);
 	remove(PICTURE_ON_DISK);
 	remove(LANDSCAPE_ON_DISK);
+	remove(MATERIAL_ON_DISK);
+	remove(ASSETS_ON_DISK);
 	remove(FOLDER);
 	voe_render_device_destroy(device);
 released:

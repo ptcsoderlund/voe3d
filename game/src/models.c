@@ -6,7 +6,7 @@
 // file, so a caller's own scratch data survives the call. With a progress, the
 // distinct unread paths are counted first and the stop flag asked before each.
 // A cooked landscape's millimetres become metres in scratch, rewound after it,
-// and the watch passes over every landscape entry.
+// and the watch passes over every landscape and material entry.
 #include <game/models.h>
 
 #include <3d/emitter_component.h>
@@ -210,8 +210,9 @@ voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 		const voe_3d_model_entry *entry = voe_3d_models_at(models, i);
 		voe_base_error error;
 
-		// A landscape is never re-read by stamp (0379 point 2).
-		if (entry->landscape != NULL)
+		// A landscape is never re-read by stamp (0379 point 2), nor a
+		// material, which the editor reloads itself (0399 point 7).
+		if (entry->landscape != NULL || entry->material)
 			continue;
 		if (!load_changed(models, device, folder, entry->path,
 				  entry->stamp, scratch, &error))
