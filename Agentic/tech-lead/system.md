@@ -16,7 +16,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **assets** — glTF, images, WAV, fonts, landscapes and sectioned text to CPU data; the JSON parser.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text read and written, paths followed; cooked to C.
-- **render** — all of Vulkan: card, resources, mip chains, heights, timed passes and spans, light, bounce, a pipeline cache.
+- **render** — all of Vulkan: card, resources, mips, heights, timed passes, light, bounce, a cache.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
@@ -56,4 +56,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
 - 0333–0338, 0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0358, 0359, 0361–0364, 0370, 0371 — Blocks; moon; GPU ms; mips; splash; F.
-- 0374–0381, 0384–0388, 0392, 0395–0398 — 0.3's loghouse; bindless; hill; landscape; Windows; 60 fps; 083; 093; CDLOD.
+- 0374–0381, 0384–0388, 0392, 0395–0398 — 0.3's loghouse; bindless; hill; Windows; 60 fps; CDLOD.
