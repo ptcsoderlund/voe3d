@@ -3,7 +3,7 @@
 //
 // THE ASSETS PANEL'S REQUESTS ARE CARRIED OUT HERE: a fired prefab row opens
 // (session.h), beside where Import shows the browser; a naming request (a
-// rename, folder or landscape) goes through assets_manage.h in the frame's
+// rename, folder, landscape or material) goes through assets_manage.h in the frame's
 // arena, a rename's typed `/` refused here, and the Landscape panel opens on a
 // landscape made or fired. Delete asks first: the request opens the session's
 // question (assets_ask.h), drawn over the dock by interface.c and read here —
@@ -11,8 +11,8 @@
 // closes it.
 //
 // THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn by interface.c
-// after the panels list and read here after the panel: Rename, Delete, Folder
-// and Landscape begin on the panel, Duplicate goes through assets_manage.h.
+// after the panels list and read here after the panel: Rename, Delete, Folder,
+// Landscape and Material begin on the panel, Duplicate goes through assets_manage.h.
 // Escape closing it first, and the dock's covers, are interface.c's.
 #include "interface_assets.h"
 
@@ -93,6 +93,11 @@ static void voe_editor_interface_assets_request_do(
 		voe_editor_assets_list_due(&scene->assets);
 		voe_editor_interface_assets_made_path(made, request->folder,
 						      request->name);
+	} else if (request->kind == VOE_EDITOR_ASSETS_NAMING_MATERIAL &&
+		   voe_editor_assets_material_make(session, models, arena,
+						   request->folder,
+						   request->name)) {
+		voe_editor_assets_list_due(&scene->assets);
 	}
 	request->kind = VOE_EDITOR_ASSETS_NAMING_NONE;
 }
@@ -129,6 +134,7 @@ static void voe_editor_interface_assets_landscape_open(
 static void voe_editor_interface_assets_menu_do(voe_editor_session *session,
 						voe_editor_scene *scene,
 						voe_editor_undo *undo,
+						voe_editor_models *models,
 						voe_base_arena *arena,
 						voe_editor_assets_menu_item item)
 {
@@ -145,12 +151,14 @@ static void voe_editor_interface_assets_menu_do(voe_editor_session *session,
 		voe_editor_assets_folder_begin(&scene->assets);
 	else if (item == VOE_EDITOR_ASSETS_MENU_LANDSCAPE)
 		voe_editor_assets_landscape_begin(&scene->assets);
+	else if (item == VOE_EDITOR_ASSETS_MENU_MATERIAL)
+		voe_editor_assets_material_begin(&scene->assets);
 	else if (item == VOE_EDITOR_ASSETS_MENU_DUPLICATE &&
 		 voe_editor_assets_selected_path(&scene->assets, path,
 						 sizeof path))
 		// A false has said why in the notice.
-		(void)voe_editor_assets_duplicate(session, scene, undo, arena,
-						  path);
+		(void)voe_editor_assets_duplicate(session, scene, undo, models,
+						  arena, path);
 }
 
 void voe_editor_interface_assets_read(
@@ -192,7 +200,7 @@ void voe_editor_interface_assets_read(
 	// from `deleting`.
 	if (menuing)
 		voe_editor_interface_assets_menu_do(
-			session, scene, undo, arena,
+			session, scene, undo, models, arena,
 			voe_editor_assets_menu_read(ui, &scene->assets.menu,
 						    root->pointer.at,
 						    root->pointer.down,
@@ -209,7 +217,7 @@ void voe_editor_interface_assets_read(
 		// A false has said why in the notice.
 		if (answer == VOE_EDITOR_ASSETS_ASK_DELETE)
 			(void)voe_editor_assets_trash(session, scene, undo,
-						      arena,
+						      models, arena,
 						      session->asking.path);
 		if (answer != VOE_EDITOR_ASSETS_ASK_NONE)
 			voe_editor_assets_ask_close(&session->asking);

@@ -31,6 +31,7 @@
 #define ASSETS_GAP (2.0f * VOE_EDITOR_SPACING)
 #define NEW_FOLDER_NAME "New folder"
 #define NEW_LANDSCAPE_NAME "New landscape"
+#define NEW_MATERIAL_NAME "New material"
 // The empty strip under the rows, in millimetres.
 #define EMPTY_STRIP 6.0f
 
@@ -286,8 +287,21 @@ static void naming_field_draw(voe_ui_context *ui, voe_editor_assets *assets,
 	}
 }
 
+// The pending file's field name, a landscape's or a material's, NULL for none.
+static const char *pending_file(const voe_editor_assets *assets)
+{
+	VOE_BASE_ASSERT(assets != NULL, "asking no panel for its pending file");
+	if (assets->naming == VOE_EDITOR_ASSETS_NAMING_LANDSCAPE)
+		return NEW_LANDSCAPE_NAME;
+	if (assets->naming == VOE_EDITOR_ASSETS_NAMING_MATERIAL)
+		return NEW_MATERIAL_NAME;
+	return NULL;
+}
+
 void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 {
+	const char *pending = pending_file(assets);
+
 	VOE_BASE_ASSERT(ui != NULL, "drawing the Assets panel into no interface");
 	VOE_BASE_ASSERT(assets != NULL, "drawing no Assets panel");
 
@@ -332,10 +346,10 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 		voe_editor_assets_row *row = &assets->rows[i];
 		bool selected = row->name == assets->selected;
 
-		// The pending landscape before the first file.
+		// The pending landscape or material before the first file.
 		if (!row->folder && (i == 0 || assets->rows[i - 1].folder) &&
-		    assets->naming == VOE_EDITOR_ASSETS_NAMING_LANDSCAPE)
-			naming_field_draw(ui, assets, NEW_LANDSCAPE_NAME);
+		    pending != NULL)
+			naming_field_draw(ui, assets, pending);
 
 		if (selected &&
 		    assets->naming == VOE_EDITOR_ASSETS_NAMING_RENAME) {
@@ -350,10 +364,10 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets)
 		voe_ui_end(ui);
 	}
 	// No file row to go before: after the folders.
-	if (assets->naming == VOE_EDITOR_ASSETS_NAMING_LANDSCAPE &&
+	if (pending != NULL &&
 	    (assets->row_count == 0 ||
 	     assets->rows[assets->row_count - 1].folder))
-		naming_field_draw(ui, assets, NEW_LANDSCAPE_NAME);
+		naming_field_draw(ui, assets, pending);
 	// A strip under the rows, so a scrolled-to-end list still has an
 	// empty part to right press; the filler takes what the rows leave.
 	assets->empty = voe_ui_column_begin(
@@ -570,6 +584,16 @@ void voe_editor_assets_landscape_begin(voe_editor_assets *assets)
 	assets->naming = VOE_EDITOR_ASSETS_NAMING_LANDSCAPE;
 	assets->naming_focus = true;
 	VOE_BASE_ASSERT(assets->naming_focus, "a landscape naming never focused");
+}
+
+void voe_editor_assets_material_begin(voe_editor_assets *assets)
+{
+	VOE_BASE_ASSERT(assets != NULL, "naming a material in no Assets panel");
+	if (!naming_fits(assets))
+		return;
+	assets->naming = VOE_EDITOR_ASSETS_NAMING_MATERIAL;
+	assets->naming_focus = true;
+	VOE_BASE_ASSERT(assets->naming_focus, "a material naming never focused");
 }
 
 bool voe_editor_assets_selected_path(const voe_editor_assets *assets, char *out,

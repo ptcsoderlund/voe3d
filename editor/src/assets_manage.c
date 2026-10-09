@@ -9,6 +9,7 @@
 #include "assets_walk.h"
 
 #include <assets/landscape.h>
+#include <assets/material.h>
 #include <authoring/paths.h>
 #include <base/assert.h>
 #include <base/report.h>
@@ -25,6 +26,7 @@
 // The highest number a duplicate's name is given.
 #define DUPLICATE_LAST 99
 #define LANDSCAPE_ENDING ".landscape"
+#define MATERIAL_ENDING ".material"
 
 // A path relative to `Assets/` cut at its last `/`: the folder ("" at
 // `Assets/`), in scratch, and the name, pointing into the path.
@@ -178,22 +180,51 @@ rewind:
 	return ok;
 }
 
-// `name` as a landscape's file name in scratch: `.landscape` appended unless it
-// already ends so, in any case.
-static const char *landscape_named(voe_base_arena *scratch, const char *name)
+// `name` as a made file's name in scratch: `ending` (lower case) appended
+// unless it already ends so, in any case.
+static const char *file_named(voe_base_arena *scratch, const char *name, const char *ending)
 {
 	size_t length = strlen(name);
-	size_t tail = sizeof LANDSCAPE_ENDING - 1;
+	size_t tail = strlen(ending);
 	bool ends = length >= tail;
 	char *out;
 
-	VOE_BASE_ASSERT(scratch != NULL, "naming a landscape in no scratch");
+	VOE_BASE_ASSERT(scratch != NULL && ending != NULL, "naming a file in no scratch");
 	for (size_t i = 0; ends && i < tail; i++)
-		ends = tolower((unsigned char)name[length - tail + i]) == LANDSCAPE_ENDING[i];
+		ends = tolower((unsigned char)name[length - tail + i]) == ending[i];
 	out = voe_base_arena_push(scratch, length + tail + 1);
-	snprintf(out, length + tail + 1, "%s%s", name, ends ? "" : LANDSCAPE_ENDING);
-	VOE_BASE_ASSERT(strlen(out) >= length, "a landscape's name cut short");
+	snprintf(out, length + tail + 1, "%s%s", name, ends ? "" : ending);
+	VOE_BASE_ASSERT(strlen(out) >= length, "a made file's name cut short");
 	return out;
+}
+
+// The checks a made file shares: a project with a folder and an allowed name.
+static bool make_allowed(voe_editor_session *session, const char *name)
+{
+	voe_editor_notice_clear(&session->notice);
+	if (session->project->folder == NULL) {
+		voe_editor_notice_set(&session->notice, "Save the project first: it has no Assets folder yet");
+		return false;
+	}
+	return name_allowed(session, name);
+}
+
+// `<folder>/<name>` free and written with `size` bytes of `text`. False with
+// the notice naming why.
+static bool file_made(voe_editor_session *session, voe_base_arena *scratch, const char *folder,
+		      const char *name, const char *text, size_t size)
+{
+	const char *path;
+
+	VOE_BASE_ASSERT(text != NULL && size > 0, "making a file of no text");
+	if (!name_free(session, scratch, folder, name))
+		return false;
+	path = voe_editor_assets_join(scratch, folder, name);
+	voe_base_report_error_clear();
+	if (voe_platform_file_write(on_disk(session, scratch, path), (const uint8_t *)text, size, NULL))
+		return true;
+	voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
+	return false;
 }
 
 bool voe_editor_assets_landscape_make(voe_editor_session *session, voe_base_arena *scratch,
@@ -202,35 +233,42 @@ bool voe_editor_assets_landscape_make(voe_editor_session *session, voe_base_aren
 	struct voe_base_arena_mark mark;
 	voe_assets_landscape flat;
 	voe_assets_landscape_text text;
-	const char *path;
-	bool ok = false;
+	bool ok;
 
 	VOE_BASE_ASSERT(session != NULL && session->project != NULL, "a landscape with no project");
 	VOE_BASE_ASSERT(scratch != NULL && folder != NULL && name != NULL, "making no landscape");
-	voe_editor_notice_clear(&session->notice);
-	if (session->project->folder == NULL) {
-		voe_editor_notice_set(&session->notice, "Save the project first: it has no Assets folder yet");
-		return false;
-	}
-	if (!name_allowed(session, name))
+	if (!make_allowed(session, name))
 		return false;
 	mark = voe_base_arena_mark(scratch);
-	path = landscape_named(scratch, name);
-	if (!name_free(session, scratch, folder, path))
-		goto rewind;
-	path = voe_editor_assets_join(scratch, folder, path);
 	flat = voe_assets_landscape_flat(VOE_ASSETS_LANDSCAPE_SIZE_DEFAULT, VOE_ASSETS_LANDSCAPE_CELLS,
 					 scratch);
 	text = voe_assets_landscape_write(&flat, scratch);
-	voe_base_report_error_clear();
-	if (!voe_platform_file_write(on_disk(session, scratch, path), (const uint8_t *)text.text,
-				     text.size, NULL)) {
-		voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
-		goto rewind;
-	}
-	ok = true;
-rewind:
+	ok = file_made(session, scratch, folder, file_named(scratch, name, LANDSCAPE_ENDING),
+		       text.text, text.size);
 	voe_base_arena_rewind(scratch, mark);
+	return ok;
+}
+
+bool voe_editor_assets_material_make(voe_editor_session *session, voe_editor_models *models,
+				     voe_base_arena *scratch, const char *folder, const char *name)
+{
+	struct voe_base_arena_mark mark;
+	voe_assets_material_file defaults = voe_assets_material_default();
+	voe_assets_material_text text;
+	bool ok;
+
+	VOE_BASE_ASSERT(session != NULL && session->project != NULL, "a material with no project");
+	VOE_BASE_ASSERT(models != NULL && scratch != NULL && folder != NULL && name != NULL,
+			"making no material");
+	if (!make_allowed(session, name))
+		return false;
+	mark = voe_base_arena_mark(scratch);
+	text = voe_assets_material_write(&defaults, scratch);
+	ok = file_made(session, scratch, folder, file_named(scratch, name, MATERIAL_ENDING),
+		       text.text, text.size);
+	voe_base_arena_rewind(scratch, mark);
+	if (ok)
+		voe_editor_models_materials_read(models, session->project->folder, scratch);
 	return ok;
 }
 
@@ -358,6 +396,7 @@ bool voe_editor_assets_move(voe_editor_session *session, voe_editor_scene *scene
 	}
 	voe_editor_undo_forget(undo);
 	voe_editor_assets_list_due(&scene->assets);
+	voe_editor_models_materials_read(models, session->project->folder, scratch);
 rewind:
 	voe_base_arena_rewind(scratch, mark);
 	return ok;
@@ -383,7 +422,8 @@ static const char *duplicate_name(voe_base_arena *scratch,
 }
 
 bool voe_editor_assets_duplicate(voe_editor_session *session, voe_editor_scene *scene,
-				 voe_editor_undo *undo, voe_base_arena *scratch, const char *path)
+				 voe_editor_undo *undo, voe_editor_models *models,
+				 voe_base_arena *scratch, const char *path)
 {
 	struct voe_base_arena_mark mark;
 	voe_platform_folder_listing listing;
@@ -395,6 +435,7 @@ bool voe_editor_assets_duplicate(voe_editor_session *session, voe_editor_scene *
 	bool ok = false;
 
 	VOE_BASE_ASSERT(path != NULL && path[0] != '\0', "duplicating no path");
+	VOE_BASE_ASSERT(models != NULL, "duplicating with no materials to read");
 	if (!command_allowed(session, scene, undo, scratch))
 		return false;
 	mark = voe_base_arena_mark(scratch);
@@ -432,6 +473,7 @@ bool voe_editor_assets_duplicate(voe_editor_session *session, voe_editor_scene *
 		goto rewind;
 	}
 	voe_editor_assets_list_due(&scene->assets);
+	voe_editor_models_materials_read(models, session->project->folder, scratch);
 	ok = true;
 rewind:
 	voe_base_arena_rewind(scratch, mark);
@@ -439,13 +481,15 @@ rewind:
 }
 
 bool voe_editor_assets_trash(voe_editor_session *session, voe_editor_scene *scene,
-			     voe_editor_undo *undo, voe_base_arena *scratch, const char *path)
+			     voe_editor_undo *undo, voe_editor_models *models,
+			     voe_base_arena *scratch, const char *path)
 {
 	struct voe_base_arena_mark mark;
 	voe_base_error error = VOE_BASE_ERROR_UNAVAILABLE;
 	bool ok;
 
 	VOE_BASE_ASSERT(path != NULL && path[0] != '\0', "trashing no path");
+	VOE_BASE_ASSERT(models != NULL, "trashing with no materials to read");
 	if (!command_allowed(session, scene, undo, scratch))
 		return false;
 	mark = voe_base_arena_mark(scratch);
@@ -460,5 +504,7 @@ bool voe_editor_assets_trash(voe_editor_session *session, voe_editor_scene *scen
 	else
 		voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
 	voe_base_arena_rewind(scratch, mark);
+	if (ok)
+		voe_editor_models_materials_read(models, session->project->folder, scratch);
 	return ok;
 }

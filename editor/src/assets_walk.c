@@ -23,7 +23,7 @@
 
 // The extensions of the files whose text names asset paths. A later own kind
 // adds its own here.
-static const char *const walked_extensions[] = { ".scene", ".prefab" };
+static const char *const walked_extensions[] = { ".scene", ".prefab", ".material" };
 
 // The top-level folders that hold no authored text.
 static const char *const skipped_folders[] = { "Build", "Cache", "Code" };

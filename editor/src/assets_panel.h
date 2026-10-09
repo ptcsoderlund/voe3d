@@ -36,8 +36,8 @@
 // panel's then (shortcuts.h); a primary press outside the panel gives it back.
 //
 // NAMING IN PLACE (0378 point 4): rename_begin draws the selected row,
-// folder_begin a pending row first among the folders and landscape_begin one
-// first among the files, as a field focused with its name selected. Enter or a
+// folder_begin a pending row first among the folders, landscape_begin and
+// material_begin one first among the files, as a field focused with its name selected. Enter or a
 // press elsewhere leaves a `request` the caller
 // carries out through assets_manage.h and clears; Escape leaves none. Either
 // ends the naming, as do entering a folder, Up, or a listing without the row.
@@ -98,12 +98,13 @@ typedef enum {
 	VOE_EDITOR_ASSETS_NAMING_RENAME,
 	VOE_EDITOR_ASSETS_NAMING_FOLDER,
 	VOE_EDITOR_ASSETS_NAMING_LANDSCAPE,
+	VOE_EDITOR_ASSETS_NAMING_MATERIAL,
 } voe_editor_assets_naming;
 
 // What a committed field asks for, paths relative to `Assets/` as
 // assets_manage.h takes them: a rename's `from` and `to`, the shown folder
-// joined with the row's and the typed name, or a folder's or a landscape's
-// `folder` and `name`.
+// joined with the row's and the typed name, or a folder's, a landscape's or a
+// material's `folder` and `name`.
 // `name` is the typed text as it is, so the caller can refuse a `/` in it.
 typedef struct {
 	voe_editor_assets_naming kind;
@@ -256,6 +257,9 @@ void voe_editor_assets_folder_begin(voe_editor_assets *assets);
 
 // A pending "New landscape" row drawn as a field first among the files.
 void voe_editor_assets_landscape_begin(voe_editor_assets *assets);
+
+// A pending "New material" row drawn as a field first among the files.
+void voe_editor_assets_material_begin(voe_editor_assets *assets);
 
 // The selected row's path left in `deleting` for the caller to ask about;
 // nothing without a selected row or when the path does not fit.
