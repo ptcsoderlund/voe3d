@@ -95,17 +95,20 @@ carries it out.
 - `code.h` — a project's library loaded from a copy under `Build/editor/loaded/`, its one entry
   point resolved (ADR-0008), whether a build equals it, and why it closes after its worlds.
 - `code.c` — the folders made, the copy read and written, the open and the lookup, and the compare.
-- `game_tree.h` — what Play and Ship write and run: `<project>/Build/game/`'s five files, the
+- `game_tree.h` — what Play and Ship write and run: `<project>/Build/game/`'s six files, the
   `.gitignore`, the argument lists that build the tree as the game, the library or a release, and
   install it into the shipped folder `Build/ship/<name>/`, and the paths it reads and writes.
 - `game_tree.c` — the files compared before they are written, the name and engine path escaped for
   where they go, the game window's numbers in main.c, the world cooked into scene.c, every prefab
-  cooked into prefabs.c, landscapes.c written, the release kind and the shipped folder.
+  cooked into prefabs.c, landscapes.c and materials.c written, the release kind and the shipped
+  folder.
 - `game_tree_find.h` — every file under Assets/ with a given ending, any case, hidden entries
   skipped, in byte order of path, walked with an explicit stack of bounded depth.
 - `game_tree_find.c` — the folder check, the stack walk, the case-blind suffix match and the sort.
 - `game_tree_landscapes.c` — landscapes.c's text: every `.landscape` read and cooked in a rewound
   scratch, then voe_game_landscapes_cooked naming each by its `Assets/` path, size and cells.
+- `game_tree_materials.c` — materials.c's text: every `.material` read and parsed in a rewound
+  scratch, then voe_game_materials_cooked with each one's `Assets/` path and values, floats in hex.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
