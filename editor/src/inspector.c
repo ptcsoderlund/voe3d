@@ -1,7 +1,8 @@
 // The walk over the world's component types, the row per described field, and
 // the record each control leaves behind for inspector_edit.c to read. See the
 // header for why this file names no component; the replace intent a moved
-// control becomes is inspector_edit.c's.
+// control becomes is inspector_edit.c's. While a material is open its section
+// (inspector_material.h) is drawn in place of the entity's.
 //
 // IT IS DRIVEN BY base/describe.h AND BY NOTHING ELSE. A field's kind decides
 // which control it gets and a field's offset decides where the bytes go; there
@@ -660,7 +661,10 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
 			       const voe_ecs_type *kept, uint32_t kept_count,
-			       voe_editor_sculpt *sculpt)
+			       voe_editor_sculpt *sculpt,
+			       const char *material_open,
+			       const voe_assets_material_file *material,
+			       voe_editor_inspector_material *controls)
 {
 	uint32_t types;
 	voe_ecs_entity root = { 0 };
@@ -674,6 +678,16 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(kept != NULL || kept_count == 0,
 			"kept types counted but not handed in");
 	VOE_BASE_ASSERT(sculpt != NULL, "drawing an inspector with no brush");
+	VOE_BASE_ASSERT(material_open != NULL && material != NULL &&
+				controls != NULL,
+			"drawing an inspector with no material slot");
+
+	// An open material in place of the entity, which stays unrecorded.
+	if (material_open[0] != '\0') {
+		voe_editor_inspector_material_draw(ui, controls, material_open,
+						   material);
+		return;
+	}
 
 	inspector->entity = selected;
 

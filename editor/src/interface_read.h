@@ -31,13 +31,15 @@ typedef struct {
 
 // The first read on `root`: the Inspector's edits, the picker's `picker` node
 // (VOE_UI_NODE_NONE when it was not drawn) on `picked` as it was when drawn,
-// the Inspector's buttons and Sculpt section, the Scene list's clicks and drop
-// with its prefab made in `arena`, then the reveal. A full scene and a refused
-// make are said in `session`'s notice. True when the pointer is over the
-// Assets leaf below `bar`, which the Assets panel's read is handed.
+// the Inspector's buttons, Sculpt and material sections, an edited open
+// material handed to the table's row and `models`, the Scene list's clicks and
+// drop with its prefab made in `arena`, then the reveal. A full scene and a
+// refused make are said in `session`'s notice. True when the pointer is over
+// the Assets leaf below `bar`, which the Assets panel's read is handed.
 bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 				     const voe_editor_dock_root *root,
 				     voe_editor_scene *scene,
+				     voe_editor_models *models,
 				     voe_editor_session *session,
 				     const voe_editor_topbar *bar,
 				     voe_ui_node picker,

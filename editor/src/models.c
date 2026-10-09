@@ -4,7 +4,8 @@
 // models, cleared through the device and destroyed, and handed out read-only;
 // its landscapes' heights and materials' records written in the frame,
 // landscapes written on Save and read again, and one reshaped, written at once
-// and loaded again at the next update.
+// and loaded again at the next update; an edited material set live, or loaded
+// again at the next update when a map changed.
 #include "models.h"
 
 #include <base/assert.h>
@@ -16,6 +17,7 @@
 #include <platform/file.h>
 #include <platform/path.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -34,6 +36,9 @@ struct voe_editor_models {
 	// A landscape whose size was written, to load again at the next
 	// update, the store's own copy; NULL for none.
 	char *resized;
+	// A material whose map changed, to load again at the next update; ""
+	// for none.
+	char reload[VOE_ASSETS_MATERIAL_PATH];
 };
 
 static void reread(voe_3d_models *store, voe_render_device *device,
@@ -82,6 +87,7 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 	models->folder = NULL;
 	free(models->resized);
 	models->resized = NULL;
+	models->reload[0] = '\0';
 	if (folder != NULL) {
 		size_t size = strlen(folder) + 1;
 
@@ -113,6 +119,34 @@ static void say_failure(voe_editor_notice *notice,
 	voe_editor_notice_set(notice, "Could not read %s: %s",
 			      failures.first != NULL ? failures.first : "a model",
 			      category);
+}
+
+// The material waiting in `reload` loaded again from its table row, at stamp
+// 0 as the update loads one; a row gone from the table is let go, a failure
+// said in `notice`.
+static void material_reload(voe_editor_models *models,
+			    voe_render_device *device, voe_base_arena *scratch,
+			    voe_editor_notice *notice)
+{
+	const voe_game_material *row;
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_BASE_ASSERT(models != NULL && models->folder != NULL,
+			"reloading a material of no project");
+	VOE_BASE_ASSERT(device != NULL && scratch != NULL && notice != NULL,
+			"reloading a material with no device, scratch or notice");
+	if (models->reload[0] == '\0')
+		return;
+	row = voe_editor_materials_find(models->materials, models->reload);
+	models->reload[0] = '\0';
+	if (row == NULL)
+		return;
+	voe_base_report_error_clear();
+	if (!voe_game_models_material_load(models->store, device,
+					   models->folder, row, 0, scratch,
+					   &error))
+		voe_editor_notice_set(notice, "Could not read %s: %s",
+				      row->path, voe_base_error_string(error));
 }
 
 void voe_editor_models_update(voe_editor_models *models,
@@ -151,6 +185,7 @@ void voe_editor_models_update(voe_editor_models *models,
 		    voe_game_models_materials(session->project->world,
 					      models->store, device,
 					      models->folder, &table, scratch));
+	material_reload(models, device, scratch, &session->notice);
 	if (now - models->looked < WATCH_SECONDS)
 		return;
 	models->looked = now;
@@ -427,6 +462,24 @@ void voe_editor_models_materials_read(voe_editor_models *models,
 			"reading materials into no store");
 	VOE_BASE_ASSERT(scratch != NULL, "reading materials with no scratch");
 	voe_editor_materials_read(models->materials, folder, scratch);
+}
+
+void voe_editor_models_material_changed(voe_editor_models *models,
+					const char *path, bool maps)
+{
+	const voe_game_material *row;
+
+	VOE_BASE_ASSERT(models != NULL && models->materials != NULL,
+			"a material changed in no store");
+	VOE_BASE_ASSERT(path != NULL, "no material changed");
+	row = voe_editor_materials_find(models->materials, path);
+	if (row == NULL)
+		return;
+	if (!maps) {
+		voe_3d_models_material_set(models->store, path, &row->values);
+		return;
+	}
+	snprintf(models->reload, sizeof models->reload, "%s", path);
 }
 
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models)

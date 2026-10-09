@@ -15,7 +15,7 @@ carries it out.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
 - `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
-- `frame_commands.c` — the history step, the read with its acts (F2's rename, an asset's Delete,
+- `frame_commands.c` — the history step closing the open material on a new project, the read with its acts (F2's rename, an asset's Delete,
   Escape choosing no brush after the lists and hiding the Landscape panel) and `ui`'s keyboard, and
   Delete, Ctrl+D, R, the edit and a reveal's unfold marked after the interface has drawn.
 - `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
@@ -176,7 +176,7 @@ carries it out.
   and set, which views it shows and whether a point is over a panel.
 - `dock_walk.c` — the walk to one frame of `ui` calls with its seams, each closable leaf's header of
   name and ×, each leaf a panel and scroll area handed to its panel's draw with the palette for the Scene list's drag marks, the Inspector's
-  call, and each scene view's camera preview.
+  call with the open material, and each scene view's camera preview.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree, a
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
   drag parents, unparents or, onto the Assets panel, makes a prefab; a part never drags.
@@ -187,11 +187,11 @@ carries it out.
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
 - `assets_panel.h` — the Assets panel: `<project>/Assets/` as rows in its own arena, never above
-  it, asking for a folder, landscape or material create, rename, delete or move named in place, a row held for a drag, a prefab or
-  landscape to open, and Import.
+  it, asking for a folder, landscape or material create, rename, delete or move named in place, a row held for a drag, a prefab,
+  landscape or material to open, and Import.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
-  fired prefab's or landscape's path unless dragged, Up and Import afterwards, and the import.
+  fired prefab's, landscape's or material's path unless dragged, Up and Import afterwards, and the import.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
   over a row, Create with its Folder, Landscape and Material submenu over the empty part, anchored
   at the pointer.
@@ -206,7 +206,7 @@ carries it out.
   lands, over the Inspector swaps the selected thing's model or emitter's texture; elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
   the release and the ghost, the move's target, the drop point, the Inspector's rectangle, the
-  texture swap, and the one undo step.
+  texture swap, the open material following a move, and the one undo step.
 - `assets_walk.h` — the project's `.scene`, `.prefab` and `.material` texts walked: who names a path before a
   Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
@@ -234,19 +234,22 @@ carries it out.
 - `interface.c` — one `ui` frame per root: the dock walk, the draws over the dock, and the one read
   of its clicks as calls, in order, into the two below.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
-  row, Delete question and a fired prefab or landscape opened.
+  row, Delete question and a fired prefab, landscape or material opened.
 - `interface_assets.c` — the request and menu row carried out, a made landscape's path, the
-  Landscape panel opened, and the question answered and opened.
+  Landscape panel opened, a material opened in the Inspector, the question answered and opened,
+  and the open material following each rename and trash.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
-- `interface_read.c` — the Inspector's reads, the picker's submit, the drop's prefab, the reveal,
+- `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,
+  the picker's submit, the drop's prefab, the reveal,
   the panels' toggles, the bar's or browser's commands, the covers' reads and Preferences'.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
 - `inspector.c` — the Duplicate and Delete row, the walk over described component types, each
   section's heading, Remove and "Needs" line, a row per field, each control's record, Add component
-  and its menu, the open list, a part shown read-only, and the Sculpt section on a landscape.
+  and its menu, the open list, a part shown read-only, the Sculpt section on a landscape, and an
+  open material's section in place of it all.
 - `sculpt.h` — the brush a person holds: chosen or not, its kind, radius, strength and softness
   with their ranges, never saved or undone, whether a thing wears a landscape, and the held drag
   that sculpts it as one undo step.
@@ -257,6 +260,10 @@ carries it out.
   chosen one lit, and Radius, Strength and Softness sliders, read after the frame.
 - `inspector_sculpt.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: a fired button chooses its kind or none, each slider's value taken.
+- `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour swatch,
+  Roughness and Metal sliders, Repeat clamped 0.01–1000, and the three map rows with ×.
+- `inspector_material.c` — the section's one frame of `ui` calls, its nodes forgotten each frame,
+  and the read into the shown copy only.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
   frame from the types' registered menu paths (ADR-0217, 0221), and each level drawn as a list.
 - `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under
@@ -298,17 +305,20 @@ carries it out.
   the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file in the notice, a splash wait's progress passed on,
-  its landscapes drawn, saved, reverted, put back by a stroke and reshaped, and its materials' table.
+  its landscapes drawn, saved, reverted, put back by a stroke and reshaped, and its materials'
+  table with an edited row set live or reloaded.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
   table and the scan.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed; landscapes' heights written
-  in the frame, written on Save, read again on a New or Open, and a size and cells written and re-read.
+  in the frame, written on Save, read again on a New or Open, a size and cells written and re-read,
+  and an edited material set or reloaded.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
-  them: rows, folds, drag, picker, gizmo mode and the reveal of a selection made elsewhere.
-- `scene.c` — the selection, Delete and Duplicate, the gizmo's switch, the colour picker and
+  them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
+  material open in the Inspector.
+- `scene.c` — the selection closing the open material, its follow of a move, Delete and Duplicate, the gizmo's switch, the colour picker and
   dropdown targets, the Scene panel's rows and folds, asked after the frame has ended, and the
   reveal's unfold and scroll.
 - `pick.h` — a left click in a scene view selects what is under the pointer, every placed thing on

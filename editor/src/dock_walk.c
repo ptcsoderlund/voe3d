@@ -353,9 +353,12 @@ static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
 		voe_ecs_component_type(scene->world, &voe_scene_camera_key),
 	};
 
+	// An open material is drawn in place of the entity (scene.h).
 	voe_editor_inspector_draw(ui, &scene->inspector, scene->world,
 				  voe_editor_scene_selected(scene), kept,
-				  sizeof(kept) / sizeof(kept[0]), &scene->sculpt);
+				  sizeof(kept) / sizeof(kept[0]), &scene->sculpt,
+				  scene->material_open, &scene->material,
+				  &scene->material_controls);
 }
 
 // ONE PICTURE, THE WHOLE OF THE VIEW'S TEXTURE, GROWING TO FILL THE PANEL. The

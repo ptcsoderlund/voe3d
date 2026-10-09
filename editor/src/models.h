@@ -47,7 +47,9 @@
 // THE PROJECT'S MATERIALS (0399 point 7) are a materials.h table held here,
 // read on a different folder and through _materials_read after an Assets
 // command; each update loads the materials the rows name from it after the
-// models, and _frame writes their edited records as it writes heights.
+// models, and _frame writes their edited records as it writes heights. An
+// Inspector edit (_material_changed) sets factors live, or has a changed map's
+// material loaded again at the next update; one waits at a time, as a resize.
 #pragma once
 
 #include "materials.h"
@@ -152,6 +154,13 @@ voe_editor_materials *voe_editor_models_materials(voe_editor_models *models);
 void voe_editor_models_materials_read(voe_editor_models *models,
 				      const char *folder,
 				      voe_base_arena *scratch);
+
+// `path`'s table row was edited: without `maps`, its values taken into the
+// store's material at once, written by the next _frame; with, the material
+// loaded again from the row, its maps read from the folder, at the next
+// update, between frames. A failed reload is said in the notice.
+void voe_editor_models_material_changed(voe_editor_models *models,
+					const char *path, bool maps);
 
 // The store to read, for what draws, picks and outlines.
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models);

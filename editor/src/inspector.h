@@ -61,6 +61,7 @@
 #include <base/describe.h>
 
 #include "add_menu.h"
+#include "inspector_material.h"
 #include "sculpt.h"
 
 #include <ecs/component.h>
@@ -334,9 +335,14 @@ bool voe_editor_inspector_is_part(const voe_ecs_world *world,
 // not alive — including nothing selected at all — is one line saying so.
 // `kept` holds `kept_count` types whose sections have no Remove button. After
 // the sections, a thing that wears a landscape gets `sculpt`'s Sculpt section
-// (inspector_sculpt.h).
+// (inspector_sculpt.h). While `material_open` is not "", `material`'s section
+// is drawn in place of all of it into `controls` (inspector_material.h), and
+// no entity is recorded, so no entity's edit is read.
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
 			       const voe_ecs_type *kept, uint32_t kept_count,
-			       voe_editor_sculpt *sculpt);
+			       voe_editor_sculpt *sculpt,
+			       const char *material_open,
+			       const voe_assets_material_file *material,
+			       voe_editor_inspector_material *controls);

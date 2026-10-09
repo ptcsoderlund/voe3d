@@ -53,14 +53,15 @@
 // list's drag in the `list_` fields: its threshold, drop target and cancel.
 //
 // THE GIZMO'S MODE, `rings`, IS THE PERSON'S AND NOT THE PROJECT'S (ADR-0274):
-// never saved, never undone, and kept by a new project.
-//
-// THE ASSETS PANEL'S STATE IS HERE TOO, in `assets`, so the dock reaches it
-// with no parameter of its own (assets_panel.h); nothing in scene.c reads it.
+// never saved, never undone, and kept by a new project. `assets`, the Assets
+// panel's state, is here so the dock reaches it (assets_panel.h). AN OPEN
+// MATERIAL (0399 point 8) is `material_open` and its shown copy `material`:
+// a live selection closes it, a move follows it and a trash closes it.
 #pragma once
 
 #include "assets_panel.h"
 #include "inspector.h"
+#include "inspector_material.h"
 #include "sculpt.h"
 
 #include <ecs/world.h>
@@ -211,6 +212,15 @@ typedef struct voe_editor_scene {
 	// The sculpting brush, the person's as `rings` is (sculpt.h); started
 	// by main.c beside `world`, drawn and read by the Inspector.
 	voe_editor_sculpt sculpt;
+	// The `.material` the Inspector shows in place of the entity,
+	// `Assets/...`, "" for none; set by interface_assets.c on a fired row,
+	// cleared by a live selection and followed by
+	// voe_editor_scene_material_follow. `material` is the shown copy the
+	// Inspector edits,
+	// and `material_controls` what its section drew (inspector_material.h).
+	char material_open[VOE_ASSETS_MATERIAL_PATH];
+	voe_assets_material_file material;
+	voe_editor_inspector_material material_controls;
 } voe_editor_scene;
 
 // Which entity is selected, or a zeroed one when nothing is — including when
@@ -220,8 +230,16 @@ voe_ecs_entity voe_editor_scene_selected(const voe_editor_scene *scene);
 // Selects this entity, or clears the selection when it is zeroed or no longer
 // alive. The same selection a row in `Scene` moves (voe_editor_scene_clicks_read)
 // and the same one the Inspector shows: there is one, and this is how anything
-// that is not the Scene panel moves it.
+// that is not the Scene panel moves it. A live entity closes the open material;
+// a zeroed or dead one, as a re-found empty selection is, keeps it.
 void voe_editor_scene_select(voe_editor_scene *scene, voe_ecs_entity entity);
+
+// The open material follows a move of `from` to `to`, both relative to
+// `Assets/` as assets_manage.h's are: itself or a folder above it. `to` NULL,
+// a trash, closes it when it is `from` or under `from/`; so does a followed
+// path too long for `material_open`.
+void voe_editor_scene_material_follow(voe_editor_scene *scene,
+				      const char *from, const char *to);
 
 // Whether this is the selected entity. False for a zeroed `entity` and false
 // for one that is not alive, so a caller comparing table rows needs no checks of
@@ -244,7 +262,8 @@ void voe_editor_scene_add_record(voe_editor_scene *scene, voe_ui_node add);
 void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 			      voe_ecs_entity entity, voe_ui_node fold);
 
-// Moves the selection to whichever recorded row fired this frame, unless the
+// Moves the selection to whichever recorded row fired this frame, closing the
+// open material, unless the
 // Scene list's drag is under way or was cancelled (a release that ends a drag
 // is no click; this runs before voe_editor_scene_list_drop zeroes both); flips
 // the identity's `folded` of a row whose fold fired, counting one in

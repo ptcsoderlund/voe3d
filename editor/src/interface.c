@@ -256,6 +256,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_inspector_frame_begin(&scene->inspector, arena,
 						 &scene->dropdown);
 		voe_editor_inspector_sculpt_forget(&scene->sculpt);
+		voe_editor_inspector_material_forget(&scene->material_controls);
 
 		// ONE COLUMN IS THIS FRAME'S ROOT, AND THE BAR AND THE TREE ARE
 		// ITS TWO CHILDREN. voe_ui_frame_begin requires the very first
@@ -381,7 +382,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// widget will answer in. A refused frame above is not asked at
 		// all: nothing was laid out, so nothing was clicked.
 		over_assets = voe_editor_interface_scene_read(
-			ui, arena, root, scene, session, bar, picker, &picked);
+			ui, arena, root, scene, models, session, bar, picker,
+			&picked);
 		voe_editor_interface_assets_read(
 			ui, arena, root, scene, undo, models, session, browser,
 			preferences, project_panel, landscape_panel,

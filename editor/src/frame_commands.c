@@ -1,5 +1,6 @@
 // The three per-frame command stretches of main.c's loop, in the order main.c
-// calls them: the history's step, the keyboard's read and acts (F2's rename
+// calls them: the history's step (a different project closing the open
+// material), the keyboard's read and acts (F2's rename
 // and Delete's question among them, the Assets panel's keyboard a guard,
 // Escape closing that question first and hiding the Landscape panel with the
 // Project panel), and the acts
@@ -27,10 +28,12 @@ void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 	// unsaved and is never itself an edit to record.
 	// A prefab opened sets the level's line aside, and Back puts it
 	// back (0283 point 8).
-	// The Landscape panel's path is the old project's, so it closes too.
+	// The Landscape panel's path is the old project's, so it closes too,
+	// and so does the open material: the new table may hold its path.
 	if (session->replaced) {
 		session->replaced = false;
 		voe_editor_landscape_panel_hide(commands->landscape_panel);
+		commands->scene->material_open[0] = '\0';
 		voe_editor_undo_forget(commands->undo);
 		voe_editor_views_focus_camera(commands->views,
 					      commands->scene->world);

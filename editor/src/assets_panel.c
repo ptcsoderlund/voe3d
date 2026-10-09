@@ -1,7 +1,7 @@
 // The Assets panel's listing with the selected row kept, its one frame of `ui`
 // calls with the naming's field, and the read of its rows, the selection and
-// `keyboard`, the field's request, a fired prefab or landscape row's path and
-// Up afterwards,
+// `keyboard`, the field's request, a fired prefab, landscape or material row's
+// path and Up afterwards,
 // with the rectangles the right button's menu and the drag are read from.
 // See the header for the arena, the once a second and what a missing
 // `Assets/` or a failed listing leaves.
@@ -165,6 +165,8 @@ static void rows_fill(voe_editor_assets *assets,
 				.picture = !e->folder && names_picture(e->name),
 				.landscape = !e->folder &&
 					     name_ends(e->name, ".landscape"),
+				.material = !e->folder &&
+					    name_ends(e->name, ".material"),
 			};
 		}
 	}
@@ -525,12 +527,13 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 		    row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
 			entered = row->name;
-		if ((row->prefab || row->landscape) && !dragged &&
-		    row->node != VOE_UI_NODE_NONE &&
+		if ((row->prefab || row->landscape || row->material) &&
+		    !dragged && row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
 			opened_set(assets, row->name,
-				   row->prefab ? assets->opened :
-						 assets->landscape_opened);
+				   row->prefab    ? assets->opened :
+				   row->landscape ? assets->landscape_opened :
+						    assets->material_opened);
 		row->seen = seen(ui, row->node);
 		row->node = VOE_UI_NODE_NONE;
 	}

@@ -253,9 +253,12 @@ static void drop(const voe_editor_assets_drag *drag,
 	if (out.kind == OUTCOME_MOVE) {
 		voe_base_arena *scratch = voe_base_arena_new(MOVE_SCRATCH);
 
-		(void)voe_editor_assets_move(session, scene, undo, models, scratch,
-					     drag->path + strlen("Assets/"),
-					     out.to);
+		// A false has said why in the notice.
+		if (voe_editor_assets_move(session, scene, undo, models, scratch,
+					   drag->path + strlen("Assets/"),
+					   out.to))
+			voe_editor_scene_material_follow(
+				scene, drag->path + strlen("Assets/"), out.to);
 		voe_base_arena_destroy(scratch);
 		return;
 	}

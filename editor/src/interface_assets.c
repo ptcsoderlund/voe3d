@@ -5,10 +5,11 @@
 // (session.h), beside where Import shows the browser; a naming request (a
 // rename, folder, landscape or material) goes through assets_manage.h in the frame's
 // arena, a rename's typed `/` refused here, and the Landscape panel opens on a
-// landscape made or fired. Delete asks first: the request opens the session's
-// question (assets_ask.h), drawn over the dock by interface.c and read here —
-// Delete trashes through assets_manage.h, and it or Cancel or a press outside
-// closes it.
+// landscape made or fired; a fired material row opens in the Inspector (scene.h).
+// Delete asks first: the request opens the session's question (assets_ask.h),
+// drawn over the dock by interface.c and read here — Delete trashes through
+// assets_manage.h, and it or Cancel or a press outside closes it. The open
+// material follows each successful rename and trash.
 //
 // THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn by interface.c
 // after the panels list and read here after the panel: Rename, Delete, Folder,
@@ -76,12 +77,12 @@ static void voe_editor_interface_assets_request_do(
 			voe_editor_notice_set(&session->notice,
 					      "%s: a name cannot hold /, \\ or \"",
 					      request->name);
-		else
-			// A false has said why in the notice.
-			(void)voe_editor_assets_move(session, scene, undo,
-						     models, arena,
-						     request->from,
-						     request->to);
+		// A false move has said why in the notice.
+		else if (voe_editor_assets_move(session, scene, undo, models,
+						arena, request->from,
+						request->to))
+			voe_editor_scene_material_follow(scene, request->from,
+							 request->to);
 	} else if (request->kind == VOE_EDITOR_ASSETS_NAMING_FOLDER) {
 		(void)voe_editor_assets_folder_make(session, scene, undo, arena,
 						    request->folder,
@@ -127,6 +128,29 @@ static void voe_editor_interface_assets_landscape_open(
 		return;
 	voe_editor_preferences_hide(preferences);
 	voe_editor_project_panel_hide(project_panel);
+}
+
+// Opens `path` (`Assets/...`) in the Inspector: the selection cleared, the path
+// kept and the table's row copied as the shown material. A path the table
+// lacks (a file that would not parse) opens nothing.
+static void voe_editor_interface_assets_material_open(voe_editor_scene *scene,
+						      voe_editor_models *models,
+						      const char *path)
+{
+	const voe_game_material *row;
+
+	VOE_BASE_ASSERT(scene != NULL && models != NULL,
+			"opening a material in no scene or from no store");
+	VOE_BASE_ASSERT(path != NULL, "opening no material");
+	row = voe_editor_materials_find(voe_editor_models_materials(models),
+					path);
+	if (row == NULL ||
+	    strlen(path) >= sizeof scene->material_open)
+		return;
+	voe_editor_scene_select(scene, (voe_ecs_entity){ 0 });
+	snprintf(scene->material_open, sizeof scene->material_open, "%s",
+		 path);
+	scene->material = row->values;
 }
 
 // A fired row of the Assets menu carried out on the selected row or the shown
@@ -215,10 +239,11 @@ void voe_editor_interface_assets_read(
 						   root->pointer.at);
 
 		// A false has said why in the notice.
-		if (answer == VOE_EDITOR_ASSETS_ASK_DELETE)
-			(void)voe_editor_assets_trash(session, scene, undo,
-						      models, arena,
-						      session->asking.path);
+		if (answer == VOE_EDITOR_ASSETS_ASK_DELETE &&
+		    voe_editor_assets_trash(session, scene, undo, models, arena,
+					    session->asking.path))
+			voe_editor_scene_material_follow(
+				scene, session->asking.path, NULL);
 		if (answer != VOE_EDITOR_ASSETS_ASK_NONE)
 			voe_editor_assets_ask_close(&session->asking);
 	}
@@ -229,6 +254,11 @@ void voe_editor_interface_assets_read(
 						   scene->assets.deleting,
 						   arena);
 		scene->assets.deleting[0] = '\0';
+	}
+	if (scene->assets.material_opened[0] != '\0') {
+		voe_editor_interface_assets_material_open(
+			scene, models, scene->assets.material_opened);
+		scene->assets.material_opened[0] = '\0';
 	}
 	if (scene->assets.opened[0] != '\0') {
 		voe_editor_session_prefab_open(session, scene,

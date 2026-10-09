@@ -14,7 +14,8 @@
 // THE COLOUR PICKER'S RESULT IS READ HERE, for the same reason: it is a `ui`
 // widget answering after voe_ui_frame_end. A `changed` goes through
 // inspector.h's voe_editor_inspector_colour_submit at once, so the shape
-// changes live; an `outside` press closes it.
+// changes live; an `outside` press closes it. So is the open material's
+// section: an edit the table's row takes, and the store told (models.h).
 //
 // THE SCENE LIST'S DROP IS CARRIED OUT HERE, through scene_list.h's
 // voe_editor_scene_list_drop, after the rows' clicks. Released over the Assets
@@ -32,6 +33,7 @@
 #include "errors.h"
 #include "inspector.h"
 #include "inspector_edit.h"
+#include "inspector_material.h"
 #include "inspector_place.h"
 #include "inspector_sculpt.h"
 #include "notice.h"
@@ -43,6 +45,8 @@
 
 #include <base/assert.h>
 #include <base/report.h>
+
+#include <string.h>
 
 static void voe_editor_interface_picker_read(voe_ui_context *ui,
 					     voe_editor_scene *scene,
@@ -66,6 +70,36 @@ static void voe_editor_interface_picker_read(voe_ui_context *ui,
 		voe_editor_scene_picker_close(scene);
 }
 
+// The open material's section read into the shown copy; when that now differs
+// from the table's row, the row takes it and the store is told whether a map
+// changed (models.h). A row gone from the table takes nothing.
+static void voe_editor_interface_material_read(const voe_ui_context *ui,
+					       voe_editor_scene *scene,
+					       voe_editor_models *models)
+{
+	voe_game_material *row;
+	const voe_assets_material_file *shown = &scene->material;
+	bool maps;
+
+	VOE_BASE_ASSERT(ui != NULL && scene != NULL && models != NULL,
+			"reading a material with no frame, scene or store");
+	voe_editor_inspector_material_read(ui, &scene->material_controls,
+					   &scene->material);
+	if (scene->material_open[0] == '\0')
+		return;
+	row = voe_editor_materials_find(voe_editor_models_materials(models),
+					scene->material_open);
+	if (row == NULL || memcmp(&row->values, shown, sizeof *shown) == 0)
+		return;
+	maps = strcmp(row->values.colour_map, shown->colour_map) != 0 ||
+	       strcmp(row->values.normal_map, shown->normal_map) != 0 ||
+	       strcmp(row->values.roughness_map, shown->roughness_map) != 0;
+	row->values = *shown;
+	voe_editor_models_material_changed(models, scene->material_open, maps);
+	VOE_BASE_ASSERT(memcmp(&row->values, shown, sizeof *shown) == 0,
+			"a row that did not take the shown material");
+}
+
 // The edits go first, and which order they are in is a fact and not a taste:
 // a click read here can move the selection, and the controls were drawn for
 // whatever was selected when the frame was built. The inspector keeps that
@@ -76,6 +110,7 @@ static void voe_editor_interface_picker_read(voe_ui_context *ui,
 bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 				     const voe_editor_dock_root *root,
 				     voe_editor_scene *scene,
+				     voe_editor_models *models,
 				     voe_editor_session *session,
 				     const voe_editor_topbar *bar,
 				     voe_ui_node picker,
@@ -95,6 +130,7 @@ bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 	voe_editor_inspector_buttons_read(&scene->inspector, ui, scene,
 					  root->pointer.down, root->pointer.at);
 	voe_editor_inspector_sculpt_read(ui, &scene->sculpt);
+	voe_editor_interface_material_read(ui, scene, models);
 	if (!voe_editor_scene_clicks_read(scene, ui))
 		voe_editor_notice_set(&session->notice, "The scene is full.");
 	over_assets = voe_editor_dock_over_panel(
