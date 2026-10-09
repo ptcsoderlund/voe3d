@@ -1,8 +1,10 @@
 // The editor's one model store models.h describes: made empty, emptied on a
-// different folder, filled and re-read through game/models.h once a frame,
-// cleared through the device and destroyed, and handed out read-only; its
-// landscapes' heights written in the frame, written on Save and read again,
-// and one reshaped, written at once and loaded again at the next update.
+// different folder, its materials' table read again then, filled and re-read
+// through game/models.h once a frame, the table's materials loaded after the
+// models, cleared through the device and destroyed, and handed out read-only;
+// its landscapes' heights and materials' records written in the frame,
+// landscapes written on Save and read again, and one reshaped, written at once
+// and loaded again at the next update.
 #include "models.h"
 
 #include <base/assert.h>
@@ -22,6 +24,8 @@
 
 struct voe_editor_models {
 	voe_3d_models *store;
+	// The project's materials, read on a different folder.
+	voe_editor_materials *materials;
 	// The folder the store was last read against, the store's own copy;
 	// NULL before any and while the project is untitled.
 	char *folder;
@@ -43,6 +47,9 @@ voe_editor_models *voe_editor_models_new(void)
 	VOE_BASE_ASSERT(models != NULL, "out of memory making the model store");
 	models->store = voe_3d_models_new();
 	VOE_BASE_ASSERT(models->store != NULL, "made a model store with none");
+	models->materials = calloc(1, sizeof(*models->materials));
+	VOE_BASE_ASSERT(models->materials != NULL,
+			"out of memory making the materials' table");
 	return models;
 }
 
@@ -54,15 +61,16 @@ void voe_editor_models_destroy(voe_editor_models *models,
 	VOE_BASE_ASSERT(device != NULL, "clearing models with no device");
 	voe_3d_models_clear(models->store, device);
 	voe_3d_models_destroy(models->store);
+	free(models->materials);
 	free(models->folder);
 	free(models->resized);
 	free(models);
 }
 
-// Empties the store and keeps a copy of `folder` (NULL for untitled) when it
-// is not the one last read against.
+// Empties the store, keeps a copy of `folder` (NULL for untitled) and reads
+// its materials when it is not the one last read against.
 static void follow_folder(voe_editor_models *models, const char *folder,
-			  voe_render_device *device)
+			  voe_render_device *device, voe_base_arena *scratch)
 {
 	if (folder == NULL && models->folder == NULL)
 		return;
@@ -82,6 +90,7 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 				"out of memory copying the models' folder");
 		memcpy(models->folder, folder, size);
 	}
+	voe_editor_materials_read(models->materials, models->folder, scratch);
 	VOE_BASE_ASSERT(voe_3d_models_count(models->store) == 0,
 			"a cleared store still holds models");
 }
@@ -112,12 +121,14 @@ void voe_editor_models_update(voe_editor_models *models,
 			      voe_base_arena *scratch, double now,
 			      voe_game_progress *progress)
 {
+	voe_game_materials table;
+
 	VOE_BASE_ASSERT(models != NULL && session != NULL,
 			"updating no store or no session");
 	VOE_BASE_ASSERT(session->project != NULL && device != NULL &&
 				scratch != NULL,
 			"updating models with no project, device or scratch");
-	follow_folder(models, session->project->folder, device);
+	follow_folder(models, session->project->folder, device, scratch);
 	if (models->folder == NULL)
 		return;
 	if (models->resized != NULL) {
@@ -134,6 +145,12 @@ void voe_editor_models_update(voe_editor_models *models,
 		    voe_game_models_update(session->project->world,
 					   models->store, device,
 					   models->folder, scratch, progress));
+	table = voe_editor_materials_table(models->materials);
+	voe_base_report_error_clear();
+	say_failure(&session->notice,
+		    voe_game_models_materials(session->project->world,
+					      models->store, device,
+					      models->folder, &table, scratch));
 	if (now - models->looked < WATCH_SECONDS)
 		return;
 	models->looked = now;
@@ -150,6 +167,7 @@ void voe_editor_models_frame(voe_editor_models *models,
 			"writing landscapes of no store");
 	VOE_BASE_ASSERT(device != NULL, "writing landscapes with no device");
 	voe_3d_models_landscape_frame(models->store, device);
+	voe_3d_models_material_frame(models->store, device);
 }
 
 // Whether `entry` is a landscape changed since it was loaded or saved.
@@ -392,6 +410,23 @@ bool voe_editor_models_landscape_shape(voe_editor_models *models,
 rewind:
 	voe_base_arena_rewind(scratch, mark);
 	return written;
+}
+
+voe_editor_materials *voe_editor_models_materials(voe_editor_models *models)
+{
+	VOE_BASE_ASSERT(models != NULL, "the materials of no store");
+	VOE_BASE_ASSERT(models->materials != NULL, "a store with no table");
+	return models->materials;
+}
+
+void voe_editor_models_materials_read(voe_editor_models *models,
+				      const char *folder,
+				      voe_base_arena *scratch)
+{
+	VOE_BASE_ASSERT(models != NULL && models->materials != NULL,
+			"reading materials into no store");
+	VOE_BASE_ASSERT(scratch != NULL, "reading materials with no scratch");
+	voe_editor_materials_read(models->materials, folder, scratch);
 }
 
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models)

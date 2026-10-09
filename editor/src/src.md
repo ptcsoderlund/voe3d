@@ -294,7 +294,11 @@ carries it out.
   the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
   emptied on a different project, a broken file in the notice, a splash wait's progress passed on,
-  and its landscapes drawn, saved, reverted, put back by a stroke and reshaped.
+  its landscapes drawn, saved, reverted, put back by a stroke and reshaped, and its materials' table.
+- `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
+  a project and after an Assets command, found by path to edit in place.
+- `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
+  table and the scan.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
   with a failure's notice, cleared through the device and destroyed; landscapes' heights written
   in the frame, written on Save, read again on a New or Open, and a size and cells written and re-read.
