@@ -7,13 +7,15 @@
 //     roughness=0.5
 //     metal=0
 //     repeat=1
-//     colour_map="Assets/brick.png"
-//     normal_map=""
-//     roughness_map=""
+//     colormap="Assets/brick.png"
+//     normalmap=""
+//     ormmap=""
 //
 // `shader` is `lit` or `unlit`; `colour` is three linear floats; `repeat`
 // multiplies the texture coordinates before any map is read. Each map is a
-// project-relative path, "" for none.
+// project-relative path, "" for none. `ormmap` is one picture: occlusion in
+// red, roughness in green, metal in blue (0400). A file with the keys these
+// replaced (colour, normal and roughness, each `_map`) reads as having no maps.
 //
 // A MISSING KEY READS ITS DEFAULT: lit, colour 1 1 1, roughness 0.5, metal 0,
 // repeat 1, no maps. A file written before a key existed still opens, and
@@ -53,9 +55,9 @@ typedef struct {
 	float metal;
 	float repeat;
 	// Project-relative, NUL-terminated, "" for none.
-	char colour_map[VOE_ASSETS_MATERIAL_PATH];
-	char normal_map[VOE_ASSETS_MATERIAL_PATH];
-	char roughness_map[VOE_ASSETS_MATERIAL_PATH];
+	char colormap[VOE_ASSETS_MATERIAL_PATH];
+	char normalmap[VOE_ASSETS_MATERIAL_PATH];
+	char ormmap[VOE_ASSETS_MATERIAL_PATH];
 } voe_assets_material_file;
 
 typedef struct {

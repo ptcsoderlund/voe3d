@@ -116,12 +116,10 @@ static bool read_section(const voe_assets_sectioned *doc,
 			    error) &&
 	       read_numbers(doc, section, "repeat", &material->repeat, 1,
 			    error) &&
-	       read_path(doc, section, "colour_map", material->colour_map,
+	       read_path(doc, section, "colormap", material->colormap, error) &&
+	       read_path(doc, section, "normalmap", material->normalmap,
 			 error) &&
-	       read_path(doc, section, "normal_map", material->normal_map,
-			 error) &&
-	       read_path(doc, section, "roughness_map",
-			 material->roughness_map, error);
+	       read_path(doc, section, "ormmap", material->ormmap, error);
 }
 
 voe_assets_material_file voe_assets_material_default(void)
@@ -180,9 +178,9 @@ static void quote(const char *path, char *quoted)
 
 // The paths, quoted once and printed twice.
 struct quoted_paths {
-	char colour_map[QUOTED_PATH];
-	char normal_map[QUOTED_PATH];
-	char roughness_map[QUOTED_PATH];
+	char colormap[QUOTED_PATH];
+	char normalmap[QUOTED_PATH];
+	char ormmap[QUOTED_PATH];
 };
 
 // The whole text into `buffer`, or only its length when `buffer` is NULL.
@@ -193,13 +191,13 @@ static size_t print_material(char *buffer, size_t room,
 	const int written = snprintf(
 		buffer, room,
 		"[Material]\nshader=%s\ncolour=%.9g %.9g %.9g\n"
-		"roughness=%.9g\nmetal=%.9g\nrepeat=%.9g\ncolour_map=%s\n"
-		"normal_map=%s\nroughness_map=%s\n",
+		"roughness=%.9g\nmetal=%.9g\nrepeat=%.9g\ncolormap=%s\n"
+		"normalmap=%s\normmap=%s\n",
 		material->shader == VOE_ASSETS_MATERIAL_UNLIT ? "unlit" : "lit",
 		(double)material->colour[0], (double)material->colour[1],
 		(double)material->colour[2], (double)material->roughness,
 		(double)material->metal, (double)material->repeat,
-		paths->colour_map, paths->normal_map, paths->roughness_map);
+		paths->colormap, paths->normalmap, paths->ormmap);
 
 	VOE_BASE_ASSERT(written > 0, "printing a material failed");
 	VOE_BASE_ASSERT(buffer == NULL || (size_t)written < room,
@@ -218,9 +216,9 @@ voe_assets_material_write(const voe_assets_material_file *material,
 	VOE_BASE_ASSERT(material != NULL, "writing no material");
 	VOE_BASE_ASSERT(arena != NULL, "writing a material with no arena");
 
-	quote(material->colour_map, paths.colour_map);
-	quote(material->normal_map, paths.normal_map);
-	quote(material->roughness_map, paths.roughness_map);
+	quote(material->colormap, paths.colormap);
+	quote(material->normalmap, paths.normalmap);
+	quote(material->ormmap, paths.ormmap);
 	size = print_material(NULL, 0, material, &paths);
 	text = voe_base_arena_push(arena, size + 1);
 	print_material(text, size + 1, material, &paths);

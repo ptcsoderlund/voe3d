@@ -32,9 +32,9 @@ static bool same(const voe_assets_material_file *a, const voe_assets_material_fi
 	       a->colour[1] == b->colour[1] && a->colour[2] == b->colour[2] &&
 	       a->roughness == b->roughness && a->metal == b->metal &&
 	       a->repeat == b->repeat &&
-	       strcmp(a->colour_map, b->colour_map) == 0 &&
-	       strcmp(a->normal_map, b->normal_map) == 0 &&
-	       strcmp(a->roughness_map, b->roughness_map) == 0;
+	       strcmp(a->colormap, b->colormap) == 0 &&
+	       strcmp(a->normalmap, b->normalmap) == 0 &&
+	       strcmp(a->ormmap, b->ormmap) == 0;
 }
 
 static void an_empty_section_reads_the_defaults(void)
@@ -49,11 +49,14 @@ static void an_empty_section_reads_the_defaults(void)
 		       out.colour[2] == 1.0f);
 	VOE_TEST_CHECK(out.roughness == 0.5f && out.metal == 0.0f &&
 		       out.repeat == 1.0f);
-	VOE_TEST_CHECK(out.colour_map[0] == '\0' && out.normal_map[0] == '\0' &&
-		       out.roughness_map[0] == '\0');
+	VOE_TEST_CHECK(out.colormap[0] == '\0' && out.normalmap[0] == '\0' &&
+		       out.ormmap[0] == '\0');
 	// One key given, the rest their defaults.
 	VOE_TEST_CHECK(read_text("[Material]\nmetal=0.25\n", &out, NULL));
 	VOE_TEST_CHECK(out.metal == 0.25f && out.roughness == 0.5f);
+	VOE_TEST_CHECK(read_text("[Material]\normmap=\"a.png\"\n", &out, NULL));
+	VOE_TEST_CHECK(strcmp(out.ormmap, "a.png") == 0 &&
+		       out.colormap[0] == '\0');
 }
 
 static void a_full_file_round_trips(voe_base_arena *arena)
@@ -68,14 +71,15 @@ static void a_full_file_round_trips(voe_base_arena *arena)
 	voe_assets_material_file back = voe_assets_material_default();
 	voe_assets_material_text text;
 
-	strcpy(full.colour_map, "Assets/brick wall.png");
-	strcpy(full.normal_map, "Assets/\"odd\" \\ name.png");
-	memset(full.roughness_map, 'r', VOE_ASSETS_MATERIAL_PATH - 1);
-	full.roughness_map[VOE_ASSETS_MATERIAL_PATH - 1] = '\0';
+	strcpy(full.colormap, "Assets/brick wall.png");
+	strcpy(full.normalmap, "Assets/\"odd\" \\ name.png");
+	memset(full.ormmap, 'r', VOE_ASSETS_MATERIAL_PATH - 1);
+	full.ormmap[VOE_ASSETS_MATERIAL_PATH - 1] = '\0';
 
 	text = voe_assets_material_write(&full, arena);
 	VOE_TEST_CHECK_INT(strlen(text.text), text.size);
 	VOE_TEST_CHECK(strstr(text.text, "shader=unlit\n") != NULL);
+	VOE_TEST_CHECK(strstr(text.text, "\normmap=") != NULL);
 	VOE_TEST_CHECK(voe_assets_material_read(text.text, text.size, &back,
 						NULL));
 	VOE_TEST_CHECK(same(&back, &full));
@@ -99,7 +103,7 @@ static void bad_values_are_malformed(void)
 	malformed("[Material]\nrepeat=inf\n");
 	malformed("[Other]\n");
 	malformed("not sectioned\n");
-	snprintf(text, sizeof(text), "[Material]\ncolour_map=%0128d\n", 0);
+	snprintf(text, sizeof(text), "[Material]\ncolormap=%0128d\n", 0);
 	malformed(text);
 }
 
