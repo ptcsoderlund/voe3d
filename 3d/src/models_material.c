@@ -9,7 +9,10 @@
 //
 // Constraints: a map's picture is decoded by its path's extension, as a
 // picture entry's is, so a map path that is no `.png`, `.jpg` or `.jpeg` fails
-// MALFORMED. Each material uploads its own maps; a map shared by two materials
+// MALFORMED. The ORM map (0400) is uploaded once, as DATA, and its one texture
+// set in both the metal-roughness slot (green, blue) and the occlusion slot
+// (red): one picture, one fetch, so it is held and freed once. An empty ORM
+// map leaves both slots none. Each material uploads its own maps; a map shared by two materials
 // costs two textures, which a store of pictures by path would lift. The set
 // and the frame walk every entry.
 #include "model_picture.h"
@@ -104,17 +107,20 @@ static bool upload_material(voe_render_device *device, voe_base_arena *scratch,
 	maps_made made = { 0 };
 	bool record = false;
 
-	const bool uploaded =
-		upload_map(device, scratch, values->colour_map, maps.colour,
+	bool uploaded =
+		upload_map(device, scratch, values->colormap, maps.colour,
 			   VOE_RENDER_TEXTURE_COLOUR, &made,
 			   &material->base_colour_texture, error) &&
-		upload_map(device, scratch, values->normal_map, maps.normal,
+		upload_map(device, scratch, values->normalmap, maps.normal,
 			   VOE_RENDER_TEXTURE_DATA, &made,
 			   &material->normal_texture, error) &&
-		upload_map(device, scratch, values->roughness_map,
-			   maps.roughness, VOE_RENDER_TEXTURE_DATA, &made,
-			   &material->metallic_roughness_texture, error) &&
-		(record = voe_3d_material_upload(device, material, error));
+		upload_map(device, scratch, values->ormmap, maps.orm,
+			   VOE_RENDER_TEXTURE_DATA, &made,
+			   &material->metallic_roughness_texture, error);
+
+	material->occlusion_texture = material->metallic_roughness_texture;
+	uploaded = uploaded &&
+		   (record = voe_3d_material_upload(device, material, error));
 
 	part.faded = material->shading;
 	if (uploaded && voe_3d_models_twin(device, &part, error)) {

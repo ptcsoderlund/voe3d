@@ -134,7 +134,7 @@ typedef struct {
 typedef struct {
 	voe_3d_material_map colour;
 	voe_3d_material_map normal;
-	voe_3d_material_map roughness;
+	voe_3d_material_map orm;
 } voe_3d_material_maps;
 
 typedef struct voe_3d_models voe_3d_models;
@@ -171,8 +171,9 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 	voe_base_error *error);
 
 // `material` as `path`'s entry: each map with bytes decoded as a picture by its
-// path's extension and uploaded mipped, colour as COLOUR, normal and roughness
-// as DATA, roughness in the metal-roughness slot (0399 point 2); colour, metal,
+// path's extension and uploaded mipped, colour as COLOUR, normal and ORM as
+// DATA, the ORM map's one texture in the metal-roughness and the occlusion
+// slots both (0400); colour, metal,
 // roughness, repeat and shader from the values; one part with no geometry and
 // its blended twin. Replaces and fails as _load does; MALFORMED when a map will
 // not decode, REFUSED when the device or the store has no room.

@@ -1,9 +1,11 @@
 // The model store's materials: a `.material` with three 2 × 2 PNG maps loaded
-// as one part with no geometry and a live record and twin; a set then a frame
-// writing both records; a map that is no picture failing MALFORMED as a failed
-// entry; and a rename finding the material at its new path.
+// as one part with no geometry and a live record and twin, the ORM map in the
+// metal-roughness and occlusion slots both; a set then a frame writing both
+// records; a colour map alone leaving those two slots none; a map that is no
+// picture failing MALFORMED as a failed entry; and a rename finding the
+// material at its new path.
 //
-// THE DEVICE HOLDS TWO MATERIALS' RECORDS, a record and a twin each, and no
+// THE DEVICE HOLDS THREE MATERIALS' RECORDS, a record and a twin each, and no
 // geometry: a material's part draws nothing of its own.
 //
 // IT SKIPS WHEN THERE IS NO GRAPHICS CARD, because a load uploads.
@@ -29,7 +31,7 @@ static const voe_render_capacities CAPACITIES = {
 	.indices = 6,
 	.geometries = 1,
 	.objects = 1,
-	.shadings = 4,
+	.shadings = 6,
 	.passes = 1,
 };
 
@@ -44,9 +46,9 @@ static voe_assets_material_file three_maps(void)
 	material.colour[1] = 0.4f;
 	material.colour[2] = 0.6f;
 	material.repeat = 4.0f;
-	strcpy(material.colour_map, "Assets/brick.png");
-	strcpy(material.normal_map, "Assets/brick_n.png");
-	strcpy(material.roughness_map, "Assets/brick_r.png");
+	strcpy(material.colormap, "Assets/brick.png");
+	strcpy(material.normalmap, "Assets/brick_n.png");
+	strcpy(material.ormmap, "Assets/brick_orm.png");
 	return material;
 }
 
@@ -67,7 +69,7 @@ static void check_loaded(const voe_3d_model_entry *entry)
 	VOE_TEST_CHECK(material->metallic_roughness_texture.index !=
 		       VOE_RENDER_NO_TEXTURE);
 	VOE_TEST_CHECK_INT(material->occlusion_texture.index,
-			   VOE_RENDER_NO_TEXTURE);
+			   material->metallic_roughness_texture.index);
 	VOE_TEST_CHECK(entry->parts[0].faded.index != material->shading.index);
 }
 
@@ -141,6 +143,20 @@ int main(void)
 		check_loaded(entry);
 
 	check_set(models, device, material);
+
+	// ---- a colour map alone leaves the ORM map's two slots none
+	VOE_TEST_CHECK(voe_3d_models_load_material(
+		models, device, "Assets/plain.material", 1, &material,
+		(voe_3d_material_maps){ .colour = map }, &error));
+	entry = voe_3d_models_find(models, "Assets/plain.material");
+	VOE_TEST_CHECK(entry != NULL);
+	if (entry != NULL) {
+		VOE_TEST_CHECK_INT(
+			entry->parts[0].material.metallic_roughness_texture.index,
+			VOE_RENDER_NO_TEXTURE);
+		VOE_TEST_CHECK_INT(entry->parts[0].material.occlusion_texture.index,
+				   VOE_RENDER_NO_TEXTURE);
+	}
 
 	// ---- a map that is no picture: MALFORMED, a failed entry
 	error = VOE_BASE_OK;
