@@ -55,7 +55,7 @@
 //
 // Constraints: links only in a tree with a cooked scene.c defining
 // voe_game_scene_build, a cooked prefabs.c defining voe_game_prefabs_cooked,
-// and a project defining game/project.h's four entry points (register,
+// a cooked materials.c defining voe_game_materials_cooked, and a project defining game/project.h's four entry points (register,
 // systems_run, systems_after_move, interface), which only run.c names.
 #pragma once
 

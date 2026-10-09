@@ -14,13 +14,15 @@
 // - The window's remembered bounce casters are kept for the whole run, across
 //   frames and restarts.
 // - The only file naming the project's cooked C: voe_game_scene_build,
-//   voe_game_prefabs_cooked and voe_game_landscapes_cooked, the landscapes
-//   loaded before the first models; and the project's entry points.
+//   voe_game_prefabs_cooked, voe_game_landscapes_cooked, the landscapes
+//   loaded before the first models, and voe_game_materials_cooked, loaded
+//   after each models update; and the project's entry points.
 #include <game/run.h>
 
 #include <game/frame.h>
 #include <game/interface.h>
 #include <game/landscapes.h>
+#include <game/materials.h>
 #include <game/models.h>
 #include <game/prefabs.h>
 #include <game/progress.h>
@@ -163,6 +165,10 @@ static bool run_start_work(void *context, voe_game_progress *progress)
 					 start->scratch);
 	(void)voe_game_models_update(start->world, start->store, start->device,
 				     start->folder, start->scratch, progress);
+	(void)voe_game_models_materials(start->world, start->store,
+					start->device, start->folder,
+					&voe_game_materials_cooked,
+					start->scratch);
 	if (voe_game_progress_stopped(progress))
 		return false;
 	voe_app_start_log_step(start->log, "shapes and models");
@@ -235,6 +241,10 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 						     voe_app_device(app),
 						     models->folder, scratch,
 						     NULL);
+			(void)voe_game_models_materials(
+				world, models->store, voe_app_device(app),
+				models->folder, &voe_game_materials_cooked,
+				scratch);
 			asks =(voe_game_project_asks){ 0 };
 		}
 		if (!asks.paused)
@@ -246,6 +256,11 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 		(void)voe_game_models_update(world, models->store,
 					     voe_app_device(app),
 					     models->folder, scratch, NULL);
+		(void)voe_game_models_materials(world, models->store,
+						voe_app_device(app),
+						models->folder,
+						&voe_game_materials_cooked,
+						scratch);
 		// The ui frame is laid out in scratch and gone by the next.
 		voe_base_arena_clear(scratch);
 		if (!voe_game_interface_run(interface, scratch, world,
