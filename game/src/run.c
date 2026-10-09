@@ -11,6 +11,11 @@
 // - The interface runs each frame and may end the run.
 // - A restart asked makes the world again in its own arena; the mixer pauses
 //   with the run.
+// - The window's remembered bounce casters are kept for the whole run, across
+//   frames and restarts.
+// - The only file naming the project's cooked C: voe_game_scene_build,
+//   voe_game_prefabs_cooked and voe_game_landscapes_cooked, the landscapes
+//   loaded before the first models; and the project's entry points.
 #include <game/run.h>
 
 #include <game/frame.h>
