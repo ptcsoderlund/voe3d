@@ -178,14 +178,14 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 // not decode, REFUSED when the device or the store has no room.
 [[nodiscard]] bool voe_3d_models_load_material(
 	voe_3d_models *models, voe_render_device *device, const char *path,
-	uint64_t stamp, const voe_assets_material *material,
+	uint64_t stamp, const voe_assets_material_file *material,
 	voe_3d_material_maps maps, voe_base_error *error);
 
 // `material`'s colour, metal, roughness, repeat and shader taken into `path`'s
 // part and its two records marked to write; its maps ignored, a new map being
 // a load. Nothing for a path that is no loaded material.
 void voe_3d_models_material_set(voe_3d_models *models, const char *path,
-				const voe_assets_material *material);
+				const voe_assets_material_file *material);
 
 // Inside a frame, before its first pass: every marked material's record and
 // twin rewritten (voe_render_shading_write), the marks cleared.

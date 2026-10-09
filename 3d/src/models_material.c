@@ -30,7 +30,7 @@
 #define SCRATCH_BLOCK (1024 * 1024)
 
 // `from`'s values on a zeroed material: opaque, the whole texture, no maps.
-static void take_values(const voe_assets_material *from, voe_3d_material *to)
+static void take_values(const voe_assets_material_file *from, voe_3d_material *to)
 {
 	to->base_colour = (voe_math_float4){ from->colour[0], from->colour[1],
 					     from->colour[2], 1.0f };
@@ -40,7 +40,7 @@ static void take_values(const voe_assets_material *from, voe_3d_material *to)
 	to->unlit = from->shader == VOE_ASSETS_MATERIAL_UNLIT;
 }
 
-static voe_3d_material material_of(const voe_assets_material *from)
+static voe_3d_material material_of(const voe_assets_material_file *from)
 {
 	const voe_render_texture none = { .index = VOE_RENDER_NO_TEXTURE };
 	voe_3d_material material = {
@@ -95,7 +95,7 @@ static bool upload_map(voe_render_device *device, voe_base_arena *scratch,
 // The maps, the record and its twin into `entry`; on failure what was made is
 // given back.
 static bool upload_material(voe_render_device *device, voe_base_arena *scratch,
-			    const voe_assets_material *values,
+			    const voe_assets_material_file *values,
 			    voe_3d_material_maps maps, voe_3d_model_entry *entry,
 			    entry_held *held, voe_base_error *error)
 {
@@ -143,7 +143,7 @@ static bool upload_material(voe_render_device *device, voe_base_arena *scratch,
 bool voe_3d_models_load_material(voe_3d_models *models,
 				 voe_render_device *device, const char *path,
 				 uint64_t stamp,
-				 const voe_assets_material *material,
+				 const voe_assets_material_file *material,
 				 voe_3d_material_maps maps,
 				 voe_base_error *error)
 {
@@ -170,7 +170,7 @@ bool voe_3d_models_load_material(voe_3d_models *models,
 }
 
 void voe_3d_models_material_set(voe_3d_models *models, const char *path,
-				const voe_assets_material *material)
+				const voe_assets_material_file *material)
 {
 	VOE_BASE_ASSERT(models != NULL && path != NULL,
 			"setting a material needs a store and a path");

@@ -36,9 +36,9 @@ static const voe_render_capacities CAPACITIES = {
 static const uint8_t NOT_A_PICTURE[] = "this is not a picture";
 
 // A material naming three `.png` maps, colour 0.2 0.4 0.6, repeat 4.
-static voe_assets_material three_maps(void)
+static voe_assets_material_file three_maps(void)
 {
-	voe_assets_material material = voe_assets_material_default();
+	voe_assets_material_file material = voe_assets_material_default();
 
 	material.colour[0] = 0.2f;
 	material.colour[1] = 0.4f;
@@ -73,7 +73,7 @@ static void check_loaded(const voe_3d_model_entry *entry)
 
 // A set takes the values, and a frame writing the marked records passes.
 static void check_set(voe_3d_models *models, voe_render_device *device,
-		      voe_assets_material material)
+		      voe_assets_material_file material)
 {
 	voe_platform_size size = { SIDE, SIDE };
 	const voe_3d_model_entry *entry;
@@ -109,7 +109,7 @@ int main(void)
 				      0, 0, 255, 255, 255, 255, 255, 255 };
 	voe_assets_image image = { .width = 2, .height = 2, .pixels = pixels };
 	voe_platform_size size = { SIDE, SIDE };
-	voe_assets_material material = three_maps();
+	voe_assets_material_file material = three_maps();
 	voe_base_error error = VOE_BASE_OK;
 	const voe_3d_model_entry *entry;
 	voe_assets_bytes png = { 0 };
