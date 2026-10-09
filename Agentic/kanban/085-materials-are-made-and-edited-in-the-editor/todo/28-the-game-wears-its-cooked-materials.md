@@ -1,6 +1,6 @@
-# 14 — The game wears its cooked materials
+# 28 — The game wears its cooked materials
 folder: game
-after: 07, 08, 13
+after: 24, 08, 27
 decisions: 0168, 0399
 
 ## Change
@@ -8,7 +8,7 @@ decisions: 0168, 0399
 
 - `game/src/run.c` — `#include <game/materials.h>`; right after each `voe_game_models_update` call
   (at the start, after the cooked landscapes, and the two in the run), `voe_game_models_materials`
-  (card 07) with `&voe_game_materials_cooked`, the same world, store, device, folder and scratch,
+  (card 24) with `&voe_game_materials_cooked`, the same world, store, device, folder and scratch,
   its result treated as that update's is. The header's list of what `run.c` alone names gains
   `voe_game_materials_cooked`.
 - `game/include/game/run.h` — where it names what a game tree's cooked files define, add

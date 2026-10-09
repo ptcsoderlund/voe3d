@@ -1,12 +1,12 @@
-# 07 — The game loads materials from a table
+# 24 — The game loads materials from a table
 folder: game
-after: 06
+after: 23
 decisions: 0168, 0399
 
 ## Change
 0399 point 7: one loader for the game and the editor, fed by a table of path and values.
 
-- New `game/include/game/materials.h` — `voe_game_material { const char *path; voe_assets_material
+- New `game/include/game/materials.h` — `voe_game_material { const char *path; voe_assets_material_file
   values; }`, `voe_game_materials { const voe_game_material *materials; uint32_t count; }` and
   `extern const voe_game_materials voe_game_materials_cooked;`. It includes `<3d/models.h>` for the
   values' type and names no `assets` header (game has no `assets` edge; check step 5). Header points
@@ -16,7 +16,7 @@ decisions: 0168, 0399
   - `[[nodiscard]] bool voe_game_models_material_load(voe_3d_models *models, voe_render_device
     *device, const char *folder, const voe_game_material *material, uint64_t stamp, voe_base_arena
     *scratch, voe_base_error *error)` — each non-empty map path joined onto `folder`, read into scratch
-    as `models.c` reads a file, and handed to `voe_3d_models_load_material` (card 04); a map that
+    as `models.c` reads a file, and handed to `voe_3d_models_load_material` (card 21); a map that
     will not read fails with the error a model file that will not read gives, the entry kept failed
     through `voe_3d_models_fail`. Scratch rewound.
   - `voe_game_models_failures voe_game_models_materials(const voe_ecs_world *world, voe_3d_models

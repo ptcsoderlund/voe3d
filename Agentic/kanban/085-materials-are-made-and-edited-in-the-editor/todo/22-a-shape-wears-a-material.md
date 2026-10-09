@@ -1,6 +1,6 @@
-# 05 — A shape wears a material
+# 22 — A shape wears a material
 folder: 3d
-after: 04
+after: 21
 decisions: 0168, 0399
 
 ## Change

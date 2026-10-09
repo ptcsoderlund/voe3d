@@ -4,7 +4,7 @@ after: none
 decisions: 0168
 
 ## Change
-`editor/src/interface.c` is 840 lines and cards 12, 15 and 16 change it. Split it by function, no
+`editor/src/interface.c` is 840 lines and cards 26, 29 and 30 change it. Split it by function, no
 behaviour changed:
 
 - New `editor/src/interface_assets.c` with an internal `editor/src/interface_assets.h` — the four

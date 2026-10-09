@@ -4,7 +4,7 @@ after: none
 decisions: 0168, 0399
 
 ## Change
-0399 point 7: a game tree's `materials.c`, written by the editor (card 13), is compiled into the game.
+0399 point 7: a game tree's `materials.c`, written by the editor (card 27), is compiled into the game.
 
 - `cmake/game.cmake` — `${CMAKE_CURRENT_SOURCE_DIR}/materials.c` joins `landscapes.c` in the game
   executable's sources, and the file's header comment lists `materials.c` beside `landscapes.c` (the
@@ -16,4 +16,4 @@ Update `cmake/cmake.md` only if it lists the tree's files.
 
 ## Done when
 `grep -n 'materials.c' cmake/game.cmake` shows it in the executable's source list beside
-`landscapes.c` and in the header comment. Play proves the build once card 13 writes the file.
+`landscapes.c` and in the header comment. Play proves the build once card 27 writes the file.

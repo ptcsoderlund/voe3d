@@ -1,16 +1,16 @@
-# 17 — A list of strings is a field per string
+# 31 — A list of strings is a field per string
 folder: editor
-after: 16
+after: 30
 decisions: 0168, 0399
 
 ## Change
-A model row's `materials` (card 06) is a CHAR field of rank 2, eight strings; the Inspector shows a
+A model row's `materials` (card 23) is a CHAR field of rank 2, eight strings; the Inspector shows a
 rank-1 CHAR as a text field and nothing editable for rank 2. Make each string its own row.
 
 - `editor/src/inspector.c` — a CHAR field of rank 2 is one text field row per string, labelled with
   the field's heading and its 1-based number ("Materials 1" … "Materials 8"), each control recording
   the string's byte offset (outer index × inner size) and its own size, so a commit writes that string
-  only. Its record names the field and index so card 18 can find the row under the pointer. A part
+  only. Its record names the field and index so card 32 can find the row under the pointer. A part
   shown read-only shows the same rows as labels. Keep `inspector.c` under 800 lines: if the rows push
   it over, move the field-row code into a new `editor/src/inspector_rows.c` with its header first.
 - `editor/src/inspector_edit.c` — the text commit takes the recorded offset and size rather than the

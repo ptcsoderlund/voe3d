@@ -1,6 +1,6 @@
-# 16 — The picker colours the open material
+# 30 — The picker colours the open material
 folder: editor
-after: 15
+after: 29
 decisions: 0168, 0192, 0399
 
 ## Change
@@ -13,7 +13,7 @@ decisions: 0168, 0192, 0399
 - `editor/src/inspector_material.c` — a fired swatch opens the picker with `material` set, anchored as
   the Inspector's swatch anchors it.
 - `editor/src/interface_read.c` (or wherever card 09 left the picker's read) — a `changed` with
-  `material` set writes `scene->material.colour`, so card 15's compare carries it to the table and
+  `material` set writes `scene->material.colour`, so card 29's compare carries it to the table and
   store in the same frame; otherwise as before through `voe_editor_inspector_colour_submit`.
 
 ## Done when

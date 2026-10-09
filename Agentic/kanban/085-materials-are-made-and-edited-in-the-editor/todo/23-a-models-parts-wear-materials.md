@@ -1,6 +1,6 @@
-# 06 — A model's parts wear materials
+# 23 — A model's parts wear materials
 folder: 3d
-after: 05
+after: 22
 decisions: 0168, 0399
 
 ## Change
@@ -15,7 +15,7 @@ decisions: 0168, 0399
   does `path`.
 - `3d/src/draw_group.c`, `3d/src/draw_system.c`, `3d/src/draw_bounce.c` — wherever a model part's
   record is chosen (its `material` or, fading, its `faded`), part `i < 8` whose `materials[i]` names a
-  loaded material (`voe_3d_draw_material_named`, card 05) takes that entry's part material, and its
+  loaded material (`voe_3d_draw_material_named`, card 22) takes that entry's part material, and its
   twin `faded` while fading. Not `3d/src/draw_terrain.c`.
 
 Update `3d/3d.md`'s `model_component.h` line.
