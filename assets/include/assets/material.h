@@ -27,6 +27,9 @@
 // NOTHING HERE OPENS A FILE; `platform` owns files, and the caller hands the
 // bytes in and writes the text out. The game never reads this (0236): the cook
 // turns it into a table.
+//
+// THE STRUCT IS `voe_assets_material_file`: the file's values, apart from the
+// glTF material in `model.h`, so one unit can include both headers.
 #pragma once
 
 #include <base/arena.h>
@@ -53,7 +56,7 @@ typedef struct {
 	char colour_map[VOE_ASSETS_MATERIAL_PATH];
 	char normal_map[VOE_ASSETS_MATERIAL_PATH];
 	char roughness_map[VOE_ASSETS_MATERIAL_PATH];
-} voe_assets_material;
+} voe_assets_material_file;
 
 typedef struct {
 	const char *text;
@@ -61,7 +64,7 @@ typedef struct {
 } voe_assets_material_text;
 
 // What a missing key reads as, and what Create writes.
-voe_assets_material voe_assets_material_default(void);
+voe_assets_material_file voe_assets_material_default(void);
 
 // Reads `size` bytes of text, which need not be NUL-terminated. MALFORMED for
 // text the sectioned reader refuses, no `[Material]` section, a number that
@@ -69,7 +72,7 @@ voe_assets_material voe_assets_material_default(void);
 // VOE_ASSETS_MATERIAL_PATH bytes or more. A line on stderr names what. `out`
 // untouched on failure; `error` may be NULL.
 [[nodiscard]] bool voe_assets_material_read(const char *text, size_t size,
-					    voe_assets_material *out,
+					    voe_assets_material_file *out,
 					    voe_base_error *error);
 
 // The text voe_assets_material_read takes back exactly, NUL-terminated,
@@ -77,5 +80,5 @@ voe_assets_material voe_assets_material_default(void);
 // which a float round-trips through. Cannot fail; asserts each path is
 // NUL-terminated in its room and holds no line break.
 voe_assets_material_text
-voe_assets_material_write(const voe_assets_material *material,
+voe_assets_material_write(const voe_assets_material_file *material,
 			  voe_base_arena *arena);

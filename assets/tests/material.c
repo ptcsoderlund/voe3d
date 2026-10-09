@@ -9,7 +9,7 @@
 
 #include <string.h>
 
-static bool read_text(const char *text, voe_assets_material *out,
+static bool read_text(const char *text, voe_assets_material_file *out,
 		      voe_base_error *error)
 {
 	return voe_assets_material_read(text, strlen(text), out, error);
@@ -18,7 +18,7 @@ static bool read_text(const char *text, voe_assets_material *out,
 // Refused MALFORMED, and `out` left as it was.
 static void malformed(const char *text)
 {
-	voe_assets_material out = { .roughness = 7.0f };
+	voe_assets_material_file out = { .roughness = 7.0f };
 	voe_base_error error = VOE_BASE_OK;
 
 	VOE_TEST_CHECK(!read_text(text, &out, &error));
@@ -26,7 +26,7 @@ static void malformed(const char *text)
 	VOE_TEST_CHECK(out.roughness == 7.0f && out.repeat == 0.0f);
 }
 
-static bool same(const voe_assets_material *a, const voe_assets_material *b)
+static bool same(const voe_assets_material_file *a, const voe_assets_material_file *b)
 {
 	return a->shader == b->shader && a->colour[0] == b->colour[0] &&
 	       a->colour[1] == b->colour[1] && a->colour[2] == b->colour[2] &&
@@ -39,8 +39,8 @@ static bool same(const voe_assets_material *a, const voe_assets_material *b)
 
 static void an_empty_section_reads_the_defaults(void)
 {
-	voe_assets_material out;
-	const voe_assets_material expected = voe_assets_material_default();
+	voe_assets_material_file out;
+	const voe_assets_material_file expected = voe_assets_material_default();
 
 	VOE_TEST_CHECK(read_text("[Material]\n", &out, NULL));
 	VOE_TEST_CHECK(same(&out, &expected));
@@ -58,14 +58,14 @@ static void an_empty_section_reads_the_defaults(void)
 
 static void a_full_file_round_trips(voe_base_arena *arena)
 {
-	voe_assets_material full = {
+	voe_assets_material_file full = {
 		.shader = VOE_ASSETS_MATERIAL_UNLIT,
 		.colour = { 0.1f, 1.0f / 3.0f, 2.0e-7f },
 		.roughness = 0.123456789f,
 		.metal = 1.0f,
 		.repeat = 1000.0f,
 	};
-	voe_assets_material back = voe_assets_material_default();
+	voe_assets_material_file back = voe_assets_material_default();
 	voe_assets_material_text text;
 
 	strcpy(full.colour_map, "Assets/brick wall.png");

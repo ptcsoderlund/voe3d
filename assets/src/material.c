@@ -101,7 +101,7 @@ static bool read_shader(const voe_assets_sectioned *doc, uint32_t section,
 }
 
 static bool read_section(const voe_assets_sectioned *doc,
-			 voe_assets_material *material, voe_base_error *error)
+			 voe_assets_material_file *material, voe_base_error *error)
 {
 	const uint32_t section = voe_assets_sectioned_find(doc, "Material");
 
@@ -124,9 +124,9 @@ static bool read_section(const voe_assets_sectioned *doc,
 			 material->roughness_map, error);
 }
 
-voe_assets_material voe_assets_material_default(void)
+voe_assets_material_file voe_assets_material_default(void)
 {
-	return (voe_assets_material){
+	return (voe_assets_material_file){
 		.shader = VOE_ASSETS_MATERIAL_LIT,
 		.colour = { 1.0f, 1.0f, 1.0f },
 		.roughness = 0.5f,
@@ -136,9 +136,9 @@ voe_assets_material voe_assets_material_default(void)
 }
 
 bool voe_assets_material_read(const char *text, size_t size,
-			      voe_assets_material *out, voe_base_error *error)
+			      voe_assets_material_file *out, voe_base_error *error)
 {
-	voe_assets_material material = voe_assets_material_default();
+	voe_assets_material_file material = voe_assets_material_default();
 	voe_base_arena *scratch;
 	voe_assets_sectioned doc;
 	bool read;
@@ -187,7 +187,7 @@ struct quoted_paths {
 
 // The whole text into `buffer`, or only its length when `buffer` is NULL.
 static size_t print_material(char *buffer, size_t room,
-			     const voe_assets_material *material,
+			     const voe_assets_material_file *material,
 			     const struct quoted_paths *paths)
 {
 	const int written = snprintf(
@@ -208,7 +208,7 @@ static size_t print_material(char *buffer, size_t room,
 }
 
 voe_assets_material_text
-voe_assets_material_write(const voe_assets_material *material,
+voe_assets_material_write(const voe_assets_material_file *material,
 			  voe_base_arena *arena)
 {
 	struct quoted_paths paths;
