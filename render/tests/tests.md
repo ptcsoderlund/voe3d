@@ -16,6 +16,12 @@ by reading the offscreen colour image back.
 - `transient.c` — geometry that lives one frame: an id refused by the frame after, the same slot
   drawing different contents, a static and a transient range in one frame, and an overrun refused
   without corrupting the frame. Headless.
+- `heights.c` — a 2049 × 2049 heights texture made and a side past 4096 refused; inside a frame a
+  4 × 4 write taken, one past the slot's remaining `heights_texels` refused with the frame still
+  drawing, and every slot's budget whole again the next frames. Headless.
+- `terrain_vertex.c` — a terrain record over heights all 2 m drawing a quad grid as a 2 m plane
+  would, and the same record with `heights` nought not covering the rows above the middle.
+  Headless.
 - `worker_guard.c` — a thread creating and destroying 100 textures and 100 geometries while the
   main thread runs 100 element-only frames, every call true and the thread joined. Headless.
 - `elements.c` — rectangles from records: the colours, the clip rectangle, paint order both ways
@@ -43,12 +49,13 @@ by reading the offscreen colour image back.
 - `water.c` — water over a depth copy: clear at the shore and darkened in the deep, waves that move
   with seconds and wrap at 60, the sun's glint at the mirror angle, a shadow on it, and `water` 0
   drawing as an ordinary blended surface. Headless.
-- `pass_times.c` — the frame breakdown: a shadow pass on cascade 0 then a window pass listed by
-  name in that order, each above nought and their sum not above the frame's GPU time, a frame with
-  no shadow pass listing the window alone, and a capacity of 1 writing one. Headless.
+- `pass_times.c` — the frame breakdown: passes and spans listed by name in order, each above
+  nought and within the frame's GPU time. Headless.
 - `best_practices.c` — the Best Practices gate: in a debug build the checks on, and a frame of a
   shadow pass and a camera pass with a depth copy and an element closing with no new message; a
   release build says so and passes. Headless.
+- `best_practices_wanted.c` — whether a device turns Best Practices on: headless always, a window
+  only for `VOE_RENDER_BEST_PRACTICES` exactly `1`; needs no graphics card.
 - `new_messages.c` — what the Best Practices classifier keeps for the close to name, on made-up
   messages; needs no graphics card.
 - `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within six

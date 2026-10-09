@@ -221,8 +221,9 @@ Sampler2D voe_render_textures[1024];
 // One drawn object. Matches voe_render_object in render/device.h field for
 // field, padding included: the two matrices fill the first hundred and
 // twenty-eight bytes, the four uints after them fill to a hundred and
-// forty-four, the colour to a hundred and sixty and the water's two float4s end
-// it at a hundred and ninety-two, so every layout rule
+// forty-four, the colour to a hundred and sixty, the water's two float4s to a
+// hundred and ninety-two and the terrain's two end it at two hundred and
+// twenty-four, so every layout rule
 // a structured buffer might be given puts every member in the same place. The
 // colour is linear and multiplies the shading record's base colour factor,
 // alpha included.
@@ -242,7 +243,8 @@ struct voe_render_object {
 	float4x4 world;
 	float4x4 normal;
 	uint shading;
-	uint reserved0;
+	// A heights texture's index plus one; nought is no terrain (ADR-0396).
+	uint heights;
 	uint reserved1;
 	uint reserved2;
 	float4 colour;
@@ -250,6 +252,9 @@ struct voe_render_object {
 	// sky's linear rgb. See voe_render_object in render/device.h.
 	float4 waves;
 	float4 sky;
+	// Read only by a terrain record: terrain.slangh says what they hold.
+	float4 terrain;
+	float4 morph;
 };
 
 // Set 0, binding 2: this frame's records, one per draw. Read by both stages —

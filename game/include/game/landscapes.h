@@ -16,7 +16,8 @@
 // millimetres are what the file holds, so nothing is lost on the way.
 //
 // Constraints: `millimetres` holds (cells + 1)² heights, row-major, as
-// assets/landscape.h lays them out; `cells` a multiple of 4 from 4 to 512.
+// assets/landscape.h lays them out; `cells` a multiple of 4 from 4 to
+// VOE_ASSETS_LANDSCAPE_CELLS_MAX (0396 point 1).
 #pragma once
 
 #include <stdint.h>

@@ -1,7 +1,9 @@
 // What the validation layer's Best Practices messages count for (ADR-0358,
 // 0367 points 4, 5 and 7): the allowlist, which vendor a message is for, the
-// classifier instance.c's messenger hands every message to, and the one line
-// device.c prints once the card is chosen. Declared in device_calls.h.
+// classifier instance.c's messenger hands every message to, whether a device
+// wants the checks at all (headless always, a window only by
+// VOE_RENDER_BEST_PRACTICES=1, ADR-0398), and the one line device.c prints once
+// the card is chosen. Declared in device_calls.h.
 //
 // A NEW MESSAGE NOW COUNTS. Every validation error, and every warning whose id
 // name is not on the allowlist, adds one to the device's new_messages. The list
@@ -202,6 +204,19 @@ void voe_render_best_practices_list_new(const voe_render_device *device)
 			       (unsigned)VOE_RENDER_KEPT_MESSAGES);
 }
 
+// ------------------------------------------------------------- whether at all
+
+// ADR-0398: a window's GPU times are slowed about fivefold by these checks, so
+// only a headless device has them by default; a window only by exactly "1".
+bool voe_render_best_practices_wanted(bool headless, const char *setting)
+{
+	const bool wanted =
+		headless || (setting != NULL && strcmp(setting, "1") == 0);
+
+	assert(!headless || wanted);
+	return wanted;
+}
+
 // -------------------------------------------------------------- the line
 
 static const char *vendor_name(uint32_t vendor_id)
@@ -217,12 +232,18 @@ void voe_render_best_practices_announce(const voe_render_device *device)
 {
 	assert(device != NULL);
 	assert(!(device->checks_on && device->checks_missing));
+	assert(!(device->checks_on && device->checks_off_for_window));
+	assert(!(device->checks_missing && device->checks_off_for_window));
 
-	if (device->checks_missing)
+	if (device->checks_missing) {
 		VOE_BASE_WARNING("render",
 				 "best practices checks missing: this debug build could not load the validation layer, so no message is checked (allowlist of %u)",
 				 allowlist_length());
-	else if (device->checks_on)
+	} else if (device->checks_off_for_window) {
+		VOE_BASE_WARNING("render",
+				 "best practices checks off for a window, so GPU times are true; VOE_RENDER_BEST_PRACTICES=1 turns them on (allowlist of %u)",
+				 allowlist_length());
+	} else if (device->checks_on) {
 		VOE_BASE_WARNING("render",
 				 "best practices checks on, %s, vendor %s (0x%04X), allowlist of %u",
 				 device->vendor_checks ?
@@ -230,4 +251,8 @@ void voe_render_best_practices_announce(const voe_render_device *device)
 					 "vendor checks off (the layer offers no VK_EXT_layer_settings)",
 				 vendor_name(device->vendor_id), device->vendor_id,
 				 allowlist_length());
+		if (!device->headless)
+			VOE_BASE_WARNING("render",
+					 "GPU times are slowed by these checks; the frame breakdown is not the engine's cost");
+	}
 }

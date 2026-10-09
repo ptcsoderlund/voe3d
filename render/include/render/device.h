@@ -132,6 +132,11 @@ typedef struct voe_render_device voe_render_device;
 // shaderOutputLayer; on a card without it the device says so once and takes
 // nought. Nought is no point shadows; one texel stays for the binding, and
 // voe_render_point_shadows_ready says which.
+//
+// heights_texels IS THE SIXTH THAT MAY BE NOUGHT, and per frame slot like the
+// transient ones: how many texels one frame may write into heights textures with
+// voe_render_texture_write_heights, staged at 4 bytes each per slot (ADR-0396
+// point 5). Nought is no writes; the first is refused with a message.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
@@ -146,6 +151,7 @@ typedef struct {
 	uint32_t targets;
 	uint32_t shadow_size;
 	uint32_t point_shadow_size;
+	uint32_t heights_texels;
 } voe_render_capacities;
 
 // How many depth maps the sun renders into, near to far: the layers of one frame
@@ -738,11 +744,19 @@ typedef struct {
 // written by _draw as it records, and the shader reads its record by object
 // number. Card 014's push constant for the model matrix is gone; the only push
 // constant left is the object number itself.
+//
+// A TERRAIN RECORD (ADR-0396 point 3) HAS `heights` NOT NOUGHT. Its geometry is
+// a grid of x, z in 0..1 whose y is ignored: the vertex stage places each point
+// over the heights texture by `terrain` and `morph`. `world` maps the node's box
+// to camera-relative space; `normal` is the landscape's own normal matrix, not
+// the box's, because the normal is worked out in the landscape's space.
 typedef struct {
 	voe_math_float4x4 world;
 	voe_math_float4x4 normal;
 	uint32_t shading;
-	uint32_t reserved[3];
+	// A heights texture's index plus one; nought draws the geometry as ever.
+	uint32_t heights;
+	uint32_t reserved[2];
 	voe_math_float4 colour;
 	// Read only when the shading record is `water`; zero everywhere else.
 	// `waves` is (height m, length m, seconds, deep m): the tallest wave's
@@ -754,6 +768,13 @@ typedef struct {
 	// toward at a grazing angle; w is reserved.
 	voe_math_float4 waves;
 	voe_math_float4 sky;
+	// Read only when `heights` is not nought. `terrain` is the node's corner
+	// x and z in the landscape's own metres (its grid centred on the origin,
+	// 0379 point 1), the node's side and the landscape's side. `morph` is the
+	// morph's start and end in metres from the eye, the node box's bottom y
+	// and its height, above nought.
+	voe_math_float4 terrain;
+	voe_math_float4 morph;
 } voe_render_object;
 
 // What one element is. Two kinds, and the field exists so that adding the second
@@ -936,6 +957,9 @@ typedef struct {
 //
 // IT OPENS UNPREPARED: the pipeline layout and the element pipeline only, so a
 // line of text can be drawn at once. voe_render_device_prepare builds the rest.
+//
+// In a debug build it runs core validation only, and Best Practices only when
+// the environment has VOE_RENDER_BEST_PRACTICES=1 (ADR-0398).
 [[nodiscard]] voe_render_device *voe_render_device_new(voe_base_arena *arena,
 						       voe_platform_native native,
 						       voe_platform_size size,
@@ -951,7 +975,8 @@ typedef struct {
 // engine's own use: a program that draws for a person opens a window.
 // voe_render_frame_end submits and returns on a device made this way — there is
 // nothing to acquire and nothing to present — so a caller that wants the pixels
-// reads the target itself.
+// reads the target itself. A headless debug device always runs Best Practices
+// (ADR-0398).
 [[nodiscard]] voe_render_device *
 voe_render_device_new_headless(voe_base_arena *arena, voe_platform_size size,
 			       voe_render_capacities capacities,
@@ -1148,6 +1173,38 @@ bool voe_render_geometry_destroy(voe_render_device *device,
 // target.
 bool voe_render_texture_destroy(voe_render_device *device,
 				voe_render_texture texture);
+
+// A landscape's heights (ADR-0396 point 3): `width` × `height` metres as given,
+// row-major, in an R32F texture of one level that the vertex stage reads with
+// texel loads and no sampler. A startup operation like voe_render_texture_create
+// (it waits for the GPU to go idle) and destroyed by voe_render_texture_destroy.
+// Fails REFUSED with no slot left, a side above 4096 or the card refusing.
+[[nodiscard]] bool voe_render_texture_create_heights(voe_render_device *device,
+						     uint32_t width,
+						     uint32_t height,
+						     const float *heights,
+						     voe_render_texture *out,
+						     voe_base_error *error);
+
+// Writes `values`, `width` × `height` row-major, into a heights texture at
+// (x, y), inside a frame and before its first pass (ADR-0396 point 5). The values
+// are copied into the frame slot's staging and the copy recorded at once, so
+// every pass of the frame reads them.
+//
+// THE ORDER: the staging copy, then a barrier from vertex reads of earlier frames
+// to the transfer, the copy, and a barrier back to vertex reads. A frame still in
+// flight reading the texture is ordered by the queue, not waited for.
+//
+// REFUSED, with the frame still drawing, when the slot's remaining
+// heights_texels are fewer than width × height. Asserts outside a frame, after a
+// pass began, on a rectangle past the texture or a texture not a heights one.
+[[nodiscard]] bool voe_render_texture_write_heights(voe_render_device *device,
+						    voe_render_texture texture,
+						    uint32_t x, uint32_t y,
+						    uint32_t width,
+						    uint32_t height,
+						    const float *values,
+						    voe_base_error *error);
 
 // ---------------------------------------------------------------- shading
 
@@ -1977,9 +2034,26 @@ typedef struct {
 // `bounce capture N`, `bounce sun shadow`, `bounce relight`; the same name labels
 // the pass in a capture tool. Each pass is timed from when everything before it
 // has finished to when it has, so their sum is not above the frame's GPU time.
+//
+// A SPAN IS LISTED RIGHT AFTER THE PASS THAT HELD IT (ADR-0396 point 6), named
+// `<pass name>: <span name>` cut to VOE_RENDER_PASS_NAME, e.g.
+// `view window: terrain`. Its time is part of that pass's, not beside it: the
+// sum over the passes alone is what stays at most the frame's.
 [[nodiscard]] uint32_t voe_render_frame_pass_times(const voe_render_device *device,
 						   voe_render_pass_time *times,
 						   uint32_t capacity);
+
+// How many spans one frame times.
+#define VOE_RENDER_FRAME_SPANS 8
+
+// A named span of the open pass, timed on its own and listed after the pass by
+// voe_render_frame_pass_times: _begin before the commands to time, _end after.
+// Inside an open pass only, and not nested. A frame times at most
+// VOE_RENDER_FRAME_SPANS; one past it, or one in a pass that is not timed, is
+// not timed and says nothing. Asserts with no pass open, with a span already
+// open, or on _end with none open; a pass ending with a span open asserts too.
+void voe_render_frame_span_begin(voe_render_device *device, const char *name);
+void voe_render_frame_span_end(voe_render_device *device);
 
 // ----------------------------------------------------------------- present
 

@@ -2,8 +2,10 @@
 // its sphere — see the header for what counts and why a sphere.
 //
 // One box about one double origin is grown by every counted geometry, shapes
-// first, then models, a landscape by its box's eight corners; the origin is
-// fixed by the first one counted.
+// first, then models, a landscape by its pyramid's box's eight corners; the
+// origin is fixed by the first one counted.
+#include "models_store.h"
+
 #include <3d/bounds.h>
 #include <3d/landscape.h>
 #include <3d/model_component.h>
@@ -97,17 +99,23 @@ static void grow(struct box *box, const voe_ecs_world *world,
 		take(box, matrix, geometry->vertices[i].position);
 }
 
-// Grows `box` by the eight corners of `landscape`'s own box (0379 point 2)
-// placed at `entity`'s world place, as a model's vertices are.
+// Grows `box` by the eight corners of landscape `entry`'s own box (0379 point
+// 2), read from its pyramid's root (0396), placed at `entity`'s world place,
+// as a model's vertices are.
 static void grow_landscape(struct box *box, const voe_ecs_world *world,
-			   voe_ecs_entity entity,
-			   const voe_assets_landscape *landscape)
+			   voe_ecs_entity entity, const voe_3d_models *models,
+			   const voe_3d_model_entry *entry)
 {
-	voe_math_float4x4 matrix = placed_about(box, world, entity);
+	voe_math_float4x4 matrix;
+	voe_3d_models_terrain terrain;
 	voe_math_float3 low;
 	voe_math_float3 high;
 
-	voe_3d_landscape_box(landscape, &low, &high);
+	if (!voe_3d_models_terrain_of(models, entry, &terrain))
+		return;
+	VOE_BASE_ASSERT(terrain.lod != NULL, "a landscape with no pyramid");
+	matrix = placed_about(box, world, entity);
+	voe_3d_landscape_lod_box(terrain.lod, entry->landscape, &low, &high);
 	for (uint32_t corner = 0; corner < 8; corner++)
 		take(box, matrix,
 		     (voe_math_float3){ corner & 1 ? high.x : low.x,
@@ -155,8 +163,8 @@ bool voe_3d_bounds(const voe_ecs_world *world,
 			    !counts(world, owners[i], root))
 				continue;
 			if (entry->landscape != NULL)
-				grow_landscape(&box, world, owners[i],
-					       entry->landscape);
+				grow_landscape(&box, world, owners[i], models,
+					       entry);
 			else
 				grow(&box, world, owners[i], &entry->shape);
 		}

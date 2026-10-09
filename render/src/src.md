@@ -30,11 +30,11 @@ which file to open — what each one owns, and where the seams between them run.
 - `pacing.c` — the card's clock and the present modes learnt at startup, the present mode set and
   read, and the frame's GPU time.
 - `instance.c` — the Vulkan instance, its extensions with debug-utils whenever offered, and in a
-  debug build the validation layer with Best Practices and vendor checks, its messenger, or the
-  checks recorded missing.
+  debug build the validation layer, its messenger, and Best Practices with vendor checks on a
+  headless device or by `VOE_RENDER_BEST_PRACTICES=1` on a window, or the checks recorded missing.
 - `best_practices.c` — the Best Practices allowlist, which vendor a message is for, the classifier
-  that counts new messages, keeps each new message and names it again at close, and the start line
-  saying the checks are on or missing.
+  that counts new messages, keeps each new message and names it again at close, whether a device
+  wants the checks, and the start line saying they are on, off for a window, or missing.
 - `debug_names.c` — the one helper that names an object and labels a span of a command buffer for a
   capture tool; each does nothing without debug-utils.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,
@@ -105,6 +105,8 @@ which file to open — what each one owns, and where the seams between them run.
   chain for a SMOOTH texture, the three samplers, and the slot table the ids name.
 - `texture_levels.c` — a texture's mip chain, blitted level by level from the upload inside its
   one submission, every level left ready for the shader.
+- `texture_heights.c` — a landscape's R32F heights texture, made through texture.c's upload, and the
+  in-frame write of a rectangle from each frame slot's heights staging, recorded before any pass.
 - `swapchain.c` — the images the window is made of, thrown away and built
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where

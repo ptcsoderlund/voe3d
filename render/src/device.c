@@ -345,7 +345,8 @@ static bool create_frame_objects(voe_render_device *device)
 
 	// The breakdown last read, and each slot's room for its passes' names
 	// below (ADR-0367 point 2), whether or not the card can time.
-	device->pass_times = calloc(voe_render_timed_passes(device),
+	device->pass_times = calloc(voe_render_timed_passes(device) +
+					    VOE_RENDER_FRAME_SPANS,
 				    sizeof(*device->pass_times));
 	VOE_BASE_ASSERT(device->pass_times != NULL,
 			"out of memory making room for the pass times");
@@ -471,6 +472,7 @@ static void close_down(voe_render_device *device)
 		// because nothing in here needs one and the order still reads the
 		// way the build order reversed.
 		voe_render_texture_shutdown(device);
+		voe_render_texture_heights_shutdown(device);
 		voe_render_geometry_shutdown(device);
 		voe_render_shading_shutdown(device);
 		voe_render_descriptors_teardown(device);
@@ -656,7 +658,8 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_geometry_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
-	if (!voe_render_texture_startup(device))
+	if (!voe_render_texture_startup(device) ||
+	    !voe_render_texture_heights_startup(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		voe_render_descriptors_write_shadings(device,

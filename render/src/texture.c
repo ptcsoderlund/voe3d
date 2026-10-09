@@ -372,13 +372,11 @@ static bool create_texture(voe_render_device *device,
 			   uint32_t height, const uint8_t *rgba,
 			   voe_render_texture *out, voe_base_error *error)
 {
-	struct voe_render_buffer staging = { 0 };
 	struct voe_render_texture_slot *slot = NULL;
 	VkFormat format = format_for(kind);
 	uint32_t index = 0;
 	uint32_t levels = 1;
 	VkDeviceSize size;
-	bool uploaded;
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "creating a texture with no device");
 	VOE_BASE_DEBUG_ASSERT(rgba != NULL, "creating a texture from nothing");
@@ -413,6 +411,46 @@ static bool create_texture(voe_render_device *device,
 			levels++;
 	}
 
+	if (!voe_render_texture_fill(device, slot, format, width, height, levels,
+				     rgba, size)) {
+		if (error != NULL)
+			*error = VOE_BASE_ERROR_REFUSED;
+		return false;
+	}
+
+	// Claimed only once the upload has actually happened, so a failure part
+	// way through leaves the slot free rather than live and empty. The mode
+	// is kept because the descriptor write below runs again every time the
+	// table changes and has to name the same sampler each time.
+	slot->sampling = sampling;
+	slot->generation++;
+	slot->live = true;
+
+	// The device has already idled inside copy_into_image, so rewriting the
+	// sets no frame is reading is safe. See the header on
+	// voe_render_texture_create.
+	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
+		voe_render_texture_write_descriptors(device, i);
+
+	out->index = index;
+	out->generation = slot->generation;
+	return true;
+}
+
+bool voe_render_texture_fill(voe_render_device *device,
+			     struct voe_render_texture_slot *slot,
+			     VkFormat format, uint32_t width, uint32_t height,
+			     uint32_t levels, const void *pixels,
+			     VkDeviceSize size)
+{
+	struct voe_render_buffer staging = { 0 };
+	bool uploaded;
+
+	VOE_BASE_DEBUG_ASSERT(slot != NULL && !slot->live,
+			      "filling a texture slot that is not free");
+	VOE_BASE_DEBUG_ASSERT(pixels != NULL && size > 0,
+			      "filling a texture from nothing");
+
 	if (!build_texture_image(device, slot, format, width, height, levels))
 		goto refused;
 
@@ -436,7 +474,7 @@ static bool create_texture(voe_render_device *device,
 			voe_render_buffer_teardown(device, &staging);
 			goto refused;
 		}
-		memcpy(mapped, rgba, (size_t)size);
+		memcpy(mapped, pixels, (size_t)size);
 		voe_render_vk.unmap_memory(device->device, staging.memory);
 	}
 
@@ -445,23 +483,6 @@ static bool create_texture(voe_render_device *device,
 	voe_render_buffer_teardown(device, &staging);
 	if (!uploaded)
 		goto refused;
-
-	// Claimed only once the upload has actually happened, so a failure part
-	// way through leaves the slot free rather than live and empty. The mode
-	// is kept because the descriptor write below runs again every time the
-	// table changes and has to name the same sampler each time.
-	slot->sampling = sampling;
-	slot->generation++;
-	slot->live = true;
-
-	// The device has already idled inside copy_into_image, so rewriting the
-	// sets no frame is reading is safe. See the header on
-	// voe_render_texture_create.
-	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
-		voe_render_texture_write_descriptors(device, i);
-
-	out->index = index;
-	out->generation = slot->generation;
 	return true;
 
 refused:
@@ -474,8 +495,6 @@ refused:
 	slot->view = VK_NULL_HANDLE;
 	slot->image = VK_NULL_HANDLE;
 	slot->memory = VK_NULL_HANDLE;
-	if (error != NULL)
-		*error = VOE_BASE_ERROR_REFUSED;
 	return false;
 }
 
@@ -534,6 +553,7 @@ static bool destroy_texture(voe_render_device *device,
 	// else takes the slot.
 	slot->generation++;
 	slot->live = false;
+	slot->heights = false;
 
 	// Back to the white default, so the array stays valid — every element
 	// has to be a real descriptor whether or not the shader samples it.

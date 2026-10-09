@@ -254,6 +254,11 @@ struct voe_render_texture_slot {
 	bool is_target;
 	bool depth;
 	uint32_t target;
+	// A landscape's heights (texture_heights.c): R32F, one level, `width` ×
+	// `height` texels, the one kind voe_render_texture_write_heights takes.
+	bool heights;
+	uint32_t width;
+	uint32_t height;
 };
 
 #define VOE_RENDER_WINDOW_DEPTH UINT32_MAX
@@ -598,6 +603,13 @@ struct voe_render_frame {
 	struct voe_render_transient_pool transient_vertices;
 	struct voe_render_transient_pool transient_indices;
 
+	// This slot's heights staging (ADR-0396 point 5): capacities.heights_texels
+	// floats, mapped for its life, `heights_used` of them spent this frame and
+	// reset at its top. Unbuilt, NULL and nought with no heights_texels.
+	struct voe_render_buffer heights;
+	void *heights_mapped;
+	uint32_t heights_used;
+
 	// Points at this slot's uniform buffer — a dynamic binding, so every bind
 	// of it names a pass's offset — this slot's object buffer, the
 	// texture array and the shared shading buffer. Allocated from
@@ -624,6 +636,15 @@ struct voe_render_frame {
 	char (*pass_names)[VOE_RENDER_PASS_NAME];
 	uint32_t pass_timed;
 	bool pass_timing;
+	// This frame's timed spans (ADR-0396 point 6), span j's pair after every
+	// pass's: each one's listed name, the index of the pass that held it, and
+	// how many have a pair. `span_open` says a span is between _begin and
+	// _end, `span_timing` that it has its first stamp. Reset with the passes'.
+	char span_names[VOE_RENDER_FRAME_SPANS][VOE_RENDER_PASS_NAME];
+	uint32_t span_pass[VOE_RENDER_FRAME_SPANS];
+	uint32_t span_timed;
+	bool span_open;
+	bool span_timing;
 
 	// Whether this slot's pool holds a pair worth reading. False until the
 	// slot has been submitted once, because a pool that has never been

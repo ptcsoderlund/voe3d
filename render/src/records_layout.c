@@ -18,7 +18,7 @@
 // sixteen-byte boundary so that the two shader layout rules cannot disagree
 // about them. These are what turns "somebody removed the padding" into a build
 // error rather than a picture that is wrong in a way nobody can see.
-static_assert(sizeof(voe_render_object) == 192,
+static_assert(sizeof(voe_render_object) == 224,
 	      "voe_render_object no longer matches the shader's per-object record");
 static_assert(sizeof(voe_render_shading_values) == 96,
 	      "voe_render_shading_values no longer matches the shader's shading record");
@@ -52,6 +52,12 @@ static_assert(offsetof(voe_render_object, waves) == 160,
 	      "the object record's waves moved; draw.slang has them at 160");
 static_assert(offsetof(voe_render_object, sky) == 176,
 	      "the object record's sky moved; draw.slang has it at 176");
+static_assert(offsetof(voe_render_object, heights) == 132,
+	      "the object record's heights moved; draw.slang has it at 132");
+static_assert(offsetof(voe_render_object, terrain) == 192,
+	      "the object record's terrain moved; draw.slang has it at 192");
+static_assert(offsetof(voe_render_object, morph) == 208,
+	      "the object record's morph moved; draw.slang has it at 208");
 static_assert(offsetof(voe_render_view, eye) == 128,
 	      "the camera block's eye moved; draw.slang has it at 128");
 static_assert(offsetof(voe_render_light, colour) == 16,

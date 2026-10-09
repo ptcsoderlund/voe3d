@@ -3,8 +3,8 @@
 // back.
 //
 // A ROW IS FOUND BY NAME, one linear scan of its section's keys per row, so a
-// 512-cell file is about 130 000 string compares. That is milliseconds; an
-// index from row number to key would lift it if files grew past 512.
+// 2048-cell file is about two million string compares. That is tens of
+// milliseconds; an index from row number to key would lift it.
 //
 // THE WRITER MEASURES, THEN PRINTS. A height is any float, so a millimetre
 // count can be forty digits long; one pass with no buffer counts the bytes, one
@@ -23,7 +23,7 @@
 
 static bool cells_supported(int64_t cells)
 {
-	return cells >= 4 && cells <= VOE_ASSETS_LANDSCAPE_CELLS &&
+	return cells >= 4 && cells <= VOE_ASSETS_LANDSCAPE_CELLS_MAX &&
 	       cells % 4 == 0;
 }
 
@@ -131,7 +131,7 @@ static bool read_shape(const voe_assets_sectioned *doc, double *size,
 			      "a size outside 16 to 8192 metres");
 	if (!cells_supported(count))
 		return refuse(error, VOE_BASE_ERROR_UNSUPPORTED,
-			      "cells not a multiple of 4 from 4 to 512");
+			      "cells not a multiple of 4 from 4 to 2048");
 	*cells = (uint32_t)count;
 	return true;
 }
@@ -142,7 +142,7 @@ voe_assets_landscape voe_assets_landscape_flat(float size, uint32_t cells,
 	VOE_BASE_ASSERT(size_supported((double)size),
 			"a landscape size out of range");
 	VOE_BASE_ASSERT(cells_supported(cells),
-			"landscape cells not a multiple of 4 from 4 to 512");
+			"landscape cells not a multiple of 4 from 4 to 2048");
 	VOE_BASE_ASSERT(arena != NULL, "a landscape with no arena");
 
 	// A push is zeroed, and zero is flat.
@@ -152,6 +152,55 @@ voe_assets_landscape voe_assets_landscape_flat(float size, uint32_t cells,
 		.heights = voe_base_arena_push(
 			arena, height_count(cells) * sizeof(float)),
 	};
+}
+
+// Where new index `i` of `cells` falls on a grid of `from_cells`: the index
+// below and how far toward the next. Integer division keeps it exact, so the
+// same count lands on every old point with no fraction and an edge on an edge.
+static uint32_t source_index(uint32_t i, uint32_t cells, uint32_t from_cells,
+			     float *fraction)
+{
+	const uint64_t scaled = (uint64_t)i * from_cells;
+
+	*fraction = (float)(scaled % cells) / (float)cells;
+	return (uint32_t)(scaled / cells);
+}
+
+voe_assets_landscape
+voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
+			      voe_base_arena *arena)
+{
+	voe_assets_landscape to;
+	uint32_t from_cells;
+
+	VOE_BASE_ASSERT(from != NULL && from->heights != NULL &&
+				cells_supported(from->cells),
+			"resampling no landscape");
+	VOE_BASE_ASSERT(cells_supported(cells),
+			"landscape cells not a multiple of 4 from 4 to 2048");
+	VOE_BASE_ASSERT(arena != NULL, "resampling a landscape with no arena");
+
+	from_cells = from->cells;
+	to = voe_assets_landscape_flat(from->size, cells, arena);
+	for (uint32_t row = 0; row <= cells; row++) {
+		float fz;
+		const uint32_t z0 = source_index(row, cells, from_cells, &fz);
+		const uint32_t z1 = z0 < from_cells ? z0 + 1 : z0;
+		const float *near = from->heights + (size_t)z0 * (from_cells + 1);
+		const float *far = from->heights + (size_t)z1 * (from_cells + 1);
+
+		for (uint32_t c = 0; c <= cells; c++) {
+			float fx;
+			const uint32_t x0 = source_index(c, cells, from_cells, &fx);
+			const uint32_t x1 = x0 < from_cells ? x0 + 1 : x0;
+			const float a = near[x0] + (near[x1] - near[x0]) * fx;
+			const float b = far[x0] + (far[x1] - far[x0]) * fx;
+
+			to.heights[(size_t)row * (cells + 1) + c] =
+				a + (b - a) * fz;
+		}
+	}
+	return to;
 }
 
 bool voe_assets_landscape_read(const char *text, size_t size,

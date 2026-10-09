@@ -39,6 +39,12 @@ again, or to find where a claim that has started failing is written down.
   or without it. Skips without a graphics card.
 - `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
   and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
+- `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up shows its far ridge against the
+  sky and ground below the horizon, within the node budget, nothing at fade 1, and the bounce's
+  cast within its own budget. Skips without a graphics card.
+- `terrain_shadow.c` — that a 512 m landscape's 40 m ridge, under a low sun behind it, darkens
+  the ground behind it and not the ground in front, in one frame, its nodes drawn into each
+  cascade. Skips without a graphics card.
 - `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces,
   the nearest 16 casting lamps take the shadow slots, and one lights the ground under it. The
   picture skips without a graphics card.
@@ -63,6 +69,8 @@ again, or to find where a claim that has started failing is written down.
   under turns, moves and a blocker. Skips without a card.
 - `bounce_tint.c` — that a small box tints the ground beside it through strength, colour, moves,
   a whole relight and removal. Skips without a card.
+- `bounce_pacing.c` — that an eye flying 0.15 m a frame opens one capture pass a frame and fits
+  that room every frame, then settles once still. Skips without a card.
 - `bounce_world.inc` — the bounce tests' harness: the floor, sun and placed box, the reference at
   bounces 0, one frame through the shadows call, the settle, the window read and a point's pixel.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
@@ -94,9 +102,9 @@ again, or to find where a claim that has started failing is written down.
 - `collider_marker.c` — a box's twelve edges, a sphere's and a capsule's counts, a box twice the
   size twice as far out, quads about the eye 100 km out, and the collider that fits each shape.
   Needs no graphics card.
-- `gizmo.c` — a ray across each arrow and through each square, the space that meets nothing, the
-  shaft doubling with the distance, the two grabs and the one refusal, and the two meshes' counts,
-  their winding towards the eye and the handle marking moves across. Needs no graphics card.
+- `gizmo.c` — rays meeting each arrow and square and missing beside them, the shaft growing with
+  distance and absent behind or beside the eye, the grabs and the refusal, and the meshes' counts,
+  winding and marking. Needs no graphics card.
 - `gizmo_rings.c` — a ray on each rim, through the centre and across two rings, a quarter turn
   about Y reading π/2, a ray in the plane refused, 100 km out the same, and the meshes' counts,
   winding and marked ring. Needs no graphics card.
@@ -119,8 +127,11 @@ again, or to find where a claim that has started failing is written down.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
   blended twin and none leaked, pictures and the uncounted dot, and a model drawn only with the
   store. Skips without a card.
-- `models_landscape.c` — a `.landscape` loaded as sixteen parts on one material, a brush marking it
-  edited and the frame drawing its chunks transient, the settle making them static, a put's rect
-  and a rename. Skips without a card.
-- `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, a chunk wound up
-  and a rect on a chunk edge in both. Needs no graphics card.
+- `models_landscape.c` — a `.landscape` loaded as one part on the shared grid with a heights
+  texture, a brush's dirt written by a frame, a put wider than the budget taking five frames, a
+  put's pyramid equal to a fresh build, and a rename. Skips without a card.
+- `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates. Needs
+  no graphics card.
+- `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
+  once, neighbours within a level, within capacity, bounding their heights; an update equal to a
+  fresh build and the pyramid's box. Needs no graphics card.

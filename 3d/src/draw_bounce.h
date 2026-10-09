@@ -42,10 +42,12 @@ bool voe_3d_draw_casts(const voe_3d_material *material);
 // frame's lag about its eye. With `within` not 0, only a caster whose world
 // matrix's origin, about the eye at the lag as a light's place is, has a mask
 // over `frame->blockers`' kept records holding every bit of `within` (0361
-// point 2); `within` 0 draws every caster and takes no mask. False when render
-// refuses a draw. draw_shadows.c.
+// point 2); `within` 0 draws every caster and takes no mask. A landscape
+// caster draws at most `landscape_nodes` nodes, the cast's capacity (0397).
+// False when render refuses a draw. draw_shadows.c.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
-			 const voe_3d_frame *frame, uint32_t within);
+			 const voe_3d_frame *frame, uint32_t within,
+			 uint32_t landscape_nodes);
 
 // Whether light row `light`, in table order, casts (0324 point 4); false past
 // the count. draw_shadows.c.
@@ -76,12 +78,14 @@ void voe_3d_bounce_walk(const voe_ecs_world *world, const voe_3d_frame *frame,
 
 // A caster's place at `lag` into `centre`, in double about the world origin,
 // and its world bounding radius there: half the diagonal of the box of
-// `geometry` when `model` is NULL, else of `model`'s casting parts, grown as
-// voe_3d_bounce_box grows one; nought when no id names anything.
+// `geometry` when `model` is NULL, else of `model`'s casting parts, a
+// landscape's its pyramid's box in `models`, grown as voe_3d_bounce_box grows
+// one; nought when no id names anything.
 float voe_3d_bounce_caster_sphere(const voe_ecs_world *world,
 				  const voe_render_device *device,
 				  voe_ecs_entity entity,
 				  voe_render_geometry geometry,
+				  const voe_3d_models *models,
 				  const voe_3d_model_entry *model, float lag,
 				  voe_math_double3 *centre);
 
@@ -120,7 +124,10 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 // relights. That is volume 0; then each nest finer than the level grid, coarse
 // to fine, the same at voe_3d_bounce_grid_nest from voe_render_bounce_placed,
 // the j-th of n volumes capturing until the call's count reaches
-// VOE_RENDER_BOUNCE_CAPTURE_PASSES − (n − 1 − j) (0389 points 1 to 3). False
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES − (n − 1 − j) (0389 points 1 to 3); every
+// one stops at VOE_3D_BOUNCE_MOVING_PASSES when `frame->eye` is more than 1 mm
+// on an axis from the eye `frame->casters` remembers, which then takes
+// `frame->eye` whatever the outcome (0397 point 2). False
 // when a pass or a draw is refused; every volume after that one is still
 // begun, opening no pass, so each queues this step's stale spheres.
 [[nodiscard]] bool voe_3d_draw_bounce(voe_ecs_world *world,

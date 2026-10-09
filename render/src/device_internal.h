@@ -522,12 +522,15 @@ struct voe_render_device {
 
 	// ---- the Best Practices checks (ADR-0367 points 4 to 7).
 
-	// Whether instance.c turned them on, or found a debug build without the
-	// layer (never both; a release build is neither), and whether the four
-	// vendor sets came with them. The chosen card's PCI vendor id, card.c's.
+	// Whether instance.c turned them on, found a debug build without the
+	// layer, or loaded the layer on a window and left them off (ADR-0398;
+	// one at most; a release build is none), and whether the four vendor
+	// sets came with them. The chosen card's PCI vendor id, card.c's.
 	// How many messages best_practices.c counted as new.
 	bool checks_on;
 	bool checks_missing;
+	// Never set together with checks_on or checks_missing.
+	bool checks_off_for_window;
 	bool vendor_checks;
 	uint32_t vendor_id;
 	uint32_t new_messages;

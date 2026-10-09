@@ -104,9 +104,10 @@ typedef struct {
 // The gizmo at `origin`, sized so one shaft covers `pixels` pixels of a picture
 // `size` big drawn through `view`, an eye-relative view from `eye`.
 //
-// The origin's depth through `view.view` is floored at a tenth of a millimetre,
-// so a gizmo at the eye itself is a very large gizmo and not a division by
-// nought. `size.height` is what the size is worked out against, because the
+// A gizmo nobody can see has a shaft of nought, which is drawn as nothing and
+// met by no ray: its origin at most a tenth of a millimetre deep through
+// `view.view`, behind the eye or in its plane, or within a sixteenth of a degree
+// of that plane however far off. `size.height` is what the size is worked out against, because the
 // projection's field of view is the vertical one (3d/outline.h).
 //
 // THE SIZE IS WORKED OUT ONCE, FROM THE ORIGIN'S DEPTH. An outline's width is

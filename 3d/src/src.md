@@ -88,11 +88,16 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
 - `draw_system.c` — the camera's view, the first light row, the frame's pass camera, and the run
-  over meshes, model parts and panels: solids drawn as found, fading models held blended, then the
-  held-back groups and the marks.
+  over meshes, model parts, landscapes and panels: solids drawn as found, landscapes inside the
+  `terrain` span, fading models held blended, then the held-back groups and the marks.
+- `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
+  held blended, and why one eye chooses the same nodes in every pass; internal.
+- `draw_terrain.c` — the eye taken into the grid's space, the selection on scratch or, for a
+  shadow or capture pass, on the stack within the cast's capacity, 16 for the bounce's passes,
+  and each node's world box, heights, terrain and morph fields.
 - `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
   its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
-  a gone model casting nothing.
+  a gone model casting nothing and a landscape by the view's nodes.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
@@ -107,7 +112,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `bounce_casters.c` — a removed caster's sphere where the target's memory saw it last, then the
   memory refilled with this frame's casters.
 - `draw_bounce.c` — the frame's probe bounce, run only when a light bounces: the volumes fitted to
-  the still casters, the casters drawn into each pass and sun map, and the relight.
+  the still casters, the casters drawn into each pass and sun map, a landscape coarse at 16
+  nodes, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
@@ -138,14 +144,16 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models.c` — the store's table of entries with an arena each, and the load that reads, bakes,
   uploads with each part's blended twin and gives back what a failure made; pictures on the quad,
   the dot and the water apart.
-- `models_store.h` — the store's table and each entry's held ids, a landscape's static chunks
-  among them, and the helpers models.c lends models_landscape.c; internal.
-- `models_landscape.c` — a landscape's grid copied and uploaded as 16 chunk parts on one ground
-  material, the brush and put marking chunks dirty, the transient frame, the settle, the saved
-  mark and the rename.
+- `models_store.h` — the store's table, the shared landscape grid, each entry's held ids, a
+  landscape's heights texture, pyramid and dirt among them, the terrain lookup the draw files ask,
+  and the helpers models.c lends models_landscape.c; internal.
+- `models_landscape.c` — a landscape's grid copied, uploaded as a heights texture with a pyramid
+  and worn as one part on the shared grid, the brush and put growing the dirt, the frame writing
+  it within a budget, the terrain lookup, the saved mark and the rename.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow
   materials on one COLOUR texture, blended already so needing no twin.
-- `landscape.c` — the bilinear height, the marched and bisected ray, the brush's stamp and the
-  chunk meshes.
+- `landscape.c` — the bilinear height, the marched and bisected ray, and the brush's stamp.
+- `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
+  selection splitting nodes coarse to fine by the eye's distance within a capacity.

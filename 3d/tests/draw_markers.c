@@ -492,7 +492,7 @@ static void brush_rings_lie_on_the_ground(void)
 	voe_base_arena_destroy(arena);
 }
 
-// A thing wearing a loaded landscape, drawn as its sixteen chunks: a brush on
+// A thing wearing a loaded landscape, drawn as its one part: a brush on
 // it is one draw more, and a zeroed brush or one on the sun, which wears no
 // landscape, none more (0379 point 3).
 static void a_frame_with_a_brush_draws(void)
@@ -500,12 +500,13 @@ static void a_frame_with_a_brush_draws(void)
 	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
 	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
 	voe_base_error error = VOE_BASE_OK;
-	// The shapes and one 8-cell landscape's chunks, a draw each and the
+	// The shapes and the shared landscape grid, a draw for it and the
 	// brush's, and the rings' one range.
 	voe_render_capacities capacities = {
-		.vertices = VOE_3D_SHAPES_VERTICES + 16 * 9,
-		.indices = VOE_3D_SHAPES_INDICES + 16 * 24,
-		.geometries = VOE_3D_SHAPES_GEOMETRIES + 16,
+		.vertices = VOE_3D_SHAPES_VERTICES + 33 * 33,
+		.indices = VOE_3D_SHAPES_INDICES + 32 * 32 * 6,
+		.geometries = VOE_3D_SHAPES_GEOMETRIES + 1,
+		.heights_texels = VOE_3D_LANDSCAPE_WRITE_TEXELS,
 		.objects = 17,
 		.shadings = VOE_3D_SHAPES_SHADINGS + 2,
 		.transient_vertices = VOE_3D_BRUSH_MARKER_VERTICES,
@@ -550,7 +551,7 @@ static void a_frame_with_a_brush_draws(void)
 
 	without = draws_with_a_marker(world, device, arena, frame, no_marker,
 				      no_sun);
-	VOE_TEST_CHECK_INT(without, 16);
+	VOE_TEST_CHECK_INT(without, 1);
 	frame.brush = (voe_3d_brush_marked){
 		.entity = ground,
 		.radius = 4.0f,

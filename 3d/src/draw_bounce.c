@@ -20,7 +20,8 @@
 // THE CASTERS WEAR THEIR SHAPE'S COLOUR in the probes' pictures, as in the
 // view: the walk is draw_shadows.c's, and it once drew every shape white (bug 01).
 // A capture draws every caster; sun i's map only those the blockers holding
-// sun i hold, as its cascades do (0361 point 2).
+// sun i hold, as its cascades do (0361 point 2). Both draw a landscape
+// coarse, at most VOE_3D_TERRAIN_BOUNCE_NODES nodes (0397 point 1).
 //
 // THE GRID IS FITTED TO THE LEVEL, NOT THE EYE (0331, 0332): the still casters'
 // box goes to voe_3d_bounce_grid_fit, and its spacing to the begin.
@@ -30,14 +31,19 @@
 // it. Every volume takes the same lights, blockers and stale spheres, its own
 // sun maps, and capture passes from one budget, each finer one keeping one.
 // A refused pass ends the passes, not the begins: every later volume is begun
-// with no pass, so each queues this step's stale spheres (083).
+// with no pass, so each queues this step's stale spheres (083). A MOVING
+// FRAME, its eye more than 1 mm on an axis from the eye `frame->casters`
+// remembers, has VOE_3D_BOUNCE_MOVING_PASSES for all its volumes, so the
+// first with probes queued takes it (0397 point 2): an even cost a frame
+// while flying. The memory then takes this frame's eye, refused or not.
 //
 // THE STILL CASTERS' BOX IS THE LEVEL (0332 point 1): the world box of every
 // caster draw_shadows.c draws that did not move this step, each geometry's own
 // box under its transform at lag 0. Still casters only, because a flying shell
 // or a dragged box would stretch the grid fitted to it. In double, the corners
 // scaled, turned and moved there and never through the eye-relative float
-// matrix, so where the eye stands cannot move the box by a rounding.
+// matrix, so where the eye stands cannot move the box by a rounding. A
+// landscape's box is its pyramid's, not the shared grid's unit cube (0396).
 //
 // THE BOUNCE KEEPS TO THE FRAME'S BLOCKERS (0347 point 4): the begin carries
 // `frame->blockers`, filled by voe_3d_draw_system_light_blockers before this.
@@ -52,6 +58,8 @@
 // asks of every transform once a call, which a scene query would lift.
 #include "draw_bounce.h"
 #include "draw_group.h"
+#include "draw_terrain.h"
+#include "models_store.h"
 
 #include <3d/bounce_grid.h>
 #include <3d/mesh_component.h>
@@ -95,10 +103,10 @@ struct still_box {
 	bool any;
 };
 
-// `geometry`'s own box under `placed` into `box`: its eight corners scaled,
-// turned and moved in double. Nothing when the id names nothing.
-static void grow(struct still_box *box, const voe_render_device *device,
-		 voe_render_geometry geometry, const voe_scene_transform *placed)
+// The own-space box `low` to `high` under `placed` into `box`: its eight
+// corners scaled, turned and moved in double.
+static void grow_corners(struct still_box *box, voe_math_float3 low,
+			 voe_math_float3 high, const voe_scene_transform *placed)
 {
 	double x = placed->rotation.x, y = placed->rotation.y;
 	double z = placed->rotation.z, w = placed->rotation.w;
@@ -107,12 +115,8 @@ static void grow(struct still_box *box, const voe_render_device *device,
 		{ 2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w) },
 		{ 2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y) },
 	};
-	voe_math_float3 low;
-	voe_math_float3 high;
 
 	VOE_BASE_ASSERT(box != NULL && placed != NULL, "growing no box");
-	if (!voe_render_geometry_box(device, geometry, &low, &high))
-		return;
 	for (uint32_t corner = 0; corner < 8; corner++) {
 		const double own[3] = {
 			(double)placed->scale.x * ((corner & 1) ? high.x : low.x),
@@ -142,6 +146,46 @@ static void grow(struct still_box *box, const voe_render_device *device,
 	VOE_BASE_ASSERT(box->any, "a corner that grew nothing");
 }
 
+// `geometry`'s own box under `placed` into `box`. Nothing when the id names
+// nothing.
+static void grow(struct still_box *box, const voe_render_device *device,
+		 voe_render_geometry geometry, const voe_scene_transform *placed)
+{
+	voe_math_float3 low;
+	voe_math_float3 high;
+
+	VOE_BASE_ASSERT(box != NULL && placed != NULL, "growing no box");
+	if (voe_render_geometry_box(device, geometry, &low, &high))
+		grow_corners(box, low, high, placed);
+}
+
+// `model`'s casting parts under `placed` into `box`; a landscape's by its
+// pyramid's box (0396), not the shared grid's unit cube.
+static void grow_model(struct still_box *box, const voe_render_device *device,
+		       const voe_3d_models *models,
+		       const voe_3d_model_entry *model,
+		       const voe_scene_transform *placed)
+{
+	voe_3d_models_terrain terrain;
+
+	VOE_BASE_ASSERT(models != NULL && model != NULL,
+			"growing a model from no store");
+	if (voe_3d_models_terrain_of(models, model, &terrain)) {
+		voe_math_float3 low;
+		voe_math_float3 high;
+
+		if (!voe_3d_draw_casts(&model->parts[0].material))
+			return;
+		voe_3d_landscape_lod_box(terrain.lod, model->landscape, &low,
+					 &high);
+		grow_corners(box, low, high, placed);
+		return;
+	}
+	for (uint32_t part = 0; part < model->part_count; part++)
+		if (voe_3d_draw_casts(&model->parts[part].material))
+			grow(box, device, model->parts[part].geometry, placed);
+}
+
 // One call's marking: what it reads, whether the world remembers, and the
 // spheres so far.
 struct marking {
@@ -158,6 +202,7 @@ float voe_3d_bounce_caster_sphere(const voe_ecs_world *world,
 				  const voe_render_device *device,
 				  voe_ecs_entity entity,
 				  voe_render_geometry geometry,
+				  const voe_3d_models *models,
 				  const voe_3d_model_entry *model, float lag,
 				  voe_math_double3 *centre)
 {
@@ -171,10 +216,7 @@ float voe_3d_bounce_caster_sphere(const voe_ecs_world *world,
 	if (model == NULL)
 		grow(&box, device, geometry, &placed);
 	else
-		for (uint32_t part = 0; part < model->part_count; part++)
-			if (voe_3d_draw_casts(&model->parts[part].material))
-				grow(&box, device, model->parts[part].geometry,
-				     &placed);
+		grow_model(&box, device, models, model, &placed);
 	if (!box.any)
 		return 0.0f;
 	return (float)(0.5 * sqrt((box.max.x - box.min.x) * (box.max.x - box.min.x) +
@@ -203,8 +245,9 @@ static bool mark(void *context, voe_ecs_entity entity,
 		voe_math_double3 at;
 		float w = voe_3d_bounce_caster_sphere(marking->world,
 						      marking->device, entity,
-						      geometry, model, lags[i],
-						      &at);
+						      geometry,
+						      marking->frame->models,
+						      model, lags[i], &at);
 
 		if (w <= 0.0f)
 			continue;
@@ -336,9 +379,7 @@ static void box_models(const voe_ecs_world *world,
 		if (model == NULL || !model->loaded || moved(world, owners[row]))
 			continue;
 		placed = voe_scene_transform_between(world, owners[row], 0.0f);
-		for (uint32_t part = 0; part < model->part_count; part++)
-			if (voe_3d_draw_casts(&model->parts[part].material))
-				grow(box, device, model->parts[part].geometry, &placed);
+		grow_model(box, device, frame->models, model, &placed);
 	}
 	VOE_BASE_ASSERT(!box->any || box->min.x <= box->max.x, "a box turned out");
 }
@@ -408,7 +449,8 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 		return true;
 	drawn = voe_3d_draw_casters(world, device, frame,
 				    sun == 0 ? frame->blockers.sun :
-					       frame->more_lights[sun - 1].blockers);
+					       frame->more_lights[sun - 1].blockers,
+				    VOE_3D_TERRAIN_BOUNCE_NODES);
 	voe_render_pass_end(device);
 	return drawn;
 }
@@ -461,7 +503,8 @@ static bool bounce_volume(struct bouncing *call, voe_3d_bounce_grid grid,
 		if (!opened)
 			break;
 		call->captured++;
-		drawn = voe_3d_draw_casters(call->world, call->device, frame, 0);
+		drawn = voe_3d_draw_casters(call->world, call->device, frame, 0,
+					    VOE_3D_TERRAIN_BOUNCE_NODES);
 		voe_render_pass_end(call->device);
 		if (!drawn)
 			return false;
@@ -490,12 +533,18 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 	struct bouncing call = { world, device, frame, { 0 }, 0 };
 	uint32_t first = 0;
 	uint32_t stale;
+	bool moving;
 	bool drawn;
 
 	VOE_BASE_ASSERT(world != NULL && device != NULL && frame != NULL,
 			"bouncing with no world, device or frame");
 	VOE_BASE_ASSERT(!voe_render_pass_is_open(device),
 			"the bounce goes between passes, none open");
+	// Read before voe_3d_bounce_removed refills the memory.
+	moving = frame->casters != NULL && frame->casters->has_eye &&
+		 (fabs(frame->eye.x - frame->casters->eye.x) > 1e-3 ||
+		  fabs(frame->eye.y - frame->casters->eye.y) > 1e-3 ||
+		  fabs(frame->eye.z - frame->casters->eye.z) > 1e-3);
 	// No still caster leaves min above max, which the fit takes as no box.
 	(void)voe_3d_bounce_box(world, device, frame, &min, &max);
 	level = voe_3d_bounce_grid_fit(min, max, frame->eye);
@@ -523,8 +572,9 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 	// Each finer volume begun keeps a capture pass: the j-th of n stops at
 	// CAPTURE_PASSES − (n − 1 − j), nest i's n − 1 − j being NESTS − 1 − i.
 	drawn = bounce_volume(&call, level, 0,
-			      VOE_RENDER_BOUNCE_CAPTURE_PASSES -
-				      (VOE_3D_BOUNCE_NESTS - first));
+			      moving ? VOE_3D_BOUNCE_MOVING_PASSES :
+				       VOE_RENDER_BOUNCE_CAPTURE_PASSES -
+					       (VOE_3D_BOUNCE_NESTS - first));
 	// After a refusal each finer volume is still begun, no pass opened: a
 	// move marks stale spheres in this step only, and a nest left unbegun
 	// would keep the moved caster's old pictures for good (083).
@@ -537,11 +587,17 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			frame->eye);
 
 		if (drawn)
-			drawn = bounce_volume(&call, nest, i + 1,
-					      VOE_RENDER_BOUNCE_CAPTURE_PASSES -
-						      (VOE_3D_BOUNCE_NESTS - 1 - i));
+			drawn = bounce_volume(
+				&call, nest, i + 1,
+				moving ? VOE_3D_BOUNCE_MOVING_PASSES :
+					 VOE_RENDER_BOUNCE_CAPTURE_PASSES -
+						 (VOE_3D_BOUNCE_NESTS - 1 - i));
 		else
 			begin_volume(&call, nest, i + 1);
+	}
+	if (frame->casters != NULL) {
+		frame->casters->eye = frame->eye;
+		frame->casters->has_eye = true;
 	}
 	return drawn;
 }

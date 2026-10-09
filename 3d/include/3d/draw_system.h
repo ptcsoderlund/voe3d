@@ -613,7 +613,9 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // it opens capture passes while render has probes to capture, drawing the
 // casters into each, and relights. That is up to
 // VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes in all, shared coarse to fine,
-// and that many more objects per caster. On a frame that relights a volume,
+// and that many more objects per caster; at most VOE_3D_BOUNCE_MOVING_PASSES
+// with the eye moving, more than 1 mm on an axis from `frame->casters`' eye of
+// the last bounce (0397 point 2). On a frame that relights a volume,
 // for each sun that bounces and casts it opens one more pass for that volume,
 // and one more object per caster: that sun's relight map (0357 point 4),
 // fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades, so the
@@ -632,6 +634,10 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
 					      voe_render_device *device,
 					      voe_3d_frame *frame);
+
+// The capture passes of a bounce whose eye moved since the target's last
+// (0397 point 2): coarse to fine, the first volume with probes queued.
+#define VOE_3D_BOUNCE_MOVING_PASSES 1u
 
 // Draws every entity that has a mesh, a transform and a material — and every
 // entity that has a panel, a transform and a range this frame submitted — into
@@ -673,7 +679,14 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // store draw nothing. A ROW'S `fade` (0336 point 3): at or above 1 the model
 // is gone and not drawn; above 0 and below 1 every part is blended at 1 − fade
 // with its part's twin, `faded`, sorted with the world's blended group; at or
-// below 0, or not a number, it draws as above. THE ONE EXCEPTION IS THE FRAME'S `hidden`: the entity it
+// below 0, or not a number, it draws as above. A LANDSCAPE ROW IS DRAWN BY
+// NODES (0396): up to VOE_3D_LANDSCAPE_NODES records of the shared grid over
+// its heights, chosen by the eye's distance, its solid ones inside the pass's
+// `terrain` span, so its cost is listed as `<pass>: terrain` (0388); a fading
+// one is held blended as a model's parts are. Past VOE_3D_LANDSCAPES_DRAWN
+// landscape rows a frame, the rest are not drawn, said once on stderr. The
+// device needs room for that many objects per landscape row per world pass.
+// THE ONE EXCEPTION IS THE FRAME'S `hidden`: the entity it
 // names is not drawn however complete it is, mesh, panel, model or particle.
 //
 // EACH LIVE PARTICLE IS ONE BLENDED DRAW FROM `frame.models` (ADR-0298 point
@@ -766,7 +779,7 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // over scratch; this rewinds every frame to exactly what it was handed, keeps
 // nothing, and a caller may pass the same arena it uses for anything else. What
 // it takes is bounded by the number of drawables in the world, each loaded part
-// of each model row, each live particle and each water counted as one — three groups' worth of it, because which group a drawable is in is not known until the walks
+// of each model row, VOE_3D_LANDSCAPE_NODES per landscape row, each live particle and each water counted as one — three groups' worth of it, because which group a drawable is in is not known until the walks
 // have finished and each of them therefore has room for all of them.
 void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, voe_3d_frame frame);

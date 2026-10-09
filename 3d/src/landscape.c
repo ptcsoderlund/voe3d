@@ -1,8 +1,8 @@
 // The landscape arithmetic of 3d/landscape.h: the bilinear height, the ray
-// marched and bisected through the box, a brush's stamp over the rect its
-// radius covers, the chunk meshes and the chunks a rect touches.
+// marched and bisected through the box, and a brush's stamp over the rect its
+// radius covers.
 //
-// Used by the model store (chunks), the pick (the ray) and the editor (the
+// Used by the model store (the brush), the pick (the ray) and the editor (the
 // brush). Heights are row-major, row r (z) starting at r·(cells + 1).
 //
 // Constraints: the ray takes at most box length / half a cell steps and 24
@@ -283,97 +283,4 @@ voe_3d_landscape_rect voe_3d_landscape_brush(voe_assets_landscape *landscape,
 	}
 	voe_base_arena_rewind(scratch, mark);
 	return rect;
-}
-
-// The slope along one axis by central differences, one-sided at the edge.
-static float slope(const voe_assets_landscape *landscape, uint32_t c,
-		   uint32_t r, bool along_x)
-{
-	const uint32_t i = along_x ? c : r;
-	const uint32_t lo = i > 0 ? i - 1 : 0;
-	const uint32_t hi = i < landscape->cells ? i + 1 : landscape->cells;
-	const float a = along_x ? at(landscape, lo, r) : at(landscape, c, lo);
-	const float b = along_x ? at(landscape, hi, r) : at(landscape, c, hi);
-
-	return (b - a) / ((float)(hi - lo) * cell_size(landscape));
-}
-
-voe_3d_landscape_mesh
-voe_3d_landscape_chunk(const voe_assets_landscape *landscape, uint32_t chunk,
-		       voe_base_arena *arena)
-{
-	VOE_BASE_ASSERT(landscape && landscape->heights && arena,
-			"a landscape and an arena");
-	VOE_BASE_ASSERT(chunk < VOE_3D_LANDSCAPE_CHUNKS * VOE_3D_LANDSCAPE_CHUNKS,
-			"one of the 16 chunks");
-	const uint32_t k = landscape->cells / VOE_3D_LANDSCAPE_CHUNKS;
-	const uint32_t side = k + 1;
-	const uint32_t c0 = (chunk % VOE_3D_LANDSCAPE_CHUNKS) * k;
-	const uint32_t r0 = (chunk / VOE_3D_LANDSCAPE_CHUNKS) * k;
-	const float half = 0.5f * landscape->size;
-	const float cell = cell_size(landscape);
-	voe_3d_landscape_mesh mesh = {
-		.vertex_count = side * side,
-		.index_count = k * k * 6,
-	};
-
-	mesh.vertices = voe_base_arena_push(
-		arena, sizeof(voe_render_vertex) * mesh.vertex_count);
-	mesh.indices =
-		voe_base_arena_push(arena, sizeof(uint32_t) * mesh.index_count);
-	for (uint32_t j = 0; j < side; j++) {
-		for (uint32_t i = 0; i < side; i++) {
-			const uint32_t c = c0 + i, r = r0 + j;
-			const voe_math_float3 up = { -slope(landscape, c, r, true),
-						     1.0f,
-						     -slope(landscape, c, r, false) };
-
-			mesh.vertices[j * side + i] = (voe_render_vertex){
-				.position = { -half + (float)c * cell,
-					      at(landscape, c, r),
-					      -half + (float)r * cell },
-				.normal = voe_math_float3_normalize(up),
-				.uv = { (float)c / (float)landscape->cells,
-					(float)r / (float)landscape->cells },
-			};
-		}
-	}
-	// Corner (i, j) then (i, j + 1) then (i + 1, j) turns counter-clockwise
-	// seen from +Y: (+Z) × (+X) is +Y.
-	uint32_t *out = mesh.indices;
-	for (uint32_t j = 0; j < k; j++) {
-		for (uint32_t i = 0; i < k; i++) {
-			const uint32_t a = j * side + i;
-			const uint32_t b = a + side;
-
-			*out++ = a, *out++ = b, *out++ = a + 1;
-			*out++ = a + 1, *out++ = b, *out++ = b + 1;
-		}
-	}
-	return mesh;
-}
-
-voe_3d_landscape_rect
-voe_3d_landscape_chunks(const voe_assets_landscape *landscape,
-			voe_3d_landscape_rect heights)
-{
-	VOE_BASE_ASSERT(landscape, "a landscape");
-	VOE_BASE_ASSERT(landscape->cells % VOE_3D_LANDSCAPE_CHUNKS == 0,
-			"cells a multiple of 4");
-	const uint32_t k = landscape->cells / VOE_3D_LANDSCAPE_CHUNKS;
-
-	if (heights.x0 >= heights.x1 || heights.z0 >= heights.z1)
-		return (voe_3d_landscape_rect){ 0 };
-	// Chunk cx holds heights cx·k to cx·k + k, both ends: a rect starting on
-	// a chunk's first row also touches the chunk before.
-	return (voe_3d_landscape_rect){
-		.x0 = heights.x0 == 0 ? 0 : (heights.x0 - 1) / k,
-		.z0 = heights.z0 == 0 ? 0 : (heights.z0 - 1) / k,
-		.x1 = (heights.x1 - 1) / k + 1 < VOE_3D_LANDSCAPE_CHUNKS ?
-			      (heights.x1 - 1) / k + 1 :
-			      VOE_3D_LANDSCAPE_CHUNKS,
-		.z1 = (heights.z1 - 1) / k + 1 < VOE_3D_LANDSCAPE_CHUNKS ?
-			      (heights.z1 - 1) / k + 1 :
-			      VOE_3D_LANDSCAPE_CHUNKS,
-	};
 }

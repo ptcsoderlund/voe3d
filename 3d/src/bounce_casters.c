@@ -27,6 +27,7 @@
 struct remembering {
 	const voe_ecs_world *world;
 	const voe_render_device *device;
+	const voe_3d_models *models;
 	voe_3d_bounce_casters now;
 };
 
@@ -42,7 +43,8 @@ static bool remember(void *context, voe_ecs_entity entity,
 	VOE_BASE_ASSERT(call->now.count < VOE_3D_BOUNCE_CASTERS,
 			"remembering past the memory's room");
 	radius = voe_3d_bounce_caster_sphere(call->world, call->device, entity,
-					     geometry, model, 0.0f, &centre);
+					     geometry, call->models, model,
+					     0.0f, &centre);
 	if (radius > 0.0f)
 		call->now.entries[call->now.count++] =
 			(voe_3d_bounce_caster){ entity, centre, radius };
@@ -66,7 +68,7 @@ uint32_t voe_3d_bounce_removed(const voe_ecs_world *world,
 			       const voe_3d_frame *frame,
 			       voe_math_float4 *spheres, uint32_t room)
 {
-	struct remembering call = { world, device, { 0 } };
+	struct remembering call = { world, device, frame->models, { 0 } };
 	voe_3d_bounce_casters *memory;
 	uint32_t count = 0;
 

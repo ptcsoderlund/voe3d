@@ -552,9 +552,10 @@ int main(int argc, char *argv[])
 		// handed values and never asks a window anything.
 		// EVERY READ OF THE WINDOW IS IN HERE. Notches since the last
 		// poll are turned into a length once, and nothing else reads the
-		// wheel: a scene view takes the middle button and no wheel at
-		// all, so a wheel over one is a scroll no area under the pointer
-		// can take and is dropped.
+		// wheel: a scene view takes the middle button and no wheel
+		// unless it is flying (frame_pointer.c), so a wheel over one is
+		// otherwise a scroll no area under the pointer can take and is
+		// dropped.
 		if (window != NULL) {
 			pointer = voe_platform_input_pointer(window);
 			wheel = voe_platform_input_wheel(window);
@@ -598,6 +599,7 @@ int main(int argc, char *argv[])
 				&reads,
 				&(voe_editor_frame_pointer_input){
 					.pointer = pointer, .motion = motion,
+					.wheel = wheel,
 					.keyboard = &keyboard, .text = &text,
 					.left = left, .middle = middle,
 					.right = right, .shift = shift,
@@ -618,10 +620,6 @@ int main(int argc, char *argv[])
 		// The files this frame's rows name, before the draw opens (models.h).
 		voe_editor_models_update(models, &session, gpu, arena,
 					 opened.tick.now, NULL);
-		// Static again only between strokes: a held one draws transient
-		// each frame instead (0379 point 4).
-		if (!scene.sculpt.stroking)
-			voe_editor_models_settle(models, gpu, scratch);
 		voe_editor_assets_update(&scene.assets, session.project->folder,
 					 opened.tick.now);
 		if (!voe_app_draw_open(app, opened.size, &drawing)) {
@@ -631,8 +629,9 @@ int main(int argc, char *argv[])
 		if (!drawing)
 			continue;
 
-		// The landscapes' dirty chunks, transient for this frame's passes.
-		voe_editor_models_frame(models, gpu, scratch);
+		// The landscapes' sculpted heights, written before this frame's
+		// passes (models.h).
+		voe_editor_models_frame(models, gpu);
 		light = voe_editor_view_light(session.project->world);
 
 		// A pass per view the tree shows (view_passes.h). If one is

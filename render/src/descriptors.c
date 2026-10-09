@@ -82,7 +82,9 @@ static bool build_layout(voe_render_device *device)
 			.descriptorType =
 				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 			.descriptorCount = VOE_RENDER_MAX_TEXTURES,
-			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+			// The vertex stage too: a landscape's heights (0396).
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
+				      VK_SHADER_STAGE_FRAGMENT_BIT,
 		},
 		{
 			// The vertex stage reads the world matrix out of it and

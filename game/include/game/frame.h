@@ -68,7 +68,9 @@
 // two objects per drawn entity, a shape's or a model part's, in the window
 // pass, in each cascade of each of VOE_RENDER_DIRECTIONAL_LIGHTS lights, in the
 // point-shadow pass, in each of the bounce's capture passes and in each bounce
-// sun map, every caster drawn at most once into each; each emitter's
+// sun map, every caster drawn at most once into each; VOE_3D_LANDSCAPE_NODES
+// for each of VOE_3D_LANDSCAPES_DRAWN landscape rows in each of those same
+// passes (0396 point 4); each emitter's
 // VOE_3D_EMITTER_PARTICLES in the window pass alone, since particles cast no
 // shadow (0298 points 6 and 8); one per water, VOE_GAME_WORLD_WATERS, in the
 // window pass alone, since water casts no shadow (0305 point 7); the window
@@ -80,6 +82,8 @@
 // frame that relights (0329 point 3, 0357 point 4, 0389); the sun's maps at VOE_3D_SHADOW_TEXELS a side and the lamps'
 // faces at VOE_3D_POINT_SHADOW_TEXELS; the interface's element records, VOE_GAME_INTERFACE_ELEMENTS. Nothing
 // transient and no targets: the game draws no outline and nothing off screen.
+// No heights_texels: the game never sculpts, and its landscapes are uploaded
+// whole at load.
 #define VOE_GAME_CAPACITIES                                                  \
 	(voe_render_capacities)                                              \
 	{                                                                    \
@@ -87,7 +91,8 @@
 		.indices = VOE_3D_SHAPES_INDICES + VOE_3D_MODELS_INDICES,     \
 		.geometries = VOE_3D_SHAPES_GEOMETRIES +                      \
 			      VOE_3D_MODELS_GEOMETRIES,                       \
-		.objects = 2 * VOE_GAME_WORLD_MAX_DRAWN *                     \
+		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN +                    \
+			    VOE_3D_LANDSCAPES_DRAWN * VOE_3D_LANDSCAPE_NODES) * \
 				   (2 + VOE_RENDER_DIRECTIONAL_LIGHTS *       \
 						VOE_RENDER_SHADOW_CASCADES +       \
 					    VOE_RENDER_BOUNCE_VOLUMES *              \

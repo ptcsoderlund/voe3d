@@ -21,7 +21,7 @@
 // header on `browsing`. Preferences' Choose is carried out here too, through
 // themes.h, and its palette set on the context for the next frame; the
 // Project panel's window is written through project.h, the Landscape panel's
-// size through models.h, which a landscape row or Create's make opens.
+// size and cells through models.h, which a landscape row or Create's make opens.
 //
 // THE COLOUR PICKER IS DRAWN HERE TOO, AND ITS RESULT READ HERE, for the same
 // reason: it is a `ui` widget answering after voe_ui_frame_end. While scene.h's
@@ -162,8 +162,8 @@ static void assets_request_do(voe_editor_session *session,
 	request->kind = VOE_EDITOR_ASSETS_NAMING_NONE;
 }
 
-// Opens the Landscape panel on `path` (`Assets/...`) at the size its store
-// entry or file holds, hiding Preferences and the Project panel in its place.
+// Opens the Landscape panel on `path` (`Assets/...`) at the size and cells its
+// store entry or file holds, hiding Preferences and the Project panel in its place.
 // A file that will not read is said in the notice and opens nothing.
 static void landscape_open(voe_editor_session *session,
 			   voe_editor_models *models, voe_base_arena *arena,
@@ -173,18 +173,18 @@ static void landscape_open(voe_editor_session *session,
 			   const char *path)
 {
 	float size;
+	uint32_t cells;
 
 	VOE_BASE_ASSERT(session != NULL && models != NULL && arena != NULL,
 			"opening a landscape with no session, store or scratch");
 	VOE_BASE_ASSERT(panel != NULL && path != NULL,
 			"opening no landscape panel or no path");
 	if (session->project->folder == NULL ||
-	    !voe_editor_models_landscape_size_found(models,
-						    session->project->folder,
-						    path, arena, &size,
-						    &session->notice))
+	    !voe_editor_models_landscape_found(models, session->project->folder,
+					       path, arena, &size, &cells,
+					       &session->notice))
 		return;
-	if (!voe_editor_landscape_panel_show(panel, path, size))
+	if (!voe_editor_landscape_panel_show(panel, path, size, cells))
 		return;
 	voe_editor_preferences_hide(preferences);
 	voe_editor_project_panel_hide(project_panel);
@@ -743,7 +743,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				voe_editor_project_panel_hide(project_panel);
 		}
 
-		// THE LANDSCAPE PANEL, WHEN IT WAS DRAWN: a new size is written
+		// THE LANDSCAPE PANEL, WHEN IT WAS DRAWN: a new shape is written
 		// at once (models.h) and shown, a refusal said in the notice.
 		if (landscaping) {
 			voe_editor_landscape_panel_result result =
@@ -751,13 +751,13 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 					ui, landscape_panel);
 
 			if (result.changed && session->project->folder != NULL &&
-			    voe_editor_models_landscape_size(
+			    voe_editor_models_landscape_shape(
 				    models, session->project->folder,
-				    landscape_panel->path, result.size, arena,
-				    &session->notice))
+				    landscape_panel->path, result.size,
+				    result.cells, arena, &session->notice))
 				(void)voe_editor_landscape_panel_show(
 					landscape_panel, landscape_panel->path,
-					result.size);
+					result.size, result.cells);
 			if (result.closed)
 				voe_editor_landscape_panel_hide(landscape_panel);
 		}

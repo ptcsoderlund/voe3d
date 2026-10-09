@@ -448,8 +448,8 @@ void voe_editor_interface_surface(voe_platform_size target,
 //
 // `landscape_panel` IS DRAWN IN THE SAME PLACE, UNDER THE PROJECT PANEL, and
 // opens on the Assets panel's `landscape_opened` or after Create -> Landscape's
-// make, at the size models.h finds, hiding Preferences and Project, which the
-// bar's two hide in turn. A new size goes to voe_editor_models_landscape_size,
+// make, at the shape models.h finds, hiding Preferences and Project, which the
+// bar's two hide in turn. A new shape goes to voe_editor_models_landscape_shape,
 // a refusal into the notice; its × hides it. It counts nothing above: never
 // beside the browser, it costs less than the Project panel.
 //

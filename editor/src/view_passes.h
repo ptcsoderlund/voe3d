@@ -125,10 +125,11 @@
 // VOE_GAME_WORLD_AUTHORED because the editor's world holds only authored
 // entities (0365); and the other blockers' boxes,
 // VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more; and the
-// brush's rings, one range (VOE_3D_BRUSH_MARKER_*, 0379 point 3). On top,
-// once a frame and not per view, a whole landscape's chunks drawn transient
-// while a stroke is held (VOE_3D_LANDSCAPE_TRANSIENT_*, 0379 point 4): they are
-// made once after the draw opens and every pass draws the same ones.
+// brush's rings, one range (VOE_3D_BRUSH_MARKER_*, 0379 point 3). Every pass
+// that draws the world draws VOE_3D_LANDSCAPE_NODES for each of
+// VOE_3D_LANDSCAPES_DRAWN landscapes, counted in `objects` where the world's
+// drawn entities are (0396 point 4); `heights_texels` is the sculpt's writes a
+// frame, VOE_3D_LANDSCAPE_WRITE_TEXELS (0396 point 5).
 #define VOE_EDITOR_CAPACITIES                                                \
 	(voe_render_capacities)                                               \
 	{                                                                     \
@@ -136,10 +137,13 @@
 		.indices = VOE_3D_SHAPES_INDICES + VOE_3D_MODELS_INDICES,      \
 		.geometries =                                                  \
 			VOE_3D_SHAPES_GEOMETRIES + VOE_3D_MODELS_GEOMETRIES,  \
-		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 14) *               \
+		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 14 +                \
+			    VOE_3D_LANDSCAPES_DRAWN * VOE_3D_LANDSCAPE_NODES) * \
 				   VOE_EDITOR_VIEWS +                          \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
-			   2 * VOE_GAME_WORLD_MAX_DRAWN *                      \
+			   VOE_3D_LANDSCAPES_DRAWN * VOE_3D_LANDSCAPE_NODES +  \
+			   (2 * VOE_GAME_WORLD_MAX_DRAWN +                     \
+			    VOE_3D_LANDSCAPES_DRAWN * VOE_3D_LANDSCAPE_NODES) * \
 				   (VOE_RENDER_SHADOW_CASCADES *               \
 					    VOE_RENDER_DIRECTIONAL_LIGHTS +    \
 				    1 + VOE_RENDER_BOUNCE_CAPTURE_PASSES +     \
@@ -174,8 +178,7 @@
 				       VOE_3D_COLLIDER_MARKER_VERTICES *       \
 					       VOE_GAME_WORLD_LIGHT_BLOCKERS + \
 				       VOE_3D_BRUSH_MARKER_VERTICES) *         \
-					      VOE_EDITOR_VIEWS +                \
-				      VOE_3D_LANDSCAPE_TRANSIENT_VERTICES,     \
+					      VOE_EDITOR_VIEWS,                 \
 		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
 				      VOE_EDITOR_GIZMO_INDICES +               \
 				      VOE_3D_CAMERA_MARKER_INDICES +           \
@@ -189,10 +192,9 @@
 				      VOE_3D_COLLIDER_MARKER_INDICES *         \
 					      VOE_GAME_WORLD_LIGHT_BLOCKERS +  \
 				      VOE_3D_BRUSH_MARKER_INDICES) *           \
-					     VOE_EDITOR_VIEWS +                 \
-				     VOE_3D_LANDSCAPE_TRANSIENT_INDICES,       \
-		.transient_geometries = 14 * VOE_EDITOR_VIEWS +                \
-					VOE_3D_LANDSCAPE_TRANSIENT_RANGES      \
+					     VOE_EDITOR_VIEWS,                  \
+		.transient_geometries = 14 * VOE_EDITOR_VIEWS,                 \
+		.heights_texels = VOE_3D_LANDSCAPE_WRITE_TEXELS                \
 	}
 
 // Sets `preview_shown` to whether the selected entity has a camera and, when

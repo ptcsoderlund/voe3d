@@ -240,7 +240,7 @@ void voe_render_device_guard_give(voe_render_device *device);
 
 // pass_timing.c's group (ADR-0367 point 2). How many passes a frame may time,
 // `passes` and one for the relight, and so how many timestamps one frame's pool
-// holds: the frame's pair, then a pair per timed pass.
+// holds: the frame's pair, a pair per timed pass, then a pair per span.
 static inline uint32_t voe_render_timed_passes(const voe_render_device *device)
 {
 	return device->capacities.passes + 1;
@@ -249,7 +249,8 @@ static inline uint32_t voe_render_timed_passes(const voe_render_device *device)
 static inline uint32_t
 voe_render_timestamps_per_frame(const voe_render_device *device)
 {
-	return VOE_RENDER_FRAME_TIMESTAMPS + 2 * voe_render_timed_passes(device);
+	return VOE_RENDER_FRAME_TIMESTAMPS + 2 * voe_render_timed_passes(device) +
+	       2 * VOE_RENDER_FRAME_SPANS;
 }
 
 // pass_timing.c. _open labels a pass `name` and writes its first timestamp;
@@ -283,7 +284,10 @@ void voe_render_debug_label_end(VkCommandBuffer commands);
 // saying the checks are on or missing, the vendor and the list's length.
 // _list_new: at close, when new_messages is not nought, one line per kept id —
 // error or warning, the id, how many times, the first text — and one for the
-// new messages no row had room for, printed before the count line.
+// new messages no row had room for, printed before the count line. _wanted
+// (ADR-0398): whether a device with the layer turns the checks on — always when
+// headless, on a window only when `setting` (VOE_RENDER_BEST_PRACTICES, or NULL)
+// is exactly "1". Pure: no device and no environment.
 enum voe_render_message_verdict {
 	VOE_RENDER_MESSAGE_DROPPED,
 	VOE_RENDER_MESSAGE_ALLOWED,
@@ -295,6 +299,8 @@ enum voe_render_message_verdict {
 [[nodiscard]] enum voe_render_message_verdict
 voe_render_best_practices_classify(voe_render_device *device, bool error,
 				   const char *id_name, const char *message);
+[[nodiscard]] bool voe_render_best_practices_wanted(bool headless,
+						    const char *setting);
 void voe_render_best_practices_announce(const voe_render_device *device);
 void voe_render_best_practices_list_new(const voe_render_device *device);
 
@@ -405,6 +411,22 @@ void voe_render_texture_shutdown(voe_render_device *device);
 // and the set alone does not say which frame slot it belongs to.
 void voe_render_texture_write_descriptors(voe_render_device *device,
 					  uint32_t slot);
+
+// texture.c, for texture_heights.c too. Builds free `slot`'s image of `format`
+// and `levels`, uploads `size` bytes of `pixels` into level 0 (the chain blitted
+// when `levels` > 1), leaves it shader-readable and idles. False with a message
+// and the slot's handles given back; the caller claims the slot.
+[[nodiscard]] bool voe_render_texture_fill(voe_render_device *device,
+					   struct voe_render_texture_slot *slot,
+					   VkFormat format, uint32_t width,
+					   uint32_t height, uint32_t levels,
+					   const void *pixels, VkDeviceSize size);
+
+// texture_heights.c. Every frame slot's heights staging, capacities.heights_texels
+// floats, mapped; none when nought. Startup's, false with a message; _shutdown is
+// safe on a device that never got that far.
+[[nodiscard]] bool voe_render_texture_heights_startup(voe_render_device *device);
+void voe_render_texture_heights_shutdown(voe_render_device *device);
 
 // texture_levels.c. Record the blits that fill levels 1 .. level_count - 1 of
 // a texture from level 0, into the upload's own command buffer. Level 0 and

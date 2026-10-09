@@ -36,6 +36,8 @@ A `.slangh` is a part, included by a shader and never compiled alone.
   to its range by its falloff (0322), a slotted one shadowed by one compare on its cube face (0325);
   light blockers gate each light, lamps and bounce by Rooms and crossings, the fill by Rooms and
   Indoors (0350), the light's own Indoors boxes filled (0361).
+- `terrain.slangh` — a landscape node's vertex (0396): the grid point morphed by its distance to the
+  eye, clamped to the landscape, its height four loads blended, its normal a central difference.
 - `water.slangh` — the water path, lit by directional light 0 alone: wave normals, fresnel to the sky and
   coverage from its thickness over the pass's depth copy.
 - `elements.slang` — the element pipeline's two entry points: a rectangle per

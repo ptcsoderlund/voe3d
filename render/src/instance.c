@@ -4,12 +4,17 @@
 // loader is open and before the surface exists — see startup.h for the order.
 //
 // VALIDATION IS DEBUG-ONLY. A release build never asks for the layer. A debug
-// build asks for it with Best Practices on (ADR-0358, 0367 point 4): through
-// VK_EXT_layer_settings, asked of the layer by name, with the four vendor sets
-// (AMD, Arm, IMG, NVIDIA) when the layer offers it, else core Best Practices
-// through VkValidationFeaturesEXT; device->checks_on and ->vendor_checks say
-// which. A debug build without the layer still runs, and records the checks as
-// missing for best_practices.c's start line to say so.
+// build asks for it on every device, and turns Best Practices on (ADR-0358,
+// 0367 point 4) for a headless device, and for a windowed one only when the
+// environment has VOE_RENDER_BEST_PRACTICES=1 (0398): the checks slow the
+// card's own work about fivefold, so the Frame panel would not show the
+// engine's cost. Without them a window keeps core validation and its messenger,
+// and records checks_off_for_window. With them: through VK_EXT_layer_settings,
+// asked of the layer by name, with the four vendor sets (AMD, Arm, IMG, NVIDIA)
+// when the layer offers it, else core Best Practices through
+// VkValidationFeaturesEXT; device->checks_on and ->vendor_checks say which. A
+// debug build without the layer still runs, and records the checks as missing
+// for best_practices.c's start line to say so.
 //
 // A NEW MESSAGE NOW COUNTS (0358). The messenger's user data is the device;
 // every message, its id name and its text, goes to best_practices.c's
@@ -33,6 +38,7 @@
 #include <base/report.h>
 
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define VALIDATION_LAYER "VK_LAYER_KHRONOS_validation"
@@ -259,6 +265,7 @@ bool voe_render_instance_create(voe_render_device *device, voe_base_arena *arena
 		.pApplicationInfo = &application,
 	};
 	VkResult result;
+	bool best_practices;
 
 	// A headless instance names no window system at all. It opens no surface,
 	// so these two would be enabled and never called — and on a build box
@@ -271,11 +278,18 @@ bool voe_render_instance_create(voe_render_device *device, voe_base_arena *arena
 	if (debug_utils)
 		extensions[extension_count++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 
-	if (validate)
+	best_practices = validate &&
+			 voe_render_best_practices_wanted(
+				 device->headless,
+				 getenv("VOE_RENDER_BEST_PRACTICES"));
+	if (best_practices)
 		turn_on_best_practices(device, arena, &info, extensions,
 				       &extension_count, settings,
 				       &layer_settings, &features);
 	device->checks_missing = VALIDATION_IN_THIS_BUILD && !validate;
+	device->checks_off_for_window =
+		validate && !best_practices && !device->headless;
+	assert(!(device->checks_off_for_window && device->checks_on));
 
 	info.enabledExtensionCount = extension_count;
 	info.ppEnabledExtensionNames = extensions;

@@ -1,0 +1,95 @@
+// A landscape node's vertex (ADR-0396 point 3): a point of the shared grid, x and
+// z in 0..1 and its y ignored, placed over the landscape's heights texture. A
+// part (ADR-0308): included by draw.slang after its vertex input and
+// lighting.slangh, never compiled alone. Every vertex entry that takes a mesh
+// calls voe_render_terrain when the object's `heights` is not nought.
+//
+// THE RECORD: `heights` the texture's index plus one; `terrain` the node's corner
+// x and z in the landscape's own metres (its grid centred on the origin), the
+// node's side and the landscape's side; `morph` the morph's start and end in
+// metres from the eye, the node box's bottom y and its height. `world` maps the
+// box to camera-relative space, so the eye is the origin.
+//
+// THE STEPS. A grid point is 32 units a side. Its morph factor runs 0 to 1 over
+// the morph's range by the unmorphed point's distance to the eye, and odd grid
+// lines slide onto the even ones by it, so at the range's end a node is the
+// coarser grid its neighbour draws and no crack opens. The landscape xz is
+// clamped to ± side / 2, so a node past the edge lies on it. The height is four
+// Loads blended by hand, because R32F filtering is not guaranteed; local y is
+// (height − box bottom) / box height. The normal is a central difference one
+// node step apart, in the landscape's space, which the record's `normal` turns.
+// uv is the landscape's 0..1.
+//
+// TEXEL (c, r) LIES AT x = −side/2 + c·side/(w − 1), z likewise by r (0379
+// point 1), so uv's v runs with z, row 0 at −z.
+//
+// CONSTRAINTS. Six bilinear reads, twenty-four loads, a vertex: the morph's
+// distance needs the unmorphed point's height, and the normal four more. A
+// heights texture behind its own binding with a sampler would halve the loads
+// where filtering is supported.
+
+// Grid units a side of the shared geometry (ADR-0396 point 3).
+static const float VOE_RENDER_TERRAIN_GRID = 32.0;
+
+// The height at landscape `at` (metres, x and z), bilinear over the four texels
+// about it, each index clamped into the texture.
+float voe_render_terrain_height(uint texture, float side, float2 at)
+{
+	uint width;
+	uint height;
+
+	voe_render_textures[texture].GetDimensions(width, height);
+	float2 last = float2(float(width - 1), float(height - 1));
+	float2 texel = clamp((at / side + 0.5) * last, float2(0.0, 0.0), last);
+	int2 low = int2(floor(texel));
+	int2 high = min(low + 1, int2(last));
+	float2 f = texel - float2(low);
+	float a = voe_render_textures[texture].Load(int3(low.x, low.y, 0)).r;
+	float b = voe_render_textures[texture].Load(int3(high.x, low.y, 0)).r;
+	float c = voe_render_textures[texture].Load(int3(low.x, high.y, 0)).r;
+	float d = voe_render_textures[texture].Load(int3(high.x, high.y, 0)).r;
+
+	return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
+// The box-space point of landscape `at` at height `h`.
+float3 voe_render_terrain_local(voe_render_object object, float2 at, float h)
+{
+	float2 xz = (at - object.terrain.xy) / object.terrain.z;
+
+	return float3(xz.x, (h - object.morph.z) / object.morph.w, xz.y);
+}
+
+// The grid point `vertex` as the node draws it: local position in its box, the
+// landscape's normal and the landscape's uv.
+voe_render_draw_vertex_in voe_render_terrain(voe_render_object object,
+					     voe_render_draw_vertex_in vertex)
+{
+	voe_render_draw_vertex_in out;
+	uint texture = object.heights - 1;
+	float side = object.terrain.w;
+	float half_side = side * 0.5;
+	float step = object.terrain.z / VOE_RENDER_TERRAIN_GRID;
+	float2 grid = vertex.position.xz * VOE_RENDER_TERRAIN_GRID;
+	float2 at = clamp(object.terrain.xy + vertex.position.xz * object.terrain.z,
+			  -half_side, half_side);
+	float h = voe_render_terrain_height(texture, side, at);
+	float3 unmorphed = mul(object.world,
+			       float4(voe_render_terrain_local(object, at, h), 1.0)).xyz;
+	float morph = saturate((length(unmorphed) - object.morph.x) /
+			       max(object.morph.y - object.morph.x, VOE_LEAST));
+
+	grid -= frac(grid * 0.5) * 2.0 * morph;
+	at = clamp(object.terrain.xy + grid * step, -half_side, half_side);
+	h = voe_render_terrain_height(texture, side, at);
+
+	float dx = voe_render_terrain_height(texture, side, at + float2(step, 0.0)) -
+		   voe_render_terrain_height(texture, side, at - float2(step, 0.0));
+	float dz = voe_render_terrain_height(texture, side, at + float2(0.0, step)) -
+		   voe_render_terrain_height(texture, side, at - float2(0.0, step));
+
+	out.position = voe_render_terrain_local(object, at, h);
+	out.normal = normalize(float3(-dx, 2.0 * step, -dz));
+	out.uv = at / side + 0.5;
+	return out;
+}

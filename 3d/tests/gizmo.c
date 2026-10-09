@@ -172,6 +172,31 @@ static void twice_as_far_is_twice_the_shaft(void)
 	VOE_TEST_CHECK_FLOAT(far_gizmo.eye.z, 10.0f, 1e-6f);
 }
 
+// A gizmo nobody can see has no size (084): behind the eye at the distance
+// the editor's assert was flown to, and a centimetre in front of the eye but
+// 68 m off to the side; and either builds nothing rather than a label of no direction.
+static void an_unseen_gizmo_has_no_shaft(voe_base_arena *arena)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_math_double3 eye = { 0.0, 0.0, 5.0 };
+	voe_3d_gizmo behind =
+		voe_3d_gizmo_at((voe_math_double3){ 18.0, -61.0, 40.0 },
+				the_view(5.0f), eye, size, 80.0f);
+	voe_3d_gizmo beside =
+		voe_3d_gizmo_at((voe_math_double3){ 68.0, 0.0, 4.99 },
+				the_view(5.0f), eye, size, 80.0f);
+	voe_3d_gizmo_mesh plain = { .vertex_count = 9 };
+	voe_3d_gizmo_mesh under = { .vertex_count = 9 };
+
+	VOE_TEST_CHECK(behind.shaft == 0.0f);
+	VOE_TEST_CHECK(beside.shaft == 0.0f);
+	VOE_TEST_CHECK(!voe_3d_gizmo_quads(behind, VOE_3D_GIZMO_NONE, arena,
+					   &plain, &under));
+	VOE_TEST_CHECK(!voe_3d_gizmo_quads(beside, VOE_3D_GIZMO_NONE, arena,
+					   &plain, &under));
+	VOE_TEST_CHECK_INT(plain.vertex_count, 9);
+}
+
 // A grab on an axis moves along that axis alone: the two coordinates that are
 // not the axis's are the origin's own, which is what makes the drag one
 // direction.
@@ -387,6 +412,7 @@ int main(void)
 	each_square_is_hit_through_its_middle();
 	empty_space_hits_nothing();
 	twice_as_far_is_twice_the_shaft();
+	an_unseen_gizmo_has_no_shaft(arena);
 	an_axis_grab_keeps_the_other_two();
 	a_plane_grab_keeps_its_normal();
 	a_ray_in_a_plane_is_refused();
