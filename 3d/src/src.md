@@ -88,8 +88,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
 - `draw_system.c` — the camera's view, the first light row, the frame's pass camera, and the run
-  over meshes, model parts and panels: solids drawn as found, fading models held blended, then the
-  held-back groups and the marks.
+  over meshes, model parts, landscapes and panels: solids drawn as found, landscapes inside the
+  `terrain` span, fading models held blended, then the held-back groups and the marks.
+- `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
+  held blended, and why one eye chooses the same nodes in every pass; internal.
+- `draw_terrain.c` — the eye taken into the grid's space, the selection on scratch, and each node's
+  world box, heights, terrain and morph fields.
 - `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
   its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
   a gone model casting nothing.

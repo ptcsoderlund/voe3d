@@ -39,6 +39,9 @@ again, or to find where a claim that has started failing is written down.
   or without it. Skips without a graphics card.
 - `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
   and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
+- `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up shows its far ridge against the
+  sky and ground below the horizon with no sky, in at most a node budget of draws, and none at
+  fade 1. Skips without a graphics card.
 - `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces,
   the nearest 16 casting lamps take the shadow slots, and one lights the ground under it. The
   picture skips without a graphics card.
