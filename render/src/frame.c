@@ -356,6 +356,9 @@ static bool begin_frame(voe_render_device *device, voe_platform_size size,
 	// timed yet: last lap's were read above.
 	frame->pass_timed = 0;
 	frame->pass_timing = false;
+	frame->span_timed = 0;
+	frame->span_open = false;
+	frame->span_timing = false;
 	if (device->timestamps) {
 		voe_render_vk.cmd_reset_query_pool(frame->commands,
 						   frame->timestamps, 0,

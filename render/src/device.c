@@ -345,7 +345,8 @@ static bool create_frame_objects(voe_render_device *device)
 
 	// The breakdown last read, and each slot's room for its passes' names
 	// below (ADR-0367 point 2), whether or not the card can time.
-	device->pass_times = calloc(voe_render_timed_passes(device),
+	device->pass_times = calloc(voe_render_timed_passes(device) +
+					    VOE_RENDER_FRAME_SPANS,
 				    sizeof(*device->pass_times));
 	VOE_BASE_ASSERT(device->pass_times != NULL,
 			"out of memory making room for the pass times");

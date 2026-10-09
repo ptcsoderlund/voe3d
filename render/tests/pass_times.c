@@ -12,6 +12,10 @@
 // A PASS NOT RUN IS ABSENT. Frames after with no shadow pass, again past the
 // lag, list `view window` alone.
 //
+// A SPAN IS LISTED AFTER ITS PASS (ADR-0396 point 6). Frames whose window pass
+// wraps its draw in a span `terrain` list `view window` then
+// `view window: terrain`, the span above nought and not above the pass.
+//
 // A CARD WHOSE GPU TIME NEVER ANSWERS writes no timestamps: the test says so and
 // passes. A machine with no usable Vulkan skips and says so.
 #include <render/device.h>
@@ -101,8 +105,9 @@ static voe_render_object object(voe_render_shading shading)
 }
 
 // One frame: a shadow pass onto cascade 0 when `shadow`, then a camera pass onto
-// the window, each drawing the cube.
-static void draw_frame(struct scene *scene, bool shadow)
+// the window, each drawing the cube; the window's draw inside a span `terrain`
+// when `span`.
+static void draw_frame(struct scene *scene, bool shadow, bool span)
 {
 	voe_platform_size size = { SIDE, SIDE };
 	voe_render_view light = identity_view();
@@ -127,8 +132,12 @@ static void draw_frame(struct scene *scene, bool shadow)
 	}
 	VOE_TEST_CHECK(voe_render_pass_begin(scene->device,
 					     VOE_RENDER_TARGET_WINDOW, &camera));
+	if (span)
+		voe_render_frame_span_begin(scene->device, "terrain");
 	VOE_TEST_CHECK(voe_render_frame_draw(scene->device, scene->cube,
 					     object(scene->grey)));
+	if (span)
+		voe_render_frame_span_end(scene->device);
 	voe_render_pass_end(scene->device);
 	VOE_TEST_CHECK(voe_render_frame_end(scene->device));
 }
@@ -163,11 +172,30 @@ static void window_alone(struct scene *scene)
 	uint32_t count;
 
 	for (int i = 0; i < FRAMES; i++)
-		draw_frame(scene, false);
+		draw_frame(scene, false, false);
 	count = voe_render_frame_pass_times(scene->device, times, 4);
 	VOE_TEST_CHECK_INT(count, 1);
 	if (count == 1)
 		VOE_TEST_CHECK(strcmp(times[0].name, "view window") == 0);
+}
+
+static void span_after_pass(struct scene *scene)
+{
+	voe_render_pass_time times[4];
+	uint32_t count;
+
+	for (int i = 0; i < FRAMES; i++)
+		draw_frame(scene, false, true);
+	count = voe_render_frame_pass_times(scene->device, times, 4);
+	VOE_TEST_CHECK_INT(count, 2);
+	if (count != 2)
+		return;
+	printf("%s %.9f s, %s %.9f s\n", times[0].name, times[0].seconds,
+	       times[1].name, times[1].seconds);
+	VOE_TEST_CHECK(strcmp(times[0].name, "view window") == 0);
+	VOE_TEST_CHECK(strcmp(times[1].name, "view window: terrain") == 0);
+	VOE_TEST_CHECK(times[1].seconds > 0.0);
+	VOE_TEST_CHECK(times[1].seconds <= times[0].seconds + ROUNDING);
 }
 
 int main(void)
@@ -196,7 +224,7 @@ int main(void)
 	VOE_TEST_CHECK(upload_cube(&scene));
 
 	for (int i = 0; i < FRAMES; i++)
-		draw_frame(&scene, true);
+		draw_frame(&scene, true, false);
 	if (!voe_render_frame_gpu_time(scene.device, &frame_seconds)) {
 		printf("skip: this card writes no timestamps, so there is no breakdown\n");
 		VOE_TEST_CHECK_INT(voe_render_frame_pass_times(scene.device, NULL, 0),
@@ -204,6 +232,7 @@ int main(void)
 	} else {
 		shadow_then_window(&scene, frame_seconds);
 		window_alone(&scene);
+		span_after_pass(&scene);
 	}
 
 	voe_render_device_destroy(scene.device);

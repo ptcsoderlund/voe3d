@@ -636,6 +636,15 @@ struct voe_render_frame {
 	char (*pass_names)[VOE_RENDER_PASS_NAME];
 	uint32_t pass_timed;
 	bool pass_timing;
+	// This frame's timed spans (ADR-0396 point 6), span j's pair after every
+	// pass's: each one's listed name, the index of the pass that held it, and
+	// how many have a pair. `span_open` says a span is between _begin and
+	// _end, `span_timing` that it has its first stamp. Reset with the passes'.
+	char span_names[VOE_RENDER_FRAME_SPANS][VOE_RENDER_PASS_NAME];
+	uint32_t span_pass[VOE_RENDER_FRAME_SPANS];
+	uint32_t span_timed;
+	bool span_open;
+	bool span_timing;
 
 	// Whether this slot's pool holds a pair worth reading. False until the
 	// slot has been submitted once, because a pool that has never been

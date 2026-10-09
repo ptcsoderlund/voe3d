@@ -240,7 +240,7 @@ void voe_render_device_guard_give(voe_render_device *device);
 
 // pass_timing.c's group (ADR-0367 point 2). How many passes a frame may time,
 // `passes` and one for the relight, and so how many timestamps one frame's pool
-// holds: the frame's pair, then a pair per timed pass.
+// holds: the frame's pair, a pair per timed pass, then a pair per span.
 static inline uint32_t voe_render_timed_passes(const voe_render_device *device)
 {
 	return device->capacities.passes + 1;
@@ -249,7 +249,8 @@ static inline uint32_t voe_render_timed_passes(const voe_render_device *device)
 static inline uint32_t
 voe_render_timestamps_per_frame(const voe_render_device *device)
 {
-	return VOE_RENDER_FRAME_TIMESTAMPS + 2 * voe_render_timed_passes(device);
+	return VOE_RENDER_FRAME_TIMESTAMPS + 2 * voe_render_timed_passes(device) +
+	       2 * VOE_RENDER_FRAME_SPANS;
 }
 
 // pass_timing.c. _open labels a pass `name` and writes its first timestamp;

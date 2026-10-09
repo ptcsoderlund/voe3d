@@ -51,7 +51,8 @@ by reading the offscreen colour image back.
   drawing as an ordinary blended surface. Headless.
 - `pass_times.c` — the frame breakdown: a shadow pass on cascade 0 then a window pass listed by
   name in that order, each above nought and their sum not above the frame's GPU time, a frame with
-  no shadow pass listing the window alone, and a capacity of 1 writing one. Headless.
+  no shadow pass listing the window alone, a span `terrain` listed as `view window: terrain`
+  after its pass and not above it, and a capacity of 1 writing one. Headless.
 - `best_practices.c` — the Best Practices gate: in a debug build the checks on, and a frame of a
   shadow pass and a camera pass with a depth copy and an element closing with no new message; a
   release build says so and passes. Headless.

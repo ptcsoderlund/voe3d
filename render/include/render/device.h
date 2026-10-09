@@ -2030,9 +2030,26 @@ typedef struct {
 // `bounce capture N`, `bounce sun shadow`, `bounce relight`; the same name labels
 // the pass in a capture tool. Each pass is timed from when everything before it
 // has finished to when it has, so their sum is not above the frame's GPU time.
+//
+// A SPAN IS LISTED RIGHT AFTER THE PASS THAT HELD IT (ADR-0396 point 6), named
+// `<pass name>: <span name>` cut to VOE_RENDER_PASS_NAME, e.g.
+// `view window: terrain`. Its time is part of that pass's, not beside it: the
+// sum over the passes alone is what stays at most the frame's.
 [[nodiscard]] uint32_t voe_render_frame_pass_times(const voe_render_device *device,
 						   voe_render_pass_time *times,
 						   uint32_t capacity);
+
+// How many spans one frame times.
+#define VOE_RENDER_FRAME_SPANS 8
+
+// A named span of the open pass, timed on its own and listed after the pass by
+// voe_render_frame_pass_times: _begin before the commands to time, _end after.
+// Inside an open pass only, and not nested. A frame times at most
+// VOE_RENDER_FRAME_SPANS; one past it, or one in a pass that is not timed, is
+// not timed and says nothing. Asserts with no pass open, with a span already
+// open, or on _end with none open; a pass ending with a span open asserts too.
+void voe_render_frame_span_begin(voe_render_device *device, const char *name);
+void voe_render_frame_span_end(voe_render_device *device);
 
 // ----------------------------------------------------------------- present
 
