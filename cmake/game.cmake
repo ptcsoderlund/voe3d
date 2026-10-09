@@ -7,7 +7,8 @@
 # defining voe_game_scene_build() (0237), and its prefabs.c the cooked prefabs,
 # defining voe_game_prefabs_cooked of game/prefabs.h (0283), and its
 # landscapes.c the cooked landscapes, defining voe_game_landscapes_cooked of
-# game/landscapes.h (0379).
+# game/landscapes.h (0379), and its materials.c the cooked materials, defining
+# voe_game_materials_cooked of game/materials.h (0399).
 #
 # VOE_PROJECT_CODE, set before the include, is the project's Code/ folder
 # (0242): its *.c are globbed with CONFIGURE_DEPENDS, so a file added later is
@@ -22,7 +23,7 @@
 #
 # Two modes, chosen by VOE_GAME_LIBRARY:
 # - OFF (the default): the executable `game` from main.c, scene.c, prefabs.c,
-#   landscapes.c and the code, linking voe::game. VOE_BASE_DESCRIPTIONS is off because a
+#   landscapes.c, materials.c and the code, linking voe::game. VOE_BASE_DESCRIPTIONS is off because a
 #   shipped game compiles the field descriptions out (ADR-0145).
 # - ON: the editor's second configure of the same tree, into Build/editor/.
 #   Descriptions are on, there is no `game`, and the SHARED target `project` is
@@ -155,7 +156,7 @@ if(VOE_GAME_LIBRARY)
 else()
     add_executable(game ${CMAKE_CURRENT_SOURCE_DIR}/main.c ${CMAKE_CURRENT_SOURCE_DIR}/scene.c
         ${CMAKE_CURRENT_SOURCE_DIR}/prefabs.c ${CMAKE_CURRENT_SOURCE_DIR}/landscapes.c
-        ${voe_project_sources})
+        ${CMAKE_CURRENT_SOURCE_DIR}/materials.c ${voe_project_sources})
     target_include_directories(game PRIVATE ${voe_project_includes})
     target_link_libraries(game PRIVATE voe::game)
     voe_target_settings(game)
