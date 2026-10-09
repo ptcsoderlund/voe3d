@@ -124,7 +124,7 @@ by reading the offscreen colour image back.
   a Room holding the sun lit inside, black outside; zero kinds the old picture. Headless.
 - `blocked_bounce.c` — the bounce kept by a blocker: a blocked patch by a red wall takes no red,
   a lamp inside bounces it red and one outside not, the 1 m nest relit when the blocker goes, and
-  3d's nest keeping its red through a lights change. Headless.
+  3d's nest keeping its red through a lights change, each volume under its own sun view. Headless.
 - `blocker_kinds_bounce.c` — kinds gating the bounce by a red wall: a Wall slab between it and a
   patch leaving the patch as with no bounce, ground on the wall's side red; an Indoors box round the
   patch as with no blocker; a Room box with zero kinds as with no bounce. Headless.

@@ -28,6 +28,10 @@
 //   and marked stale for one frame, which relights both volumes by fewer
 //   workgroups than one grid, settled (B); strength 2 then 1, each settled
 //   (C). B redder than bounces 0 by more than 2/255, C within 1/255 of B.
+//   Each volume's bounce shadow pass takes its own sun view, the one
+//   voe_3d_bounce_grid_sun would hand it, repeated here since render cannot
+//   link 3d: 3d fits a sun map to each volume, and one view shared by both,
+//   as the cases before use, is the last way this frame differs from 3d's.
 // A settle's first frame marks both volumes wholly stale, but for the settles
 // after the move, as 3d's would not.
 //
@@ -60,6 +64,8 @@
 #define FAR_PLANE 200.0f
 #define NARROW 1.0471976f
 #define TOLERANCE 2
+// 3d's VOE_3D_SHADOW_CASTER_REACH: how far behind a sun map's box casters reach.
+#define CASTER_REACH 200.0f
 
 enum { GREY, RED, SHADINGS };
 
@@ -129,6 +135,7 @@ struct scene {
 	voe_render_shading shadings[SHADINGS];
 	voe_render_view light;
 	voe_render_view volume_light;
+	voe_render_view nest_light;
 	voe_render_pass_camera camera;
 	struct voe_render_bounce_frame bounce;
 	voe_render_point_light lamp;
@@ -196,6 +203,65 @@ static voe_render_view sun_view(voe_math_float3 at, float half)
 	return light;
 }
 
+// voe_3d_bounce_grid_sun's arithmetic, step for step, for a volume of
+// `spacing` whose lowest corner is `corner` about `eye`: a sphere about its
+// centre of its half-diagonal plus its reach, the centre snapped to whole
+// texels in double about the world origin, then light_box.c's look from
+// radius + CASTER_REACH short of it.
+static voe_render_view sun_of_volume(voe_math_float3 corner, float spacing,
+				     voe_math_float3 eye)
+{
+	const voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
+	const voe_math_float3 half_sides = {
+		0.5f * (float)VOE_RENDER_BOUNCE_PROBES_XZ * spacing,
+		0.5f * (float)VOE_RENDER_BOUNCE_PROBES_Y * spacing,
+		0.5f * (float)VOE_RENDER_BOUNCE_PROBES_XZ * spacing,
+	};
+	const float radius = sqrtf(voe_math_float3_dot(half_sides, half_sides)) +
+			     VOE_RENDER_BOUNCE_REACH * spacing /
+				     VOE_RENDER_BOUNCE_SPACING;
+	const double texel =
+		2.0 * (double)radius / (double)VOE_RENDER_BOUNCE_SHADOW_TEXELS;
+	const float pull = radius + CASTER_REACH;
+	const float span = pull + radius;
+	voe_math_float3 right = voe_math_float3_normalize(
+		voe_math_float3_cross(SUN_DIRECTION, up));
+	voe_math_float3 rows[3] = { right,
+				    voe_math_float3_cross(right, SUN_DIRECTION),
+				    voe_math_float3_scale(SUN_DIRECTION, -1.0f) };
+	voe_math_float3 centre = voe_math_float3_add(corner, half_sides);
+	float shift[2];
+	voe_render_view light = { 0 };
+
+	for (int r = 0; r < 2; r++) {
+		double along = ((double)eye.x + (double)centre.x) * rows[r].x +
+			       ((double)eye.y + (double)centre.y) * rows[r].y +
+			       ((double)eye.z + (double)centre.z) * rows[r].z;
+
+		shift[r] = (float)(round(along / texel) * texel - along);
+	}
+	centre = voe_math_float3_add(
+		centre, voe_math_float3_add(voe_math_float3_scale(rows[0], shift[0]),
+					    voe_math_float3_scale(rows[1], shift[1])));
+	light.eye = voe_math_float3_sub(
+		centre, voe_math_float3_scale(SUN_DIRECTION, pull));
+	for (int r = 0; r < 3; r++) {
+		light.view.m[r][0] = rows[r].x;
+		light.view.m[r][1] = rows[r].y;
+		light.view.m[r][2] = rows[r].z;
+		light.view.m[r][3] = -voe_math_float3_dot(rows[r], centre);
+	}
+	light.view.m[2][3] -= pull;
+	light.view.m[3][3] = 1.0f;
+	light.projection.m[0][0] = 1.0f / radius;
+	light.projection.m[1][1] = 1.0f / radius;
+	light.projection.m[2][2] = 1.0f / span;
+	// The far plane over a span from a near plane at 0.
+	light.projection.m[2][3] = 1.0f;
+	light.projection.m[3][3] = 1.0f;
+	return light;
+}
+
 // An unturned box of centre `c` and half sizes `h`: rows (a_i / h_i,
 // −a_i·c / h_i) and a sphere of radius |h|.
 static voe_render_light_blocker blocker(voe_math_float3 c, voe_math_float3 h)
@@ -243,10 +309,11 @@ static void draw_boxes(struct scene *s)
 }
 
 // One volume's part of a frame: begun with `bounce`, capture passes until one
-// does not open, its bounce shadow pass, its relight. The capture passes it
-// opened.
+// does not open, its bounce shadow pass at `light`, its relight. The capture
+// passes it opened.
 static uint32_t one_volume(struct scene *s,
-			   const struct voe_render_bounce_frame *bounce)
+			   const struct voe_render_bounce_frame *bounce,
+			   const voe_render_view *light)
 {
 	bool opened = true;
 	uint32_t passes = 0;
@@ -262,7 +329,7 @@ static uint32_t one_volume(struct scene *s,
 		passes++;
 	}
 	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(
-		s->device, 0, &s->volume_light, &opened));
+		s->device, 0, light, &opened));
 	if (opened) {
 		draw_boxes(s);
 		voe_render_pass_end(s->device);
@@ -297,13 +364,13 @@ static uint32_t one_frame(struct scene *s, voe_render_picture *picture)
 		nest.stale_count = 1;
 		s->restale = false;
 	}
-	passes = one_volume(s, &bounce);
+	passes = one_volume(s, &bounce, &s->volume_light);
 	if (s->nested) {
 		nest.volume = 3;
 		memcpy(nest.cell, s->nest_cell, sizeof(nest.cell));
 		nest.corner = s->nest_corner;
 		nest.spacing = 1.0f;
-		passes += one_volume(s, &nest);
+		passes += one_volume(s, &nest, &s->nest_light);
 	}
 	VOE_TEST_CHECK(voe_render_pass_begin(s->device, VOE_RENDER_TARGET_WINDOW,
 					     &s->camera));
@@ -538,6 +605,7 @@ static void a_whole_relight_keeps_the_nests_bounce(struct scene *s)
 	// The wall's old and new place, about the eye.
 	static const voe_math_float4 moved = { 0.5f, -3.0f, -8.0f, 6.4f };
 	const voe_render_view camera = s->camera.view;
+	const voe_render_view shared = s->volume_light;
 	const voe_math_float3 patch = voe_math_float3_sub(
 		PATCH, (voe_math_float3){ 0.0f, 5.0f, 8.0f });
 	voe_render_picture a, b, c, none;
@@ -556,6 +624,9 @@ static void a_whole_relight_keeps_the_nests_bounce(struct scene *s)
 	s->nest_cell[1] = -4;
 	s->nest_cell[2] = -4;
 	s->nest_corner = (voe_math_float3){ -12.0f, -9.0f, -12.0f };
+	s->volume_light = sun_of_volume(s->bounce.corner, s->bounce.spacing,
+					s->eye);
+	s->nest_light = sun_of_volume(s->nest_corner, 1.0f, s->eye);
 	s->camera.points = (voe_render_point_lights){ 0 };
 	s->bounce.points = s->camera.points;
 	s->camera.light.intensity = 2.0f;
@@ -600,6 +671,8 @@ static void a_whole_relight_keeps_the_nests_bounce(struct scene *s)
 	s->wall_shift = 0.0f;
 	s->eye = (voe_math_float3){ 0.0f, 0.0f, 0.0f };
 	s->camera.view = camera;
+	s->volume_light = shared;
+	s->nest_light = shared;
 	s->nested = false;
 }
 
@@ -647,6 +720,7 @@ static void run(struct scene *s)
 						   VOE_RENDER_BOUNCE_PROBES_XZ },
 				0.5f * VOE_RENDER_BOUNCE_SPACING)),
 		VOLUME_HALF);
+	s->nest_light = s->volume_light;
 	a_blocked_patch(s);
 	a_blocked_lamp(s);
 	a_removed_blocker_relights_the_nest(s);
