@@ -20,10 +20,6 @@
 // names (0399 point 6), in the world layer as every part is.
 // The ground casts by nodes: a landscape draws those the view's eye chooses,
 // the bounce's passes taking it coarse (0397).
-// A mesh whose shape, or a model whose row, has `cast_shadows` false casts
-// nothing (0324 point 5); a mesh with no shape casts by the rules above. A
-// model row with `fade` at or above 1 casts nothing, and a fading one casts
-// as ever (0336 point 3); the bounce shares this walk.
 //
 // EVERY CASTING LIGHT CASTS ITS OWN CASCADES (0324 point 4, 0357 point 3): the
 // first light and each of `more_lights`, whose light row has `cast_shadows`
@@ -53,13 +49,9 @@
 // THEN THE PROBE BOUNCE (0326 point 8), whether or not the sun casts:
 // draw_bounce.c begins the frame's target's bounce, draws the same casters into
 // each capture pass render opens and, for a casting sun, into the relight's own
-// sun map (0329), and relights. Who bounces: the world's light
-// row, the one voe_3d_draw_system_light reads, with `bounces` of 1 or more while
-// the frame's light has intensity above nought and is not `unshaded`; any of
-// `more_lights` with `bounces` of 1 or more, intensity above nought and shaded
-// (0357 point 1); or any light in the frame's points with `bounces` of 1 or
-// more. A blind frame bounces nothing. When nothing bounces nothing is called,
-// costing nothing (0316): no begin, no volume, no pass. Failing is the call's.
+// sun map (0329), and relights; who bounces is anything_bounces's. When nothing
+// bounces nothing is called, costing nothing (0316): no begin, no volume, no
+// pass. Failing is the call's.
 #include "draw_bounce.h"
 #include "draw_group.h"
 #include "draw_terrain.h"
@@ -164,6 +156,10 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 // Every caster in the world, drawn into the pass that is open, a cascade, the
 // point-shadow pass or a capture pass, those `within` holds (held_within).
 // False when render refuses a draw, which it has already said on stderr.
+// A mesh whose shape, or a model whose row, has `cast_shadows` false casts
+// nothing (0324 point 5); a mesh with no shape casts by the header's rules. A
+// model row with `fade` at or above 1 casts nothing, and a fading one casts
+// as ever (0336 point 3); the bounce shares this walk.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame, uint32_t within,
 			 uint32_t landscape_nodes)
@@ -207,10 +203,12 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 				  landscape_nodes);
 }
 
-// Whether anything bounces this frame (0326 point 8): the world's light, row
-// zero as voe_3d_draw_system_light reads it, with bounces and a frame light of
-// some strength that is shaded, a further light likewise, or a frame point
-// light with bounces. A blind frame never does.
+// Whether anything bounces this frame (0326 point 8): the world's light row,
+// the one voe_3d_draw_system_light reads, with `bounces` of 1 or more while the
+// frame's light has intensity above nought and is not `unshaded`; any of
+// `more_lights` with `bounces` of 1 or more, intensity above nought and shaded
+// (0357 point 1); or any light in the frame's points with `bounces` of 1 or
+// more. A blind frame bounces nothing.
 static bool anything_bounces(const voe_ecs_world *world,
 			     const voe_3d_frame *frame)
 {
