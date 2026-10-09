@@ -19,6 +19,9 @@ by reading the offscreen colour image back.
 - `heights.c` — a 2049 × 2049 heights texture made and a side past 4096 refused; inside a frame a
   4 × 4 write taken, one past the slot's remaining `heights_texels` refused with the frame still
   drawing, and every slot's budget whole again the next frames. Headless.
+- `terrain_vertex.c` — a terrain record over heights all 2 m drawing a quad grid as a 2 m plane
+  would, and the same record with `heights` nought not covering the rows above the middle.
+  Headless.
 - `worker_guard.c` — a thread creating and destroying 100 textures and 100 geometries while the
   main thread runs 100 element-only frames, every call true and the thread joined. Headless.
 - `elements.c` — rectangles from records: the colours, the clip rectangle, paint order both ways

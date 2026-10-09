@@ -744,11 +744,19 @@ typedef struct {
 // written by _draw as it records, and the shader reads its record by object
 // number. Card 014's push constant for the model matrix is gone; the only push
 // constant left is the object number itself.
+//
+// A TERRAIN RECORD (ADR-0396 point 3) HAS `heights` NOT NOUGHT. Its geometry is
+// a grid of x, z in 0..1 whose y is ignored: the vertex stage places each point
+// over the heights texture by `terrain` and `morph`. `world` maps the node's box
+// to camera-relative space; `normal` is the landscape's own normal matrix, not
+// the box's, because the normal is worked out in the landscape's space.
 typedef struct {
 	voe_math_float4x4 world;
 	voe_math_float4x4 normal;
 	uint32_t shading;
-	uint32_t reserved[3];
+	// A heights texture's index plus one; nought draws the geometry as ever.
+	uint32_t heights;
+	uint32_t reserved[2];
 	voe_math_float4 colour;
 	// Read only when the shading record is `water`; zero everywhere else.
 	// `waves` is (height m, length m, seconds, deep m): the tallest wave's
@@ -760,6 +768,13 @@ typedef struct {
 	// toward at a grazing angle; w is reserved.
 	voe_math_float4 waves;
 	voe_math_float4 sky;
+	// Read only when `heights` is not nought. `terrain` is the node's corner
+	// x and z in the landscape's own metres (its grid centred on the origin,
+	// 0379 point 1), the node's side and the landscape's side. `morph` is the
+	// morph's start and end in metres from the eye, the node box's bottom y
+	// and its height, above nought.
+	voe_math_float4 terrain;
+	voe_math_float4 morph;
 } voe_render_object;
 
 // What one element is. Two kinds, and the field exists so that adding the second

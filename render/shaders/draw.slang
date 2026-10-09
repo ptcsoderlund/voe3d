@@ -49,14 +49,15 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// FOUR PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// FIVE PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
 // bindings.slangh first: the frame block, the records and the bindings both
 // stages read. lighting.slangh next: the sun, its cascades, the fill, the BRDF
 // terms and voe_render_points, the point lights the lit exit adds to the sun's
 // direct term and the unshaded one does not, and the light blockers that gate
 // the sun, the fill and the lamps by Rooms and crossings (ADR-0350), with the
 // decisions in its header;
-// it includes point_shadow.slangh, a cube face's pick and projection. water.slangh last,
+// it includes point_shadow.slangh, a cube face's pick and projection. terrain.slangh
+// after the vertex input: a landscape node's vertex (ADR-0396). water.slangh last,
 // after the vertex stage and voe_render_premultiplied, which it uses. A part is
 // never compiled alone, and cmake/voe.cmake rebuilds every shader when one
 // changes.
@@ -188,6 +189,8 @@ struct voe_render_draw_vertex_in {
 	[[vk::location(2)]] float2 uv : TEXCOORD;
 };
 
+#include "terrain.slangh"
+
 // What crosses between the stages: the clip-space position the rasteriser wants,
 // and the three things the lighting needs in world space. `world` is there
 // because a specular highlight needs the direction from the surface to the eye,
@@ -211,6 +214,8 @@ voe_render_draw_vertex(voe_render_draw_vertex_in vertex)
 	float4 world;
 	float4 eye;
 
+	if (object.heights != 0)
+		vertex = voe_render_terrain(object, vertex);
 	world = mul(object.world, float4(vertex.position, 1.0));
 	eye = mul(voe_render_frame.camera.view, world);
 	out.position = mul(voe_render_frame.camera.projection, eye);
@@ -268,6 +273,9 @@ voe_render_point_shadow_vertex(voe_render_draw_vertex_in vertex,
 	uint layer = voe_render_point_shadow_layer(instance);
 	voe_render_point_light light = voe_render_point_lights[
 		voe_render_frame.region * VOE_RENDER_POINT_LIGHTS + layer / 6];
+
+	if (object.heights != 0)
+		vertex = voe_render_terrain(object, vertex);
 	float4 world = mul(object.world, float4(vertex.position, 1.0));
 
 	out.position = voe_render_point_shadow_clip(world.xyz - light.position,
@@ -554,6 +562,9 @@ voe_render_capture_vertex(voe_render_draw_vertex_in vertex,
 	uint layer = voe_render_point_shadow_layer(instance);
 	voe_render_point_light probe = voe_render_point_lights[
 		voe_render_frame.region * VOE_RENDER_POINT_LIGHTS + layer / 6];
+
+	if (object.heights != 0)
+		vertex = voe_render_terrain(object, vertex);
 	float4 world = mul(object.world, float4(vertex.position, 1.0));
 
 	out.about = world.xyz - probe.position;
