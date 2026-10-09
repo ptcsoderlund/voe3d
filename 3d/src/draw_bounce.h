@@ -124,7 +124,10 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 // relights. That is volume 0; then each nest finer than the level grid, coarse
 // to fine, the same at voe_3d_bounce_grid_nest from voe_render_bounce_placed,
 // the j-th of n volumes capturing until the call's count reaches
-// VOE_RENDER_BOUNCE_CAPTURE_PASSES − (n − 1 − j) (0389 points 1 to 3). False
+// VOE_RENDER_BOUNCE_CAPTURE_PASSES − (n − 1 − j) (0389 points 1 to 3); every
+// one stops at VOE_3D_BOUNCE_MOVING_PASSES when `frame->eye` is more than 1 mm
+// on an axis from the eye `frame->casters` remembers, which then takes
+// `frame->eye` whatever the outcome (0397 point 2). False
 // when a pass or a draw is refused; every volume after that one is still
 // begun, opening no pass, so each queues this step's stale spheres.
 [[nodiscard]] bool voe_3d_draw_bounce(voe_ecs_world *world,

@@ -31,7 +31,11 @@
 // it. Every volume takes the same lights, blockers and stale spheres, its own
 // sun maps, and capture passes from one budget, each finer one keeping one.
 // A refused pass ends the passes, not the begins: every later volume is begun
-// with no pass, so each queues this step's stale spheres (083).
+// with no pass, so each queues this step's stale spheres (083). A MOVING
+// FRAME, its eye more than 1 mm on an axis from the eye `frame->casters`
+// remembers, has VOE_3D_BOUNCE_MOVING_PASSES for all its volumes, so the
+// first with probes queued takes it (0397 point 2): an even cost a frame
+// while flying. The memory then takes this frame's eye, refused or not.
 //
 // THE STILL CASTERS' BOX IS THE LEVEL (0332 point 1): the world box of every
 // caster draw_shadows.c draws that did not move this step, each geometry's own
@@ -529,12 +533,18 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 	struct bouncing call = { world, device, frame, { 0 }, 0 };
 	uint32_t first = 0;
 	uint32_t stale;
+	bool moving;
 	bool drawn;
 
 	VOE_BASE_ASSERT(world != NULL && device != NULL && frame != NULL,
 			"bouncing with no world, device or frame");
 	VOE_BASE_ASSERT(!voe_render_pass_is_open(device),
 			"the bounce goes between passes, none open");
+	// Read before voe_3d_bounce_removed refills the memory.
+	moving = frame->casters != NULL && frame->casters->has_eye &&
+		 (fabs(frame->eye.x - frame->casters->eye.x) > 1e-3 ||
+		  fabs(frame->eye.y - frame->casters->eye.y) > 1e-3 ||
+		  fabs(frame->eye.z - frame->casters->eye.z) > 1e-3);
 	// No still caster leaves min above max, which the fit takes as no box.
 	(void)voe_3d_bounce_box(world, device, frame, &min, &max);
 	level = voe_3d_bounce_grid_fit(min, max, frame->eye);
@@ -562,8 +572,9 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 	// Each finer volume begun keeps a capture pass: the j-th of n stops at
 	// CAPTURE_PASSES − (n − 1 − j), nest i's n − 1 − j being NESTS − 1 − i.
 	drawn = bounce_volume(&call, level, 0,
-			      VOE_RENDER_BOUNCE_CAPTURE_PASSES -
-				      (VOE_3D_BOUNCE_NESTS - first));
+			      moving ? VOE_3D_BOUNCE_MOVING_PASSES :
+				       VOE_RENDER_BOUNCE_CAPTURE_PASSES -
+					       (VOE_3D_BOUNCE_NESTS - first));
 	// After a refusal each finer volume is still begun, no pass opened: a
 	// move marks stale spheres in this step only, and a nest left unbegun
 	// would keep the moved caster's old pictures for good (083).
@@ -576,11 +587,17 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			frame->eye);
 
 		if (drawn)
-			drawn = bounce_volume(&call, nest, i + 1,
-					      VOE_RENDER_BOUNCE_CAPTURE_PASSES -
-						      (VOE_3D_BOUNCE_NESTS - 1 - i));
+			drawn = bounce_volume(
+				&call, nest, i + 1,
+				moving ? VOE_3D_BOUNCE_MOVING_PASSES :
+					 VOE_RENDER_BOUNCE_CAPTURE_PASSES -
+						 (VOE_3D_BOUNCE_NESTS - 1 - i));
 		else
 			begin_volume(&call, nest, i + 1);
+	}
+	if (frame->casters != NULL) {
+		frame->casters->eye = frame->eye;
+		frame->casters->has_eye = true;
 	}
 	return drawn;
 }

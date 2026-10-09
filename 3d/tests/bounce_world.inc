@@ -196,7 +196,7 @@ static void a_world(scene *s, const voe_3d_shapes *shapes, uint32_t bounces,
 // The reference of the bounced scene `s`: the same world at bounces 0, its box
 // where, as large and as coloured as `s`'s now is, on `s`'s device and arenas.
 // Returns the scene; its world lives in `s->keep`, freed with that arena.
-static scene a_reference_world(const scene *s, const voe_3d_shapes *shapes)
+[[maybe_unused]] static scene a_reference_world(const scene *s, const voe_3d_shapes *shapes)
 {
 	scene plain = *s;
 	const voe_scene_transform *box = voe_scene_transform_get(s->world, s->box);
@@ -302,7 +302,7 @@ static bool settles(scene *s)
 
 // The window as last drawn. Returns the picture, its pixels in `s->keep`,
 // freed with that arena.
-static voe_render_picture read_window(scene *s)
+[[maybe_unused]] static voe_render_picture read_window(scene *s)
 {
 	voe_render_picture picture = { 0 };
 	voe_base_error error = VOE_BASE_OK;
@@ -316,7 +316,7 @@ static voe_render_picture read_window(scene *s)
 // The pixel world point `at` lands on: about the frame's eye, through its view
 // to clip, and clip +y is row 0. Returns its four bytes inside `picture`; a
 // black pixel's worth of static zeros off the picture, with the check failed.
-static const uint8_t *pixel_at(const voe_render_picture *picture,
+[[maybe_unused]] static const uint8_t *pixel_at(const voe_render_picture *picture,
 			       const voe_3d_frame *frame, voe_math_float3 at)
 {
 	static const uint8_t NONE[4] = { 0 };

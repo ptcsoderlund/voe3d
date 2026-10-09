@@ -613,7 +613,9 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // it opens capture passes while render has probes to capture, drawing the
 // casters into each, and relights. That is up to
 // VOE_RENDER_BOUNCE_CAPTURE_PASSES more passes in all, shared coarse to fine,
-// and that many more objects per caster. On a frame that relights a volume,
+// and that many more objects per caster; at most VOE_3D_BOUNCE_MOVING_PASSES
+// with the eye moving, more than 1 mm on an axis from `frame->casters`' eye of
+// the last bounce (0397 point 2). On a frame that relights a volume,
 // for each sun that bounces and casts it opens one more pass for that volume,
 // and one more object per caster: that sun's relight map (0357 point 4),
 // fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades, so the
@@ -632,6 +634,10 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
 					      voe_render_device *device,
 					      voe_3d_frame *frame);
+
+// The capture passes of a bounce whose eye moved since the target's last
+// (0397 point 2): coarse to fine, the first volume with probes queued.
+#define VOE_3D_BOUNCE_MOVING_PASSES 1u
 
 // Draws every entity that has a mesh, a transform and a material — and every
 // entity that has a panel, a transform and a range this frame submitted — into

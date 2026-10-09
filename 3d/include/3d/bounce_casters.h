@@ -16,6 +16,10 @@
 // this frame's casters. NULL in the frame keeps none, and a removed caster
 // then marks nothing, as before 0394.
 //
+// IT ALSO KEEPS THE EYE of the target's last bounce (0397 point 2): an eye
+// that moved since spends one capture pass a frame. `voe_3d_frame` is built
+// afresh each frame, so it cannot remember; the caller's memory does.
+//
 // Constraints: VOE_3D_BOUNCE_CASTERS entries inline, no arena, about 20 KB a
 // target. Past that many casters the rest are not remembered and their
 // removal marks nothing; a larger count or an arena on the caller would lift
@@ -25,6 +29,7 @@
 #include <ecs/world.h>
 #include <math/double3.h>
 
+#include <stdbool.h>
 #include <stdint.h>
 
 // How many casters one memory holds (0394 point 1).
@@ -38,8 +43,11 @@ typedef struct {
 	float radius;
 } voe_3d_bounce_caster;
 
-// The casters of a target's last bounce, `count` of them; zeroed is empty.
+// The casters of a target's last bounce, `count` of them, and its eye in
+// double about the world origin when `has_eye`; zeroed is empty.
 typedef struct {
 	uint32_t count;
 	voe_3d_bounce_caster entries[VOE_3D_BOUNCE_CASTERS];
+	voe_math_double3 eye;
+	bool has_eye;
 } voe_3d_bounce_casters;
