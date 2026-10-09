@@ -56,12 +56,11 @@ bool voe_game_models_material_load(voe_3d_models *models,
 	VOE_BASE_ASSERT(material != NULL && material->path[0] != '\0',
 			"loading a material with no path");
 	*error = VOE_BASE_OK;
-	loaded = read_map(folder, values->colour_map, scratch, &maps.colour,
+	loaded = read_map(folder, values->colormap, scratch, &maps.colour,
 			  error) &&
-		 read_map(folder, values->normal_map, scratch, &maps.normal,
+		 read_map(folder, values->normalmap, scratch, &maps.normal,
 			  error) &&
-		 read_map(folder, values->roughness_map, scratch,
-			  &maps.roughness, error);
+		 read_map(folder, values->ormmap, scratch, &maps.orm, error);
 	if (!loaded)
 		voe_3d_models_fail(models, material->path, stamp);
 	else

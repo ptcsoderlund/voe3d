@@ -109,7 +109,7 @@ static const voe_game_materials MATERIALS = {
 				       { .colour = { 1.0f, 1.0f, 1.0f },
 					 .roughness = 0.5f,
 					 .repeat = 1.0f,
-					 .colour_map = PICTURE } } },
+					 .colormap = PICTURE } } },
 	1
 };
 

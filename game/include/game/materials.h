@@ -4,7 +4,7 @@
 //     const voe_game_materials voe_game_materials_cooked = {
 //             (const voe_game_material[]){ { "Assets/brick.material",
 //                     { .colour = { 1, 1, 1 }, .roughness = 0.5f,
-//                       .repeat = 1.0f, .colour_map = "Assets/brick.png" } } },
+//                       .repeat = 1.0f, .colormap = "Assets/brick.png" } } },
 //             1 };
 //
 // DEFINED BY THE COOKED materials.c IN A PROJECT'S GAME TREE, NOT BY THIS
