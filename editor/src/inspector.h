@@ -197,6 +197,10 @@ typedef struct {
 	// pointer. NULL and nought for every other control.
 	const char *name;
 	uint32_t index;
+	// Where the control showed, set by voe_editor_inspector_edits_read
+	// while its node answers, so a drop the next frame reads it
+	// (assets_drag.h); no size for one not drawn.
+	voe_ui_rect seen;
 	// Which of a rotation's three shown angles this is — 0, 1 or 2 for the
 	// world's X, Y and Z — and the angle in degrees it was showing when it
 	// was drawn. The edit is the difference between the two, about that

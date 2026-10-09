@@ -202,11 +202,12 @@ carries it out.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
 - `assets_drag.h` — a held row from the Assets panel: released over a folder row or Up it moves
-  there; a model, prefab or picture over a scene view places a new thing or a copy where the ray
-  lands, over the Inspector swaps the selected thing's model or emitter's texture; elsewhere nothing.
+  there; a model or prefab over a scene view places a new thing or a copy where the ray lands; over
+  the Inspector a model, picture or `.material` swaps the selected thing's model, emitter texture,
+  model material or shape material, or a picture fills the open material's map; elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the move's target, the drop point, the Inspector's rectangle, the
-  texture swap, the open material following a move, and the one undo step.
+  the release and the ghost, the move's target, the drop point, the Inspector's fields and map
+  rows, the texture, material and map swaps, the open material following a move, the undo step.
 - `assets_walk.h` — the project's `.scene`, `.prefab` and `.material` texts walked: who names a path before a
   Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,

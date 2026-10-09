@@ -14,23 +14,25 @@
 // started anywhere else never becomes a drag, and the row is drawn held by
 // `ui` for as long as the button is down.
 //
-// SIX OUTCOMES, AT THE RELEASE.
+// THE OUTCOMES, AT THE RELEASE.
 // - Over a folder row other than the dragged one, or over Up: the row moves
 //   there through voe_editor_assets_move, followed and refused as it says; a
 //   row marked dragged (assets_panel.h) enters no folder on the release.
-// - Over a scene view: a new thing named after the file, wearing it, at the
-//   point below; it is selected, and it is one undo step and unsaved, marked
-//   the way Add entity marks them.
-// - Over the Inspector while the selected thing has a model: its path is
-//   replaced through voe_3d_model_submit, one undo step and unsaved, the way
-//   an Inspector edit marks them.
-// - A `.prefab` row over a scene view: a placed copy's root at the same point,
-//   selected, one undo step and unsaved as a model's is (0283 point 7); the
-//   world step expands it the next frame. Over the Inspector, or while a
-//   prefab is open, nothing.
-// - A picture over the Inspector while the selected thing has an emitter: its
-//   texture is replaced through voe_3d_emitter_submit, the rest of the row
-//   kept, one undo step and unsaved as a model's is. Over a view, nothing.
+// - A model over a scene view: a new thing named after the file, wearing it,
+//   at the point below, selected, one undo step and unsaved as Add entity is;
+//   over the Inspector while the selected thing has a model, its path replaced
+//   through voe_3d_model_submit, one undo step and unsaved as an edit is.
+// - A `.prefab` over a scene view: a placed copy's root at the same point,
+//   selected, one step and unsaved (0283 point 7), expanded the next frame;
+//   while a prefab is open, nothing.
+// - A picture over the Inspector: while a `.material` is open, over a map row
+//   (inspector_material.h) that map's path in `scene->material`, which
+//   interface_read.c carries to the table; while the selected thing has an
+//   emitter, its texture through voe_3d_emitter_submit, one step and unsaved.
+// - A `.material` over the Inspector showing a thing (0399 point 8): over its
+//   model's Materials n field, `materials[n-1]` through voe_3d_model_submit;
+//   elsewhere, a shape's `material` through voe_3d_shape_submit; one step and
+//   unsaved as the model swap is.
 // - Anywhere else, or while `blocked`: nothing.
 // The drag starts past VOE_EDITOR_SCENE_DRAG_START (scene_list.h) from the
 // press, so a click opens a prefab or folder and a release before it does
@@ -51,7 +53,8 @@
 // field's room is no drag.
 //
 // CONSTRAINTS. The Inspector's rectangle is the dock tree laid out below the
-// bar, and the panel's rows and Up are last frame's rectangles, not what `ui`
+// bar, and the panel's rows, Up, the Inspector's fields and the map rows are
+// last frame's rectangles, not what `ui`
 // drew, because the frame's nodes are gone by the time this runs. A drop and
 // Ctrl+D on one frame would give two new things one id (entities.h); nothing
 // guards that pair.
@@ -89,10 +92,12 @@
 // What a drag remembers between frames. Zeroed is no drag.
 typedef struct {
 	bool holding;
-	// Whether the held row is a prefab or a picture rather than a model,
-	// or none of the three, a folder or a file that only moves.
+	// Whether the held row is a prefab, a picture or a `.material` rather
+	// than a model, or none of the four, a folder or a file that only
+	// moves.
 	bool prefab;
 	bool picture;
+	bool material;
 	bool moves_only;
 	// The held row's path, `Assets/...` with `/` separators.
 	char path[VOE_EDITOR_ASSETS_DRAG_PATH];
@@ -105,7 +110,7 @@ typedef struct {
 } voe_editor_assets_drag;
 
 // This frame's button against the drag: a start from the Assets panel's held
-// row, or at the release one of the six outcomes above. `pointer` is in `root`'s millimetres and `down` is its primary button.
+// row, or at the release one of the outcomes above. `pointer` is in `root`'s millimetres and `down` is its primary button.
 void voe_editor_assets_drag_read(
 	voe_editor_assets_drag *drag, voe_editor_session *session,
 	voe_editor_undo *undo, voe_editor_scene *scene,

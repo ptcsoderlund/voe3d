@@ -20,7 +20,8 @@
 // now differs from the table's row, and what the store does about it, is
 // interface_read.c's. A fired Colour swatch opens scene.h's picker with
 // `material` set, anchored at the section's left as the Inspector's swatch is
-// at its column's; each map row's node is kept for a picture dropped on it.
+// at its column's; each map row's rectangle is kept for a picture dropped on
+// it, which assets_drag.h reads before the next frame forgets the nodes.
 //
 // Constraints: draw, forget and read are called in one frame's window, read
 // before the frame's arena is rewound; nothing here allocates. Every label the
@@ -56,6 +57,9 @@ typedef struct {
 	// Each map's row, for a drop on it, and its × while the map is set.
 	voe_ui_node maps[VOE_EDITOR_MATERIAL_MAPS];
 	voe_ui_node clears[VOE_EDITOR_MATERIAL_MAPS];
+	// Where each map's row showed at the last read, for the drop the next
+	// frame (assets_drag.h); no size for one not drawn. Forget keeps them.
+	voe_ui_rect maps_seen[VOE_EDITOR_MATERIAL_MAPS];
 	char figures[VOE_EDITOR_MATERIAL_SLIDERS][VOE_EDITOR_MATERIAL_FIGURE];
 	char repeat_figure[VOE_EDITOR_MATERIAL_FIGURE];
 } voe_editor_inspector_material;
@@ -75,6 +79,6 @@ struct voe_editor_scene;
 // After voe_ui_frame_end, on `scene->material` through
 // `scene->material_controls`: a fired shader button chooses it, each drawn
 // slider's value taken, Repeat's taken clamped, a fired × empties its map, a
-// fired swatch opens the picker on the material.
+// fired swatch opens the picker on the material; each map row's rectangle kept.
 void voe_editor_inspector_material_read(const voe_ui_context *ui,
 					struct voe_editor_scene *scene);

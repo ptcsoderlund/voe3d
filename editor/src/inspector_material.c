@@ -245,6 +245,12 @@ void voe_editor_inspector_material_read(const voe_ui_context *ui,
 	}
 
 	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_MAPS; i++)
+		scene->material_controls.maps_seen[i] =
+			controls->maps[i] == VOE_UI_NODE_NONE ?
+				(voe_ui_rect){ 0 } :
+				voe_ui_node_visible(ui, controls->maps[i]);
+
+	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_MAPS; i++)
 		if (controls->clears[i] != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, controls->clears[i]).fired)
 			maps[i][0] = '\0';
