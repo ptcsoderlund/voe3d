@@ -74,13 +74,13 @@
 // file; doing that means splitting shared vertices at import and it is a card of
 // its own.
 //
-// OCCLUSION MULTIPLIES THE LIGHT, WHICH IS NOT WHERE glTF PUTS IT. In the
-// specification an occlusion map attenuates *indirect* light, and this engine
-// has none — so a map read that way would multiply nothing and the channel would
-// be uploaded and thrown away. It is applied to the direct result instead, which
-// is the only reading that makes an ORM map mean something today. The card that
-// brings ambient or image-based light is the card that moves it, and then this
-// paragraph is what says what it is moving.
+// OCCLUSION MULTIPLIES THE FILL AND THE BOUNCE, AS glTF SPECIFIES (ADR-0400). An
+// occlusion map's red — a `.material`'s ORM map or a glTF model's occlusion
+// texture, both the record's occlusion_texture — darkens the indirect term: the
+// bounce with the fills as its floor. Never the sun's direct light, a lamp's, or
+// shadows: baked occlusion on direct light darkens what the shadow maps already
+// darken, and the shadows come out doubled. Emission is not occluded either.
+// An empty slot samples white, occlusion one, and changes nothing.
 //
 // AN UNLIT MATERIAL SKIPS ALL OF THE ABOVE, AND THAT IS A FLAG ON THE RECORD.
 // Its base colour, times its base colour texture, is the answer; no sun, no
@@ -516,16 +516,16 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	uint mask = voe_render_surface_mask(vertex.world, surface);
 	float3 fill;
 	// The directional lights, the point lights beside them (ADR-0320), the
-	// bounce with the fills as its floor, and emission last, unshadowed and
-	// unoccluded (ADR-0278).
+	// bounce with the fills as its floor, the one term occlusion darkens
+	// (ADR-0400), and emission last, unshadowed and unoccluded (ADR-0278).
 	float3 direct = voe_render_directionals(vertex.world, surface, n, v,
 						diffuse_colour, f0, alpha, mask,
 						fill) +
 			voe_render_points(vertex.world, surface, n, v,
 					  diffuse_colour, f0, alpha, mask);
-	float3 lit = direct * occlusion +
-		     voe_render_indirect(fill, vertex.world, n, base.rgb, mask) +
-		     shading.emissive * glow;
+	float3 indirect =
+		voe_render_indirect(fill, vertex.world, n, base.rgb, mask);
+	float3 lit = direct + indirect * occlusion + shading.emissive * glow;
 
 	return voe_render_premultiplied(lit, coverage);
 }
