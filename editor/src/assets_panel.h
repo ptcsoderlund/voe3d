@@ -1,7 +1,8 @@
 // The Assets panel (0270, 0277 point 6): the project's `<project>/Assets/`
 // folder as rows, folders first and then files, each by name, hidden ones left
-// out. A folder row is entered, Up goes back a level, Import copies a `.glb`
-// chosen in the browser's IMPORT mode into the shown folder (0277 point 7),
+// out. A folder row is entered, Up goes back a level, Import copies a `.glb`,
+// `.png`, `.jpg` or `.jpeg` chosen in the browser's IMPORT mode into the shown
+// folder (0277 point 7, 0399 point 8),
 // and the listing follows the project in place. main.c updates it once a
 // frame; dock.c draws it and interface.c reads it after the frame ends:
 //

@@ -66,25 +66,34 @@ static bool marks_project(voe_base_arena *scratch, const char *folder,
 	return voe_platform_file_exists(project_path);
 }
 
-bool voe_editor_browser_names_model(const char *name)
+// Whether name ends `ending`, lower case, in any case.
+static bool ends_in(const char *name, const char *ending)
 {
-	static const char glb[] = ".glb";
 	size_t length;
+	size_t tail;
 
-	VOE_BASE_ASSERT(name != NULL, "asking whether no name is a model");
+	VOE_BASE_ASSERT(name != NULL && ending != NULL,
+			"asking whether no name ends in something");
 	length = strlen(name);
-
-	if (length < sizeof(glb) - 1)
+	tail = strlen(ending);
+	if (length < tail)
 		return false;
-	name += length - (sizeof(glb) - 1);
-	for (size_t i = 0; i < sizeof(glb) - 1; i++)
-		if (tolower((unsigned char)name[i]) != glb[i])
+	name += length - tail;
+	for (size_t i = 0; i < tail; i++)
+		if (tolower((unsigned char)name[i]) != ending[i])
 			return false;
 	return true;
 }
 
-// Whether entry is a row in mode: a visible folder always, a visible `.glb`
-// file in IMPORT mode only.
+bool voe_editor_browser_names_import(const char *name)
+{
+	VOE_BASE_ASSERT(name != NULL, "asking whether no name is importable");
+	return ends_in(name, ".glb") || ends_in(name, ".png") ||
+	       ends_in(name, ".jpg") || ends_in(name, ".jpeg");
+}
+
+// Whether entry is a row in mode: a visible folder always, a visible file
+// Import takes in IMPORT mode only.
 static bool lists(const voe_platform_folder_entry *entry,
 		  voe_editor_browser_mode mode)
 {
@@ -92,7 +101,7 @@ static bool lists(const voe_platform_folder_entry *entry,
 	if (entry->hidden)
 		return false;
 	return entry->folder || (mode == VOE_EDITOR_BROWSER_IMPORT &&
-				 voe_editor_browser_names_model(entry->name));
+				 voe_editor_browser_names_import(entry->name));
 }
 
 // Lists candidate into scratch and, only once that has succeeded, clears

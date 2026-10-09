@@ -157,7 +157,7 @@ static void rows_fill(voe_editor_assets *assets,
 				.folder = e->folder,
 				// A landscape is worn as a model (0379 point 2).
 				.model = !e->folder &&
-					 (voe_editor_browser_names_model(e->name) ||
+					 (name_ends(e->name, ".glb") ||
 					  name_ends(e->name, ".landscape")),
 				.prefab = !e->folder &&
 					  name_ends(e->name, ".prefab"),
