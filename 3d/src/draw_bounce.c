@@ -1,5 +1,6 @@
-// The frame's probe bounce and this step's stale spheres (ADR-0326 points 2, 4
-// and 8), and the relight's own sun maps (0329 point 2). The contract is
+// The frame's probe bounce, run only when a light bounces and ended by the
+// relight, and this step's stale spheres (ADR-0326 points 2, 4 and 8), and the
+// relight's own sun maps (0329 point 2). The contract is
 // draw_bounce.h's; voe_3d_draw_system_shadows in 3d/draw_system.h states what
 // the caller pays for it.
 //
