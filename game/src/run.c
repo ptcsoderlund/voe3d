@@ -25,6 +25,7 @@
 #include <game/steps.h>
 #include <game/world.h>
 
+#include <3d/bounce_casters.h>
 #include <3d/models.h>
 #include <3d/shape_system.h>
 
@@ -200,11 +201,12 @@ static bool run_starting(voe_app *app, voe_game_interface *interface,
 // pump fails is destroyed and the sound's device set to NULL, and the game
 // goes on silent. Paused, no step runs and the draw keeps the last lag. The
 // start's log gets its last step here and is written after the first frame.
+// `casters` is the window's bounce memory, kept across frames and restarts.
 static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 		       voe_ecs_world *world, const voe_3d_shapes *shapes,
 		       voe_base_arena *scratch, voe_game_interface *interface,
 		       struct run_sound *sound, const struct run_models *models,
-		       voe_app_start_log *log)
+		       voe_3d_bounce_casters *casters, voe_app_start_log *log)
 {
 	voe_game_project_asks asks = { 0 };
 	voe_game_steps steps = { 0 };
@@ -252,7 +254,7 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 			sound->device = NULL;
 		}
 		if (!voe_game_frame(app, world, shapes, models->store, scratch,
-				    frame.size, lag,
+				    frame.size, lag, casters,
 				    voe_game_interface_context(interface))) {
 			VOE_BASE_ERROR("game", "the device stopped drawing");
 			return false;
@@ -282,6 +284,7 @@ int voe_game_run(const char *title, voe_game_window window)
 				      .longest_step = LONGEST_STEP };
 	voe_base_error error = VOE_BASE_OK;
 	voe_game_interface *interface;
+	voe_3d_bounce_casters *casters;
 	voe_app_start_log log;
 	struct run_start start;
 	struct run_models models;
@@ -324,8 +327,13 @@ int voe_game_run(const char *title, voe_game_window window)
 		// NULL is already reported; the game runs silent.
 		sound.device = voe_platform_sound_new();
 		voe_app_start_log_step(&log, "sound");
+		// The window's bounce memory (0394 point 4), zeroed by the push
+		// and in the run's arena for as long as the window lives: 20 KB,
+		// too much for a small stack.
+		casters = voe_base_arena_push(arena, sizeof(*casters));
 		if (run_frames(app, world_arena, start.world, &start.shapes,
-			       scratch, interface, &sound, &models, &log))
+			       scratch, interface, &sound, &models, casters,
+			       &log))
 			status = 0;
 		voe_platform_sound_destroy(sound.device);
 		voe_audio_mixer_destroy(sound.mixer);

@@ -158,14 +158,14 @@ static void draw_case(voe_app *app, voe_base_arena *arena,
 	FILE *file;
 
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 	VOE_TEST_CHECK(voe_physics_collider_submit(
 		world, (voe_physics_collider_intent){
 			       .entity = cube,
 			       .collider = { .kind = VOE_PHYSICS_COLLIDER_BOX,
 					     .size = { 2.0f, 1.0f, 1.0f } } }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 	collider = voe_physics_collider_get(world, cube);
 	VOE_TEST_CHECK(collider != NULL && collider->size.x == 2.0f);
 
@@ -204,9 +204,9 @@ static void shadow_case(voe_app *app, voe_base_arena *arena,
 				.colour = VOE_3D_SHAPE_GREY,
 				.cast_shadows = true }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 }
 
 // A light at the origin facing `toward`, casting and bouncing once.
@@ -250,7 +250,7 @@ static void sun_and_moon_case(voe_app *app, voe_base_arena *arena,
 				.cast_shadows = true }));
 	for (int frame = 0; frame < 3; frame++)
 		VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch,
-					      size, 0.0f, NULL));
+					      size, 0.0f, NULL, NULL));
 }
 
 // A fresh lit world with a floor under the cube and a casting lamp beside
@@ -283,9 +283,9 @@ static void lamp_case(voe_app *app, voe_base_arena *arena,
 					 .falloff = 1.0f,
 					 .cast_shadows = true }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 }
 
 // The camera four metres up looking down, `light_row` shining `toward`, a ground
@@ -366,13 +366,13 @@ static void blocker_case(voe_app *app, voe_base_arena *arena,
 	const voe_scene_light_blocker *row;
 
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 	VOE_TEST_CHECK(voe_scene_light_blocker_submit(
 		world, (voe_scene_light_blocker_intent){
 			       .entity = blocker,
 			       .blocker = { .size = { 2.0f, 2.0f, 2.0f } } }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 	row = voe_scene_light_blocker_get(world, blocker);
 	VOE_TEST_CHECK(row != NULL && row->size.x == 2.0f);
 
@@ -421,9 +421,9 @@ static void direct_case(voe_app *app, voe_base_arena *arena,
 					   .block = VOE_SCENE_LIGHT_BLOCKER_DIRECT },
 		1.0f);
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 	picture = read_window(app, scratch);
 	if (picture.pixels == NULL)
 		return;
@@ -457,9 +457,9 @@ static void model_case(voe_app *app, voe_base_arena *arena,
 	VOE_TEST_CHECK(voe_3d_model_add(
 		world, hull, (voe_3d_model){ .path = "Assets/hull.glb" }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch, size,
-				      0.0f, NULL));
+				      0.0f, NULL, NULL));
 	VOE_TEST_CHECK(voe_3d_models_count(models) == 0);
 	voe_3d_models_destroy(models);
 }
@@ -493,7 +493,7 @@ static void interface_case(voe_app *app, voe_base_arena *arena,
 	VOE_TEST_CHECK(voe_ui_element_count(
 			       voe_game_interface_context(interface)) > 0);
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size, 0.0f,
-				      voe_game_interface_context(interface)));
+				      NULL, voe_game_interface_context(interface)));
 	voe_game_interface_destroy(interface);
 }
 
