@@ -284,7 +284,10 @@ void voe_render_debug_label_end(VkCommandBuffer commands);
 // saying the checks are on or missing, the vendor and the list's length.
 // _list_new: at close, when new_messages is not nought, one line per kept id —
 // error or warning, the id, how many times, the first text — and one for the
-// new messages no row had room for, printed before the count line.
+// new messages no row had room for, printed before the count line. _wanted
+// (ADR-0398): whether a device with the layer turns the checks on — always when
+// headless, on a window only when `setting` (VOE_RENDER_BEST_PRACTICES, or NULL)
+// is exactly "1". Pure: no device and no environment.
 enum voe_render_message_verdict {
 	VOE_RENDER_MESSAGE_DROPPED,
 	VOE_RENDER_MESSAGE_ALLOWED,
@@ -296,6 +299,8 @@ enum voe_render_message_verdict {
 [[nodiscard]] enum voe_render_message_verdict
 voe_render_best_practices_classify(voe_render_device *device, bool error,
 				   const char *id_name, const char *message);
+[[nodiscard]] bool voe_render_best_practices_wanted(bool headless,
+						    const char *setting);
 void voe_render_best_practices_announce(const voe_render_device *device);
 void voe_render_best_practices_list_new(const voe_render_device *device);
 

@@ -30,11 +30,11 @@ which file to open — what each one owns, and where the seams between them run.
 - `pacing.c` — the card's clock and the present modes learnt at startup, the present mode set and
   read, and the frame's GPU time.
 - `instance.c` — the Vulkan instance, its extensions with debug-utils whenever offered, and in a
-  debug build the validation layer with Best Practices and vendor checks, its messenger, or the
-  checks recorded missing.
+  debug build the validation layer, its messenger, and Best Practices with vendor checks on a
+  headless device or by `VOE_RENDER_BEST_PRACTICES=1` on a window, or the checks recorded missing.
 - `best_practices.c` — the Best Practices allowlist, which vendor a message is for, the classifier
-  that counts new messages, keeps each new message and names it again at close, and the start line
-  saying the checks are on or missing.
+  that counts new messages, keeps each new message and names it again at close, whether a device
+  wants the checks, and the start line saying they are on, off for a window, or missing.
 - `debug_names.c` — the one helper that names an object and labels a span of a command buffer for a
   capture tool; each does nothing without debug-utils.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,

@@ -957,6 +957,9 @@ typedef struct {
 //
 // IT OPENS UNPREPARED: the pipeline layout and the element pipeline only, so a
 // line of text can be drawn at once. voe_render_device_prepare builds the rest.
+//
+// In a debug build it runs core validation only, and Best Practices only when
+// the environment has VOE_RENDER_BEST_PRACTICES=1 (ADR-0398).
 [[nodiscard]] voe_render_device *voe_render_device_new(voe_base_arena *arena,
 						       voe_platform_native native,
 						       voe_platform_size size,
@@ -972,7 +975,8 @@ typedef struct {
 // engine's own use: a program that draws for a person opens a window.
 // voe_render_frame_end submits and returns on a device made this way — there is
 // nothing to acquire and nothing to present — so a caller that wants the pixels
-// reads the target itself.
+// reads the target itself. A headless debug device always runs Best Practices
+// (ADR-0398).
 [[nodiscard]] voe_render_device *
 voe_render_device_new_headless(voe_base_arena *arena, voe_platform_size size,
 			       voe_render_capacities capacities,
