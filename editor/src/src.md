@@ -226,9 +226,16 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
   Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
-- `interface.c` — one `ui` frame per root, and the one read of its clicks where the commands they
-  fire are carried out: the Assets panel's requests, the Landscape panel's size, the Sculpt
-  section's read, the Assets menu's rows, then the selection's reveal.
+- `interface.c` — one `ui` frame per root: the dock walk, the draws over the dock, and the one read
+  of its clicks as calls, in order, into the two below.
+- `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
+  row, Delete question and a fired prefab or landscape opened.
+- `interface_assets.c` — the request and menu row carried out, a made landscape's path, the
+  Landscape panel opened, and the question answered and opened.
+- `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
+  then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
+- `interface_read.c` — the Inspector's reads, the picker's submit, the drop's prefab, the reveal,
+  the panels' toggles, the bar's or browser's commands, the covers' reads and Preferences'.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.

@@ -26,3 +26,11 @@ file's header says what it owns and why it is apart. `interface.h` is unchanged.
 ## Done when
 `wc -l editor/src/interface.c editor/src/interface_assets.c editor/src/interface_read.c` shows each
 under 450, and the editor builds.
+
+## Blocked
+The split is done: interface.c 425, interface_assets.c 230 and interface_read.c 333 lines, src.md
+updated, and all three compile clean with the project's flags (`-fsyntax-only`). But `voe_editor`
+cannot build: `3d/src/models_material.c` fails because `voe_assets_material` is defined in both
+`assets/include/assets/material.h` and `assets/include/assets/model.h` (card 01's new header against
+the old one; card 04, which moves `3d` over, is blocked). Unblocked once that conflict is resolved;
+then `checks.sh --folder editor` should be rerun and the card moved to done.
