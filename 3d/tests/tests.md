@@ -124,3 +124,6 @@ again, or to find where a claim that has started failing is written down.
   and a rename. Skips without a card.
 - `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, a chunk wound up
   and a rect on a chunk edge in both. Needs no graphics card.
+- `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
+  once, neighbours within a level, within capacity, bounding their heights; an update equal to a
+  fresh build and the pyramid's box. Needs no graphics card.

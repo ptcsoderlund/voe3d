@@ -149,3 +149,5 @@ here is included from outside the folder — `include/3d/` is the whole public s
   materials on one COLOUR texture, blended already so needing no twin.
 - `landscape.c` — the bilinear height, the marched and bisected ray, the brush's stamp and the
   chunk meshes.
+- `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
+  selection splitting nodes coarse to fine by the eye's distance within a capacity.
