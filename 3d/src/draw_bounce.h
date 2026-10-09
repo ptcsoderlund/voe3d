@@ -76,12 +76,14 @@ void voe_3d_bounce_walk(const voe_ecs_world *world, const voe_3d_frame *frame,
 
 // A caster's place at `lag` into `centre`, in double about the world origin,
 // and its world bounding radius there: half the diagonal of the box of
-// `geometry` when `model` is NULL, else of `model`'s casting parts, grown as
-// voe_3d_bounce_box grows one; nought when no id names anything.
+// `geometry` when `model` is NULL, else of `model`'s casting parts, a
+// landscape's its pyramid's box in `models`, grown as voe_3d_bounce_box grows
+// one; nought when no id names anything.
 float voe_3d_bounce_caster_sphere(const voe_ecs_world *world,
 				  const voe_render_device *device,
 				  voe_ecs_entity entity,
 				  voe_render_geometry geometry,
+				  const voe_3d_models *models,
 				  const voe_3d_model_entry *model, float lag,
 				  voe_math_double3 *centre);
 

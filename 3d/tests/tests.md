@@ -42,6 +42,9 @@ again, or to find where a claim that has started failing is written down.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up shows its far ridge against the
   sky and ground below the horizon with no sky, in at most a node budget of draws, and none at
   fade 1. Skips without a graphics card.
+- `terrain_shadow.c` — that a 512 m landscape's 40 m ridge, under a low sun behind it, darkens
+  the ground behind it and not the ground in front, in one frame, its nodes drawn into each
+  cascade. Skips without a graphics card.
 - `point_lights.c` — that a frame's point lights are the table's about the eye with their bounces,
   the nearest 16 casting lamps take the shadow slots, and one lights the ground under it. The
   picture skips without a graphics card.

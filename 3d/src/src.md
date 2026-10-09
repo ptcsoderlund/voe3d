@@ -92,11 +92,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
   `terrain` span, fading models held blended, then the held-back groups and the marks.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended, and why one eye chooses the same nodes in every pass; internal.
-- `draw_terrain.c` — the eye taken into the grid's space, the selection on scratch, and each node's
-  world box, heights, terrain and morph fields.
+- `draw_terrain.c` — the eye taken into the grid's space, the selection on scratch or, for a
+  shadow or capture pass, on the stack, and each node's world box, heights, terrain and morph
+  fields.
 - `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
   its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
-  a gone model casting nothing.
+  a gone model casting nothing and a landscape by the view's nodes.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
