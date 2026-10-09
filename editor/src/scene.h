@@ -223,8 +223,12 @@ typedef struct voe_editor_scene {
 	// voe_editor_scene_material_follow. `material` is the shown copy the
 	// Inspector edits,
 	// and `material_controls` what its section drew (inspector_material.h).
+	// `material_before` is the copy as last written to its file: set on
+	// open, and taken from `material` when an edit settles at rest into an
+	// undo step (frame_commands.c) or a step is applied (material_steps.h).
 	char material_open[VOE_ASSETS_MATERIAL_PATH];
 	voe_assets_material_file material;
+	voe_assets_material_file material_before;
 	voe_editor_inspector_material material_controls;
 } voe_editor_scene;
 

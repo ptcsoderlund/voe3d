@@ -22,6 +22,11 @@
 // some 2 MB at 512 cells, so a line of 64 strokes may hold over 100 MB; every
 // state dropped frees its stroke.
 //
+// OR A STEP IS A MATERIAL EDIT (0399 point 9): voe_editor_undo_material pushes
+// a state whose text equals the one before it, carrying a material step
+// (material_steps.h). Back from it puts the material's `before` into the
+// table, file and store, forward onto it its `after`; a dropped state frees it.
+//
 // A STEP IS TAKEN AT THE TOP OF A FRAME, before the structural queue is applied
 // and the systems run, so rows put back get meshes before anything draws them.
 //
@@ -55,6 +60,7 @@
 
 #include "notice.h"
 #include "project.h"
+#include "material_steps.h"
 #include "models.h"
 #include "scene.h"
 #include "strokes.h"
@@ -70,11 +76,12 @@
 #define VOE_EDITOR_UNDO_TEXT (64u * 1024u)
 
 // One state of the line: a scene text, `size` bytes of `text` long, and the
-// stroke it carries, the state's own, NULL for none.
+// stroke or material step it carries, the state's own, NULL for none.
 typedef struct {
 	size_t size;
 	char text[VOE_EDITOR_UNDO_TEXT];
 	voe_editor_stroke *stroke;
+	voe_editor_material_step *material;
 } voe_editor_undo_state;
 
 // The line and where in it the world is. Zeroed is a line with no states,
@@ -141,14 +148,25 @@ void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 void voe_editor_undo_stroke(voe_editor_undo *undo, voe_editor_project *project,
 			    voe_base_arena *scratch, voe_editor_stroke *stroke);
 
+// Takes `step`, which the line now owns, as voe_editor_undo_stroke takes a
+// stroke: a state with the text at `at` carrying it, or the step dropped when
+// the scene will not record as a state. `scratch` is rewound.
+void voe_editor_undo_material(voe_editor_undo *undo,
+			      voe_editor_project *project,
+			      voe_base_arena *scratch,
+			      voe_editor_material_step *step);
+
 // Takes a step back, or forward when `forward`: the project's world is made
 // the neighbouring state and the selection re-found by its authored id; back
 // from a state with a stroke writes its `before` into `models`, forward onto
-// one its `after`. False and nothing done when there is no state that way, and
-// false with `why` filled and the line emptied when the text was refused,
-// which leaves the world half-loaded (voe_editor_project_scene_set).
+// one its `after`, and a material step is applied the same way
+// (material_steps.h) in `scratch`, which is rewound. False and nothing done
+// when there is no state that way, and false with `why` filled and the line
+// emptied when the text was refused, which leaves the world half-loaded
+// (voe_editor_project_scene_set).
 [[nodiscard]] bool voe_editor_undo_take(voe_editor_undo *undo,
 					voe_editor_project *project,
 					voe_editor_scene *scene,
 					voe_editor_models *models,
+					voe_base_arena *scratch,
 					voe_editor_notice *why, bool forward);

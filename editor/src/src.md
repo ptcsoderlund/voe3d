@@ -15,7 +15,8 @@ carries it out.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
 - `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
-- `frame_commands.c` — the history step closing the open material on a new project, the read with its acts (F2's rename, an asset's Delete,
+- `frame_commands.c` — the history step writing and pushing an open material's edit at rest and
+  closing it on a new project, the read with its acts (F2's rename, an asset's Delete,
   Escape choosing no brush after the lists and hiding the Landscape panel) and `ui`'s keyboard, and
   Delete, Ctrl+D, R, the edit and a reveal's unfold marked after the interface has drawn.
 - `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
@@ -237,7 +238,7 @@ carries it out.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
   row, Delete question and a fired prefab, landscape or material opened.
 - `interface_assets.c` — the request and menu row carried out, a made landscape's path, the
-  Landscape panel opened, a material opened in the Inspector, the question answered and opened,
+  Landscape panel opened, a material opened in the Inspector with its before, the question answered and opened,
   and the open material following each rename and trash.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
@@ -322,7 +323,7 @@ carries it out.
   and an edited material set or reloaded.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
-  material open in the Inspector.
+  material open in the Inspector with its copy as last written.
 - `scene.c` — the selection closing the open material, its follow of a move, Delete and Duplicate, the gizmo's switch, the colour picker and
   dropdown targets, the Scene panel's rows and folds, asked after the frame has ended, and the
   reveal's unfold and scroll.
@@ -338,10 +339,15 @@ carries it out.
   own camera, measured from the press in world space and submitted as a whole transform, a child's
   written back relative to its parent.
 - `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), a state
-  carrying a sculpting stroke beside its text, with the level's line set aside while a prefab is open.
+  carrying a sculpting stroke or material edit beside its text, with the level's line set aside
+  while a prefab is open.
 - `undo.c` — the states pushed once, the two lines swapped, a settled edit's compare and a reveal's
-  amend, a stroke pushed, what could have been redone thrown away with its strokes, and a step
-  writing the stroke it passes and re-finding the selection by authored id.
+  amend, a stroke or material step pushed, what could have been redone thrown away with them, and a
+  step applying the one it passes and re-finding the selection by authored id.
+- `material_steps.h` — one material edit: a `.material`'s path and its values before and after, its
+  own memory beside the undo line's text, and the file written at once.
+- `material_steps.c` — the copy made and freed, the file's write, and the values put back either
+  way into the table, file, store and open copy.
 - `strokes.h` — one sculpting stroke: a landscape's path, the rectangle touched and its heights
   before and after, its own memory beside the undo line's text, and why.
 - `strokes.c` — the copies made and freed, and the heights written either way through the store.

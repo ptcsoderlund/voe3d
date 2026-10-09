@@ -151,6 +151,7 @@ static void voe_editor_interface_assets_material_open(voe_editor_scene *scene,
 	snprintf(scene->material_open, sizeof scene->material_open, "%s",
 		 path);
 	scene->material = row->values;
+	scene->material_before = row->values;
 }
 
 // A fired row of the Assets menu carried out on the selected row or the shown
