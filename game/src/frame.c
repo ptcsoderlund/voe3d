@@ -78,7 +78,8 @@ static bool draw_interface(voe_render_device *device, const voe_ui_context *ui,
 bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 		    const voe_3d_shapes *shapes, const voe_3d_models *models,
 		    voe_base_arena *scratch,
-		    voe_platform_size size, float lag, const voe_ui_context *ui)
+		    voe_platform_size size, float lag,
+		    voe_3d_bounce_casters *casters, const voe_ui_context *ui)
 {
 	voe_render_device *device;
 	voe_render_pass_camera camera;
@@ -104,6 +105,7 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	device = voe_app_device(app);
 	frame = voe_3d_draw_system_frame(world, size, lag);
 	frame.models = models;
+	frame.casters = casters;
 	mark = voe_base_arena_mark(scratch);
 	// False leaves the pass unblocked, which is no failed frame. Before
 	// the shadows: the bounce is handed the same blockers (0347 point 4).

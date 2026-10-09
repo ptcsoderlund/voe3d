@@ -157,6 +157,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.light_blockers = (voe_3d_rows_marked){ 0 };
 	frame.models = NULL;
 	frame.target = VOE_RENDER_TARGET_WINDOW;
+	frame.casters = NULL;
 
 	return frame;
 }

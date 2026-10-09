@@ -57,6 +57,8 @@
 // blocker's faint one among them.
 #pragma once
 
+#include <3d/bounce_casters.h>
+
 #include <base/error.h>
 
 #include <ecs/world.h>
@@ -117,6 +119,9 @@ typedef struct {
 
 	voe_render_target target;
 	voe_render_texture texture;
+	// Where the casters of this view's last bounce stood, feeding the bounce
+	// of `target` alone; only 3d writes it (0394).
+	voe_3d_bounce_casters casters;
 	// The size the target was last asked to be, in pixels, which is the size
 	// its picture is drawn at and the aspect ratio's source.
 	uint32_t width;
@@ -145,6 +150,9 @@ typedef struct {
 // the view the drag started over; `pointer` is where the pointer was last frame,
 // in the root surface's millimetres, which is what a drag's travel is measured
 // from. `flying` is the view the fly started over, VOE_EDITOR_VIEW_NONE when none.
+// Each view and the preview hold remembered casters of about 20 KB (0394), so
+// the struct is about 100 KB; main.c keeps it in a local, inside every
+// platform's default main-thread stack.
 typedef struct {
 	voe_editor_view views[VOE_EDITOR_VIEWS];
 	uint32_t count;
@@ -158,6 +166,9 @@ typedef struct {
 	voe_render_target preview_target;
 	voe_render_texture preview_texture;
 	bool preview_shown;
+	// Where the casters of the preview's last bounce stood, feeding the
+	// bounce of `preview_target` alone; only 3d writes it (0394).
+	voe_3d_bounce_casters preview_casters;
 } voe_editor_views;
 
 // Sets every view in use to its initial camera — view 0 from the front and

@@ -7,7 +7,7 @@
 //             break;
 //     if (!frame.minimised &&
 //         !voe_game_frame(app, world, &shapes, models, scratch, frame.size, lag,
-//                         voe_game_interface_context(interface)))
+//                         casters, voe_game_interface_context(interface)))
 //             ...                        // the device stopped answering
 //
 // THE ORDER: the world step — the structural queue applied, the project's
@@ -27,8 +27,10 @@
 // `lag` IS HOW FAR BEHIND THE LAST FIXED STEP THE DRAW IS (0254): 1 − banked
 // time / step, 0 draws what is, as a caller that does not step passes.
 // `models` is the store the model rows are drawn and shadowed from; NULL
-// draws no model (0277 point 3). No outline, gizmo or marker: those are the
-// editor's, and the frame comes back with them zeroed.
+// draws no model (0277 point 3). `casters` is the window's bounce memory
+// (3d/bounce_casters.h, 0394 point 4), one the caller keeps per window; NULL
+// keeps none, and a removed caster then marks nothing. No outline, gizmo or
+// marker: those are the editor's, and the frame comes back with them zeroed.
 //
 // Constraints: the world is one voe_game_world_new made, with exactly one
 // camera; at most VOE_RENDER_DIRECTIONAL_LIGHTS lights are drawn, in table
@@ -39,6 +41,7 @@
 // draw; a minimised window is the caller's to skip.
 #pragma once
 
+#include <3d/bounce_casters.h>
 #include <3d/draw_system.h>
 #include <3d/emitter_component.h>
 #include <3d/models.h>
@@ -108,7 +111,9 @@
 void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes);
 
 // Runs the world step and draws the world at `size`, `lag` of a step back,
-// its model rows from `models` (NULL for none),
+// its model rows from `models` (NULL for none), its bounce remembering its
+// casters in `casters`, the caller's one for this window (NULL for none: a
+// removed caster then marks nothing),
 // then `ui`'s element records over it; NULL, or no records, draws none. True when the frame was
 // drawn or there was nothing to draw into; false when the device refused the
 // draw, the pass or the present, with render's line on stderr — the program
@@ -118,4 +123,5 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes);
 				  const voe_3d_models *models,
 				  voe_base_arena *scratch,
 				  voe_platform_size size, float lag,
+				  voe_3d_bounce_casters *casters,
 				  const voe_ui_context *ui);

@@ -1,5 +1,6 @@
-// The frame's probe bounce and this step's stale spheres (ADR-0326 points 2, 4
-// and 8), and the relight's own sun maps (0329 point 2). The contract is
+// The frame's probe bounce, run only when a light bounces and ended by the
+// relight, and this step's stale spheres (ADR-0326 points 2, 4 and 8), and the
+// relight's own sun maps (0329 point 2). The contract is
 // draw_bounce.h's; voe_3d_draw_system_shadows in 3d/draw_system.h states what
 // the caller pays for it.
 //
@@ -28,6 +29,8 @@
 // the level grid, volume i + 1 for nest i, placed from where render last put
 // it. Every volume takes the same lights, blockers and stale spheres, its own
 // sun maps, and capture passes from one budget, each finer one keeping one.
+// A refused pass ends the passes, not the begins: every later volume is begun
+// with no pass, so each queues this step's stale spheres (083).
 //
 // THE STILL CASTERS' BOX IS THE LEVEL (0332 point 1): the world box of every
 // caster draw_shadows.c draws that did not move this step, each geometry's own
@@ -151,22 +154,27 @@ struct marking {
 	uint32_t room;
 };
 
-// A caster's world bounding radius under `placed`: half its world box's
-// diagonal, the box of `geometry` when `model` is NULL, else of every casting
-// part of `model`; nought when no id names anything.
-static float radius(const voe_render_device *device, voe_render_geometry geometry,
-		    const voe_3d_model_entry *model,
-		    const voe_scene_transform *placed)
+float voe_3d_bounce_caster_sphere(const voe_ecs_world *world,
+				  const voe_render_device *device,
+				  voe_ecs_entity entity,
+				  voe_render_geometry geometry,
+				  const voe_3d_model_entry *model, float lag,
+				  voe_math_double3 *centre)
 {
+	voe_scene_transform placed =
+		voe_scene_transform_between(world, entity, lag);
 	struct still_box box = { .any = false };
 
+	VOE_BASE_ASSERT(device != NULL && centre != NULL,
+			"measuring a caster with no device or centre");
+	*centre = placed.position;
 	if (model == NULL)
-		grow(&box, device, geometry, placed);
+		grow(&box, device, geometry, &placed);
 	else
 		for (uint32_t part = 0; part < model->part_count; part++)
 			if (voe_3d_draw_casts(&model->parts[part].material))
 				grow(&box, device, model->parts[part].geometry,
-				     placed);
+				     &placed);
 	if (!box.any)
 		return 0.0f;
 	return (float)(0.5 * sqrt((box.max.x - box.min.x) * (box.max.x - box.min.x) +
@@ -174,12 +182,14 @@ static float radius(const voe_render_device *device, voe_render_geometry geometr
 				  (box.max.z - box.min.z) * (box.max.z - box.min.z)));
 }
 
-// The spheres of caster `entity`, as many as fit: one at each lag when it
-// moved; else one where it is when it is new or its shape changed; else none.
-// A caster whose ids name nothing has no size and marks nothing.
-static void mark(struct marking *marking, voe_ecs_entity entity,
+// The spheres of caster `entity` into the marking `context`, as many as fit:
+// one at each lag when it moved; else one where it is when it is new or its
+// shape changed; else none. A caster whose ids name nothing has no size and
+// marks nothing. Whether there is room for more.
+static bool mark(void *context, voe_ecs_entity entity,
 		 voe_render_geometry geometry, const voe_3d_model_entry *model)
 {
+	struct marking *marking = context;
 	const float lags[2] = { 1.0f, 0.0f };
 	bool both = moved(marking->world, entity);
 	bool one = (marking->remembers &&
@@ -188,24 +198,25 @@ static void mark(struct marking *marking, voe_ecs_entity entity,
 
 	VOE_BASE_ASSERT(marking->count <= marking->room,
 			"more stale spheres than room");
-	if (!both && !one)
-		return;
-	for (uint32_t i = both ? 0 : 1; i < 2 && marking->count < marking->room;
-	     i++) {
-		voe_scene_transform placed =
-			voe_scene_transform_between(marking->world, entity, lags[i]);
-		float w = radius(marking->device, geometry, model, &placed);
+	for (uint32_t i = both ? 0 : 1;
+	     (both || one) && i < 2 && marking->count < marking->room; i++) {
+		voe_math_double3 at;
+		float w = voe_3d_bounce_caster_sphere(marking->world,
+						      marking->device, entity,
+						      geometry, model, lags[i],
+						      &at);
 
 		if (w <= 0.0f)
 			continue;
 		marking->spheres[marking->count++] = (voe_math_float4){
-			(float)(placed.position.x - marking->frame->eye.x),
-			(float)(placed.position.y - marking->frame->eye.y),
-			(float)(placed.position.z - marking->frame->eye.z), w
+			(float)(at.x - marking->frame->eye.x),
+			(float)(at.y - marking->frame->eye.y),
+			(float)(at.z - marking->frame->eye.z), w
 		};
 	}
 	VOE_BASE_ASSERT(marking->count <= marking->room,
 			"more stale spheres than room");
+	return marking->count < marking->room;
 }
 
 // Whether the world has a previous table, told by a transform remembered in
@@ -234,41 +245,42 @@ static bool model_casts(const voe_3d_frame *frame, const voe_3d_model *row)
 	return false;
 }
 
-// The model casters' spheres after the meshes'.
-static void stale_models(struct marking *marking)
+// The model casters after the meshes, each to `visit` until it says stop.
+// Whether every one was visited.
+static bool walk_models(const voe_ecs_world *world, const voe_3d_frame *frame,
+			bool (*visit)(void *context, voe_ecs_entity entity,
+				      voe_render_geometry geometry,
+				      const voe_3d_model_entry *model),
+			void *context)
 {
-	const voe_3d_frame *frame = marking->frame;
-	const voe_3d_model *rows = voe_3d_model_rows(marking->world);
-	const voe_ecs_entity *owners = voe_3d_model_entities(marking->world);
+	const voe_3d_model *rows = voe_3d_model_rows(world);
+	const voe_ecs_entity *owners = voe_3d_model_entities(world);
 
 	VOE_BASE_ASSERT(frame->models != NULL, "casting models from no store");
-	for (uint32_t row = 0; row < voe_3d_model_count(marking->world) &&
-			       marking->count < marking->room;
-	     row++) {
+	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
 		if (voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden) ||
-		    voe_scene_transform_get(marking->world, owners[row]) == NULL ||
+		    voe_scene_transform_get(world, owners[row]) == NULL ||
 		    !model_casts(frame, &rows[row]))
 			continue;
-		mark(marking, owners[row], (voe_render_geometry){ 0 },
-		     voe_3d_models_find(frame->models, rows[row].path));
+		if (!visit(context, owners[row], (voe_render_geometry){ 0 },
+			   voe_3d_models_find(frame->models, rows[row].path)))
+			return false;
 	}
+	return true;
 }
 
-uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
-			     const voe_render_device *device,
-			     const voe_3d_frame *frame,
-			     voe_math_float4 *spheres, uint32_t room)
+void voe_3d_bounce_walk(const voe_ecs_world *world, const voe_3d_frame *frame,
+			bool (*visit)(void *context, voe_ecs_entity entity,
+				      voe_render_geometry geometry,
+				      const voe_3d_model_entry *model),
+			void *context)
 {
 	const voe_3d_mesh *meshes = voe_3d_mesh_rows(world);
 	const voe_ecs_entity *owners = voe_3d_mesh_entities(world);
-	struct marking marking = { world, device, frame, remembers(world),
-				   spheres, 0, room };
 
-	VOE_BASE_ASSERT(world != NULL && device != NULL && frame != NULL &&
-				(spheres != NULL || room == 0),
-			"marking stale spheres with no world, device, frame or room");
-	for (uint32_t row = 0;
-	     row < voe_3d_mesh_count(world) && marking.count < room; row++) {
+	VOE_BASE_ASSERT(world != NULL && frame != NULL && visit != NULL,
+			"walking casters with no world, frame or visit");
+	for (uint32_t row = 0; row < voe_3d_mesh_count(world); row++) {
 		const voe_3d_material *material;
 
 		if (meshes[row].layer != VOE_3D_LAYER_WORLD ||
@@ -278,10 +290,27 @@ uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
 		if (material == NULL || !voe_3d_draw_casts(material) ||
 		    voe_scene_transform_get(world, owners[row]) == NULL)
 			continue;
-		mark(&marking, owners[row], meshes[row].geometry, NULL);
+		if (!visit(context, owners[row], meshes[row].geometry, NULL))
+			return;
 	}
 	if (frame->models != NULL)
-		stale_models(&marking);
+		(void)walk_models(world, frame, visit, context);
+}
+
+uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
+			     const voe_render_device *device,
+			     const voe_3d_frame *frame,
+			     voe_math_float4 *spheres, uint32_t room)
+{
+	struct marking marking = { world, device, frame, false, spheres, 0, room };
+
+	VOE_BASE_ASSERT(world != NULL && device != NULL && frame != NULL &&
+				(spheres != NULL || room == 0),
+			"marking stale spheres with no world, device, frame or room");
+	if (room == 0)
+		return 0;
+	marking.remembers = remembers(world);
+	voe_3d_bounce_walk(world, frame, mark, &marking);
 	VOE_BASE_ASSERT(marking.count <= room, "more stale spheres than room");
 	return marking.count;
 }
@@ -394,6 +423,24 @@ struct bouncing {
 	uint32_t captured;
 };
 
+// Volume `volume` at `grid` begun with the call's shared record, so render
+// places it and queues this step's stale spheres in it; no pass opened.
+static void begin_volume(struct bouncing *call, voe_3d_bounce_grid grid,
+			 uint32_t volume)
+{
+	struct voe_render_bounce_frame bounce = call->shared;
+
+	VOE_BASE_ASSERT(volume < VOE_RENDER_BOUNCE_VOLUMES,
+			"a volume past render's");
+	bounce.spacing = grid.spacing;
+	bounce.cell[0] = grid.cell[0];
+	bounce.cell[1] = grid.cell[1];
+	bounce.cell[2] = grid.cell[2];
+	bounce.corner = grid.corner;
+	bounce.volume = volume;
+	voe_render_bounce_begin(call->device, call->frame->target, &bounce);
+}
+
 // Volume `volume` at `grid` (0389 points 1 and 3): begun, then capture passes
 // while render opens one and this call's count is below `until`, one sun map
 // per casting sun, and the relight. False when a pass or a draw is refused.
@@ -401,19 +448,11 @@ static bool bounce_volume(struct bouncing *call, voe_3d_bounce_grid grid,
 			  uint32_t volume, uint32_t until)
 {
 	const voe_3d_frame *frame = call->frame;
-	struct voe_render_bounce_frame bounce = call->shared;
 	bool opened = true;
 
-	VOE_BASE_ASSERT(volume < VOE_RENDER_BOUNCE_VOLUMES &&
-				until <= VOE_RENDER_BOUNCE_CAPTURE_PASSES,
-			"a volume or a capture budget past render's");
-	bounce.spacing = grid.spacing;
-	bounce.cell[0] = grid.cell[0];
-	bounce.cell[1] = grid.cell[1];
-	bounce.cell[2] = grid.cell[2];
-	bounce.corner = grid.corner;
-	bounce.volume = volume;
-	voe_render_bounce_begin(call->device, frame->target, &bounce);
+	VOE_BASE_ASSERT(until <= VOE_RENDER_BOUNCE_CAPTURE_PASSES,
+			"a capture budget past render's");
+	begin_volume(call, grid, volume);
 	while (opened && call->captured < until) {
 		bool drawn;
 
@@ -450,6 +489,8 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_bounce_grid level;
 	struct bouncing call = { world, device, frame, { 0 }, 0 };
 	uint32_t first = 0;
+	uint32_t stale;
+	bool drawn;
 
 	VOE_BASE_ASSERT(world != NULL && device != NULL && frame != NULL,
 			"bouncing with no world, device or frame");
@@ -458,10 +499,13 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 	// No still caster leaves min above max, which the fit takes as no box.
 	(void)voe_3d_bounce_box(world, device, frame, &min, &max);
 	level = voe_3d_bounce_grid_fit(min, max, frame->eye);
+	// The removed casters' spheres follow the stale ones in the room left.
+	stale = voe_3d_bounce_stale(world, device, frame, spheres, STALE_ROOM);
+	stale += voe_3d_bounce_removed(world, device, frame, spheres + stale,
+				       STALE_ROOM - stale);
 	call.shared = (struct voe_render_bounce_frame){
 		.stale = spheres,
-		.stale_count = voe_3d_bounce_stale(world, device, frame, spheres,
-						   STALE_ROOM),
+		.stale_count = stale,
 		.sun = frame->light,
 		.points = frame->points,
 		.blockers = frame->blockers,
@@ -478,10 +522,12 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 		first++;
 	// Each finer volume begun keeps a capture pass: the j-th of n stops at
 	// CAPTURE_PASSES − (n − 1 − j), nest i's n − 1 − j being NESTS − 1 − i.
-	if (!bounce_volume(&call, level, 0,
-			   VOE_RENDER_BOUNCE_CAPTURE_PASSES -
-				   (VOE_3D_BOUNCE_NESTS - first)))
-		return false;
+	drawn = bounce_volume(&call, level, 0,
+			      VOE_RENDER_BOUNCE_CAPTURE_PASSES -
+				      (VOE_3D_BOUNCE_NESTS - first));
+	// After a refusal each finer volume is still begun, no pass opened: a
+	// move marks stale spheres in this step only, and a nest left unbegun
+	// would keep the moved caster's old pictures for good (083).
 	for (uint32_t i = first; i < VOE_3D_BOUNCE_NESTS; i++) {
 		int32_t cell[3];
 		bool placed = voe_render_bounce_placed(device, frame->target, i + 1,
@@ -490,10 +536,12 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 			voe_3d_bounce_nest_spacing(i), placed ? cell : NULL,
 			frame->eye);
 
-		if (!bounce_volume(&call, nest, i + 1,
-				   VOE_RENDER_BOUNCE_CAPTURE_PASSES -
-					   (VOE_3D_BOUNCE_NESTS - 1 - i)))
-			return false;
+		if (drawn)
+			drawn = bounce_volume(&call, nest, i + 1,
+					      VOE_RENDER_BOUNCE_CAPTURE_PASSES -
+						      (VOE_3D_BOUNCE_NESTS - 1 - i));
+		else
+			begin_volume(&call, nest, i + 1);
 	}
-	return true;
+	return drawn;
 }
