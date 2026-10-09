@@ -1,6 +1,6 @@
-# 28 — The game wears its cooked materials
+# 38 — The game wears its cooked materials
 folder: game
-after: 24, 08, 27
+after: 24, 08, 37
 decisions: 0168, 0399
 
 ## Change

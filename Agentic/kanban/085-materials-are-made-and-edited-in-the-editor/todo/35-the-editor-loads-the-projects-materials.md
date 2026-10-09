@@ -1,6 +1,6 @@
-# 25 — The editor loads the project's materials
+# 35 — The editor loads the project's materials
 folder: editor
-after: 24, 10
+after: 24, 34
 decisions: 0168, 0399
 
 ## Change
@@ -17,14 +17,14 @@ into the store for every row that names one.
   - `voe_game_materials voe_editor_materials_table(const voe_editor_materials *materials)`.
   - `voe_game_material *voe_editor_materials_find(voe_editor_materials *materials, const char
     *path)` — NULL when none.
-  Header points: the table is what the cook writes (card 27), read again on a project and after each
-  Assets command (card 26), edited in place by the Inspector.
+  Header points: the table is what the cook writes (card 37), read again on a project and after each
+  Assets command (card 36), edited in place by the Inspector.
 - `editor/src/models.h` / `models.c` — `voe_editor_models` holds one, malloced with it. On a
   different folder it is read; every `voe_editor_models_update` calls `voe_game_models_materials`
   (card 24) with it after the models; `voe_editor_models_frame` calls
   `voe_3d_models_material_frame`. New `voe_editor_materials *voe_editor_models_materials(
   voe_editor_models *models)` and `void voe_editor_models_materials_read(voe_editor_models *models,
-  const char *folder, voe_base_arena *scratch)` for card 26. Update the header's points.
+  const char *folder, voe_base_arena *scratch)` for card 36. Update the header's points.
 
 Add `materials.h` / `.c` to `editor/src/src.md` and change its `models.h` line.
 

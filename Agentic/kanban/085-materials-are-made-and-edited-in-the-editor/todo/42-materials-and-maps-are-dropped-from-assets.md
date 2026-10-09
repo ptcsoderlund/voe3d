@@ -1,6 +1,6 @@
-# 32 — Materials and maps are dropped from Assets
+# 42 — Materials and maps are dropped from Assets
 folder: editor
-after: 31
+after: 41
 decisions: 0168, 0285, 0399
 
 ## Change
@@ -14,7 +14,7 @@ decisions: 0168, 0285, 0399
     ghost's "Can't drop here", 0285). Both are a scene edit and one undo step as the model swap is.
   - a picture row (`.png`, `.jpg`, `.jpeg`), the Inspector showing an open material: over a map row
     of `inspector_material.c`'s records, that map's path in `scene->material` set to the row's path;
-    elsewhere refused. Card 29's compare carries it to the table and reloads the material.
+    elsewhere refused. Card 39's compare carries it to the table and reloads the material.
   - an emitter's texture swap over the Inspector is unchanged where it applies.
 - `editor/src/inspector_material.h` / `.c` — hand back each map row's last rectangle for the drop.
 

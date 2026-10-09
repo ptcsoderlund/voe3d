@@ -1,6 +1,6 @@
-# 10 — Import takes pictures
+# 34 — Import takes pictures
 folder: editor
-after: 09
+after: 24
 decisions: 0168, 0399
 
 ## Change
@@ -13,6 +13,10 @@ decisions: 0168, 0399
   into the shown folder, as it copies a `.glb`; the header's Import sentence names pictures too.
 
 Update `editor/src/src.md`'s `browser.h` line.
+
+`editor/src/interface.c` was split into `interface_assets.c` and `interface_read.c` (committed) but
+never linked: the build failed in `3d` until card 21. If the editor build fails in those three
+files, fix it there, behaviour unchanged.
 
 ## Done when
 `grep -n 'jpeg' editor/src/browser.c` finds the import test, and the editor builds. Human: Import

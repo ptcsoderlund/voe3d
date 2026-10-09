@@ -1,6 +1,6 @@
-# 26 — Create makes a material
+# 36 — Create makes a material
 folder: editor
-after: 25
+after: 35
 decisions: 0168, 0378, 0399
 
 ## Change
@@ -13,10 +13,10 @@ decisions: 0168, 0378, 0399
 - `editor/src/assets_manage.h` / `.c` — `[[nodiscard]] bool voe_editor_assets_material_make(...)`
   with the landscape make's parameters less size: `.material` appended, refused as a landscape's
   name is, the file `voe_assets_material_write(voe_assets_material_default())`'s text. After every
-  successful make, move, duplicate and trash, `voe_editor_models_materials_read` (card 25).
+  successful make, move, duplicate and trash, `voe_editor_models_materials_read` (card 35).
 - `editor/src/assets_walk.c` — `.material` joins the one list of followed extensions, so a rename of
   a map follows into material files and Delete names a material using a picture.
-- `editor/src/interface_assets.c` (card 09) — the menu's Material row begins the naming; the request
+- `editor/src/interface_assets.c` — the menu's Material row begins the naming; the request
   goes to `voe_editor_assets_material_make`, the panel listed after.
 
 Update the headers' kind lists (`assets_menu.h`, `assets_panel.h`, `assets_walk.h`,

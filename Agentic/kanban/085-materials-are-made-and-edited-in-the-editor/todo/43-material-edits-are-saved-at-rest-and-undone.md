@@ -1,6 +1,6 @@
-# 33 — Material edits are saved at rest and undone
+# 43 — Material edits are saved at rest and undone
 folder: editor
-after: 32
+after: 42
 decisions: 0168, 0204, 0379, 0399
 read: feature.md
 
@@ -22,7 +22,7 @@ is one undo step carried beside the scene text, as a sculpting stroke is.
   applies `before` going back and `after` coming forward; a dropped state frees it. Header paragraph
   "OR A STEP IS A MATERIAL EDIT".
 - `editor/src/scene.h` / `scene.c` — `voe_assets_material_file material_before`, set when a material is
-  opened (card 29's open in `interface_assets.c`).
+  opened (card 39's open in `interface_assets.c`).
 - Where the undo line is settled at rest (`editor/src/frame_commands.c`'s history step; its header
   says so): at rest, with `material_open` set and `scene->material` differing from
   `material_before`, the file is written (a refused write said in the session's notice), a step
