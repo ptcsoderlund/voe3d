@@ -105,7 +105,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and the cascades' caster walk and casting test it shares; internal.
 - `draw_bounce.c` — run only when a light bounces: the volume fitted to the still casters' world
   box, the bounce begun with every sun, lamp, blocker and stale sphere, the casters drawn into each
-  capture pass and casting sun's map, and the relight.
+  capture pass and casting sun's map, and the relight; after a refused pass the later volumes
+  begun with none.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.

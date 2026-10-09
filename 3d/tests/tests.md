@@ -60,8 +60,11 @@ again, or to find where a claim that has started failing is written down.
   nests begun and captured, the caster-sized stale spheres and the still casters' box. Skips
   without a card.
 - `bounce_scene.c` — the probe bounce as the editor draws it: a red box tints the ground it faces,
-  open ground stays even, it settles, a blocker keeps the tint out, and turns, moves and a far eye
-  change nothing; its world and frame are `bounce_world.inc`'s. Skips without a card.
+  open ground stays even, it settles, a blocker keeps the tint out and it comes back once the
+  blocker is gone, and turns, moves and a far eye change nothing; its world and frame are
+  `bounce_world.inc`'s. Skips without a card.
+- `bounce_tint.c` — that a whole relight after the box's move, the move's probing frame wanting a
+  capture, keeps the tint beside it in the 1 m nest. Skips without a card.
 - `bounce_world.inc` — the bounce tests' harness: the floor, sun and placed box, the reference at
   bounces 0, one frame through the shadows call, the settle, the window read and a point's pixel.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
