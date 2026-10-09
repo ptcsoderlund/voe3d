@@ -20,6 +20,7 @@
 #pragma once
 
 #include <3d/material_component.h>
+#include <3d/models.h>
 #include <3d/shape_component.h>
 #include <base/arena.h>
 #include <ecs/component.h>
@@ -93,6 +94,7 @@ bool voe_3d_draw_group_draw(voe_render_device *device,
 voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transform,
 					      const voe_3d_material *material,
 					      const voe_3d_shape *shape,
+					      const voe_3d_models *models,
 					      voe_math_double3 eye);
 bool voe_3d_draw_group_shape_type(const voe_ecs_world *world,
 				  voe_ecs_type *out);

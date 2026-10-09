@@ -38,7 +38,8 @@
 // Each caster's record is draw_group.c's, the object's matrix about the frame's
 // eye at its lag, exactly as the view draws it; a cascade reads only the world
 // matrix. It carries the shape's colour, because a probe's picture is the base
-// colour times it: without it a red box tinted nothing (bug 01). The mesh
+// colour times it: without it a red box tinted nothing (bug 01); a shape
+// wearing a loaded material carries that record, white (0399 point 6). The mesh
 // table is walked once per cascade, as linearly as the view's own walk.
 //
 // THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun casts: when
@@ -151,7 +152,7 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 			    !voe_render_frame_draw(device, piece->geometry,
 						   voe_3d_draw_group_object_of(
 							   &drawn, &piece->material,
-							   NULL, frame->eye)))
+							   NULL, NULL, frame->eye)))
 				return false;
 		}
 	}
@@ -196,7 +197,7 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 		    !voe_render_frame_draw(device, meshes[row].geometry,
 					   voe_3d_draw_group_object_of(
 						   &drawn, material, shape,
-						   frame->eye)))
+						   frame->models, frame->eye)))
 			return false;
 	}
 	return frame->models == NULL ||

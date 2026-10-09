@@ -178,7 +178,7 @@ static void a_far_frame_is_about_the_camera(voe_base_arena *arena)
 		world, (voe_platform_size){ WIDTH, HEIGHT }, 0.0f);
 	voe_3d_material material = { 0 };
 	voe_render_object object = voe_3d_draw_group_object_of(
-		voe_scene_transform_get(world, cube), &material, NULL,
+		voe_scene_transform_get(world, cube), &material, NULL, NULL,
 		frame.eye);
 
 	VOE_TEST_CHECK(!frame.blind);

@@ -117,6 +117,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
+- `draw_material.h` — the loaded material a shape's `material` path names in the frame's store,
+  for its record; internal.
+- `draw_material.c` — the empty path refused, then the store's linear find.
 - `draw_particles.h` — every live particle as one blended world draw, counted for the group's room
   and held in it; internal.
 - `draw_particles.c` — the emitter's picture from the frame's store, the camera-facing matrix

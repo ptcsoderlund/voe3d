@@ -5,6 +5,7 @@
 // Nothing here walks a table or clears depth: which group a drawable lands in,
 // and when each group is drawn, is voe_3d_draw_system_run's.
 #include "draw_group.h"
+#include "draw_material.h"
 
 #include <3d/depth_sort.h>
 #include <3d/normal_matrix.h>
@@ -59,13 +60,24 @@ bool voe_3d_draw_group_shape_type(const voe_ecs_world *world, voe_ecs_type *out)
 // The record an entity is drawn with, which is the same two matrices and the
 // same shading id whichever pass it ends up in; the world matrix is about `eye`.
 // `shape` is the entity's shape or NULL; its colour, opaque, is the object's,
-// and anything without one is drawn white — its material's colour as it is.
+// and anything without one is drawn white — its material's colour as it is. A
+// shape whose `material` names a loaded material in `models` (NULL for none)
+// wears that record instead, white (0399 point 6).
 voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transform,
 					      const voe_3d_material *material,
 					      const voe_3d_shape *shape,
+					      const voe_3d_models *models,
 					      voe_math_double3 eye)
 {
 	voe_render_object object = { 0 };
+	const voe_3d_material *worn =
+		shape != NULL ? voe_3d_draw_material_named(models, shape->material) :
+				NULL;
+
+	if (worn != NULL) {
+		material = worn;
+		shape = NULL;
+	}
 
 	object.world = voe_scene_transform_matrix(*transform, eye);
 	// One inverse per drawn object per frame, which is the cost of getting a

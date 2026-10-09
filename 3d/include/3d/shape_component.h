@@ -35,6 +35,11 @@
 // it is still drawn, lit and shadowed (0301, 0324). True by default and in a
 // file without it; zero is false, so a row built from a literal names it.
 //
+// MATERIAL NAMES A `.material` THE SHAPE WEARS (0399 point 6), a project-relative
+// path as a model row's is, empty by default and in a file without it. Empty, or
+// a path the frame's model store holds no loaded material for, draws the shape's
+// colour as before; with one, that material's record with colour white.
+//
 // THE DEFAULT ROW IS A GREY CUBE THAT CASTS, and a shape needs a transform: without one
 // the draw system has nowhere to put it (0193). voe_3d_shape_register finds the
 // transform's type by its key, so the world must have registered transforms
@@ -56,6 +61,8 @@
 
 #include <ecs/component.h>
 #include <ecs/world.h>
+
+#include <3d/model_component.h>
 
 #include <math/float3.h>
 
@@ -79,7 +86,8 @@ extern VOE_BASE_IMPORTED const char *const voe_3d_shape_kind_names[4];
 #define VOE_3D_SHAPE_FIELDS(F, F_READ_ONLY) \
 	F(uint32_t, kind, UINT32)           \
 	F(voe_math_float3, colour, COLOUR)  \
-	F(bool, cast_shadows, BOOL)
+	F(bool, cast_shadows, BOOL)         \
+	F(char, material, CHAR, VOE_3D_MODEL_PATH)
 
 #define VOE_3D_SHAPE_NAMES(N) N(kind, voe_3d_shape_kind_names)
 

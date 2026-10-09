@@ -285,7 +285,8 @@ static struct voe_3d_deferred model_part_entry(const voe_3d_model_part *piece,
 	if (fading)
 		material.shading = piece->faded;
 	entry.mesh.geometry = piece->geometry;
-	entry.mesh.object = voe_3d_draw_group_object_of(drawn, &material, NULL, eye);
+	entry.mesh.object = voe_3d_draw_group_object_of(drawn, &material, NULL, NULL,
+							eye);
 	if (fading)
 		entry.mesh.object.colour.w = 1.0f - fade;
 	VOE_BASE_ASSERT(entry.mesh.object.colour.w > 0.0f,
@@ -551,7 +552,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 							       world, shapes,
 							       owners[row]) :
 						       NULL,
-					  frame.eye) },
+					  frame.models, frame.eye) },
 		};
 		// Cutout is not blended and belongs with the solid ones — it
 		// writes depth and needs no order.

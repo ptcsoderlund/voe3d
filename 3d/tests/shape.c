@@ -130,7 +130,8 @@ static void check_field(const voe_base_field_description *actual,
 }
 
 // Kind, editable and named by its three kinds, then colour, an editable colour
-// with no names, then cast_shadows, a BOOL: see 3d/shape_component.h.
+// with no names, then cast_shadows, a BOOL, then material, a path of
+// VOE_3D_MODEL_PATH chars: see 3d/shape_component.h.
 static void the_description_is_kind_colour_and_cast_shadows(void)
 {
 	const voe_base_struct_description *description =
@@ -138,8 +139,8 @@ static void the_description_is_kind_colour_and_cast_shadows(void)
 	const voe_base_field_names *kinds;
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_3d_shape") == 0);
-	VOE_TEST_CHECK_INT(description->field_count, 3);
-	if (description->field_count != 3)
+	VOE_TEST_CHECK_INT(description->field_count, 4);
+	if (description->field_count != 4)
 		return;
 
 	check_field(&description->fields[0], "kind", VOE_BASE_FIELD_UINT32,
@@ -149,6 +150,8 @@ static void the_description_is_kind_colour_and_cast_shadows(void)
 	check_field(&description->fields[2], "cast_shadows",
 		    VOE_BASE_FIELD_BOOL, offsetof(voe_3d_shape, cast_shadows), 1,
 		    false);
+	check_field(&description->fields[3], "material", VOE_BASE_FIELD_CHAR,
+		    offsetof(voe_3d_shape, material), VOE_3D_MODEL_PATH, false);
 
 	VOE_TEST_CHECK_INT(description->names_count, 1);
 	kinds = voe_base_names_find(description, "kind");
@@ -181,6 +184,7 @@ static void the_default_row_and_the_needs(voe_base_arena *arena)
 		VOE_TEST_CHECK_FLOAT(row->colour.y, 0.7f, 1e-6f);
 		VOE_TEST_CHECK_FLOAT(row->colour.z, 0.7f, 1e-6f);
 		VOE_TEST_CHECK(row->cast_shadows);
+		VOE_TEST_CHECK(row->material[0] == '\0');
 	}
 
 	VOE_TEST_CHECK(voe_ecs_component_needs(world, type, &needed));
