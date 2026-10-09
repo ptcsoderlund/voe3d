@@ -101,4 +101,4 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   go, never in part: a cursor moved by ←/→, Home/End and a click; Ctrl+←/→ by word; Backspace/Delete at the
   cursor; selection by Shift+keys, drag and double-click; copy, cut and paste through the system clipboard
   (Wayland's is a piece of `platform` work). Every field gets it at once: Rename, Inspector names, typed
-  numbers, hex. Waits until after 093; amends 0192.
+  numbers, hex. Waits until after 094; amends 0192.
