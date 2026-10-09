@@ -59,14 +59,10 @@ again, or to find where a claim that has started failing is written down.
 - `bounce.c` — the shadows call's passes over two frames, two views each drawing theirs, the
   nests begun and captured, the caster-sized stale spheres and the still casters' box. Skips
   without a card.
-- `bounce_scene.c` — the probe bounce as the editor draws it: a red box tints the ground it faces,
-  open ground stays even, it settles, a blocker keeps the tint out and it comes back once the
-  blocker is gone, and turns, moves and a far eye change nothing; its world and frame are
-  `bounce_world.inc`'s. Skips without a card.
-- `bounce_tint.c` — that a 1 m purple cube under a low sun tints the ground beside it, more at
-  strength 5 and back at 2; a red slab reddens its face; moved, it leaves no ring; recoloured, it
-  tints green; a whole relight after a move keeps the tint; and removed, it leaves no tint, a new
-  one where it stood tinting again. Skips without a card.
+- `bounce_scene.c` — that the probe bounce as the editor draws it tints, settles and stays put
+  under turns, moves and a blocker. Skips without a card.
+- `bounce_tint.c` — that a small box tints the ground beside it through strength, colour, moves,
+  a whole relight and removal. Skips without a card.
 - `bounce_world.inc` — the bounce tests' harness: the floor, sun and placed box, the reference at
   bounces 0, one frame through the shadows call, the settle, the window read and a point's pixel.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
