@@ -42,7 +42,8 @@
 // scrolls instead of spilling over its neighbour. The area stretches its
 // content across the flow, which is what gives a row that wraps a width to
 // wrap against (ui/layout.h, A RUN THAT WRAPS). The header stays put while it
-// scrolls.
+// scrolls. The Scene list's draw is handed the palette for its drag marks, and
+// the Inspector's the open material.
 //
 // EVERY LEAF'S OWN SURFACE IS THE THEME'S ORDINARY SURFACE. The regions are
 // told apart by the seam between them and by where their headings start, not

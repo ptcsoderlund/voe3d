@@ -8,12 +8,14 @@
 // in the project's own listing before it is listed, so a project with none
 // reports nothing.
 //
-// The prefabs under Assets/ are found by game_tree_find.h. Each prefab is read
-// and cooked in one scratch arena rewound after it, sized in blocks as a
-// project's world is.
+// The world is cooked into scene.c and every prefab into prefabs.c;
+// landscapes.c and materials.c are written beside them. The prefabs under
+// Assets/ are found by game_tree_find.h. Each prefab is read and cooked in one
+// scratch arena rewound after it, sized in blocks as a project's world is.
 //
 // An argument list is at most ARGUMENTS entries, the NULL included, in one
-// struct pushed into the caller's arena.
+// struct pushed into the caller's arena; the lists choose the release kind
+// and the shipped folder.
 #include "game_tree.h"
 
 #include "game_tree_find.h"

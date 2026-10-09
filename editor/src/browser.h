@@ -1,6 +1,6 @@
 // The editor's own file browser: a folder listing shown as a panel over the
 // dock, used to choose a project to open, a folder to save one into (SAVE,
-// with a name row for a new folder), or a `.glb` or picture to import into the
+// with a focused name row for a new folder), or a `.glb` or picture to import into the
 // Assets panel's folder (IMPORT, 0277 point 7, 0399 point 8). There is no system dialog anywhere
 // in this engine (ADR-0164) — this is the whole of what stands in for one.
 //

@@ -15,10 +15,9 @@ carries it out.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
 - `frame_commands.h` — the loop's keyboard commands: the shortcuts read against main.c's guards,
   the acts on them, Escape's order, the undo step taken next frame, and the acts after the draw.
-- `frame_commands.c` — the history step writing and pushing an open material's edit at rest and
-  closing it on a new project, the read with its acts (F2's rename, an asset's Delete,
-  Escape choosing no brush after the lists and hiding the Landscape panel) and `ui`'s keyboard, and
-  Delete, Ctrl+D, R, the edit and a reveal's unfold marked after the interface has drawn.
+- `frame_commands.c` — the loop's three per-frame stretches: the history step settling an open
+  material's edit, the keyboard's read with its acts, and the acts that wait for the interface to
+  have drawn.
 - `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
   borders, the middle drag, the brush, the gizmo, the Assets drag and the pick, and what main.c
   reads after.
@@ -99,10 +98,8 @@ carries it out.
 - `game_tree.h` — what Play and Ship write and run: `<project>/Build/game/`'s six files, the
   `.gitignore`, the argument lists that build the tree as the game, the library or a release, and
   install it into the shipped folder `Build/ship/<name>/`, and the paths it reads and writes.
-- `game_tree.c` — the files compared before they are written, the name and engine path escaped for
-  where they go, the game window's numbers in main.c, the world cooked into scene.c, every prefab
-  cooked into prefabs.c, landscapes.c and materials.c written, the release kind and the shipped
-  folder.
+- `game_tree.c` — the game tree's files written only where their bytes changed, text escaped for
+  where it goes, the world and every prefab cooked in, and the argument lists built.
 - `game_tree_find.h` — every file under Assets/ with a given ending, any case, hidden entries
   skipped, in byte order of path, walked with an explicit stack of bounded depth.
 - `game_tree_find.c` — the folder check, the stack walk, the case-blind suffix match and the sort.
@@ -164,10 +161,9 @@ carries it out.
   at a point.
 - `frame_breakdown.c` — the quarter-second copy keeping the last on no measurement, the panel's one
   frame of `ui` calls, and the read of its × afterwards.
-- `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock,
-  its own arena, a start beside a given folder with its row chosen, in SAVE mode a name row with a
-  focused `ui` field and Make folder, and in IMPORT mode `.glb`, `.png`, `.jpg` and `.jpeg` files a
-  press imports.
+- `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock
+  to open a project, save into a folder or import a model or picture, in its own arena, a showing
+  able to start beside a given folder.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
 - `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
@@ -175,9 +171,9 @@ carries it out.
   seam's place (the reached one lit), whether a point is over a panel, and the walk.
 - `dock.c` — the tree: the default one, the arrangement, held lengths and the views' share clamped
   and set, which views it shows and whether a point is over a panel.
-- `dock_walk.c` — the walk to one frame of `ui` calls with its seams, each closable leaf's header of
-  name and ×, each leaf a panel and scroll area handed to its panel's draw with the palette for the Scene list's drag marks, the Inspector's
-  call with the open material, and each scene view's camera preview.
+- `dock_walk.c` — the walk to one frame of `ui` calls: its seams, each closable leaf's header of
+  name and ×, each leaf a panel and scroll area handed to its panel's draw, and each scene view's
+  camera preview.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree, a
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
   drag parents, unparents or, onto the Assets panel, makes a prefab; a part never drags.
@@ -202,10 +198,9 @@ carries it out.
   four users and "and N more" walked once on opening, Delete and Cancel, as an anchored panel.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
-- `assets_drag.h` — a held row from the Assets panel: released over a folder row or Up it moves
-  there; a model or prefab over a scene view places a new thing or a copy where the ray lands; over
-  the Inspector a model, picture or `.material` swaps the selected thing's model, emitter texture,
-  model material or shape material, or a picture fills the open material's map; elsewhere nothing.
+- `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
+  folder row or Up, a new thing or copy placed in a scene view, a swap or a filled map over the
+  Inspector, elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
   the release and the ghost, the move's target, the drop point, the Inspector's fields and map
   rows, the texture, material and map swaps, the open material following a move, the undo step.
@@ -310,17 +305,15 @@ carries it out.
   light and kept out of the blockers, every place marked and blocker lined, the brush's rings with
   the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
-  emptied on a different project, a broken file in the notice, a splash wait's progress passed on,
-  its landscapes drawn, saved, reverted, put back by a stroke and reshaped, and its materials'
-  table with an edited row set live or reloaded.
+  emptied on a different project, a broken file in the notice, and the one place its landscapes
+  and the project's materials are edited.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
   table and the scan.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
-  with a failure's notice, cleared through the device and destroyed; landscapes' heights written
-  in the frame, written on Save, read again on a New or Open, a size and cells written and re-read,
-  and an edited material set or reloaded.
+  with a failure's notice, and destroyed; its landscapes and materials written and loaded again as
+  models.h says.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector with its copy as last written.

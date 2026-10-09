@@ -1,12 +1,12 @@
 // The three per-frame command stretches of main.c's loop, in the order main.c
 // calls them: the history's step (an open material's edit written and pushed
 // at rest first, a different project closing the open material), the
-// keyboard's read and acts (F2's rename
-// and Delete's question among them, the Assets panel's keyboard a guard,
-// Escape closing that question first and hiding the Landscape panel with the
-// Project panel), and the acts
-// that wait for the interface to have drawn, a reveal's unfold marked among
-// them. See frame_commands.h.
+// keyboard's read and acts (F2's rename and an asset's Delete question among
+// them, the Assets panel's keyboard a guard, `ui`'s keyboard fed, Escape
+// closing that question first, choosing no brush after the lists and hiding
+// the Landscape panel with the Project panel), and the acts that wait for the
+// interface to have drawn: Delete, Ctrl+D, R, the edit, and a reveal's unfold
+// marked. See frame_commands.h.
 #include "frame_commands.h"
 
 #include "errors.h"
