@@ -3,7 +3,8 @@
 // over the heights texture, drawn solid or held blended.
 //
 // Used by draw_system.c for each landscape row of a pass, and by the shadow,
-// capture and sun-map passes through the cast, which takes no scratch.
+// capture and sun-map passes through the cast, which takes no scratch and a
+// capacity: the bounce's passes choose at most VOE_3D_TERRAIN_BOUNCE_NODES.
 //
 // Constraints: one selection per row per pass, from the root of the pyramid,
 // and every chosen node drawn: no frustum test, which is 093's (0395). A
@@ -51,12 +52,12 @@ static voe_render_object node_object(voe_math_float4x4 world,
 }
 
 // `entry`'s terrain into `terrain` and the nodes the eye at `world`'s origin
-// chooses into `chosen`, room VOE_3D_LANDSCAPE_NODES; how many. Nought for an
-// entry that is no loaded landscape of `models` or a `world` scaled to nothing.
+// chooses into `chosen`, room `capacity`; how many. Nought for an entry that
+// is no loaded landscape of `models` or a `world` scaled to nothing.
 static uint32_t choose(const voe_3d_models *models,
 		       const voe_3d_model_entry *entry, voe_math_float4x4 world,
 		       voe_3d_models_terrain *terrain,
-		       voe_3d_landscape_node *chosen)
+		       voe_3d_landscape_node *chosen, uint32_t capacity)
 {
 	voe_math_float3 eye;
 	uint32_t count;
@@ -72,9 +73,8 @@ static uint32_t choose(const voe_3d_models *models,
 	eye = voe_math_float4x4_transform_point(voe_math_float4x4_inverse(world),
 						(voe_math_float3){ 0.0f, 0.0f, 0.0f });
 	count = voe_3d_landscape_select(terrain->lod, entry->landscape, eye,
-					chosen, VOE_3D_LANDSCAPE_NODES);
-	VOE_BASE_ASSERT(count <= VOE_3D_LANDSCAPE_NODES,
-			"more nodes than were room for");
+					chosen, capacity);
+	VOE_BASE_ASSERT(count <= capacity, "more nodes than were room for");
 	return count;
 }
 
@@ -91,7 +91,8 @@ voe_3d_draw_terrain_nodes(const voe_3d_models *models,
 	VOE_BASE_ASSERT(scratch != NULL, "terrain nodes need scratch");
 	chosen = voe_base_arena_push(scratch,
 				     sizeof(*chosen) * VOE_3D_LANDSCAPE_NODES);
-	out.count = choose(models, entry, world, &terrain, chosen);
+	out.count = choose(models, entry, world, &terrain, chosen,
+			   VOE_3D_LANDSCAPE_NODES);
 	if (out.count == 0)
 		return out;
 	out.grid = terrain.grid;
@@ -121,14 +122,17 @@ bool voe_3d_draw_terrain_solid(voe_render_device *device,
 bool voe_3d_draw_terrain_cast(voe_render_device *device,
 			      const voe_3d_models *models,
 			      const voe_3d_model_entry *entry,
-			      voe_math_float4x4 world, voe_math_float4x4 normal)
+			      voe_math_float4x4 world, voe_math_float4x4 normal,
+			      uint32_t capacity)
 {
 	voe_3d_landscape_node chosen[VOE_3D_LANDSCAPE_NODES];
 	voe_3d_models_terrain terrain;
 	uint32_t count;
 
 	VOE_BASE_ASSERT(device != NULL, "casting terrain needs a device");
-	count = choose(models, entry, world, &terrain, chosen);
+	VOE_BASE_ASSERT(capacity >= 1 && capacity <= VOE_3D_LANDSCAPE_NODES,
+			"a cast's capacity outside 1 and the view's nodes");
+	count = choose(models, entry, world, &terrain, chosen, capacity);
 	VOE_BASE_ASSERT(count == 0 || entry->part_count >= 1,
 			"a landscape with no part");
 	for (uint32_t i = 0; i < count; i++)

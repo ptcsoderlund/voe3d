@@ -11,10 +11,12 @@
 // SKY IS WHAT A WORLD WITH NO MODEL ROW DRAWS at the same pixel, under the same
 // sun, so ground is any pixel that differs from it.
 //
-// FOUR CLAIMS. The ridge's pixels above the horizon are ground and the top row
+// FIVE CLAIMS. The ridge's pixels above the horizon are ground and the top row
 // is sky; a level strip below the horizon is ground with no sky pixel in it;
 // the frame draws at least one and at most VOE_3D_LANDSCAPE_NODES objects; a
-// row at fade 1 draws nothing and its picture is the bare world's.
+// row at fade 1 draws nothing and its picture is the bare world's; the cast
+// from the same eye at the bounce's VOE_3D_TERRAIN_BOUNCE_NODES draws one to
+// that many, and at 4 still draws (0397 point 1).
 //
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_model_fade.c does.
@@ -23,6 +25,7 @@
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
+#include <3d/normal_matrix.h>
 #include <3d/panel_component.h>
 #include <assets/landscape.h>
 #include <base/arena.h>
@@ -37,6 +40,8 @@
 #include <scene/transform_system.h>
 
 #include <testing/test.h>
+
+#include "../src/draw_terrain.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -222,6 +227,57 @@ static void the_ridge_meets_the_sky(voe_base_arena *arena,
 	VOE_TEST_CHECK(memcmp(seen, sky, (size_t)SIDE * SIDE * 4) == 0);
 }
 
+// The landscape at the origin cast from `world`'s camera eye into the view's
+// pass at `capacity`: the draws it issued.
+static uint32_t a_cast(voe_ecs_world *world, voe_render_device *device,
+		       const voe_3d_models *models, uint32_t capacity)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	voe_render_pass_camera camera = voe_3d_draw_system_camera(&frame);
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, PATH);
+	voe_scene_transform origin = { .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				       .scale = { 1.0f, 1.0f, 1.0f } };
+	voe_math_float4x4 place = voe_scene_transform_matrix(origin, frame.eye);
+	bool drawing = false;
+	uint32_t draws;
+
+	VOE_TEST_CHECK(entry != NULL);
+	if (entry == NULL)
+		return 0;
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return 0;
+	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
+					     &camera));
+	VOE_TEST_CHECK(voe_3d_draw_terrain_cast(device, models, entry, place,
+						voe_3d_normal_matrix(place),
+						capacity));
+	draws = voe_render_frame_draw_count(device);
+	voe_render_pass_end(device);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	return draws;
+}
+
+static void the_bounce_casts_coarse(voe_base_arena *arena,
+				    voe_render_device *device,
+				    const voe_3d_models *models)
+{
+	voe_ecs_entity thing = { 0 };
+	voe_ecs_world *world = a_world(arena, false, &thing);
+	uint32_t bounce = a_cast(world, device, models,
+				 VOE_3D_TERRAIN_BOUNCE_NODES);
+	uint32_t four = a_cast(world, device, models, 4);
+
+	printf("cast draws: %u at %u nodes, %u at 4\n", bounce,
+	       VOE_3D_TERRAIN_BOUNCE_NODES, four);
+	VOE_TEST_CHECK(bounce > 0);
+	VOE_TEST_CHECK(bounce <= VOE_3D_TERRAIN_BOUNCE_NODES);
+	VOE_TEST_CHECK(four > 0);
+	VOE_TEST_CHECK(four <= 4);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -250,6 +306,7 @@ int main(void)
 						    &land, &error));
 
 	the_ridge_meets_the_sky(arena, device, models);
+	the_bounce_casts_coarse(arena, device, models);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);

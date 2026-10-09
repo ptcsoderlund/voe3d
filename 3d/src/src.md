@@ -93,8 +93,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended, and why one eye chooses the same nodes in every pass; internal.
 - `draw_terrain.c` — the eye taken into the grid's space, the selection on scratch or, for a
-  shadow or capture pass, on the stack, and each node's world box, heights, terrain and morph
-  fields.
+  shadow or capture pass, on the stack within the cast's capacity, 16 for the bounce's passes,
+  and each node's world box, heights, terrain and morph fields.
 - `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
   its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
   a gone model casting nothing and a landscape by the view's nodes.
@@ -112,7 +112,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `bounce_casters.c` — a removed caster's sphere where the target's memory saw it last, then the
   memory refilled with this frame's casters.
 - `draw_bounce.c` — the frame's probe bounce, run only when a light bounces: the volumes fitted to
-  the still casters, the casters drawn into each pass and sun map, and the relight.
+  the still casters, the casters drawn into each pass and sun map, a landscape coarse at 16
+  nodes, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.

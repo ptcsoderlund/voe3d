@@ -40,8 +40,9 @@ again, or to find where a claim that has started failing is written down.
 - `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
   and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up shows its far ridge against the
-  sky and ground below the horizon with no sky, in at most a node budget of draws, and none at
-  fade 1. Skips without a graphics card.
+  sky and ground below the horizon with no sky, in at most a node budget of draws, none at
+  fade 1, and that the bounce's cast draws at most 16 nodes and still draws at 4. Skips without
+  a graphics card.
 - `terrain_shadow.c` — that a 512 m landscape's 40 m ridge, under a low sun behind it, darkens
   the ground behind it and not the ground in front, in one frame, its nodes drawn into each
   cascade. Skips without a graphics card.

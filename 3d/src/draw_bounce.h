@@ -42,10 +42,12 @@ bool voe_3d_draw_casts(const voe_3d_material *material);
 // frame's lag about its eye. With `within` not 0, only a caster whose world
 // matrix's origin, about the eye at the lag as a light's place is, has a mask
 // over `frame->blockers`' kept records holding every bit of `within` (0361
-// point 2); `within` 0 draws every caster and takes no mask. False when render
-// refuses a draw. draw_shadows.c.
+// point 2); `within` 0 draws every caster and takes no mask. A landscape
+// caster draws at most `landscape_nodes` nodes, the cast's capacity (0397).
+// False when render refuses a draw. draw_shadows.c.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
-			 const voe_3d_frame *frame, uint32_t within);
+			 const voe_3d_frame *frame, uint32_t within,
+			 uint32_t landscape_nodes);
 
 // Whether light row `light`, in table order, casts (0324 point 4); false past
 // the count. draw_shadows.c.

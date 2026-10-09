@@ -11,7 +11,10 @@
 //
 // THE SAME EYE CHOOSES THE SAME NODES. Selection reads only the eye, which is
 // the origin of the row's world matrix about the frame's eye, and the row's
-// pyramid; so every pass of one frame draws the same ground.
+// pyramid; so every pass of one frame draws the same ground. The bounce's
+// capture passes and sun maps choose fewer from that eye (0397), so coarser
+// nodes of the same ground; a crack between nodes two levels apart is
+// accepted there.
 //
 // A node's records are on the caller's scratch, given back by its rewind.
 #pragma once
@@ -25,6 +28,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+// The most nodes a bounce capture pass or sun map draws of one landscape
+// (0397 point 1): at the view's detail each capture face drew every node,
+// and sixteen cut a capture's vertices by an order.
+#define VOE_3D_TERRAIN_BOUNCE_NODES 16
 
 // One landscape row's nodes, each record ready to draw on `grid`; `count`
 // nought draws nothing.
@@ -50,14 +58,17 @@ voe_3d_draw_terrain_nodes(const voe_3d_models *models,
 bool voe_3d_draw_terrain_solid(voe_render_device *device,
 			       const struct voe_3d_terrain_nodes *nodes);
 
-// `entry`'s nodes as voe_3d_draw_terrain_nodes chooses and records them, drawn
-// solid into the pass that is open with no scratch: a shadow, capture or sun
-// map's caster. True, nothing drawn, where _nodes chooses none; false when
-// render refuses a draw, which stops here.
+// `entry`'s nodes as voe_3d_draw_terrain_nodes chooses and records them, but
+// at most `capacity` (1 to VOE_3D_LANDSCAPE_NODES), drawn solid into the pass
+// that is open with no scratch: a shadow, capture or sun map's caster. A
+// capacity below what the eye wants draws coarser nodes, never other ground.
+// True, nothing drawn, where none is chosen; false when render refuses a
+// draw, which stops here.
 bool voe_3d_draw_terrain_cast(voe_render_device *device,
 			      const voe_3d_models *models,
 			      const voe_3d_model_entry *entry,
-			      voe_math_float4x4 world, voe_math_float4x4 normal);
+			      voe_math_float4x4 world, voe_math_float4x4 normal,
+			      uint32_t capacity);
 
 // Every node held in `group` in the part's faded record at alpha 1 − `fade`,
 // as a fading model's part is (0336 point 3).

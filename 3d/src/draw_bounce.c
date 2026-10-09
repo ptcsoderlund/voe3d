@@ -20,7 +20,8 @@
 // THE CASTERS WEAR THEIR SHAPE'S COLOUR in the probes' pictures, as in the
 // view: the walk is draw_shadows.c's, and it once drew every shape white (bug 01).
 // A capture draws every caster; sun i's map only those the blockers holding
-// sun i hold, as its cascades do (0361 point 2).
+// sun i hold, as its cascades do (0361 point 2). Both draw a landscape
+// coarse, at most VOE_3D_TERRAIN_BOUNCE_NODES nodes (0397 point 1).
 //
 // THE GRID IS FITTED TO THE LEVEL, NOT THE EYE (0331, 0332): the still casters'
 // box goes to voe_3d_bounce_grid_fit, and its spacing to the begin.
@@ -53,6 +54,7 @@
 // asks of every transform once a call, which a scene query would lift.
 #include "draw_bounce.h"
 #include "draw_group.h"
+#include "draw_terrain.h"
 #include "models_store.h"
 
 #include <3d/bounce_grid.h>
@@ -443,7 +445,8 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 		return true;
 	drawn = voe_3d_draw_casters(world, device, frame,
 				    sun == 0 ? frame->blockers.sun :
-					       frame->more_lights[sun - 1].blockers);
+					       frame->more_lights[sun - 1].blockers,
+				    VOE_3D_TERRAIN_BOUNCE_NODES);
 	voe_render_pass_end(device);
 	return drawn;
 }
@@ -496,7 +499,8 @@ static bool bounce_volume(struct bouncing *call, voe_3d_bounce_grid grid,
 		if (!opened)
 			break;
 		call->captured++;
-		drawn = voe_3d_draw_casters(call->world, call->device, frame, 0);
+		drawn = voe_3d_draw_casters(call->world, call->device, frame, 0,
+					    VOE_3D_TERRAIN_BOUNCE_NODES);
 		voe_render_pass_end(call->device);
 		if (!drawn)
 			return false;
