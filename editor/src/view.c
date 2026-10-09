@@ -123,12 +123,14 @@ bool voe_editor_views_create(voe_editor_views *views, voe_render_device *gpu,
 
 		view->width = FIRST_WIDTH;
 		view->height = FIRST_HEIGHT;
+		view->casters = (voe_3d_bounce_casters){ 0 };
 		if (!voe_render_target_create(gpu, view->width, view->height,
 					      &view->target, &view->texture,
 					      error))
 			return false;
 	}
 
+	views->preview_casters = (voe_3d_bounce_casters){ 0 };
 	return voe_render_target_create(gpu, VOE_EDITOR_PREVIEW_WIDTH,
 					VOE_EDITOR_PREVIEW_HEIGHT,
 					&views->preview_target,

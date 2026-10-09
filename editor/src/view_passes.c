@@ -20,7 +20,8 @@
 // failed frame. Each shadow call is handed
 // its own target, the view's or the preview's, so its bounce is that target's
 // probe volume, begun, captured and relit by that call, and no view reads a
-// volume another view moved (0326 point 8). That volume stands on the view's
+// volume another view moved (0326 point 8); each target's frame carries its
+// own remembered casters too (0394). That volume stands on the view's
 // eye, so turning never moves it, and its relight shadows the sun by a sun
 // map of its own, never the view's cascades (0329 points 1 and 2). The first
 // refused pass stops the frame there.
@@ -114,6 +115,7 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	frame.light = light;
 	frame.models = models;
 	frame.target = views->preview_target;
+	frame.casters = &views->preview_casters;
 
 	mark = voe_base_arena_mark(arena);
 	// False leaves the preview unblocked or unlit by points, which is no
@@ -139,7 +141,7 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 
 bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
-	const voe_editor_views *views, const voe_editor_dock_root *root,
+	voe_editor_views *views, const voe_editor_dock_root *root,
 	voe_render_light light, const voe_editor_scene *scene,
 	const voe_3d_shape_geometries *geometries, const voe_3d_models *models,
 	const voe_3d_shapes *shapes, const voe_ui_theme *palette, const voe_editor_gizmo *gizmo,
@@ -172,7 +174,7 @@ bool voe_editor_view_passes_draw(
 	// A device made with a pass per view and one more does not refuse
 	// these; if it did, the caller still closes the frame and stops.
 	for (uint32_t v = 0; v < views->count; v++) {
-		const voe_editor_view *view = &views->views[v];
+		voe_editor_view *view = &views->views[v];
 		voe_render_pass_camera camera;
 		voe_3d_frame frame;
 
@@ -187,7 +189,8 @@ bool voe_editor_view_passes_draw(
 					.light = camera.light,
 					.eye = view->eye,
 					.models = models,
-					.target = view->target };
+					.target = view->target,
+					.casters = &view->casters };
 		// The points live until the pass has taken them, and come before
 		// the shadows, whose point-shadow pass reads their slots (0325), and
 		// so do the blockers, whose bounce reads them (0347 point 4), and the
