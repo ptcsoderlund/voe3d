@@ -49,6 +49,7 @@ const char *text(voe_base_arena *arena, const char *format, ...);
 const char *chars(voe_base_arena *arena, size_t size, const uint8_t *bytes);
 const char *heading(voe_base_arena *arena, const voe_ecs_world *world,
 		    voe_ecs_type type);
+const char *title(voe_base_arena *arena, const char *name);
 
 float real32_at(const uint8_t *bytes, uint32_t lane);
 double real64_at(const uint8_t *bytes, uint32_t lane);

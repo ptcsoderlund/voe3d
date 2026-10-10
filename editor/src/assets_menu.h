@@ -1,9 +1,9 @@
 // The menu the right button opens over the Assets panel (0377 point 2, 0378
 // point 8). Over a row it holds Rename, Duplicate and Delete; over the empty
 // part under the rows it holds Create, which opens a submenu beside it holding
-// the kinds a person can make there: Folder, then Landscape (0379). LATER KINDS
-// ADD THEIR ROW TO CREATE'S SUBMENU in assets_menu.c's kind tables and an item
-// here (Material in 084).
+// the kinds a person can make there: Folder, Landscape (0379), then Material
+// (0399). LATER KINDS ADD THEIR ROW TO CREATE'S SUBMENU in assets_menu.c's kind
+// tables and an item here.
 //
 //     voe_editor_assets_menu_open(&menu, at, on_row);   // assets_panel.c
 //     if (menu.open)
@@ -40,8 +40,8 @@
 
 // A row's menu: Rename, Duplicate and Delete.
 #define VOE_EDITOR_ASSETS_MENU_ROWS 3
-// Create's submenu: Folder and Landscape.
-#define VOE_EDITOR_ASSETS_MENU_KINDS 2
+// Create's submenu: Folder, Landscape and Material.
+#define VOE_EDITOR_ASSETS_MENU_KINDS 3
 
 // What a read found fired.
 typedef enum {
@@ -51,6 +51,7 @@ typedef enum {
 	VOE_EDITOR_ASSETS_MENU_DELETE,
 	VOE_EDITOR_ASSETS_MENU_FOLDER,
 	VOE_EDITOR_ASSETS_MENU_LANDSCAPE,
+	VOE_EDITOR_ASSETS_MENU_MATERIAL,
 } voe_editor_assets_menu_item;
 
 // Whether the menu shows, whether it was opened over a row (else over the

@@ -190,9 +190,11 @@ static void apply(voe_ecs_world *world, voe_ecs_entity entity,
 	VOE_BASE_ASSERT(false, "a control writing a kind no control is drawn for");
 }
 
-// A text field's commit, as the row's CHAR bytes: the text truncated to leave
-// its terminating zero, the rest zeroed, submitted only when it differs from
-// what the row holds now. True when an intent was submitted.
+// A text field's commit, as the CHAR bytes at the control's recorded offset and
+// size — the whole field, or one string of a rank-2 list, so the others are
+// left as they are: the text truncated to leave its terminating zero, the rest
+// zeroed, submitted only when it differs from what the row holds now. True when
+// an intent was submitted.
 static bool typed(voe_ecs_world *world, voe_ecs_entity entity,
 		  const voe_editor_inspector_control *control,
 		  voe_ui_field_result result)
@@ -232,6 +234,13 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 	VOE_BASE_ASSERT(ui != NULL, "reading edits out of no interface");
 	VOE_BASE_ASSERT(world != NULL, "reading edits into no world");
 
+	for (uint32_t i = 0; i < inspector->control_count; i++) {
+		voe_editor_inspector_control *control = &inspector->controls[i];
+
+		control->seen = control->node == VOE_UI_NODE_NONE ?
+					(voe_ui_rect){ 0 } :
+					voe_ui_node_visible(ui, control->node);
+	}
 	if (!voe_ecs_entity_alive(world, inspector->entity))
 		return;
 

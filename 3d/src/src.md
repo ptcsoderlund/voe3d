@@ -117,6 +117,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
+- `draw_material.h` — the loaded material a shape's or model part's path names in the frame's
+  store, for its record; internal.
+- `draw_material.c` — the empty path refused, then the store's linear find.
 - `draw_particles.h` — every live particle as one blended world draw, counted for the group's room
   and held in it; internal.
 - `draw_particles.c` — the emitter's picture from the frame's store, the camera-facing matrix
@@ -145,11 +148,13 @@ here is included from outside the folder — `include/3d/` is the whole public s
   uploads with each part's blended twin and gives back what a failure made; pictures on the quad,
   the dot and the water apart.
 - `models_store.h` — the store's table, the shared landscape grid, each entry's held ids, a
-  landscape's heights texture, pyramid and dirt among them, the terrain lookup the draw files ask,
-  and the helpers models.c lends models_landscape.c; internal.
+  landscape's heights texture, pyramid and dirt among them, a material's write mark, the terrain
+  lookup the draw files ask, and the helpers models.c lends the other store files; internal.
 - `models_landscape.c` — a landscape's grid copied, uploaded as a heights texture with a pyramid
   and worn as one part on the shared grid, the brush and put growing the dirt, the frame writing
   it within a budget, the terrain lookup, the saved mark and the rename.
+- `models_material.c` — a `.material`'s maps decoded and uploaded mipped with its record and
+  twin as one part with no geometry, the set marking it and the frame rewriting both records.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow

@@ -196,7 +196,8 @@ typedef struct {
 	// in device-local memory and are filled through a host-visible staging
 	// buffer, which is what map_memory and cmd_copy_buffer are for; the
 	// uniform buffers are host-visible and stay mapped for their whole life.
-	// See buffer.c.
+	// cmd_update_buffer rewrites a shading record inside a frame. See buffer.c
+	// and shading.c.
 	PFN_vkCreateBuffer create_buffer;
 	PFN_vkDestroyBuffer destroy_buffer;
 	PFN_vkGetBufferMemoryRequirements get_buffer_memory_requirements;
@@ -204,6 +205,7 @@ typedef struct {
 	PFN_vkMapMemory map_memory;
 	PFN_vkUnmapMemory unmap_memory;
 	PFN_vkCmdCopyBuffer cmd_copy_buffer;
+	PFN_vkCmdUpdateBuffer cmd_update_buffer;
 
 	// Drawing the cube: two buffers bound, and a draw that reads indices
 	// rather than counting vertices.

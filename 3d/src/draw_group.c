@@ -5,6 +5,7 @@
 // Nothing here walks a table or clears depth: which group a drawable lands in,
 // and when each group is drawn, is voe_3d_draw_system_run's.
 #include "draw_group.h"
+#include "draw_material.h"
 
 #include <3d/depth_sort.h>
 #include <3d/normal_matrix.h>
@@ -59,13 +60,24 @@ bool voe_3d_draw_group_shape_type(const voe_ecs_world *world, voe_ecs_type *out)
 // The record an entity is drawn with, which is the same two matrices and the
 // same shading id whichever pass it ends up in; the world matrix is about `eye`.
 // `shape` is the entity's shape or NULL; its colour, opaque, is the object's,
-// and anything without one is drawn white — its material's colour as it is.
+// and anything without one is drawn white — its material's colour as it is. A
+// shape whose `material` names a loaded material in `models` (NULL for none)
+// wears that record instead, white (0399 point 6).
 voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transform,
 					      const voe_3d_material *material,
 					      const voe_3d_shape *shape,
+					      const voe_3d_models *models,
 					      voe_math_double3 eye)
 {
 	voe_render_object object = { 0 };
+	const voe_3d_model_part *worn =
+		shape != NULL ? voe_3d_draw_material_named(models, shape->material) :
+				NULL;
+
+	if (worn != NULL) {
+		material = &worn->material;
+		shape = NULL;
+	}
 
 	object.world = voe_scene_transform_matrix(*transform, eye);
 	// One inverse per drawn object per frame, which is the cost of getting a
@@ -83,6 +95,30 @@ voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transfo
 				(voe_math_float4){ 1.0f, 1.0f, 1.0f, 1.0f };
 
 	return object;
+}
+
+// Part `part` of `model` as `row` wears it (0399 point 6): the model's geometry,
+// and for part i < VOE_3D_MODEL_MATERIALS whose `materials[i]` names a loaded
+// material in `models`, that entry's record and blended twin; else the model's
+// own. `row` NULL, or no store, is the model's own part.
+voe_3d_model_part voe_3d_draw_group_part_worn(const voe_3d_models *models,
+					      const voe_3d_model *row,
+					      const voe_3d_model_entry *model,
+					      uint32_t part)
+{
+	voe_3d_model_part worn;
+	const voe_3d_model_part *named = NULL;
+
+	VOE_BASE_ASSERT(model != NULL && part < model->part_count,
+			"wearing a part the model has not got");
+	worn = model->parts[part];
+	if (row != NULL && part < VOE_3D_MODEL_MATERIALS)
+		named = voe_3d_draw_material_named(models, row->materials[part]);
+	if (named != NULL) {
+		worn.material = named->material;
+		worn.faded = named->faded;
+	}
+	return worn;
 }
 
 // Room in the arena for one group, sized for the whole mesh table — see below

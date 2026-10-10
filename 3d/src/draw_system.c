@@ -285,7 +285,8 @@ static struct voe_3d_deferred model_part_entry(const voe_3d_model_part *piece,
 	if (fading)
 		material.shading = piece->faded;
 	entry.mesh.geometry = piece->geometry;
-	entry.mesh.object = voe_3d_draw_group_object_of(drawn, &material, NULL, eye);
+	entry.mesh.object = voe_3d_draw_group_object_of(drawn, &material, NULL, NULL,
+							eye);
 	if (fading)
 		entry.mesh.object.colour.w = 1.0f - fade;
 	VOE_BASE_ASSERT(entry.mesh.object.colour.w > 0.0f,
@@ -326,12 +327,14 @@ static bool draw_models(voe_ecs_world *world, voe_render_device *device,
 			continue;
 		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
 		for (uint32_t part = 0; part < model->part_count; part++) {
-			const voe_3d_model_part *piece = &model->parts[part];
+			// Its own record, or the one its row's materials name.
+			voe_3d_model_part piece = voe_3d_draw_group_part_worn(
+				frame->models, &rows[row], model, part);
 			struct voe_3d_deferred entry = model_part_entry(
-				piece, &drawn, fading, fade, frame->eye);
+				&piece, &drawn, fading, fade, frame->eye);
 
 			if (fading ||
-			    piece->material.alpha_mode == VOE_RENDER_ALPHA_BLENDED)
+			    piece.material.alpha_mode == VOE_RENDER_ALPHA_BLENDED)
 				voe_3d_draw_group_hold(world_blended, entry,
 						       entry.mesh.object.world,
 						       frame->view.view);
@@ -551,7 +554,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 							       world, shapes,
 							       owners[row]) :
 						       NULL,
-					  frame.eye) },
+					  frame.models, frame.eye) },
 		};
 		// Cutout is not blended and belongs with the solid ones — it
 		// writes depth and needs no order.

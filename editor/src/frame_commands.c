@@ -1,10 +1,12 @@
 // The three per-frame command stretches of main.c's loop, in the order main.c
-// calls them: the history's step, the keyboard's read and acts (F2's rename
-// and Delete's question among them, the Assets panel's keyboard a guard,
-// Escape closing that question first and hiding the Landscape panel with the
-// Project panel), and the acts
-// that wait for the interface to have drawn, a reveal's unfold marked among
-// them. See frame_commands.h.
+// calls them: the history's step (an open material's edit written and pushed
+// at rest first, a different project closing the open material), the
+// keyboard's read and acts (F2's rename and an asset's Delete question among
+// them, the Assets panel's keyboard a guard, `ui`'s keyboard fed, Escape
+// closing that question first, choosing no brush after the lists and hiding
+// the Landscape panel with the Project panel), and the acts that wait for the
+// interface to have drawn: Delete, Ctrl+D, R, the edit, and a reveal's unfold
+// marked. See frame_commands.h.
 #include "frame_commands.h"
 
 #include "errors.h"
@@ -13,12 +15,55 @@
 
 #include <base/assert.h>
 
+#include <string.h>
+
+// AN EDIT TO THE OPEN MATERIAL SETTLES AT REST (0399 point 9): its file is
+// written, a refusal said in the notice, and one undo step pushed carrying
+// the values before and after. Written at once, never by Save, so the project
+// is not marked unsaved. Before a step is taken, so a Ctrl+Z read at rest
+// goes back over this edit and not past it.
+static void voe_editor_frame_commands_material(
+	voe_editor_frame_commands *commands)
+{
+	voe_editor_session *session = commands->session;
+	voe_editor_scene *scene = commands->scene;
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_BASE_ASSERT(scene != NULL && commands->scratch != NULL,
+			"settling a material with no scene or scratch");
+	if (!commands->at_rest || session->replaced ||
+	    session->project->folder == NULL ||
+	    scene->material_open[0] == '\0' ||
+	    memcmp(&scene->material, &scene->material_before,
+		   sizeof scene->material) == 0)
+		return;
+	if (!voe_editor_material_step_write(session->project->folder,
+					    scene->material_open,
+					    &scene->material, commands->scratch,
+					    &error))
+		voe_editor_notice_set(&session->notice, "Could not save %s: %s",
+				      scene->material_open,
+				      voe_base_error_string(error));
+	voe_editor_undo_material(commands->undo, session->project,
+				 commands->scratch,
+				 voe_editor_material_step_new(
+					 scene->material_open,
+					 &scene->material_before,
+					 &scene->material));
+	scene->material_before = scene->material;
+	VOE_BASE_ASSERT(memcmp(&scene->material, &scene->material_before,
+			       sizeof scene->material) == 0,
+			"a settled material still differs from its file");
+}
+
 void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 {
 	VOE_BASE_ASSERT(commands != NULL, "a history step for no commands");
 	VOE_BASE_ASSERT(commands->session != NULL, "a history step in no session");
 
 	voe_editor_session *session = commands->session;
+
+	voe_editor_frame_commands_material(commands);
 
 	// A DIFFERENT PROJECT EMPTIES THE HISTORY, AND OTHERWISE LAST
 	// FRAME'S CTRL+Z OR CTRL+Y IS TAKEN HERE — before world_step.h,
@@ -27,10 +72,12 @@ void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 	// unsaved and is never itself an edit to record.
 	// A prefab opened sets the level's line aside, and Back puts it
 	// back (0283 point 8).
-	// The Landscape panel's path is the old project's, so it closes too.
+	// The Landscape panel's path is the old project's, so it closes too,
+	// and so does the open material: the new table may hold its path.
 	if (session->replaced) {
 		session->replaced = false;
 		voe_editor_landscape_panel_hide(commands->landscape_panel);
+		commands->scene->material_open[0] = '\0';
 		voe_editor_undo_forget(commands->undo);
 		voe_editor_views_focus_camera(commands->views,
 					      commands->scene->world);
@@ -47,7 +94,7 @@ void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 	} else if ((commands->step_back || commands->step_forward) &&
 		   voe_editor_undo_take(commands->undo, session->project,
 					commands->scene, commands->models,
-					&session->notice,
+					commands->scratch, &session->notice,
 					commands->step_forward)) {
 		voe_editor_session_edited(session);
 	}

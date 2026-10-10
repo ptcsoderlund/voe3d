@@ -50,6 +50,12 @@
 // grows the entry's dirty rect and marks it edited; _landscape_frame writes
 // the dirt into the texture inside a frame, a budget a frame, since an upload
 // between frames waits for the card and would stutter a drag.
+//
+// A `.material` IS AN ENTRY WITH NO SHAPE (0399 points 4, 5): one part with no
+// geometry holding its record, its blended twin and its own maps. It shares the
+// store because reload, rename, clear and the twin already live here. A map
+// two materials name is uploaded twice. _material_set marks it; _material_frame
+// rewrites the records inside a frame, so a drag needs no upload.
 #pragma once
 
 #include <3d/landscape.h>
@@ -57,6 +63,7 @@
 #include <3d/shape_geometry.h>
 
 #include <assets/landscape.h>
+#include <assets/material.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <render/device.h>
@@ -113,7 +120,22 @@ typedef struct {
 	voe_assets_landscape *landscape;
 	// Changed since loaded or _landscape_saved.
 	bool edited;
+	// A loaded `.material`: one part with no geometry, no shape.
+	bool material;
 } voe_3d_model_entry;
+
+// One map's file bytes, read by the caller; a size of 0 is no map.
+typedef struct {
+	const uint8_t *bytes;
+	size_t size;
+} voe_3d_material_map;
+
+// A material's three maps, as its file names them.
+typedef struct {
+	voe_3d_material_map colour;
+	voe_3d_material_map normal;
+	voe_3d_material_map orm;
+} voe_3d_material_maps;
 
 typedef struct voe_3d_models voe_3d_models;
 
@@ -147,6 +169,29 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 	voe_3d_models *models, voe_render_device *device, const char *path,
 	uint64_t stamp, const voe_assets_landscape *landscape,
 	voe_base_error *error);
+
+// `material` as `path`'s entry: each map with bytes decoded as a picture by its
+// path's extension and uploaded mipped, colour as COLOUR, normal and ORM as
+// DATA, the ORM map's one texture in the metal-roughness and the occlusion
+// slots both (0400); colour, metal,
+// roughness, repeat and shader from the values; one part with no geometry and
+// its blended twin. Replaces and fails as _load does; MALFORMED when a map will
+// not decode, REFUSED when the device or the store has no room.
+[[nodiscard]] bool voe_3d_models_load_material(
+	voe_3d_models *models, voe_render_device *device, const char *path,
+	uint64_t stamp, const voe_assets_material_file *material,
+	voe_3d_material_maps maps, voe_base_error *error);
+
+// `material`'s colour, metal, roughness, repeat and shader taken into `path`'s
+// part and its two records marked to write; its maps ignored, a new map being
+// a load. Nothing for a path that is no loaded material.
+void voe_3d_models_material_set(voe_3d_models *models, const char *path,
+				const voe_assets_material_file *material);
+
+// Inside a frame, before its first pass: every marked material's record and
+// twin rewritten (voe_render_shading_write), the marks cleared.
+void voe_3d_models_material_frame(voe_3d_models *models,
+				  voe_render_device *device);
 
 // One stamp of `brush` at (x, z) on `path`'s grid (3d/landscape.h): the
 // pyramid updated over it, the dirty rect grown by it and the entry edited.

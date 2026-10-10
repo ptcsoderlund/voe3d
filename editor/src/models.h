@@ -43,8 +43,16 @@
 // The Landscape panel's size and cells are written at once and re-read at the next
 // update; one re-read waits at a time, enough for a panel that writes at most
 // one a frame, and a second before the update would replace the first.
+//
+// THE PROJECT'S MATERIALS (0399 point 7) are a materials.h table held here,
+// read on a different folder and through _materials_read after an Assets
+// command; each update loads the materials the rows name from it after the
+// models, and _frame writes their edited records as it writes heights. An
+// Inspector edit (_material_changed) sets factors live, or has a changed map's
+// material loaded again at the next update; one waits at a time, as a resize.
 #pragma once
 
+#include "materials.h"
 #include "session.h"
 
 #include <3d/models.h>
@@ -77,7 +85,8 @@ void voe_editor_models_update(voe_editor_models *models,
 
 // Once a frame, after the draw opens and before any pass: the landscapes'
 // dirty heights written into their textures, up to
-// VOE_3D_LANDSCAPE_WRITE_TEXELS, the rest carried to the next frame.
+// VOE_3D_LANDSCAPE_WRITE_TEXELS, the rest carried to the next frame, and the
+// materials' changed records rewritten.
 void voe_editor_models_frame(voe_editor_models *models,
 			     voe_render_device *device);
 
@@ -135,6 +144,23 @@ void voe_editor_models_rename(voe_editor_models *models, const char *from,
 	voe_editor_models *models, const char *folder, const char *path,
 	float size, uint32_t cells, voe_base_arena *scratch,
 	voe_editor_notice *why);
+
+// The project's materials' table, to edit a row in place.
+voe_editor_materials *voe_editor_models_materials(voe_editor_models *models);
+
+// The table read again from `<folder>/Assets/`, NULL emptying it, as after an
+// Assets command; the store loads what rows name at the next update.
+// `scratch` is rewound.
+void voe_editor_models_materials_read(voe_editor_models *models,
+				      const char *folder,
+				      voe_base_arena *scratch);
+
+// `path`'s table row was edited: without `maps`, its values taken into the
+// store's material at once, written by the next _frame; with, the material
+// loaded again from the row, its maps read from the folder, at the next
+// update, between frames. A failed reload is said in the notice.
+void voe_editor_models_material_changed(voe_editor_models *models,
+					const char *path, bool maps);
 
 // The store to read, for what draws, picks and outlines.
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models);

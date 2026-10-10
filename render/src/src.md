@@ -56,9 +56,9 @@ which file to open — what each one owns, and where the seams between them run.
 - `element.c` — the element path on the C side: the third pipeline, the submit that writes one
   record, the instanced draw over a range of them, and the two matrices that say what element space
   is.
-- `shading.c` — the record buffer the fragment stage reads by index, and the
-  slots that name its rows, freed and reused. Its header says why one buffer
-  serves every frame slot and why creating a record waits for the GPU.
+- `shading.c` — the record buffer the fragment stage reads by index, the slots that name its rows,
+  freed and reused, and a record's rewrite recorded into a frame before its first pass. Its header
+  says why one buffer serves every frame slot and why creating a record waits for the GPU.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, each
   depth with its sampled copy, the image build, settle and teardown every target shares.
 - `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into

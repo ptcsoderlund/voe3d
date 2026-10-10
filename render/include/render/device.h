@@ -431,12 +431,17 @@ typedef struct {
 	// Zero is every other surface, drawn as before. The second word that
 	// used to be reserved_c; draw it blended.
 	uint32_t water;
-	uint32_t reserved_c;
+	// How many times the maps repeat across the mesh (ADR-0399 point 3): the
+	// fragment stage multiplies the mesh's texture coordinates by it before
+	// any of the five maps is read and before `base_colour_uv_rect` below.
+	// Zero reads as one, so a zeroed record is unchanged. The third word that
+	// used to be reserved_c; same offset, same size.
+	float uv_repeat;
 	// Which rectangle of the base colour texture this record reads: `xy` is
 	// the offset added and `zw` the scale multiplied, so the fragment stage
-	// samples `uv * zw + xy`. One multiply-add, applied to the base colour
-	// texture and to nothing else — the other four maps are read at the
-	// vertex's own coordinates.
+	// samples `uv * uv_repeat * zw + xy`. One multiply-add after the repeat,
+	// applied to the base colour texture and to nothing else — the other
+	// four maps are read at the vertex's own coordinates times `uv_repeat`.
 	//
 	// IT IS WHAT MAKES A SHEET OF FRAMES ONE GEOMETRY AND ONE TEXTURE. The
 	// quad's own coordinates are 0..1 and every frame in a sprite sheet
@@ -1223,6 +1228,18 @@ bool voe_render_texture_destroy(voe_render_device *device,
 // operation: it waits for the GPU to go idle.
 bool voe_render_shading_destroy(voe_render_device *device,
 				voe_render_shading shading);
+
+// Rewrites a live record's values (ADR-0399 point 4), inside a frame and before
+// its first pass; asserts outside a frame, after a pass began, or on a stale id.
+//
+// THE WRITE IS RECORDED INTO THE FRAME'S COMMANDS, NOT MADE NOW. A barrier orders
+// it after earlier frames' reads of the record and another before this frame's
+// passes, so no frame in flight is waited for: the same order
+// voe_render_texture_write_heights gives. Every pass of this frame, and every
+// frame after, reads the new values.
+void voe_render_shading_write(voe_render_device *device,
+			      voe_render_shading shading,
+			      voe_render_shading_values values);
 
 // ------------------------------------------------------------------ frames
 

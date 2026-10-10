@@ -290,7 +290,9 @@ struct voe_render_shading {
 	uint base_colour_distance_field;
 	// Non-zero: the water path (ADR-0305). The second word of reserved_c.
 	uint water;
-	uint reserved_c;
+	// The mesh's uv is multiplied by it before any map is read and before
+	// the rect below; 0 reads as 1. The third word of reserved_c.
+	float uv_repeat;
 	// Which rectangle of the base colour texture to read: xy is the offset,
 	// zw the scale. It lands on a sixteen-byte boundary where C put it, so
 	// it is a float4 on both sides and needs no padding in front of it.

@@ -19,26 +19,15 @@
 
 const struct voe_ecs_key voe_3d_material_key = { "voe_3d_material" };
 
-// The rect as the record wants it — xy the offset, zw the scale — after a scale
-// of nothing has been read as the whole texture.
+// A scale of nothing read as the whole texture.
 //
 // COMPONENT BY COMPONENT AND NOT ALL OR NOTHING, because half a rect is not a
 // case worth a rule of its own: a material that scaled x and forgot y meant to
-// read the whole of y. It writes the answer back so that the component and the
-// record it just made cannot disagree — see the header.
-static voe_math_float4 uv_rect_of(voe_3d_material *material)
+// read the whole of y.
+static voe_math_float2 whole_scale(voe_math_float2 scale)
 {
-	if (material->base_colour_uv_scale.x == 0.0f)
-		material->base_colour_uv_scale.x = 1.0f;
-	if (material->base_colour_uv_scale.y == 0.0f)
-		material->base_colour_uv_scale.y = 1.0f;
-
-	return (voe_math_float4){
-		material->base_colour_uv_offset.x,
-		material->base_colour_uv_offset.y,
-		material->base_colour_uv_scale.x,
-		material->base_colour_uv_scale.y,
-	};
+	return (voe_math_float2){ scale.x == 0.0f ? 1.0f : scale.x,
+				  scale.y == 0.0f ? 1.0f : scale.y };
 }
 
 void voe_3d_material_register(voe_ecs_world *world, uint32_t capacity)
@@ -50,21 +39,12 @@ void voe_3d_material_register(voe_ecs_world *world, uint32_t capacity)
 					 &voe_ecs_runtime_only);
 }
 
-bool voe_3d_material_upload(voe_render_device *device,
-			    voe_3d_material *material, voe_base_error *error)
+voe_render_shading_values voe_3d_material_values(const voe_3d_material *material)
 {
-	voe_render_shading_values values;
-	voe_math_float4 rect;
+	VOE_BASE_ASSERT(material != NULL, "the values of no material");
+	const voe_math_float2 scale = whole_scale(material->base_colour_uv_scale);
 
-	VOE_BASE_ASSERT(device != NULL, "uploading a material to no device");
-	VOE_BASE_ASSERT(material != NULL, "uploading nothing as a material");
-
-	// Before the record below and not inside it: this is the one call here
-	// that writes to the material, and reading the rest of it in the same
-	// initialiser would leave a reader working out whether that matters.
-	rect = uv_rect_of(material);
-
-	values = (voe_render_shading_values){
+	return (voe_render_shading_values){
 		.base_colour = material->base_colour,
 		.metallic = material->metallic,
 		.roughness = material->roughness,
@@ -77,16 +57,31 @@ bool voe_3d_material_upload(voe_render_device *device,
 		.base_colour_texture = material->base_colour_texture.index,
 		.base_colour_distance_field =
 			material->base_colour_distance_field ? 1u : 0u,
-		.base_colour_uv_rect = rect,
+		.uv_repeat = material->uv_repeat,
+		.base_colour_uv_rect = { material->base_colour_uv_offset.x,
+					 material->base_colour_uv_offset.y,
+					 scale.x, scale.y },
 		.metallic_roughness_texture =
 			material->metallic_roughness_texture.index,
 		.normal_texture = material->normal_texture.index,
 		.occlusion_texture = material->occlusion_texture.index,
 		.emissive_texture = material->emissive_texture.index,
 	};
+}
 
-	return voe_render_shading_create(device, values, &material->shading,
-					 error);
+bool voe_3d_material_upload(voe_render_device *device,
+			    voe_3d_material *material, voe_base_error *error)
+{
+	VOE_BASE_ASSERT(device != NULL, "uploading a material to no device");
+	VOE_BASE_ASSERT(material != NULL, "uploading nothing as a material");
+
+	// Written back so that the component and the record it just made cannot
+	// disagree — see the header.
+	material->base_colour_uv_scale =
+		whole_scale(material->base_colour_uv_scale);
+	return voe_render_shading_create(device,
+					 voe_3d_material_values(material),
+					 &material->shading, error);
 }
 
 bool voe_3d_material_add(voe_ecs_world *world, voe_ecs_entity entity,

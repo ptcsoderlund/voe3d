@@ -1,5 +1,6 @@
 // The selection, the colour picker's and the open dropdown's targets, the
-// gizmo's mode, and the rows the Scene panel drew. See the header for why
+// gizmo's mode, the open material's close and follow, and the rows the Scene
+// panel drew. See the header for why
 // building a project's entities is not this file's job, and why the rows
 // outlive the call that drew them.
 //
@@ -27,6 +28,7 @@
 
 #include <ui/widgets.h>
 
+#include <stdio.h>
 #include <string.h>
 
 voe_ecs_entity voe_editor_scene_selected(const voe_editor_scene *scene)
@@ -50,6 +52,40 @@ void voe_editor_scene_select(voe_editor_scene *scene, voe_ecs_entity entity)
 	scene->selected = voe_ecs_entity_alive(scene->world, entity)
 				  ? entity
 				  : (voe_ecs_entity){ 0 };
+	if (scene->selected.generation != 0)
+		scene->material_open[0] = '\0';
+}
+
+void voe_editor_scene_material_follow(voe_editor_scene *scene,
+				      const char *from, const char *to)
+{
+	static const char assets[] = "Assets/";
+	char followed[VOE_ASSETS_MATERIAL_PATH];
+	const char *open;
+	size_t length;
+	int written;
+
+	VOE_BASE_ASSERT(scene != NULL && from != NULL,
+			"following a move in no scene or of no path");
+	if (scene->material_open[0] == '\0')
+		return;
+	open = scene->material_open + sizeof assets - 1;
+	length = strlen(from);
+	VOE_BASE_ASSERT(strncmp(scene->material_open, assets,
+				sizeof assets - 1) == 0,
+			"an open material outside Assets/");
+	// Itself, or under `from/`; a sibling sharing its start is neither.
+	if (length == 0 || strncmp(open, from, length) != 0 ||
+	    (open[length] != '\0' && open[length] != '/'))
+		return;
+	written = to == NULL ? -1 :
+			       snprintf(followed, sizeof followed, "%s%s%s",
+					assets, to, open + length);
+	if (written < 0 || (size_t)written >= sizeof followed) {
+		scene->material_open[0] = '\0';
+		return;
+	}
+	memcpy(scene->material_open, followed, (size_t)written + 1);
 }
 
 bool voe_editor_scene_is_selected(const voe_editor_scene *scene,
@@ -146,6 +182,7 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 		    !scene->list_dragging && !scene->list_cancelled) {
 			scene->selected = scene->listed[i].entity;
 			scene->revealed = scene->listed[i].entity;
+			scene->material_open[0] = '\0';
 		}
 		if (action_of(ui, scene->listed[i].fold).fired)
 			fold_flip(scene, scene->listed[i].entity);
@@ -156,6 +193,7 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 	if (!voe_editor_entities_add(scene->world, &made))
 		return false;
 	scene->selected = made;
+	scene->material_open[0] = '\0';
 	scene->structural++;
 	return true;
 }
@@ -312,7 +350,18 @@ bool voe_editor_scene_picker_showing(voe_editor_scene *scene,
 	if (!scene->picking.open)
 		return false;
 
-	row = voe_editor_scene_is_selected(scene, scene->picking.entity)
+	if (scene->picking.material) {
+		if (scene->material_open[0] == '\0') {
+			scene->picking.open = false;
+			return false;
+		}
+		*colour = (voe_math_float3){ scene->material.colour[0],
+					     scene->material.colour[1],
+					     scene->material.colour[2] };
+		return true;
+	}
+
+	row =voe_editor_scene_is_selected(scene, scene->picking.entity)
 		      ? voe_ecs_component_get(scene->world,
 					      scene->picking.type,
 					      scene->picking.entity)

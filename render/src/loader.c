@@ -270,6 +270,7 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(map_memory, vkMapMemory);
 	DEVICE_FUNCTION(unmap_memory, vkUnmapMemory);
 	DEVICE_FUNCTION(cmd_copy_buffer, vkCmdCopyBuffer);
+	DEVICE_FUNCTION(cmd_update_buffer, vkCmdUpdateBuffer);
 
 	// The cube's draw. cmd_draw above is still here because two shaders bind
 	// no vertex buffer at all and count their own vertices instead:

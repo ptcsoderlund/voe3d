@@ -12,5 +12,6 @@ The public headers, one entry each.
 - `starting.h` — the starting frame, plain (one line centred on the theme's ground) or a splash picture with the line beneath; the wait that shows it while a worker runs a start's work; the shaders step with its cache.
 - `progress.h` — the record a splash wait's worker reports its phase and count into and the main thread reads its line from, with the stop flag; all atomic.
 - `run.h` — the game's whole run in the window it is handed, its start on a worker behind the splash, until the window closes or the interface ends it.
-- `models.h` — the model files a world names read from a folder into a store, and re-read when their stamp changes, reporting progress and stopping in a splash wait; the cooked landscape table loaded into it; shared by the game and the editor.
+- `models.h` — the model files a world names read from a folder into a store, and re-read when their stamp changes, reporting progress and stopping in a splash wait; the cooked landscape table and a material table loaded into it; shared by the game and the editor.
 - `landscapes.h` — the cooked landscape table a game loads into its model store, defined by a project's cooked `landscapes.c`.
+- `materials.h` — the material table of path and values a game loads into its model store, defined by a project's cooked `materials.c`; the editor builds its own.

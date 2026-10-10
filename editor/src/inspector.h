@@ -61,6 +61,7 @@
 #include <base/describe.h>
 
 #include "add_menu.h"
+#include "inspector_material.h"
 #include "sculpt.h"
 
 #include <ecs/component.h>
@@ -186,9 +187,20 @@ typedef struct {
 	// control writes.
 	size_t offset;
 	voe_base_field_kind writes;
-	// Bytes the field takes, for a CHAR field's text box: what its text is
-	// read back into and truncated to. Nought for every other kind.
+	// Bytes the text box's string takes: the whole field for a CHAR of rank
+	// 1, one string of a rank-2 CHAR, a list of strings drawn as a text
+	// box per string. What its text is read back into and truncated to.
+	// Nought for every other kind.
 	size_t size;
+	// A rank-2 CHAR's string box: the field's name, from its description,
+	// and the string's 0-based index, so a drop finds the row under the
+	// pointer. NULL and nought for every other control.
+	const char *name;
+	uint32_t index;
+	// Where the control showed, set by voe_editor_inspector_edits_read
+	// while its node answers, so a drop the next frame reads it
+	// (assets_drag.h); no size for one not drawn.
+	voe_ui_rect seen;
 	// Which of a rotation's three shown angles this is — 0, 1 or 2 for the
 	// world's X, Y and Z — and the angle in degrees it was showing when it
 	// was drawn. The edit is the difference between the two, about that
@@ -334,9 +346,14 @@ bool voe_editor_inspector_is_part(const voe_ecs_world *world,
 // not alive — including nothing selected at all — is one line saying so.
 // `kept` holds `kept_count` types whose sections have no Remove button. After
 // the sections, a thing that wears a landscape gets `sculpt`'s Sculpt section
-// (inspector_sculpt.h).
+// (inspector_sculpt.h). While `material_open` is not "", `material`'s section
+// is drawn in place of all of it into `controls` (inspector_material.h), and
+// no entity is recorded, so no entity's edit is read.
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
 			       const voe_ecs_type *kept, uint32_t kept_count,
-			       voe_editor_sculpt *sculpt);
+			       voe_editor_sculpt *sculpt,
+			       const char *material_open,
+			       const voe_assets_material_file *material,
+			       voe_editor_inspector_material *controls);

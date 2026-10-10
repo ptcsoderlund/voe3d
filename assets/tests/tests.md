@@ -25,6 +25,8 @@ belongs to.
 - `landscape.c` — a flat and a 2048-cell grid round-tripped, heights rounded
   to the millimetre, a resample keeping a plane and its corners, and each
   refusal with its category.
+- `material.c` — an empty section read as the defaults, a full file
+  round-tripped field for field, and each bad value refused MALFORMED.
 - `model.c` — a hand-built `.glb` in and its arrays out, the two textures
   over one picture that the deduplication depends on, and one byte of a working
   file changed at a time. Its header says why the files are built rather than

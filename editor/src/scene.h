@@ -53,14 +53,15 @@
 // list's drag in the `list_` fields: its threshold, drop target and cancel.
 //
 // THE GIZMO'S MODE, `rings`, IS THE PERSON'S AND NOT THE PROJECT'S (ADR-0274):
-// never saved, never undone, and kept by a new project.
-//
-// THE ASSETS PANEL'S STATE IS HERE TOO, in `assets`, so the dock reaches it
-// with no parameter of its own (assets_panel.h); nothing in scene.c reads it.
+// never saved, never undone, and kept by a new project. `assets`, the Assets
+// panel's state, is here so the dock reaches it (assets_panel.h). AN OPEN
+// MATERIAL (0399 point 8) is `material_open` and its shown copy `material`:
+// a live selection closes it, a move follows it and a trash closes it.
 #pragma once
 
 #include "assets_panel.h"
 #include "inspector.h"
+#include "inspector_material.h"
 #include "sculpt.h"
 
 #include <ecs/world.h>
@@ -80,8 +81,11 @@
 #define VOE_EDITOR_SCENE_ROWS VOE_GAME_WORLD_AUTHORED
 
 // What the colour picker edits while it is open. Zeroed is a closed picker.
+// `material` set, it edits the open material's `material.colour` and the
+// entity, type and offset are unused.
 typedef struct {
 	bool open;
+	bool material;
 	voe_ecs_entity entity;
 	voe_ecs_type type;
 	// Bytes from the start of the row to the colour's three floats.
@@ -173,11 +177,13 @@ typedef struct voe_editor_scene {
 	// outlives the frame the Inspector's swatch fired in and the
 	// Inspector's own struct forgets its controls every frame. It names an
 	// entity, a component type and the colour's offset in the row, never a
-	// component. It is opened by the Inspector (inspector.h) and closed by
-	// interface.c on a press outside the picker, by main.c on Escape, and
-	// here, on the next ask, when its entity is gone, no longer selected or
-	// without the row. Closing changes no colour: every change was already
-	// submitted as it happened.
+	// component — or, with `material` set, the open material's colour,
+	// opened by its section's swatch (inspector_material.h). It is opened by
+	// the Inspector (inspector.h) and closed by interface.c on a press
+	// outside the picker, by main.c on Escape, and here, on the next ask,
+	// when its entity is gone, no longer selected or without the row, or,
+	// for a material, when `material_open` is empty. Closing changes no
+	// colour: every change was already submitted as it happened.
 	//
 	// The colour picker's target, kept across frames.
 	voe_editor_picking picking;
@@ -211,6 +217,19 @@ typedef struct voe_editor_scene {
 	// The sculpting brush, the person's as `rings` is (sculpt.h); started
 	// by main.c beside `world`, drawn and read by the Inspector.
 	voe_editor_sculpt sculpt;
+	// The `.material` the Inspector shows in place of the entity,
+	// `Assets/...`, "" for none; set by interface_assets.c on a fired row,
+	// cleared by a live selection and followed by
+	// voe_editor_scene_material_follow. `material` is the shown copy the
+	// Inspector edits,
+	// and `material_controls` what its section drew (inspector_material.h).
+	// `material_before` is the copy as last written to its file: set on
+	// open, and taken from `material` when an edit settles at rest into an
+	// undo step (frame_commands.c) or a step is applied (material_steps.h).
+	char material_open[VOE_ASSETS_MATERIAL_PATH];
+	voe_assets_material_file material;
+	voe_assets_material_file material_before;
+	voe_editor_inspector_material material_controls;
 } voe_editor_scene;
 
 // Which entity is selected, or a zeroed one when nothing is — including when
@@ -220,8 +239,16 @@ voe_ecs_entity voe_editor_scene_selected(const voe_editor_scene *scene);
 // Selects this entity, or clears the selection when it is zeroed or no longer
 // alive. The same selection a row in `Scene` moves (voe_editor_scene_clicks_read)
 // and the same one the Inspector shows: there is one, and this is how anything
-// that is not the Scene panel moves it.
+// that is not the Scene panel moves it. A live entity closes the open material;
+// a zeroed or dead one, as a re-found empty selection is, keeps it.
 void voe_editor_scene_select(voe_editor_scene *scene, voe_ecs_entity entity);
+
+// The open material follows a move of `from` to `to`, both relative to
+// `Assets/` as assets_manage.h's are: itself or a folder above it. `to` NULL,
+// a trash, closes it when it is `from` or under `from/`; so does a followed
+// path too long for `material_open`.
+void voe_editor_scene_material_follow(voe_editor_scene *scene,
+				      const char *from, const char *to);
 
 // Whether this is the selected entity. False for a zeroed `entity` and false
 // for one that is not alive, so a caller comparing table rows needs no checks of
@@ -244,7 +271,8 @@ void voe_editor_scene_add_record(voe_editor_scene *scene, voe_ui_node add);
 void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 			      voe_ecs_entity entity, voe_ui_node fold);
 
-// Moves the selection to whichever recorded row fired this frame, unless the
+// Moves the selection to whichever recorded row fired this frame, closing the
+// open material, unless the
 // Scene list's drag is under way or was cancelled (a release that ends a drag
 // is no click; this runs before voe_editor_scene_list_drop zeroes both); flips
 // the identity's `folded` of a row whose fold fired, counting one in
@@ -301,9 +329,10 @@ void voe_editor_scene_picker_open(voe_editor_scene *scene,
 // Closes the picker. The colour stays whatever it last became.
 void voe_editor_scene_picker_close(voe_editor_scene *scene);
 
-// Whether the picker shows this frame, and the colour in its row when it does.
-// Closes it first when its entity is not alive, is no longer the selection or
-// no longer has the row — a change of selection is what closes it.
+// Whether the picker shows this frame, and the colour in its row, or the open
+// material's, when it does. Closes it first when its entity is not alive, is
+// no longer the selection or no longer has the row — a change of selection is
+// what closes it — or, for a material, when none is open.
 [[nodiscard]] bool voe_editor_scene_picker_showing(voe_editor_scene *scene,
 						   voe_math_float3 *colour);
 

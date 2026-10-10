@@ -1,28 +1,17 @@
-// The walk over the world's component types, the row per described field, and
-// the record each control leaves behind for inspector_edit.c to read. See the
-// header for why this file names no component; the replace intent a moved
-// control becomes is inspector_edit.c's.
+// The walk over the world's component types, each component's panel with a row
+// per described field (inspector_rows.h), Add component and the open list. See
+// the header for why this file names no component; the replace intent a moved
+// control becomes is inspector_edit.c's. While a material is open its section
+// (inspector_material.h) is drawn in place of the entity's.
 //
-// IT IS DRIVEN BY base/describe.h AND BY NOTHING ELSE. A field's kind decides
-// which control it gets and a field's offset decides where the bytes go; there
-// is no table in here mapping a component to a layout, and adding one would be
-// the thing the description exists to make unnecessary. The one switch over the
-// kinds is deliberately exhaustive rather than defaulted, so a kind added to
-// base is a build error here rather than a field that quietly draws nothing.
+// IT IS DRIVEN BY base/describe.h AND BY NOTHING ELSE. There is no table in here
+// mapping a component to a layout, and adding one would be the thing the
+// description exists to make unnecessary.
 //
 // A LABEL'S TEXT IS FORMATTED INTO THE FRAME'S ARENA AND NEVER ONTO A STACK.
 // voe_ui_label does not copy: the string is read at voe_ui_frame_end, long after
-// every function in this file has returned, so a buffer on the stack would be a
-// label pointing at whatever the next call put there. `text`, which is
-// inspector_value.h's, is the only way a number reaches the screen from here.
-//
-// THE THREE ANGLES ARE SHOWN AND NEVER STORED. A rotation is a quaternion in the
-// component and a quaternion after the edit; the Z-Y-X decomposition exists for
-// the length of one frame so that a person has three numbers to drag, and what
-// the drag submits is the DIFFERENCE turned back into a rotation about a world
-// axis. Keeping the angles instead is the bug this shape exists to prevent — two
-// sources of one truth, which disagree the moment anything else writes the
-// rotation.
+// every function in this file has returned. `text`, inspector_value.h's, is the
+// only way a string is formatted for the screen from here.
 //
 // EVERY ROW FILLS THE COLUMN AND WRAPS (ADR-0153 point 11). A component's panel
 // stretches its rows to the column's width and each row breaks onto further
@@ -35,14 +24,12 @@
 #include "inspector.h"
 
 #include "entity_field.h"
+#include "inspector_rows.h"
 #include "inspector_sculpt.h"
 #include "inspector_value.h"
 #include "themes.h"
 
 #include <base/assert.h>
-
-#include <math/float3.h>
-#include <math/quat.h>
 
 #include <scene/camera_component.h>
 #include <scene/prefab_component.h>
@@ -50,21 +37,16 @@
 #include <ui/colour.h>
 #include <ui/widgets.h>
 
-#include <ctype.h>
-#include <inttypes.h>
-#include <stdarg.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <string.h>
 
 // A component's fields sit on the theme's RAISED surface, a shade above the
 // panel's own SURFACE, so that two components read as two blocks.
 
-// Inside a component's four edges, between its rows, and between the things on
-// one row. Millimetres.
+// Inside a component's four edges and between its rows; between the things on
+// one row is inspector_rows.h's ROW_GAP. Millimetres.
 #define COMPONENT_PAD (2.0f * VOE_EDITOR_SPACING)
 #define COMPONENT_GAP (1.5f * VOE_EDITOR_SPACING)
-#define ROW_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // Round the open list's rows and between them. Millimetres.
 #define LIST_PAD (1.0f * VOE_EDITOR_SPACING)
@@ -81,294 +63,11 @@
 // declare. Millimetres.
 #define CONTENT_GAP (2.0f * VOE_EDITOR_SPACING)
 
-// What one millimetre of horizontal drag is worth, by what the control writes.
-// A real number moves in hundredths, a whole number in halves — so a millimetre
-// is not quite a step and the dead zone still decides whether the drag began —
-// and an angle in whole degrees.
-#define PER_MM_REAL 0.01
-#define PER_MM_WHOLE 0.5
-#define PER_MM_DEGREE 1.0
-
 // The word an empty panel says. A literal, because a label's text is read
 // after this file has returned and a literal is still there then.
 #define NOTHING_TEXT "Nothing selected"
 
-#define DEGREES_PER_RADIAN 57.29577951308232
-
-// A colour's swatch, in millimetres: wider than tall, about a line of text high.
-#define SWATCH_WIDE 8.0f
-#define SWATCH_HIGH 3.0f
-
 // ---------------------------------------------------------- what it draws
-
-static double per_millimetre(voe_base_field_kind writes)
-{
-	if (is_signed(writes) || is_unsigned(writes))
-		return PER_MM_WHOLE;
-	if (writes == VOE_BASE_FIELD_QUAT)
-		return PER_MM_DEGREE;
-
-	return PER_MM_REAL;
-}
-
-static bool room(const voe_editor_inspector *inspector, uint32_t wanted)
-{
-	return inspector->control_count + wanted <=
-	       VOE_EDITOR_INSPECTOR_CONTROLS;
-}
-
-static void record(voe_editor_inspector *inspector,
-		   voe_editor_inspector_control control)
-{
-	VOE_BASE_ASSERT(room(inspector, 1),
-			"recording a control the inspector has no room for — field_row asks before it draws");
-
-	inspector->controls[inspector->control_count++] = control;
-}
-
-// One number box, its figure inside it, and the record the read finds it again
-// by. `name` and `lane` are the key: a field's name cannot repeat inside one
-// component, so the pair is unique under the component's own panel.
-static void number_box(voe_ui_context *ui, voe_editor_inspector *inspector,
-		       voe_ecs_type type, const char *name, uint32_t lane,
-		       size_t offset, voe_base_field_kind writes, double value,
-		       const char *figure)
-{
-	voe_ui_node node = voe_ui_number_begin(ui, name, lane, value,
-					       per_millimetre(writes));
-
-	voe_ui_label(ui, figure);
-	voe_ui_end(ui);
-
-	record(inspector, (voe_editor_inspector_control){
-				  .node = node,
-				  .type = type,
-				  .offset = offset,
-				  .writes = writes,
-				  .axis = lane,
-				  .shown = value });
-}
-
-// The three rows a rotation is: the field's name, then an angle in degrees per
-// world axis. The angle is this frame's decomposition and the record keeps it,
-// because what the read submits is the difference between what the box came
-// back with and what it was showing.
-static void rotation_rows(voe_ui_context *ui, voe_editor_inspector *inspector,
-			  voe_ecs_type type,
-			  const voe_base_field_description *field,
-			  const uint8_t *bytes)
-{
-	voe_math_quat rotation;
-	voe_math_float3 angles;
-
-	memcpy(&rotation, bytes, sizeof rotation);
-	angles = shown_angles(rotation);
-
-	voe_ui_label(ui, field->name);
-
-	for (uint32_t axis = 0; axis < 3; axis++) {
-		double degrees = (double)angle_of(angles, axis) *
-				 DEGREES_PER_RADIAN;
-
-		voe_ui_row_begin(ui, (voe_ui_container){
-					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = ROW_GAP,
-					     .wrap = true });
-		voe_ui_label(ui, axis_name(axis));
-		number_box(ui, inspector, type, field->name, axis,
-			   field->offset, VOE_BASE_FIELD_QUAT, degrees,
-			   text(inspector->arena, "%.3f", degrees));
-		voe_ui_end(ui);
-	}
-}
-
-// One field: its name, then whatever it gets. A label when the description says
-// read-only, when the kind has no control, or when the component has no intent
-// to replace a row through — see the header on why a dead control is worse than
-// a number. `description` is the walk's, for the names a field's values may have.
-static void field_row(voe_ui_context *ui, voe_editor_inspector *inspector,
-		      const voe_ecs_world *world, voe_ecs_type type,
-		      bool editable,
-		      const voe_base_struct_description *description,
-		      const voe_base_field_description *field,
-		      const uint8_t *row)
-{
-	const uint8_t *bytes = row + field->offset;
-	bool text_box = field->kind == VOE_BASE_FIELD_CHAR && field->rank == 1;
-	bool colour = field->kind == VOE_BASE_FIELD_COLOUR;
-	const voe_base_field_names *names =
-		field->kind == VOE_BASE_FIELD_UINT32 && field->rank == 0
-			? voe_base_names_find(description, field->name)
-			: NULL;
-	bool entity = field->kind == VOE_BASE_FIELD_ENTITY && field->rank == 0;
-	uint32_t boxes = text_box || colour || entity ? 1 : lanes(field->kind);
-	bool shown_only = !editable || field->read_only || boxes == 0 ||
-			  !room(inspector, boxes);
-	voe_ui_sizing swatch = { .along = { VOE_UI_SIZE_FIXED, SWATCH_WIDE },
-				 .across = { VOE_UI_SIZE_FIXED, SWATCH_HIGH } };
-	voe_math_float3 linear;
-
-	// A COLOUR IS A SWATCH AND NEVER THREE NUMBERS (card 16): inside a
-	// button when it can be replaced, which opens the picker once the
-	// frame has ended (voe_editor_inspector_buttons_read), and bare when
-	// it cannot.
-	if (colour) {
-		voe_ui_node node = VOE_UI_NODE_NONE;
-
-		memcpy(&linear, bytes, sizeof linear);
-		voe_ui_row_begin(ui, (voe_ui_container){
-					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = ROW_GAP,
-					     .wrap = true });
-		voe_ui_label(ui, field->name);
-		if (!shown_only)
-			node = voe_ui_button_begin(ui, field->name, 0);
-		voe_ui_swatch(ui, linear, swatch);
-		if (!shown_only)
-			voe_ui_end(ui);
-		voe_ui_end(ui);
-
-		if (!shown_only)
-			record(inspector, (voe_editor_inspector_control){
-						  .node = node,
-						  .type = type,
-						  .offset = field->offset,
-						  .writes = VOE_BASE_FIELD_COLOUR });
-		return;
-	}
-
-	// A NAMED FIELD IS A DROPDOWN AND NEVER A NUMBER (ADR-0198): the name
-	// of the value it holds, in a button that only opens the list once the
-	// frame has ended when it can be replaced, and a label when it cannot.
-	// A value no entry names is the number it is. An ENTITY is the same
-	// button, shown by the name of what it points at (entity_field.h).
-	if (names != NULL || entity) {
-		voe_ui_node node = VOE_UI_NODE_NONE;
-		uint64_t value = entity ? 0 : whole_unsigned(field->kind, bytes);
-		const char *shown =
-			names != NULL && value < names->value_count &&
-					names->values[value] != NULL
-				? text(inspector->arena, "%s",
-				       names->values[value])
-				: value_text(inspector->arena, world, field,
-					     bytes);
-
-		voe_ui_row_begin(ui, (voe_ui_container){
-					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = ROW_GAP,
-					     .wrap = true });
-		voe_ui_label(ui, field->name);
-		if (!shown_only)
-			node = voe_ui_button_begin(ui, field->name, 0);
-		voe_ui_label(ui, shown);
-		if (!shown_only)
-			voe_ui_end(ui);
-		voe_ui_end(ui);
-
-		if (!shown_only)
-			record(inspector, (voe_editor_inspector_control){
-						  .node = node,
-						  .type = type,
-						  .offset = field->offset,
-						  .writes = entity
-								    ? VOE_BASE_FIELD_ENTITY
-								    : VOE_BASE_FIELD_UINT32,
-						  .names = names });
-		return;
-	}
-
-	if (shown_only) {
-		voe_ui_row_begin(ui, (voe_ui_container){
-					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = ROW_GAP,
-					     .wrap = true });
-		voe_ui_label(ui, field->name);
-		voe_ui_label(ui, value_text(inspector->arena, world, field,
-					    bytes));
-		voe_ui_end(ui);
-		return;
-	}
-
-	if (text_box) {
-		voe_ui_node node;
-
-		voe_ui_row_begin(ui, (voe_ui_container){
-					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = ROW_GAP,
-					     .wrap = true });
-		voe_ui_label(ui, field->name);
-		node = voe_ui_field(ui, field->name, 0,
-				    chars(inspector->arena, field->size, bytes),
-				    (voe_ui_sizing){
-					    .along = { VOE_UI_SIZE_GROW, 1.0f } });
-		voe_ui_end(ui);
-
-		record(inspector, (voe_editor_inspector_control){
-					  .node = node,
-					  .type = type,
-					  .offset = field->offset,
-					  .writes = VOE_BASE_FIELD_CHAR,
-					  .size = field->size });
-		return;
-	}
-
-	if (field->kind == VOE_BASE_FIELD_QUAT) {
-		rotation_rows(ui, inspector, type, field, bytes);
-		return;
-	}
-
-	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
-						 .gap = ROW_GAP,
-						 .wrap = true });
-	voe_ui_label(ui, field->name);
-
-	if (field->kind == VOE_BASE_FIELD_BOOL) {
-		voe_ui_node node = voe_ui_button_begin(ui, field->name, 0);
-
-		voe_ui_label(ui, bytes[0] != 0 ? TRUE_TEXT : FALSE_TEXT);
-		voe_ui_end(ui);
-
-		record(inspector, (voe_editor_inspector_control){
-					  .node = node,
-					  .type = type,
-					  .offset = field->offset,
-					  .writes = VOE_BASE_FIELD_BOOL });
-	} else if (is_vector(field->kind)) {
-		// A DOUBLE3 is a world position (ADR-0250): each lane is read
-		// and written back as a double, so a typed 100000.001 stays so.
-		bool wide = field->kind == VOE_BASE_FIELD_DOUBLE3;
-
-		for (uint32_t lane = 0; lane < boxes; lane++) {
-			double value = wide ? real64_at(bytes, lane) :
-					      (double)real32_at(bytes, lane);
-
-			number_box(ui, inspector, type, field->name, lane,
-				   field->offset +
-					   (size_t)lane * (wide ? sizeof(double) :
-								  sizeof(float)),
-				   wide ? VOE_BASE_FIELD_FLOAT64 :
-					  VOE_BASE_FIELD_FLOAT32,
-				   value, text(inspector->arena, "%.3f", value));
-		}
-	} else {
-		double value = dragged(field->kind, bytes);
-		const char *figure;
-
-		if (is_signed(field->kind))
-			figure = text(inspector->arena, "%" PRId64,
-				      whole_signed(field->kind, bytes));
-		else if (is_unsigned(field->kind))
-			figure = text(inspector->arena, "%" PRIu64,
-				      whole_unsigned(field->kind, bytes));
-		else
-			figure = text(inspector->arena, "%.3f", value);
-
-		number_box(ui, inspector, type, field->name, 0, field->offset,
-			   field->kind, value, figure);
-	}
-
-	voe_ui_end(ui);
-}
 
 // One component: its heading with a Remove button beside it — none for a
 // kept type — the line saying what it needs when the entity lacks that, and a row
@@ -417,9 +116,9 @@ static void component_panel(voe_ui_context *ui,
 	description = voe_ecs_component_description(world, type);
 	if (description != NULL)
 		for (uint32_t i = 0; i < description->field_count; i++)
-			field_row(ui, inspector, world, type, editable,
-				  description,
-				  &description->fields[i], row);
+			voe_editor_inspector_field_row(
+				ui, inspector, world, type, editable,
+				description, &description->fields[i], row);
 
 	voe_ui_end(ui);
 }
@@ -660,7 +359,10 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
 			       const voe_ecs_type *kept, uint32_t kept_count,
-			       voe_editor_sculpt *sculpt)
+			       voe_editor_sculpt *sculpt,
+			       const char *material_open,
+			       const voe_assets_material_file *material,
+			       voe_editor_inspector_material *controls)
 {
 	uint32_t types;
 	voe_ecs_entity root = { 0 };
@@ -674,6 +376,16 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(kept != NULL || kept_count == 0,
 			"kept types counted but not handed in");
 	VOE_BASE_ASSERT(sculpt != NULL, "drawing an inspector with no brush");
+	VOE_BASE_ASSERT(material_open != NULL && material != NULL &&
+				controls != NULL,
+			"drawing an inspector with no material slot");
+
+	// An open material in place of the entity, which stays unrecorded.
+	if (material_open[0] != '\0') {
+		voe_editor_inspector_material_draw(ui, controls, material_open,
+						   material);
+		return;
+	}
 
 	inspector->entity = selected;
 

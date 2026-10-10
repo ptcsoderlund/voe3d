@@ -11,5 +11,7 @@ and the questions each header answers, stays on `assets/assets.md`.
   `key=value` lines, handed back as text and never interpreted.
 - `landscape.h` — a `.landscape` file's text to a grid of up to 2048 cells of
   heights, and back, and a grid resampled to another count.
+- `material.h` — a `.material` file's text to a shader, its factors and three
+  map paths, and back.
 - `sound.h` — sounds: 16-bit PCM and 32-bit float WAV decoded to interleaved
   float.

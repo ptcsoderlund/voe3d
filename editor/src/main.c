@@ -405,7 +405,7 @@ int main(int argc, char *argv[])
 		.preferences = &preferences, .project_panel = &project_panel,
 		.landscape_panel = &landscape_panel,
 		.views = &views, .undo = &undo, .models = models,
-		.gizmo = &gizmo, .ui = ui };
+		.gizmo = &gizmo, .ui = ui, .scratch = arena };
 	reads = (voe_editor_frame_pointer){
 		.commands = &commands, .session = &session, .scene = &scene,
 		.browser = &browser, .preferences = &preferences,

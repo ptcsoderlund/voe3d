@@ -34,6 +34,9 @@ typedef struct {
 	voe_render_texture heights;
 	voe_3d_landscape_lod lod;
 	voe_3d_landscape_rect dirty;
+	// A loaded material's records changed since last written; its maps are
+	// `textures` above, freed with the entry.
+	bool write;
 } entry_held;
 
 struct voe_3d_models {

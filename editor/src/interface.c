@@ -10,39 +10,15 @@
 // IT DOES ASK ONE QUESTION ABOUT WHAT WAS CLICKED, AND THAT IS NOT THE SAME
 // THING. A `ui` widget answers what the pointer did to it only after
 // voe_ui_frame_end and only while the arena its nodes came out of still holds
-// them — a window this function opens and closes. So the one line that reads
-// the frame's clicks is here, between the two, and what a click MEANS is
-// scene.c's — EXCEPT FOR THE TOP BAR'S, THE BROWSER'S, PREFERENCES' AND THE
-// ERRORS PANEL'S OWN, whose clicks are
-// commands carried out right here, through voe_editor_session_do and
-// voe_editor_session_browser_do, because the same window is the only place
-// topbar.h's and browser.h's recorded buttons can be asked either. Only one of
-// the two is ever read in a given frame — see voe_editor_interface_draw's own
-// header on `browsing`. Preferences' Choose is carried out here too, through
-// themes.h, and its palette set on the context for the next frame; the
-// Project panel's window is written through project.h, the Landscape panel's
-// size and cells through models.h, which a landscape row or Create's make opens.
+// them — a window this function opens and closes. So the one read of the
+// frame's clicks is called here, between the two: the scene's and the
+// commands' (interface_read.h), and the Assets panel's (interface_assets.h).
 //
-// THE COLOUR PICKER IS DRAWN HERE TOO, AND ITS RESULT READ HERE, for the same
-// reason: it is a `ui` widget answering after voe_ui_frame_end. While scene.h's
-// `picking` names the selected entity and that entity still has the row, the
-// picker sits anchored over the dock just left of the Inspector column, seeded
-// from the row. A `changed` goes through inspector.h's
-// voe_editor_inspector_colour_submit at once, so the shape changes live; an
-// `outside` press closes it. The browser and Preferences cover the same area,
-// and either showing closes it.
-//
-// THE SCENE LIST'S DROP IS CARRIED OUT IN THAT SAME ONE READ, through
-// scene_list.h's voe_editor_scene_list_drop, after the rows' clicks. Released
-// over the Assets leaf it makes a prefab (prefabs.h), one structural change;
-// whether the Assets leaf takes it is !voe_editor_prefab_make_refused for the
-// session's project, which the ghost shows as refused or not. Then scene.h's
-// reveal shows a selection made elsewhere in the list.
-//
-// THE ASSETS PANEL'S REQUESTS ARE CARRIED OUT HERE: a fired prefab row opens,
-// a naming request (a rename, folder or landscape) goes through
-// assets_manage.h, the panel listed after a landscape's make, and Delete asks first
-// (assets_ask.h); see voe_editor_interface_draw for how and in what order.
+// THE COLOUR PICKER IS DRAWN HERE TOO. While scene.h's `picking` names the
+// selected entity and that entity still has the row, the picker sits anchored
+// over the dock just left of the Inspector column, seeded from the row; its
+// result is read by interface_read.c. The browser and Preferences cover the
+// same area, and either showing closes it.
 //
 // THE OPEN DROPDOWN'S LIST IS THE INSPECTOR'S OWN (inspector.h) AND NOT THIS
 // FILE'S. It is drawn inside that panel so that it moves and disappears with the
@@ -50,27 +26,24 @@
 // is close it on Escape.
 //
 // THE TOP BAR'S PANELS LIST (panels_menu.h) IS DRAWN HERE, LAST, over every
-// other panel, while the bar's `menu` is open; Panels flips it, a fired row
-// goes through panels.h's voe_editor_panels_toggle and closes it, and Escape,
-// a press off the list and Panels, or the browser showing close it. A fired
-// panel header's × goes through the same toggle on its root. THE ASSETS
-// PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn and read here too.
+// other panel, while the bar's `menu` is open; Escape or the browser showing
+// close it. THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn here
+// too, Escape and the dock's covers closing it.
 #include "interface.h"
 
 #include "assets_ask.h"
-#include "assets_manage.h"
 #include "assets_menu.h"
 #include "browser.h"
 #include "errors.h"
 #include "inspector.h"
 #include "inspector_edit.h"
-#include "inspector_place.h"
 #include "inspector_sculpt.h"
+#include "interface_assets.h"
+#include "interface_read.h"
 #include "landscape_panel.h"
 #include "notice.h"
 #include "panels.h"
 #include "panels_menu.h"
-#include "prefabs.h"
 #include "preferences.h"
 #include "project.h"
 #include "project_panel.h"
@@ -79,143 +52,14 @@
 #include "topbar.h"
 
 #include <base/assert.h>
-#include <base/report.h>
 
 #include <platform/path.h>
 
 #include <ui/colour.h>
 #include <ui/theme.h>
 
-#include <ctype.h>
-#include <stdio.h>
-#include <string.h>
-
 // Between the picker and the Inspector column, and below the bar. Millimetres.
 #define PICKER_GAP (1.0f * VOE_EDITOR_SPACING)
-
-#define LANDSCAPE_ENDING ".landscape"
-
-// The file Create -> Landscape made of `folder` and `name`, as
-// assets_manage.c names it — `.landscape` appended unless `name` ends so in
-// any case — written `Assets/...` into `out` of VOE_SCENE_PREFAB_PATH bytes,
-// "" when it does not fit.
-static void landscape_made_path(char *out, const char *folder,
-				const char *name)
-{
-	size_t length = strlen(name);
-	size_t tail = sizeof LANDSCAPE_ENDING - 1;
-	bool ends = length >= tail;
-	int written;
-
-	VOE_BASE_ASSERT(out != NULL && folder != NULL,
-			"a landscape's path into nowhere or from no folder");
-	for (size_t i = 0; ends && i < tail; i++)
-		ends = tolower((unsigned char)name[length - tail + i]) ==
-		       LANDSCAPE_ENDING[i];
-	written = snprintf(out, VOE_SCENE_PREFAB_PATH, "Assets/%s%s%s%s",
-			   folder, folder[0] != '\0' ? "/" : "", name,
-			   ends ? "" : LANDSCAPE_ENDING);
-	if (written < 0 || written >= VOE_SCENE_PREFAB_PATH)
-		out[0] = '\0';
-}
-
-// The Assets panel's request carried out and cleared. A rename's `to` is the
-// shown folder joined with the typed name, so a `/` in it would move the file
-// into a folder rather than rename it (assets_manage.h's constraint); it is
-// refused here in the words assets_manage.c uses for the other separators.
-// A landscape made leaves its `Assets/...` path in `made`, of
-// VOE_SCENE_PREFAB_PATH bytes, "" otherwise or when it does not fit.
-static void assets_request_do(voe_editor_session *session,
-			      voe_editor_scene *scene, voe_editor_undo *undo,
-			      voe_editor_models *models, voe_base_arena *arena,
-			      char *made)
-{
-	voe_editor_assets_request *request = &scene->assets.request;
-
-	VOE_BASE_ASSERT(session != NULL && scene != NULL && undo != NULL,
-			"an Assets request with no session, scene or undo");
-	VOE_BASE_ASSERT(arena != NULL && made != NULL,
-			"an Assets request with no scratch or no made path");
-	made[0] = '\0';
-	if (request->kind == VOE_EDITOR_ASSETS_NAMING_RENAME) {
-		if (strchr(request->name, '/') != NULL)
-			voe_editor_notice_set(&session->notice,
-					      "%s: a name cannot hold /, \\ or \"",
-					      request->name);
-		else
-			// A false has said why in the notice.
-			(void)voe_editor_assets_move(session, scene, undo,
-						     models, arena,
-						     request->from,
-						     request->to);
-	} else if (request->kind == VOE_EDITOR_ASSETS_NAMING_FOLDER) {
-		(void)voe_editor_assets_folder_make(session, scene, undo, arena,
-						    request->folder,
-						    request->name);
-	} else if (request->kind == VOE_EDITOR_ASSETS_NAMING_LANDSCAPE &&
-		   voe_editor_assets_landscape_make(session, arena,
-						    request->folder,
-						    request->name)) {
-		voe_editor_assets_list_due(&scene->assets);
-		landscape_made_path(made, request->folder, request->name);
-	}
-	request->kind = VOE_EDITOR_ASSETS_NAMING_NONE;
-}
-
-// Opens the Landscape panel on `path` (`Assets/...`) at the size and cells its
-// store entry or file holds, hiding Preferences and the Project panel in its place.
-// A file that will not read is said in the notice and opens nothing.
-static void landscape_open(voe_editor_session *session,
-			   voe_editor_models *models, voe_base_arena *arena,
-			   voe_editor_landscape_panel *panel,
-			   voe_editor_preferences *preferences,
-			   voe_editor_project_panel *project_panel,
-			   const char *path)
-{
-	float size;
-	uint32_t cells;
-
-	VOE_BASE_ASSERT(session != NULL && models != NULL && arena != NULL,
-			"opening a landscape with no session, store or scratch");
-	VOE_BASE_ASSERT(panel != NULL && path != NULL,
-			"opening no landscape panel or no path");
-	if (session->project->folder == NULL ||
-	    !voe_editor_models_landscape_found(models, session->project->folder,
-					       path, arena, &size, &cells,
-					       &session->notice))
-		return;
-	if (!voe_editor_landscape_panel_show(panel, path, size, cells))
-		return;
-	voe_editor_preferences_hide(preferences);
-	voe_editor_project_panel_hide(project_panel);
-}
-
-// A fired row of the Assets menu carried out on the selected row or the shown
-// folder (assets_panel.h, assets_manage.h).
-static void assets_menu_do(voe_editor_session *session, voe_editor_scene *scene,
-			   voe_editor_undo *undo, voe_base_arena *arena,
-			   voe_editor_assets_menu_item item)
-{
-	char path[VOE_EDITOR_ASSETS_PATH];
-
-	VOE_BASE_ASSERT(session != NULL && scene != NULL && undo != NULL,
-			"an Assets menu row with no session, scene or undo");
-	VOE_BASE_ASSERT(arena != NULL, "an Assets menu row with no scratch");
-	if (item == VOE_EDITOR_ASSETS_MENU_RENAME)
-		voe_editor_assets_rename_begin(&scene->assets);
-	else if (item == VOE_EDITOR_ASSETS_MENU_DELETE)
-		voe_editor_assets_delete_begin(&scene->assets);
-	else if (item == VOE_EDITOR_ASSETS_MENU_FOLDER)
-		voe_editor_assets_folder_begin(&scene->assets);
-	else if (item == VOE_EDITOR_ASSETS_MENU_LANDSCAPE)
-		voe_editor_assets_landscape_begin(&scene->assets);
-	else if (item == VOE_EDITOR_ASSETS_MENU_DUPLICATE &&
-		 voe_editor_assets_selected_path(&scene->assets, path,
-						 sizeof path))
-		// A false has said why in the notice.
-		(void)voe_editor_assets_duplicate(session, scene, undo, arena,
-						  path);
-}
 
 voe_ui_context *voe_editor_interface_new(voe_base_arena *arena,
 					 const voe_ui_theme *theme)
@@ -257,22 +101,10 @@ void voe_editor_interface_surface(voe_platform_size target,
 	*pixels_per_millimetre = scale;
 }
 
-// The order of the reads after voe_ui_frame_end is what makes them agree:
-//
-// The colour picker is read before the Inspector's buttons, so a swatch that
-// fires in the frame an outside press closed the picker opens it again rather
-// than being closed behind.
-//
-// A prefab row fired in the Assets panel opens it (session.h), beside where
-// Import shows the browser; the panel's naming request is carried out through
-// assets_manage.h in the frame's arena, a rename's typed `/` refused here. Its
-// Delete request opens the session's question (assets_ask.h), drawn over the
-// dock and read here: Delete trashes through assets_manage.h, and it or Cancel
-// or a press outside closes it.
-//
-// The Assets panel's right-button menu is drawn after the panels list and read
-// after the panel: Rename, Delete, Folder and Landscape begin on the panel, Duplicate goes
-// through assets_manage.h; Escape closes it first, as do the dock's covers.
+// The order of the reads after voe_ui_frame_end is what makes them agree: the
+// scene's first (interface_read.h), then the Assets panel's
+// (interface_assets.h), the views' rectangles, and the commands, whose browser
+// or session may replace the world, last.
 bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			       voe_base_arena *arena,
 			       voe_editor_dock_root *roots,
@@ -324,7 +156,6 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_dock_root *root = &roots[i];
 		// Each header's ×, recorded by the walk (dock.h).
 		voe_editor_dock_closes closes;
-		voe_editor_closable fired;
 		// The dock tree's own root, its height cut down by the bar
 		// above it — dock.c's own tree is untouched, only the size
 		// its walk divides out.
@@ -357,8 +188,6 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// The frame breakdown, under all five, the dock still live.
 		bool framing = breakdown->showing && !browsing && !erroring &&
 			       !preferring && !projecting && !landscaping;
-		// A landscape Create made this frame, `Assets/...`.
-		char made[VOE_SCENE_PREFAB_PATH];
 		// Any of the panels drawn over the dock.
 		bool covered = browsing || preferring || erroring ||
 			       projecting || landscaping;
@@ -375,9 +204,6 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_picking picked;
 		voe_ui_node picker = VOE_UI_NODE_NONE;
 		bool picking;
-		// Why a Scene list drag over Assets would be refused, never
-		// shown: the release's make says it in the session's notice.
-		voe_editor_notice unshown = { 0 };
 		// Whether the pointer is over the Assets leaf, for the Scene
 		// list's drop and the Assets panel's keyboard.
 		bool over_assets;
@@ -430,6 +256,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_inspector_frame_begin(&scene->inspector, arena,
 						 &scene->dropdown);
 		voe_editor_inspector_sculpt_forget(&scene->sculpt);
+		voe_editor_inspector_material_forget(&scene->material_controls);
 
 		// ONE COLUMN IS THIS FRAME'S ROOT, AND THE BAR AND THE TREE ARE
 		// ITS TWO CHILDREN. voe_ui_frame_begin requires the very first
@@ -554,267 +381,27 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// Before the rewind below, which is the whole of the window a
 		// widget will answer in. A refused frame above is not asked at
 		// all: nothing was laid out, so nothing was clicked.
-		//
-		// The edits go first, and which order they are in is a fact and
-		// not a taste: a click read here can move the selection, and the
-		// controls above were drawn for whatever was selected when the
-		// frame was built. The inspector keeps that entity itself, so
-		// the order is belt as well as braces.
-		voe_editor_inspector_edits_read(&scene->inspector, ui,
-						scene->world);
-		if (picker != VOE_UI_NODE_NONE) {
-			voe_ui_colour_result result =
-				voe_ui_colour_picker_action(ui, picker);
-
-			if (result.changed)
-				voe_editor_inspector_colour_submit(
-					&scene->inspector, scene->world,
-					picked.entity, picked.type,
-					picked.offset, result.value);
-			if (result.outside)
-				voe_editor_scene_picker_close(scene);
-		}
-		voe_editor_inspector_buttons_read(&scene->inspector, ui, scene,
-						  root->pointer.down,
-						  root->pointer.at);
-		voe_editor_inspector_sculpt_read(ui, &scene->sculpt);
-		if (!voe_editor_scene_clicks_read(scene, ui))
-			voe_editor_notice_set(&session->notice,
-					      "The scene is full.");
-		over_assets = voe_editor_dock_over_panel(
-			root, voe_editor_topbar_high(bar, root->size.y),
-			VOE_EDITOR_PANEL_ASSETS, root->pointer.at);
-		voe_editor_scene_list_drop(
-			scene, ui, root->pointer.down, root->pointer.at,
-			over_assets,
-			!voe_editor_prefab_make_refused(session->project,
-							scene->list_held,
-							&unshown));
-		if (scene->list_made.generation != 0) {
-			if (voe_editor_prefab_make(session->project,
-						   scene->list_made,
-						   scene->assets.shown, arena,
-						   &session->notice))
-				scene->structural++;
-			scene->list_made = (voe_ecs_entity){ 0 };
-		}
-		// After every read that can move the selection this frame.
-		voe_editor_scene_reveal(scene, ui);
-		if (voe_editor_assets_clicks_read(ui, &scene->assets,
-						  root->pointer.down,
-						  over_assets))
-			voe_editor_browser_show(browser,
-						VOE_EDITOR_BROWSER_IMPORT, NULL,
-						&session->notice);
-		assets_request_do(session, scene, undo, models, arena, made);
-		// A landscape made or a landscape row fired opens its panel.
-		if (made[0] != '\0')
-			landscape_open(session, models, arena, landscape_panel,
-				       preferences, project_panel, made);
-		if (scene->assets.landscape_opened[0] != '\0') {
-			landscape_open(session, models, arena, landscape_panel,
-				       preferences, project_panel,
-				       scene->assets.landscape_opened);
-			scene->assets.landscape_opened[0] = '\0';
-		}
-		// After the panel's read, so a naming begun here is not ended by
-		// a field it has not drawn yet, and before the question opens
-		// from `deleting`.
-		if (assets_menuing)
-			assets_menu_do(session, scene, undo, arena,
-				       voe_editor_assets_menu_read(
-					       ui, &scene->assets.menu,
-					       root->pointer.at,
-					       root->pointer.down, root->size));
-		// The question as it was drawn answered before a new one opens,
-		// so a question opened this frame is not read against nodes it
-		// never had.
-		if (asking) {
-			voe_editor_assets_ask_answer answer =
-				voe_editor_assets_ask_read(ui, &session->asking,
-							   root->pointer.down,
-							   root->pointer.at);
-
-			// A false has said why in the notice.
-			if (answer == VOE_EDITOR_ASSETS_ASK_DELETE)
-				(void)voe_editor_assets_trash(
-					session, scene, undo, arena,
-					session->asking.path);
-			if (answer != VOE_EDITOR_ASSETS_ASK_NONE)
-				voe_editor_assets_ask_close(&session->asking);
-		}
-		if (scene->assets.deleting[0] != '\0') {
-			if (!session->asking.open)
-				voe_editor_assets_ask_open(&session->asking,
-							   session->project->folder,
-							   scene->assets.deleting,
-							   arena);
-			scene->assets.deleting[0] = '\0';
-		}
-		if (scene->assets.opened[0] != '\0') {
-			voe_editor_session_prefab_open(session, scene,
-						       scene->assets.opened);
-			scene->assets.opened[0] = '\0';
-		}
+		over_assets = voe_editor_interface_scene_read(
+			ui, arena, root, scene, models, session, bar, picker,
+			&picked);
+		voe_editor_interface_assets_read(
+			ui, arena, root, scene, undo, models, session, browser,
+			preferences, project_panel, landscape_panel,
+			over_assets, assets_menuing, asking);
 		voe_editor_views_rects_read(views, ui);
-		// A fired × closes its panel on this root, laid out so from the
-		// next frame, and remembers it as a drag's end does (main.c).
-		fired = voe_editor_dock_closes_read(ui, &closes);
-		// A row of the Panels list fired is toggled the same way and
-		// closes the list; so does a press off the list and Panels.
-		if (menuing) {
-			bool over;
-			voe_editor_closable chosen = voe_editor_panels_menu_read(
-				ui, &bar->menu, root->pointer.at, &over);
-
-			if (chosen != VOE_EDITOR_CLOSABLE_COUNT) {
-				fired = chosen;
-				bar->menu.open = false;
-			} else if (root->pointer.down && !over &&
-				   (bar->panels_button == VOE_UI_NODE_NONE ||
-				    !voe_editor_inspector_rect_contains(
-					    voe_ui_node_visible(
-						    ui, bar->panels_button),
-					    root->pointer.at))) {
-				bar->menu.open = false;
-			}
-		}
-		if (fired != VOE_EDITOR_CLOSABLE_COUNT) {
-			voe_base_report_error_clear();
-			if (!voe_editor_panels_toggle(fired, root, bar,
-						      project_panel, preferences,
-						      session, breakdown))
-				voe_editor_notice_from_report(&session->notice,
-							      "editor_settings");
-		}
-		// Whatever the browser or Preferences show: the bar is drawn
-		// under both, and the next frame is laid out at this measure.
-		voe_editor_topbar_measure(ui, bar);
-
-		// THE BROWSER, WHEN IT WAS SHOWING, INSTEAD OF THE TOP BAR —
-		// see the header on why `browsing` and not browser->showing.
-		// A button that fired is carried out on `session`, which may
-		// replace `scene->world` (a NEW, or an Open's Confirm, that
-		// goes ahead) — after the reads above, which are this frame's
-		// own world and this frame's own selection, and before
-		// anything downstream reads either.
-		if (browsing) {
-			voe_editor_browser_result result =
-				voe_editor_browser_clicks_read(ui, browser,
-							       escape);
-			voe_editor_session_browser_do(session, scene, browser,
-						      result);
-		} else {
-			voe_editor_command clicked =
-				voe_editor_topbar_clicks_read(ui, bar);
-
-			if (clicked != VOE_EDITOR_COMMAND_NONE)
-				voe_editor_session_do(session, scene, browser,
-						      clicked);
-			// One of the Project panel and Preferences at a time.
-			if (voe_editor_topbar_project_read(ui, bar)) {
-				voe_editor_preferences_hide(preferences);
-				voe_editor_landscape_panel_hide(landscape_panel);
-				voe_editor_project_panel_show(project_panel);
-			}
-			if (voe_editor_topbar_preferences_read(ui, bar)) {
-				voe_editor_project_panel_hide(project_panel);
-				voe_editor_landscape_panel_hide(landscape_panel);
-				voe_editor_preferences_show(preferences);
-			}
-			// Panels flips its list as it was drawn this frame.
-			if (voe_editor_topbar_panels_read(ui, bar))
-				bar->menu.open = !menuing;
-		}
-
-		// THE PROJECT PANEL, WHEN IT WAS DRAWN: a changed window is
-		// written at once (project.h), a failure said in the notice.
-		if (projecting) {
-			voe_editor_project_panel_result result =
-				voe_editor_project_panel_clicks_read(
-					ui, project_panel);
-
-			// A false has already said why in the notice.
-			if (result.changed)
-				(void)voe_editor_project_window_set(
-					session->project, result.window,
-					&session->notice);
-			if (result.closed)
-				voe_editor_project_panel_hide(project_panel);
-		}
-
-		// THE LANDSCAPE PANEL, WHEN IT WAS DRAWN: a new shape is written
-		// at once (models.h) and shown, a refusal said in the notice.
-		if (landscaping) {
-			voe_editor_landscape_panel_result result =
-				voe_editor_landscape_panel_clicks_read(
-					ui, landscape_panel);
-
-			if (result.changed && session->project->folder != NULL &&
-			    voe_editor_models_landscape_shape(
-				    models, session->project->folder,
-				    landscape_panel->path, result.size,
-				    result.cells, arena, &session->notice))
-				(void)voe_editor_landscape_panel_show(
-					landscape_panel, landscape_panel->path,
-					result.size, result.cells);
-			if (result.closed)
-				voe_editor_landscape_panel_hide(landscape_panel);
-		}
-
-		// THE ERRORS PANEL, WHEN IT WAS DRAWN: Close hides it.
-		if (erroring &&
-		    voe_editor_errors_clicks_read(ui, &session->errors))
-			voe_editor_errors_hide(&session->errors);
-
-		// THE FRAME BREAKDOWN, WHEN IT WAS DRAWN: its × hides it.
-		if (framing &&
-		    voe_editor_frame_breakdown_clicks_read(ui, breakdown))
-			voe_editor_frame_breakdown_hide(breakdown);
-
-		// PREFERENCES, WHEN IT WAS DRAWN. A theme chosen here is set on
-		// the context after this frame's records were built, so it
-		// restyles the next frame (ui/widgets.h's voe_ui_theme_set).
-		// The two sliders move the theme in force as they are dragged —
-		// its palette is derived again where it stands, so the next frame
-		// draws with it and nothing is set here — and what they are left
-		// at is remembered per theme when the drag ends (ADR-0197).
-		if (preferring) {
-			voe_editor_preferences_result result =
-				voe_editor_preferences_clicks_read(ui,
-								   preferences);
-
-			if (result.action == VOE_EDITOR_PREFERENCES_CHOOSE) {
-				const voe_editor_theme *chosen;
-
-				if (!voe_editor_themes_choose(themes,
-							      result.index))
-					voe_editor_notice_set(
-						&session->notice,
-						"the chosen theme could not be remembered");
-				chosen = voe_editor_themes_chosen(themes);
-				voe_ui_font_set(ui, chosen->palette.font);
-				voe_ui_theme_set(ui, &chosen->palette);
-			} else if (result.action ==
-				   VOE_EDITOR_PREFERENCES_ADJUST) {
-				voe_editor_themes_adjust(themes, themes->chosen,
-							 result.contrast,
-							 result.separation,
-							 result.text_scale);
-			} else if (result.action ==
-				   VOE_EDITOR_PREFERENCES_RESET) {
-				voe_editor_themes_reset(themes, themes->chosen);
-			} else if (result.action ==
-				   VOE_EDITOR_PREFERENCES_CLOSE) {
-				voe_editor_preferences_hide(preferences);
-			}
-
-			if (!result.sliding &&
-			    !voe_editor_themes_scalars_write(themes))
-				voe_editor_notice_set(
-					&session->notice,
-					"the slider values could not be remembered");
-		}
+		voe_editor_interface_commands_read(
+			ui, arena, root, &closes, scene, models, session, bar,
+			browser, preferences, project_panel, landscape_panel,
+			themes, breakdown,
+			(voe_editor_interface_shown){
+				.browsing = browsing,
+				.erroring = erroring,
+				.preferring = preferring,
+				.projecting = projecting,
+				.landscaping = landscaping,
+				.framing = framing,
+				.menuing = menuing },
+			escape);
 
 		// The range this root fills, read either side of its own
 		// submissions: there is no id and nothing allocated, and

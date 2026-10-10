@@ -78,21 +78,30 @@ const char *chars(voe_base_arena *arena, size_t size, const uint8_t *bytes)
 }
 
 // A type's heading, in the frame's arena (ADR-0193, 0242): an engine key's
-// `voe_<folder>_` dropped, then every `_` word capitalised and joined by a
-// space, so `voe_scene_transform` is "Transform" and `follow_camera` is
-// "Follow Camera". The result is never longer than the name.
+// `voe_<folder>_` dropped, then its title, so `voe_scene_transform` is
+// "Transform" and `follow_camera` is "Follow Camera".
 const char *heading(voe_base_arena *arena, const voe_ecs_world *world,
 			   voe_ecs_type type)
 {
 	const char *name = voe_ecs_component_key(world, type)->name;
 	const char *folder_end;
-	size_t length;
-	bool word_start = true;
-	char *out;
 
 	if (strncmp(name, "voe_", 4) == 0 &&
 	    (folder_end = strchr(name + 4, '_')) != NULL)
 		name = folder_end + 1;
+	return title(arena, name);
+}
+
+// A name's title, in the frame's arena: every `_` word capitalised and joined by
+// a space, so `materials` is "Materials". Never longer than the name.
+const char *title(voe_base_arena *arena, const char *name)
+{
+	size_t length;
+	bool word_start = true;
+	char *out;
+
+	VOE_BASE_ASSERT(arena != NULL && name != NULL, "a title of nothing");
+
 	length = strlen(name);
 	out = voe_base_arena_push(arena, length + 1);
 	for (size_t i = 0; i <= length; i++) {
@@ -308,7 +317,9 @@ const char *axis_name(uint32_t axis)
 // The whole field as one string. Every kind reaches this, because a field
 // marked read-only is a label whatever it is (ADR-0139 point 2) and so is every
 // field of a component nothing can replace. An ENTITY says the name of what it
-// points at (entity_field.h), which is why the world is asked.
+// points at (entity_field.h), which is why the world is asked. A CHAR field of
+// rank 2 is a list of strings and says the one string at `bytes`, the caller
+// having moved `bytes` to that string's index.
 const char *value_text(voe_base_arena *arena, const voe_ecs_world *world,
 		       const voe_base_field_description *field,
 		       const uint8_t *bytes)
@@ -358,7 +369,11 @@ const char *value_text(voe_base_arena *arena, const voe_ecs_world *world,
 		return text(arena, "%" PRId32, value);
 	}
 	case VOE_BASE_FIELD_CHAR:
-		return chars(arena, field->size, bytes);
+		return chars(arena,
+			     field->rank == 2 && field->dims[0] > 0
+				     ? field->size / field->dims[0]
+				     : field->size,
+			     bytes);
 	case VOE_BASE_FIELD_ENTITY: {
 		voe_ecs_entity entity;
 

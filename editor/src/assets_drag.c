@@ -1,14 +1,19 @@
 // The drag's start from the held row, the outcome at the pointer each frame
 // for the ghost, and its release into a view, onto the Inspector, onto a
-// folder row or Up, or nowhere. See the header for the six outcomes, the point
-// a placed model lands at and why the Inspector drop replaces the path.
+// folder row or Up, or nowhere. See the header for the outcomes, the point a
+// placed model lands at and why the Inspector drop replaces the path.
 #include "assets_drag.h"
 
 #include "assets_manage.h"
 #include "entities.h"
+#include "inspector_place.h"
 #include "scene_list.h"
 
 #include <3d/pick.h>
+#include <3d/shape_component.h>
+#include <3d/shape_system.h>
+
+#include <ecs/component.h>
 
 #include <base/arena.h>
 #include <base/assert.h>
@@ -29,10 +34,13 @@
 static bool path_hold(voe_editor_assets_drag *drag,
 		      const voe_editor_assets *assets)
 {
+	const size_t name = strlen(assets->held);
+	const bool material =
+		name > 9 && strcmp(assets->held + name - 9, ".material") == 0;
 	size_t room = assets->held_prefab  ? VOE_SCENE_PREFAB_PATH :
 		      assets->held_picture ? VOE_3D_EMITTER_TEXTURE :
-		      assets->held_model   ? VOE_3D_MODEL_PATH :
-					     sizeof drag->path;
+		      assets->held_model || material ? VOE_3D_MODEL_PATH :
+						       sizeof drag->path;
 	int length = assets->shown[0] == '\0' ?
 			     snprintf(drag->path, sizeof drag->path,
 				      "Assets/%s", assets->held) :
@@ -45,8 +53,9 @@ static bool path_hold(voe_editor_assets_drag *drag,
 		return false;
 	drag->prefab = assets->held_prefab;
 	drag->picture = assets->held_picture;
+	drag->material = material;
 	drag->moves_only = !assets->held_model && !assets->held_prefab &&
-			   !assets->held_picture;
+			   !assets->held_picture && !material;
 	for (int i = 0; i < length; i++)
 		if (drag->path[i] == '\\')
 			drag->path[i] = '/';
@@ -97,22 +106,27 @@ static bool drop_into_view(const voe_editor_assets_drag *drag,
 	return true;
 }
 
-// The header's six outcomes; NOTHING is the one a ghost shows refused.
+// The header's outcomes; NOTHING is the one a ghost shows refused.
 typedef enum {
 	OUTCOME_NOTHING,
 	OUTCOME_MODEL_INTO_VIEW,
 	OUTCOME_MODEL_ONTO_INSPECTOR,
 	OUTCOME_PREFAB_INTO_VIEW,
 	OUTCOME_PICTURE_ONTO_INSPECTOR,
+	OUTCOME_MATERIAL_ONTO_MODEL,
+	OUTCOME_MATERIAL_ONTO_SHAPE,
+	OUTCOME_PICTURE_ONTO_MAP,
 	OUTCOME_MOVE,
 } outcome_kind;
 
-// What a release at a pointer would do, the view and point it lands in, a
-// move's path relative to `Assets/`, and, for a prefab over a view while one
-// is open, why nothing, for the notice.
+// What a release at a pointer would do, the view and point it lands in, the
+// model's material or the open material's map it fills, a move's path
+// relative to `Assets/`, and, for a prefab over a view while one is open, why
+// nothing, for the notice.
 typedef struct {
 	outcome_kind kind;
 	uint32_t view;
+	uint32_t index;
 	voe_math_float2 point;
 	char to[VOE_EDITOR_ASSETS_PATH];
 	const char *why;
@@ -168,6 +182,90 @@ static bool move_target(const voe_editor_assets_drag *drag,
 		 to[from_length] == '/');
 }
 
+// The 0-based string of the selected model's `materials` whose field showed
+// under `pointer` at the last read, into `index`. False over no such field, or
+// when the Inspector's records are not the selected thing's.
+static bool materials_field_at(const voe_editor_scene *scene,
+			       voe_ecs_entity selected, voe_math_float2 pointer,
+			       uint32_t *index)
+{
+	const voe_editor_inspector *inspector = &scene->inspector;
+	voe_ecs_type model;
+
+	VOE_BASE_ASSERT(index != NULL, "a materials field into nowhere");
+	VOE_BASE_ASSERT(inspector->control_count <=
+				VOE_EDITOR_INSPECTOR_CONTROLS,
+			"more Inspector controls than its room");
+	if (inspector->entity.index != selected.index ||
+	    inspector->entity.generation != selected.generation)
+		return false;
+	model = voe_ecs_component_type(scene->world, &voe_3d_model_key);
+	for (uint32_t i = 0; i < inspector->control_count; i++) {
+		const voe_editor_inspector_control *c = &inspector->controls[i];
+
+		if (c->type.value == model.value && c->name != NULL &&
+		    strcmp(c->name, "materials") == 0 &&
+		    c->index < VOE_3D_MODEL_MATERIALS &&
+		    voe_editor_inspector_rect_contains(c->seen, pointer)) {
+			*index = c->index;
+			return true;
+		}
+	}
+	return false;
+}
+
+// The open material's map row that showed under `pointer`, into `index`.
+static bool map_row_at(const voe_editor_scene *scene, voe_math_float2 pointer,
+		       uint32_t *index)
+{
+	VOE_BASE_ASSERT(scene != NULL && index != NULL, "a map row of nothing");
+	VOE_BASE_ASSERT(scene->material_open[0] != '\0',
+			"a map row with no material open");
+	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_MAPS; i++)
+		if (voe_editor_inspector_rect_contains(
+			    scene->material_controls.maps_seen[i], pointer)) {
+			*index = i;
+			return true;
+		}
+	return false;
+}
+
+// Over the Inspector: a picture onto the open material's map row, else, while
+// it shows the selected thing and that is no prefab's part, a material onto
+// its model's Materials n field or its shape, a picture onto its emitter, a
+// model onto its model.
+static void onto_inspector(const voe_editor_assets_drag *drag,
+			   const voe_editor_scene *scene,
+			   voe_math_float2 pointer, outcome *out)
+{
+	const voe_ecs_entity selected = voe_editor_scene_selected(scene);
+
+	VOE_BASE_ASSERT(drag != NULL && scene != NULL && out != NULL,
+			"an Inspector outcome of nothing");
+	VOE_BASE_ASSERT(out->kind == OUTCOME_NOTHING,
+			"an Inspector outcome already decided");
+	if (scene->material_open[0] != '\0') {
+		if (drag->picture && map_row_at(scene, pointer, &out->index))
+			out->kind = OUTCOME_PICTURE_ONTO_MAP;
+		return;
+	}
+	if (drag->prefab ||
+	    voe_editor_inspector_is_part(scene->world, selected, NULL))
+		return;
+	if (drag->material) {
+		if (voe_3d_model_get(scene->world, selected) != NULL &&
+		    materials_field_at(scene, selected, pointer, &out->index))
+			out->kind = OUTCOME_MATERIAL_ONTO_MODEL;
+		else if (voe_3d_shape_get(scene->world, selected) != NULL)
+			out->kind = OUTCOME_MATERIAL_ONTO_SHAPE;
+	} else if (drag->picture) {
+		if (voe_3d_emitter_get(scene->world, selected) != NULL)
+			out->kind = OUTCOME_PICTURE_ONTO_INSPECTOR;
+	} else if (voe_3d_model_get(scene->world, selected) != NULL) {
+		out->kind = OUTCOME_MODEL_ONTO_INSPECTOR;
+	}
+}
+
 // The one answer the release and the ghost both read.
 static outcome outcome_at(const voe_editor_assets_drag *drag,
 			  const voe_editor_session *session,
@@ -177,7 +275,6 @@ static outcome outcome_at(const voe_editor_assets_drag *drag,
 			  const voe_editor_topbar *bar, voe_math_float2 pointer,
 			  bool blocked)
 {
-	voe_ecs_entity selected = voe_editor_scene_selected(scene);
 	outcome out = { .kind = OUTCOME_NOTHING };
 
 	VOE_BASE_ASSERT(drag != NULL && session != NULL && scene != NULL,
@@ -191,7 +288,7 @@ static outcome outcome_at(const voe_editor_assets_drag *drag,
 	else if (drag->moves_only)
 		return out;
 	else if (voe_editor_views_under(views, pointer, &out.view, &out.point)) {
-		if (!drag->prefab && !drag->picture)
+		if (!drag->prefab && !drag->picture && !drag->material)
 			out.kind = OUTCOME_MODEL_INTO_VIEW;
 		else if (drag->prefab && session->project->prefab[0] == '\0')
 			out.kind = OUTCOME_PREFAB_INTO_VIEW;
@@ -199,15 +296,8 @@ static outcome outcome_at(const voe_editor_assets_drag *drag,
 			out.why = "A prefab is not placed while one is open.";
 	} else if (voe_editor_dock_over_panel(
 			   root, voe_editor_topbar_high(bar, root->size.y),
-			   VOE_EDITOR_PANEL_INSPECTOR, pointer) &&
-		   !drag->prefab &&
-		   !voe_editor_inspector_is_part(scene->world, selected, NULL)) {
-		if (drag->picture &&
-		    voe_3d_emitter_get(scene->world, selected) != NULL)
-			out.kind = OUTCOME_PICTURE_ONTO_INSPECTOR;
-		else if (!drag->picture &&
-			 voe_3d_model_get(scene->world, selected) != NULL)
-			out.kind = OUTCOME_MODEL_ONTO_INSPECTOR;
+			   VOE_EDITOR_PANEL_INSPECTOR, pointer)) {
+		onto_inspector(drag, scene, pointer, &out);
 	}
 	return out;
 }
@@ -226,6 +316,51 @@ static bool texture_swap(voe_ecs_world *world, voe_ecs_entity entity,
 	snprintf(intent.emitter.texture, sizeof intent.emitter.texture, "%s",
 		 path);
 	return voe_3d_emitter_submit(world, intent);
+}
+
+// The selected thing wearing `path`: its model's `materials[index]`, or its
+// shape's `material`, the rest of the row kept, submitted whole.
+static bool material_give(voe_ecs_world *world, voe_ecs_entity entity,
+			  const outcome *out, const char *path)
+{
+	VOE_BASE_ASSERT(path != NULL && strlen(path) < VOE_3D_MODEL_PATH,
+			"a material path longer than its room");
+	VOE_BASE_ASSERT(out->kind == OUTCOME_MATERIAL_ONTO_MODEL ||
+				out->kind == OUTCOME_MATERIAL_ONTO_SHAPE,
+			"a material given by another outcome");
+	if (out->kind == OUTCOME_MATERIAL_ONTO_MODEL) {
+		voe_3d_model_intent intent = { .entity = entity };
+
+		VOE_BASE_ASSERT(out->index < VOE_3D_MODEL_MATERIALS,
+				"no such material of a model");
+		intent.model = *voe_3d_model_get(world, entity);
+		snprintf(intent.model.materials[out->index],
+			 sizeof intent.model.materials[out->index], "%s", path);
+		return voe_3d_model_submit(world, intent);
+	}
+	voe_3d_shape_intent intent = { .entity = entity };
+
+	intent.shape = *voe_3d_shape_get(world, entity);
+	snprintf(intent.shape.material, sizeof intent.shape.material, "%s",
+		 path);
+	return voe_3d_shape_submit(world, intent);
+}
+
+// The open material's shown copy with `path` in map `index`: colour, normal,
+// roughness, as inspector_material.c's rows. Not a scene edit: interface_read.c
+// carries the copy to the table and reloads the material.
+static void map_fill(voe_assets_material_file *material, uint32_t index,
+		     const char *path)
+{
+	char *const maps[VOE_EDITOR_MATERIAL_MAPS] = {
+		material->colormap, material->normalmap,
+		material->ormmap
+	};
+
+	VOE_BASE_ASSERT(index < VOE_EDITOR_MATERIAL_MAPS, "no such map");
+	VOE_BASE_ASSERT(path != NULL && strlen(path) < VOE_ASSETS_MATERIAL_PATH,
+			"a map path longer than its room");
+	snprintf(maps[index], VOE_ASSETS_MATERIAL_PATH, "%s", path);
 }
 
 // The release: into a view, onto the Inspector, or nothing. Whether an edit
@@ -253,13 +388,24 @@ static void drop(const voe_editor_assets_drag *drag,
 	if (out.kind == OUTCOME_MOVE) {
 		voe_base_arena *scratch = voe_base_arena_new(MOVE_SCRATCH);
 
-		(void)voe_editor_assets_move(session, scene, undo, models, scratch,
-					     drag->path + strlen("Assets/"),
-					     out.to);
+		// A false has said why in the notice.
+		if (voe_editor_assets_move(session, scene, undo, models, scratch,
+					   drag->path + strlen("Assets/"),
+					   out.to))
+			voe_editor_scene_material_follow(
+				scene, drag->path + strlen("Assets/"), out.to);
 		voe_base_arena_destroy(scratch);
 		return;
 	}
-	if (out.kind == OUTCOME_MODEL_ONTO_INSPECTOR) {
+	if (out.kind == OUTCOME_PICTURE_ONTO_MAP) {
+		map_fill(&scene->material, out.index, drag->path);
+		return;
+	}
+	if (out.kind == OUTCOME_MATERIAL_ONTO_MODEL ||
+	    out.kind == OUTCOME_MATERIAL_ONTO_SHAPE) {
+		done = material_give(scene->world, swap.entity, &out,
+				     drag->path);
+	} else if (out.kind == OUTCOME_MODEL_ONTO_INSPECTOR) {
 		snprintf(swap.model.path, sizeof swap.model.path, "%s",
 			 drag->path);
 		done = voe_3d_model_submit(scene->world, swap);

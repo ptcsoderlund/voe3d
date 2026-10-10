@@ -50,7 +50,8 @@
 // NO SYSTEM AND NO INTENT YET, for the same reason mesh has none: nothing
 // changes a material after it is built. A card that fades or tints something is
 // the card that gives this module a system — and it will want to think about the
-// GPU record, which is written once today.
+// GPU record, which is written once today but for a `.material` file's, which
+// the model store rewrites in a frame (3d/models.h).
 #pragma once
 
 #include <base/error.h>
@@ -119,6 +120,11 @@ typedef struct {
 	voe_math_float2 base_colour_uv_offset;
 	voe_math_float2 base_colour_uv_scale;
 
+	// How many times every map repeats across the mesh (ADR-0399 point 3),
+	// carried into the record's `uv_repeat`; 0 reads as 1 there, so a
+	// material that never named it is unchanged.
+	float uv_repeat;
+
 	voe_render_texture metallic_roughness_texture;
 	voe_render_texture normal_texture;
 	voe_render_texture occlusion_texture;
@@ -152,6 +158,11 @@ void voe_3d_material_register(voe_ecs_world *world, uint32_t capacity);
 [[nodiscard]] bool voe_3d_material_upload(voe_render_device *device,
 					  voe_3d_material *material,
 					  voe_base_error *error);
+
+// The record's values for `material`, the upload's and an in-frame write's
+// alike (voe_render_shading_write): a UV scale of nothing read as the whole
+// texture, without writing it back.
+voe_render_shading_values voe_3d_material_values(const voe_3d_material *material);
 
 // Gives the entity its material. False when the table is full or the entity is
 // not alive.

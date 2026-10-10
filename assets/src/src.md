@@ -34,6 +34,8 @@ of them is internal to this folder rather than reachable from outside it.
   there is nothing for rule 14 to worry about.
 - `landscape.c` — the landscape file over the sectioned reader, and its
   measure-then-print writer.
+- `material.c` — the material file over the sectioned reader, with a scratch
+  arena of its own, and a writer that quotes every path.
 - `json.h` — a JSON reader, internal to this folder. Its header says why it
   has an explicit stack and a depth limit rather than recursion, why the caller
   states how many values it will hold, and why string spans are raw.

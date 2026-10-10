@@ -27,7 +27,13 @@
 // replaces the parts, a failure keeps them (3d/models.h). A failed entry whose
 // file now has a stamp differs from its 0, so it is tried again; a loaded file
 // that has gone is kept, failed at 0, and tried again when it comes back. The
-// dot is made in code and not watched, and nor is a landscape (0379 point 2).
+// dot is made in code and not watched, nor a landscape (0379 point 2), nor a
+// material: its path is no model file, and the editor reloads one itself.
+//
+// MATERIALS come from a table too (game/materials.h, 0399 point 7): each shape
+// and model row's material path the store lacks is loaded from its entry at
+// stamp 0, maps read from the folder as files are, or kept failed when the
+// table has none; each failure counted as an update's, so it is tried once.
 //
 // LANDSCAPES come from a table, never a file (game/landscapes.h, 0236): each
 // one's millimetres turned into metres in scratch and loaded at stamp 0, a
@@ -59,6 +65,7 @@
 #include <ecs/world.h>
 
 #include <game/landscapes.h>
+#include <game/materials.h>
 #include <game/progress.h>
 
 #include <render/device.h>
@@ -88,8 +95,24 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 			   const voe_game_landscapes *landscapes,
 			   voe_base_arena *scratch);
 
+// `material`'s non-empty maps read from `folder` into scratch and loaded with
+// its values as its path's entry at `stamp`. False, `error` set and the entry
+// kept failed, when a map will not read or the store refuses it.
+[[nodiscard]] bool voe_game_models_material_load(
+	voe_3d_models *models, voe_render_device *device, const char *folder,
+	const voe_game_material *material, uint64_t stamp,
+	voe_base_arena *scratch, voe_base_error *error);
+
+// Loads every shape's and model row's material path the store lacks from
+// `table`, failing one it has not. See the header.
+voe_game_models_failures
+voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
+			  voe_render_device *device, const char *folder,
+			  const voe_game_materials *table,
+			  voe_base_arena *scratch);
+
 // Reads and loads again every entry whose file's stamp changed, landscapes
-// aside. See the header.
+// and materials aside. See the header.
 voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 					       voe_render_device *device,
 					       const char *folder,

@@ -31,12 +31,18 @@
 // 0 by default, in a file without it and in a literal, so nothing written
 // before it changes; game code fades a thing through the intent.
 //
+// MATERIALS[I] IS WORN BY PART I in the store's bake order (3d/models.h), for
+// the first VOE_3D_MODEL_MATERIALS parts (0399 point 6): a `.material` path as
+// `path` is. Empty, or a path the store holds no loaded material for, keeps the
+// file's own material; empty by default and in a file without them. A
+// landscape row's ground ignores them: its layers are 086's.
+//
 // It sits at "Rendering / Model" in Add component (ecs/component.h, 0221), and
 // its intent is its replace, the whole row, as the shape's is
 // (3d/shape_system.h).
 //
 // THE DRAIN drops an intent naming a dead entity or one with no model,
-// silently. A path with no NUL in its 128 bytes has its last byte made NUL and
+// silently. A path, or one of the materials, with no NUL in its 128 bytes has its last byte made NUL and
 // is reported as corrected, edge-triggered as the shape's corrections are: the
 // first of a run named on stderr, the rest counted, the count said once a run
 // corrects nothing. The run and its count are file-scope statics, per process,
@@ -54,10 +60,14 @@
 // The path's bytes, terminating NUL included.
 #define VOE_3D_MODEL_PATH 128
 
+// The parts a row can give a material of its own, the first in bake order.
+#define VOE_3D_MODEL_MATERIALS 8
+
 #define VOE_3D_MODEL_FIELDS(F, F_READ_ONLY)        \
 	F(char, path, CHAR, VOE_3D_MODEL_PATH) \
 	F(bool, cast_shadows, BOOL)            \
-	F(float, fade, FLOAT32)
+	F(float, fade, FLOAT32)                \
+	F(char, materials, CHAR, VOE_3D_MODEL_MATERIALS, VOE_3D_MODEL_PATH)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_3d_model, VOE_3D_MODEL_FIELDS)
 

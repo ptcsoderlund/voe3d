@@ -123,8 +123,13 @@ void voe_3d_model_system_run(voe_ecs_world *world)
 		if (voe_ecs_component_get(world, type, intents[i].entity) == NULL)
 			continue;
 
-		if (memchr(row.path, '\0', VOE_3D_MODEL_PATH) == NULL) {
-			row.path[VOE_3D_MODEL_PATH - 1] = '\0';
+		// The path, then each material, one string after another.
+		for (uint32_t s = 0; s <= VOE_3D_MODEL_MATERIALS; s++) {
+			char *text = s == 0 ? row.path : row.materials[s - 1];
+
+			if (memchr(text, '\0', VOE_3D_MODEL_PATH) != NULL)
+				continue;
+			text[VOE_3D_MODEL_PATH - 1] = '\0';
 			if (!in_corrected_run && corrected == 0)
 				VOE_BASE_WARNING(
 					"3d",
@@ -132,7 +137,7 @@ void voe_3d_model_system_run(voe_ecs_world *world)
 					": path of %d bytes with no end, cut to \"%s\"",
 					intents[i].entity.index,
 					intents[i].entity.generation,
-					VOE_3D_MODEL_PATH, row.path);
+					VOE_3D_MODEL_PATH, text);
 			corrected++;
 		}
 

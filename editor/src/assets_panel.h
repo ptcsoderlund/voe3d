@@ -1,7 +1,8 @@
 // The Assets panel (0270, 0277 point 6): the project's `<project>/Assets/`
 // folder as rows, folders first and then files, each by name, hidden ones left
-// out. A folder row is entered, Up goes back a level, Import copies a `.glb`
-// chosen in the browser's IMPORT mode into the shown folder (0277 point 7),
+// out. A folder row is entered, Up goes back a level, Import copies a `.glb`,
+// `.png`, `.jpg` or `.jpeg` chosen in the browser's IMPORT mode into the shown
+// folder (0277 point 7, 0399 point 8),
 // and the listing follows the project in place. main.c updates it once a
 // frame; dock.c draws it and interface.c reads it after the frame ends:
 //
@@ -26,8 +27,8 @@
 // (0270, 0283, 0298). A prefab row pressed and
 // released on the row fires: its project-relative path, `/` between, is left
 // in `opened` for the caller to read and clear; one too long for it is not. A
-// `.landscape` row fires the same way into `landscape_opened`. A row marked
-// dragged (held_dragged) enters no folder and opens nothing.
+// `.landscape` row fires so into `landscape_opened`, a `.material` row into
+// `material_opened`. A dragged row (held_dragged) enters and opens nothing.
 //
 // THE SELECTED ROW (0378 point 6) is the last row pressed, drawn selected,
 // kept across a listing while its name is still there, cleared on entering a
@@ -35,8 +36,8 @@
 // panel's then (shortcuts.h); a primary press outside the panel gives it back.
 //
 // NAMING IN PLACE (0378 point 4): rename_begin draws the selected row,
-// folder_begin a pending row first among the folders and landscape_begin one
-// first among the files, as a field focused with its name selected. Enter or a
+// folder_begin a pending row first among the folders, landscape_begin and
+// material_begin one first among the files, as a field focused with its name selected. Enter or a
 // press elsewhere leaves a `request` the caller
 // carries out through assets_manage.h and clears; Escape leaves none. Either
 // ends the naming, as do entering a folder, Up, or a listing without the row.
@@ -86,6 +87,7 @@ typedef struct {
 	bool prefab;
 	bool picture;
 	bool landscape;
+	bool material;
 } voe_editor_assets_row;
 
 // A request's paths, `/` between: room for the shown folder and a field's name.
@@ -97,12 +99,13 @@ typedef enum {
 	VOE_EDITOR_ASSETS_NAMING_RENAME,
 	VOE_EDITOR_ASSETS_NAMING_FOLDER,
 	VOE_EDITOR_ASSETS_NAMING_LANDSCAPE,
+	VOE_EDITOR_ASSETS_NAMING_MATERIAL,
 } voe_editor_assets_naming;
 
 // What a committed field asks for, paths relative to `Assets/` as
 // assets_manage.h takes them: a rename's `from` and `to`, the shown folder
-// joined with the row's and the typed name, or a folder's or a landscape's
-// `folder` and `name`.
+// joined with the row's and the typed name, or a folder's, a landscape's or a
+// material's `folder` and `name`.
 // `name` is the typed text as it is, so the caller can refuse a `/` in it.
 typedef struct {
 	voe_editor_assets_naming kind;
@@ -148,6 +151,9 @@ typedef struct {
 	// The `.landscape` row fired at the last read, the same way; the caller
 	// opens the Landscape panel on it and clears it.
 	char landscape_opened[VOE_SCENE_PREFAB_PATH];
+	// The `.material` row fired at the last read, the same way; the caller
+	// opens it in the Inspector and clears it.
+	char material_opened[VOE_SCENE_PREFAB_PATH];
 	// The selected row's name, one of the rows' own in `arena`, NULL for
 	// none; and whether F2 and Delete are the panel's.
 	const char *selected;
@@ -199,8 +205,9 @@ void voe_editor_assets_draw(voe_ui_context *ui, voe_editor_assets *assets);
 // folder row fired is entered, Up fired goes up a level; either lists at once.
 // A row held is selected and takes `keyboard`; `pointer_down` while the
 // pointer is not `over` the panel gives it back. `held` is set to the row
-// held, if any, `opened` to a prefab row fired and `landscape_opened` to a
-// landscape row fired; a row `dragged` fires none of them.
+// held, if any, `opened` to a prefab row fired, `landscape_opened` to a
+// landscape row fired and `material_opened` to a material row fired; a row
+// `dragged` fires none of them.
 // True when Import fired, which the caller answers by showing the browser in
 // IMPORT mode.
 bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
@@ -255,6 +262,9 @@ void voe_editor_assets_folder_begin(voe_editor_assets *assets);
 
 // A pending "New landscape" row drawn as a field first among the files.
 void voe_editor_assets_landscape_begin(voe_editor_assets *assets);
+
+// A pending "New material" row drawn as a field first among the files.
+void voe_editor_assets_material_begin(voe_editor_assets *assets);
 
 // The selected row's path left in `deleting` for the caller to ask about;
 // nothing without a selected row or when the path does not fit.

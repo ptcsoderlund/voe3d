@@ -1,7 +1,7 @@
 // The editor's own file browser: a folder listing shown as a panel over the
 // dock, used to choose a project to open, a folder to save one into (SAVE,
-// with a name row for a new folder), or a `.glb` to import into the Assets
-// panel's folder (IMPORT, 0277 point 7). There is no system dialog anywhere
+// with a focused name row for a new folder), or a `.glb` or picture to import into the
+// Assets panel's folder (IMPORT, 0277 point 7, 0399 point 8). There is no system dialog anywhere
 // in this engine (ADR-0164) — this is the whole of what stands in for one.
 //
 // IT OWNS ITS OWN ARENA, MADE ONCE AND CLEARED ON EVERY NAVIGATION. The
@@ -28,8 +28,8 @@
 //
 // EVERY ROW IS A FOLDER, NEVER A HIDDEN ONE, and a folder row is marked when
 // `<row>/project.voe3d` exists, the only thing that tells a project from a
-// folder of folders. IMPORT ALONE THEN LISTS THE `.glb` FILES (any case),
-// marked as files, because a model is the one file anything here picks:
+// folder of folders. IMPORT ALONE THEN LISTS THE `.glb`, `.png`, `.jpg` AND
+// `.jpeg` FILES (any case), marked as files, the only files anything here picks:
 // Open and Save pick a folder, so a file row there would be a dead end.
 //
 // THIS FILE CARRIES OUT NO COMMAND OF ITS OWN, exactly as topbar.h's buttons
@@ -75,7 +75,7 @@
 #define VOE_EDITOR_BROWSER_NO_ROW UINT32_MAX
 
 // Which the browser is for: a project to open, a folder to save into, or a
-// `.glb` to import (folders then `.glb` files, no Confirm).
+// file to import (folders then importable files, no Confirm).
 typedef enum {
 	VOE_EDITOR_BROWSER_OPEN,
 	VOE_EDITOR_BROWSER_SAVE,
@@ -84,7 +84,7 @@ typedef enum {
 
 // One listed row: its name (not its full path, into the browser's own arena),
 // the button drawn for it, whether `<name>/project.voe3d` exists, and whether
-// it is a `.glb` file rather than a folder (IMPORT mode only).
+// it is an importable file rather than a folder (IMPORT mode only).
 typedef struct {
 	voe_ui_node node;
 	const char *name;
@@ -243,9 +243,9 @@ voe_editor_browser_clicks_read(const voe_ui_context *ui,
 void voe_editor_browser_make_folder(voe_editor_browser *browser,
 				    const char *name, voe_editor_notice *why);
 
-// Whether name ends `.glb` in any case: the model file IMPORT lists and the
-// Assets panel marks.
-bool voe_editor_browser_names_model(const char *name);
+// Whether name ends `.glb`, `.png`, `.jpg` or `.jpeg` in any case: the files
+// IMPORT lists and a press imports (0399 point 8).
+bool voe_editor_browser_names_import(const char *name);
 
 // Frees the browser's own arena, when it ever made one. Called once, at
 // shutdown.

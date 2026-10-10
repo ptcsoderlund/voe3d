@@ -1,10 +1,13 @@
 // The shading records: one buffer of them the fragment stage reads by index, and
 // one slot each on this side so a stale id can be refused.
 //
-// A RECORD IS WRITTEN ONCE AND NEVER AGAIN, WHICH IS WHY ONE BUFFER SERVES EVERY
-// FRAME SLOT. The per-object records change every frame and are therefore per
-// slot; these do not change at all after they are made, so a second copy would
-// be a second copy of something nobody writes.
+// A RECORD IS CREATED ONCE BETWEEN FRAMES AND REWRITTEN IN A FRAME, WHICH IS WHY
+// ONE BUFFER SERVES EVERY FRAME SLOT. A rewrite (ADR-0399 point 4) is a
+// vkCmdUpdateBuffer of its eighty bytes recorded into the frame before its first
+// pass, between a barrier from earlier fragment and vertex reads to the transfer
+// and one back, as texture_heights.c orders its write; reads by a frame in
+// flight were submitted earlier, so the queue's order covers them and nothing
+// waits. No guard on it: it runs inside a frame, on the frame's thread.
 //
 // IT IS HOST-VISIBLE AND WRITTEN DIRECTLY RATHER THAN STAGED. A record is eighty
 // bytes and there are as many of them as a scene has materials, so the staging
@@ -49,7 +52,8 @@ bool voe_render_shading_startup(voe_render_device *device)
 		    device, &device->shadings,
 		    (VkDeviceSize)device->capacities.shadings *
 			    sizeof(voe_render_shading_values),
-		    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+		    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+			    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 			    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		    "shading records"))
@@ -183,4 +187,67 @@ bool voe_render_shading_destroy(voe_render_device *device,
 	destroyed = destroy_shading(device, shading);
 	voe_render_device_guard_give(device);
 	return destroyed;
+}
+
+// The record buffer's move between the shader stages that read it and the
+// update: to the transfer after earlier reads, and back before this frame's.
+static void record_barrier(VkCommandBuffer commands, VkBuffer buffer,
+			   VkDeviceSize offset, bool to_transfer)
+{
+	const VkPipelineStageFlags2 readers =
+		VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT |
+		VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	VkBufferMemoryBarrier2 barrier = {
+		.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+		.srcStageMask = to_transfer ? readers :
+					      VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT,
+		.srcAccessMask = to_transfer ? 0 : VK_ACCESS_2_TRANSFER_WRITE_BIT,
+		.dstStageMask = to_transfer ? VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT :
+					      readers,
+		.dstAccessMask = to_transfer ? VK_ACCESS_2_TRANSFER_WRITE_BIT :
+					       VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.buffer = buffer,
+		.offset = offset,
+		.size = sizeof(voe_render_shading_values),
+	};
+	VkDependencyInfo dependency = {
+		.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		.bufferMemoryBarrierCount = 1,
+		.pBufferMemoryBarriers = &barrier,
+	};
+
+	VOE_BASE_DEBUG_ASSERT(buffer != VK_NULL_HANDLE, "a barrier on no buffer");
+	voe_render_vk.cmd_pipeline_barrier2(commands, &dependency);
+}
+
+void voe_render_shading_write(voe_render_device *device,
+			      voe_render_shading shading,
+			      voe_render_shading_values values)
+{
+	const struct voe_render_shading_slot *slot;
+	struct voe_render_frame *frame;
+	VkDeviceSize offset;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "writing a shading record on no device");
+	VOE_BASE_ASSERT(device->recording,
+			"writing a shading record with no frame open — the write is recorded into the frame");
+	VOE_BASE_ASSERT(!device->pass_open && device->pass_count == 0,
+			"writing a shading record after a pass began — every pass of the frame must read it");
+	VOE_BASE_ASSERT(device->shading_slots != NULL &&
+				shading.index < device->capacities.shadings,
+			"writing a shading record that names no slot");
+	slot = &device->shading_slots[shading.index];
+	VOE_BASE_ASSERT(slot->live && slot->generation == shading.generation,
+			"writing a shading record through a stale id");
+
+	frame = voe_render_frame_open(device);
+	offset = (VkDeviceSize)shading.index * sizeof(values);
+	record_barrier(frame->commands, device->shadings.buffer, offset, true);
+	voe_render_vk.cmd_update_buffer(frame->commands, device->shadings.buffer,
+					offset, sizeof(values), &values);
+	record_barrier(frame->commands, device->shadings.buffer, offset, false);
+	VOE_BASE_DEBUG_ASSERT(sizeof(values) % 4 == 0 && sizeof(values) <= 65536,
+			      "a shading record vkCmdUpdateBuffer cannot write");
 }

@@ -14,7 +14,8 @@
 // through scene.h unless the Assets panel holds the keyboard, F2 through
 // assets_panel.h, Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y through undo.h, whose step
 // is taken at the top of the next frame, before the structural queue is
-// applied. Escape's order is this file's (at the picker's close); the panels
+// applied. There too, at rest, an edit to the open material is written to its
+// file and pushed as one undo step (0399 point 9). Escape's order is this file's (at the picker's close); the panels
 // it hides include the Landscape panel, which a different project hides too.
 // Escape, Backspace, Enter, Tab and the text read since the last poll are the
 // interface's besides (dock.h, keys.h). A flying view keeps every key it reads
@@ -55,6 +56,9 @@ typedef struct {
 	voe_editor_models *models;
 	voe_editor_gizmo *gizmo;
 	voe_ui_context *ui;
+	// Working memory for a step's or a settled material's file write,
+	// rewound by each.
+	voe_base_arena *scratch;
 	// This frame's undo and redo edges, acted on at the top of the next
 	// frame, and whether the editor was at rest when they were read — the
 	// same rest a step is recorded at (undo.h).
@@ -69,8 +73,9 @@ typedef struct {
 	bool escape_free;
 } voe_editor_frame_commands;
 
-// A different project, a prefab opened or Back, or last frame's Ctrl+Z or
-// Ctrl+Y, acted on at the top of the frame, before world_step.h.
+// The open material's edit settled at rest, then a different project, a prefab
+// opened or Back, or last frame's Ctrl+Z or Ctrl+Y, acted on at the top of the
+// frame, before world_step.h.
 void voe_editor_frame_commands_history(voe_editor_frame_commands *commands);
 
 // This frame's shortcuts read against the guards and acted on, Escape's order

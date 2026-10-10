@@ -8,12 +8,14 @@
 // in the project's own listing before it is listed, so a project with none
 // reports nothing.
 //
-// The prefabs under Assets/ are found by game_tree_find.h. Each prefab is read
-// and cooked in one scratch arena rewound after it, sized in blocks as a
-// project's world is.
+// The world is cooked into scene.c and every prefab into prefabs.c;
+// landscapes.c and materials.c are written beside them. The prefabs under
+// Assets/ are found by game_tree_find.h. Each prefab is read and cooked in one
+// scratch arena rewound after it, sized in blocks as a project's world is.
 //
 // An argument list is at most ARGUMENTS entries, the NULL included, in one
-// struct pushed into the caller's arena.
+// struct pushed into the caller's arena; the lists choose the release kind
+// and the shipped folder.
 #include "game_tree.h"
 
 #include "game_tree_find.h"
@@ -351,8 +353,8 @@ static const char *main_source(const voe_editor_project *project,
 		      window.fullscreen ? "true" : "false");
 }
 
-// The five files, each in <folder>/Build/game/, the scene, prefabs and
-// landscapes cooked last.
+// The six files, each in <folder>/Build/game/, the scene, prefabs, landscapes
+// and materials cooked last.
 static bool game_files_write(const voe_editor_project *project,
 			     const char *game, voe_base_arena *arena,
 			     voe_editor_notice *why)
@@ -360,6 +362,7 @@ static bool game_files_write(const voe_editor_project *project,
 	const char *scene = voe_platform_path_join(arena, game, "scene.c");
 	const char *prefabs;
 	const char *landscapes;
+	const char *materials;
 	voe_authoring_text cooked;
 
 	if (!file_write_changed(voe_platform_path_join(arena, game, "CMakeLists.txt"),
@@ -382,9 +385,14 @@ static bool game_files_write(const voe_editor_project *project,
 				prefabs, arena, why))
 		return false;
 	landscapes = voe_editor_game_tree_landscapes_source(project->folder, arena, why);
-	return landscapes != NULL &&
-	       file_write_changed(voe_platform_path_join(arena, game, "landscapes.c"),
-				  landscapes, arena, why);
+	if (landscapes == NULL ||
+	    !file_write_changed(voe_platform_path_join(arena, game, "landscapes.c"),
+				landscapes, arena, why))
+		return false;
+	materials = voe_editor_game_tree_materials_source(project->folder, arena, why);
+	return materials != NULL &&
+	       file_write_changed(voe_platform_path_join(arena, game, "materials.c"),
+				  materials, arena, why);
 }
 
 bool voe_editor_game_tree_write(const voe_editor_project *project,

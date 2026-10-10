@@ -72,12 +72,14 @@ static bool has_twin(const voe_3d_model_part *part)
 
 // Everything `entry` put on the card and its memory, given back; a picture's
 // parts are on the store's quad and a landscape's on its grid, neither the
-// entry's to free. A loaded landscape gives back its heights texture.
+// entry's to free, and a material's part has none. A loaded landscape gives
+// back its heights texture.
 static void release(voe_render_device *device, const voe_3d_model_entry *entry,
 		    const entry_held *held)
 {
 	for (uint32_t i = 0; i < entry->part_count; i++) {
-		if (!entry->picture && entry->landscape == NULL)
+		if (!entry->picture && entry->landscape == NULL &&
+		    !entry->material)
 			(void)voe_render_geometry_destroy(
 				device, entry->parts[i].geometry);
 		if (has_twin(&entry->parts[i]))
