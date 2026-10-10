@@ -25,8 +25,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   together with a font that can draw them.
 - **Visual logic** as an opt-in editor plugin (node graphs, Blueprint-like), off by default, that produces
   what hand-written C would (0187). After the coin game (0186).
-- **A visual shader editor** (node graph); a material is an instance of a shader (0189). The material
-  editor is work order 085.
+- **A visual shader editor** (node graph); a material is an instance of a shader (0189).
 - **A runtime-GUI editor** for what the cooker outputs, itself drawn in the editor themes (0194). A game's GUI
   draws with a theme; per-element property overrides and a theme override are how it gets colour on purpose.
   After the coin game, whose GUI is written in code (0194). The editor then sets the file format, from what

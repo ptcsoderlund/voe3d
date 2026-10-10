@@ -13,14 +13,14 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **platform** — the one OS-aware folder: window, input, pads, files, trash, clock, process, sound.
 - **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, blockers.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
-- **assets** — glTF, images, WAV, fonts, landscapes and sectioned text to CPU data; the JSON parser.
+- **assets** — glTF, images, WAV, fonts, landscapes, materials, sectioned text to CPU data; JSON.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text read and written, paths followed; cooked to C.
 - **render** — all of Vulkan: card, resources, mips, heights, timed passes, light, bounce, a cache.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — scene to draws: meshes, models, landscapes, shapes, particles, water, picks, brush, markers.
+- **3d** — draws meshes, models, materials, landscapes, shapes, particles, water; picks, brush, markers.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash worker.
@@ -56,4 +56,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
 - 0333–0338, 0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0358, 0359, 0361–0364, 0370, 0371 — Blocks; moon; GPU ms; mips; splash; F.
-- 0374–0381, 0384–0388, 0392, 0395–0398 — 0.3's loghouse; bindless; hill; Windows; 60 fps; CDLOD.
+- 0374–0381, 0384–0388, 0392, 0395–0400 — 0.3's loghouse; bindless; hill; Windows; 60 fps; CDLOD; materials.
