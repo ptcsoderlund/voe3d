@@ -148,11 +148,13 @@ here is included from outside the folder — `include/3d/` is the whole public s
   uploads with each part's blended twin and gives back what a failure made; pictures on the quad,
   the dot and the water apart.
 - `models_store.h` — the store's table, the shared landscape grid, each entry's held ids, a
-  landscape's heights texture, pyramid and dirt among them, a material's write mark, the terrain
-  lookup the draw files ask, and the helpers models.c lends the other store files; internal.
-- `models_landscape.c` — a landscape's grid copied, uploaded as a heights texture with a pyramid
-  and worn as one part on the shared grid, the brush and put growing the dirt, the frame writing
-  it within a budget, the terrain lookup, the saved mark and the rename.
+  landscape's heights and paint textures, pyramid and two dirts among them, a material's write
+  mark, the terrain lookup the draw files ask, and the helpers models.c lends the other store
+  files; internal.
+- `models_landscape.c` — a landscape's grid copied with its layers and owned paint, uploaded as a
+  heights texture, two paint textures and a pyramid, worn as one part on the shared grid; brushes
+  and puts growing the heights' or paint's dirt, the layer set, the frame writing both in one
+  budget, the terrain lookup, the saved mark and the rename with layer paths.
 - `models_material.c` — a `.material`'s maps decoded and uploaded mipped with its record and
   twin as one part with no geometry, the set marking it and the frame rewriting both records.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one

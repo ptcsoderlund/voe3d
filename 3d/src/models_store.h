@@ -3,9 +3,10 @@
 // see, and the few helpers they call. Internal to this folder.
 //
 // A LANDSCAPE'S TEXTURE, PYRAMID AND DIRT ARE HELD, NOT SHOWN (0396 points 3
-// and 5): its one part draws the store's shared grid, and what makes that grid
-// its ground is here. The pyramid lives in the entry's arena; the dirty rect is
-// the heights not yet written into the texture, empty when x0 ≥ x1.
+// and 5, 0402 point 4): its one part draws the store's shared grid, and what
+// makes that grid its ground is here. The pyramid lives in the entry's arena;
+// a dirty rect is the heights or paint not yet written into its texture, empty
+// when x0 ≥ x1. The paint textures sit in `textures` too, freed with the rest.
 //
 // THE GRID IS 33 × 33 VERTICES at x, z in 0..1, normals up, uv = xz, y 0 but
 // the last row's 1, so its box is a unit cube; the shader ignores y. Made at
@@ -34,6 +35,10 @@ typedef struct {
 	voe_render_texture heights;
 	voe_3d_landscape_lod lod;
 	voe_3d_landscape_rect dirty;
+	// Its two paint textures, planes 0 and 1, also listed in `textures`, and
+	// the points whose paint changed since last written.
+	voe_render_texture paint[2];
+	voe_3d_landscape_rect paint_dirty;
 	// A loaded material's records changed since last written; its maps are
 	// `textures` above, freed with the entry.
 	bool write;
@@ -49,7 +54,8 @@ struct voe_3d_models {
 	// The grid every landscape's part is drawn on, when `has_grid`.
 	voe_render_geometry grid;
 	bool has_grid;
-	// The rows one frame writes, gathered row-major for the write.
+	// The rows one frame writes, gathered row-major for the write: heights
+	// as floats, paint as bytes.
 	float written[VOE_3D_LANDSCAPE_WRITE_TEXELS];
 	// The soft dot, found at "", when `has_dot`.
 	voe_3d_model_entry dot;
@@ -65,10 +71,13 @@ typedef struct {
 	voe_render_texture heights;
 	const voe_3d_landscape_lod *lod;
 	voe_render_geometry grid;
+	// Paint planes 0 and 1, layers 0-3 and 4-7.
+	voe_render_texture paint[2];
 } voe_3d_models_terrain;
 
-// `entry`'s heights texture, pyramid and the store's grid in `out`; false,
-// `out` untouched, for an entry that is no loaded landscape of this store.
+// `entry`'s heights texture, pyramid, paint textures and the store's grid in
+// `out`; false, `out` untouched, for an entry that is no loaded landscape of
+// this store.
 bool voe_3d_models_terrain_of(const voe_3d_models *models,
 			      const voe_3d_model_entry *entry,
 			      voe_3d_models_terrain *out);

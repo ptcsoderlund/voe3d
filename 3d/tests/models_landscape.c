@@ -3,7 +3,9 @@
 // empty shape; text that is no landscape is kept failed; a brush marks the
 // entry edited and dirty and a frame writes the dirt; a stamp wider than a
 // frame's budget takes more than one frame; a put updates the pyramid as a
-// fresh build would; a rename moves the entry and what lies under it.
+// fresh build would; on two layers, a paint brush leaves the heights and dirties
+// the paint a frame writes, a paint put writes its bytes, a layer set adds a
+// third; a rename moves the entry, what lies under it and a layer's path.
 //
 // THE GRID IS 16 METRES OF 8 CELLS, a cell 2 m. A brush of radius 3 at the
 // centre touches heights 3 to 5 on each axis. The wide one is 1024 cells, so
@@ -25,12 +27,18 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #define SCRATCH (1024 * 1024)
 #define SIDE 16
 #define PATH "Assets/Hill.LANDSCAPE"
 #define WIDE "Assets/Wide.landscape"
 #define WIDE_CELLS 1024
+#define PAINTED "Assets/Painted.landscape"
+#define GRASS "Ground/grass.material"
+#define ROCK "Mats/rock.material"
+#define MOVED_ROCK "Stone/rock.material"
+#define SAND "Ground/sand.material"
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 33 * 33,
@@ -236,6 +244,125 @@ static void a_wide_put_takes_more_than_one_frame(voe_3d_models *models,
 	VOE_TEST_CHECK_INT(frames, 5);
 }
 
+// An 8-cell landscape of two layers and no paint, loaded: its paint all
+// layer 0, its two paint textures made.
+static const voe_3d_model_entry *load_painted(voe_3d_models *models,
+					      voe_render_device *device,
+					      voe_base_arena *arena)
+{
+	voe_assets_landscape land = voe_assets_landscape_flat(16.0f, 8, arena);
+	voe_base_error error = VOE_BASE_OK;
+	const voe_3d_model_entry *entry;
+	voe_3d_models_terrain terrain;
+
+	snprintf(land.layers[0], sizeof(land.layers[0]), "%s", GRASS);
+	snprintf(land.layers[1], sizeof(land.layers[1]), "%s", ROCK);
+	land.layer_count = 2;
+	VOE_TEST_CHECK(voe_3d_models_load_landscape(models, device, PAINTED, 1,
+						    &land, &error));
+	entry = voe_3d_models_find(models, PAINTED);
+	if (entry == NULL || !entry->loaded || entry->landscape == NULL) {
+		VOE_TEST_CHECK(false);
+		return NULL;
+	}
+	VOE_TEST_CHECK_INT(entry->landscape->layer_count, 2);
+	VOE_TEST_CHECK(entry->landscape->paint != NULL);
+	VOE_TEST_CHECK_INT(entry->landscape->paint[40 * 4], 255);
+	VOE_TEST_CHECK_INT(entry->landscape->paint[40 * 4 + 1], 0);
+	VOE_TEST_CHECK(voe_3d_models_terrain_of(models, entry, &terrain));
+	VOE_TEST_CHECK(terrain.paint[0].index != VOE_RENDER_NO_TEXTURE);
+	VOE_TEST_CHECK(terrain.paint[1].index != terrain.paint[0].index);
+	return entry;
+}
+
+static void a_paint_brush_dirties_the_paint(voe_3d_models *models,
+					    voe_render_device *device,
+					    voe_base_arena *arena)
+{
+	const voe_3d_brush paint = { .kind = VOE_3D_BRUSH_PAINT,
+				     .radius = 3.0f,
+				     .strength = 1.0f,
+				     .softness = 0.5f,
+				     .layer = 1 };
+	const voe_3d_model_entry *entry = load_painted(models, device, arena);
+	voe_3d_landscape_rect rect;
+	entry_held *held;
+
+	if (entry == NULL)
+		return;
+	held = held_of(models, PAINTED);
+	VOE_TEST_CHECK(!entry->edited);
+	rect = voe_3d_models_landscape_brush(models, PAINTED, &paint, 0.0f,
+					     0.0f, 0.1f, arena);
+	VOE_TEST_CHECK(!is_empty(rect));
+	VOE_TEST_CHECK(entry->edited);
+	VOE_TEST_CHECK(entry->landscape->paint[40 * 4 + 1] > 0);
+	for (uint32_t i = 0; i < 81; i++)
+		VOE_TEST_CHECK_FLOAT(entry->landscape->heights[i], 0.0f, 0.0f);
+	VOE_TEST_CHECK(is_empty(held->dirty));
+	VOE_TEST_CHECK(!is_empty(held->paint_dirty));
+
+	VOE_TEST_CHECK(one_frame(models, device));
+	VOE_TEST_CHECK(is_empty(held->paint_dirty));
+	VOE_TEST_CHECK(one_frame(models, device));
+	VOE_TEST_CHECK(is_empty(held->paint_dirty));
+}
+
+// Points (1, 1) and (2, 1): plane 0's two then plane 1's two.
+static void put_paint_writes_its_rect(voe_3d_models *models,
+				      voe_render_device *device)
+{
+	const uint8_t values[16] = { 200, 55, 0, 0, 100, 100, 0, 0,
+				     0,   0,  0, 0, 0,   0,   55, 0 };
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, PAINTED);
+	const size_t plane = 81 * 4;
+
+	if (entry == NULL || entry->landscape == NULL)
+		return;
+	voe_3d_models_landscape_saved(models, PAINTED);
+	voe_3d_models_landscape_put_paint(
+		models, PAINTED, (voe_3d_landscape_rect){ 1, 1, 3, 2 }, values);
+	for (uint32_t b = 0; b < 8; b++) {
+		VOE_TEST_CHECK_INT(entry->landscape->paint[10 * 4 + b],
+				   values[b]);
+		VOE_TEST_CHECK_INT(entry->landscape->paint[plane + 10 * 4 + b],
+				   values[8 + b]);
+	}
+	VOE_TEST_CHECK_INT(entry->landscape->paint[9 * 4], 255);
+	VOE_TEST_CHECK_INT(entry->landscape->paint[12 * 4], 255);
+	VOE_TEST_CHECK_INT(entry->landscape->paint[plane + 19 * 4 + 2], 0);
+	VOE_TEST_CHECK(entry->edited);
+	VOE_TEST_CHECK_INT(held_of(models, PAINTED)->paint_dirty.x1, 3);
+	VOE_TEST_CHECK(one_frame(models, device));
+	VOE_TEST_CHECK(is_empty(held_of(models, PAINTED)->paint_dirty));
+}
+
+static void layer_set_adds_a_third(voe_3d_models *models)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, PAINTED);
+
+	if (entry == NULL || entry->landscape == NULL)
+		return;
+	voe_3d_models_landscape_saved(models, PAINTED);
+	voe_3d_models_landscape_layer_set(models, PAINTED, 2, SAND);
+	VOE_TEST_CHECK_INT(entry->landscape->layer_count, 3);
+	VOE_TEST_CHECK(strcmp(entry->landscape->layers[2], SAND) == 0);
+	VOE_TEST_CHECK(strcmp(entry->landscape->layers[1], ROCK) == 0);
+	VOE_TEST_CHECK(entry->edited);
+}
+
+static void rename_follows_a_layer(voe_3d_models *models)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, PAINTED);
+
+	if (entry == NULL || entry->landscape == NULL)
+		return;
+	voe_3d_models_rename(models, "Mats", "Stone");
+	VOE_TEST_CHECK(strcmp(entry->landscape->layers[1], MOVED_ROCK) == 0);
+	VOE_TEST_CHECK(strcmp(entry->landscape->layers[0], GRASS) == 0);
+	VOE_TEST_CHECK(strcmp(entry->landscape->layers[2], SAND) == 0);
+}
+
 static void rename_moves_the_entry(voe_3d_models *models)
 {
 	voe_3d_models_rename(models, "Asset", "Nope");
@@ -248,7 +375,9 @@ static void rename_moves_the_entry(voe_3d_models *models)
 			     "Land/Mound.landscape");
 	VOE_TEST_CHECK(voe_3d_models_find(models, "Land/Mound.landscape") !=
 		       NULL);
-	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 3);
+	VOE_TEST_CHECK(voe_3d_models_find(models, "Land/Painted.landscape") !=
+		       NULL);
+	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 4);
 }
 
 int main(void)
@@ -275,6 +404,10 @@ int main(void)
 	a_brush_then_a_frame_clears_the_dirt(models, device, arena);
 	put_updates_the_pyramid(models, device, arena);
 	a_wide_put_takes_more_than_one_frame(models, device, arena);
+	a_paint_brush_dirties_the_paint(models, device, arena);
+	put_paint_writes_its_rect(models, device);
+	layer_set_adds_a_third(models);
+	rename_follows_a_layer(models);
 	rename_moves_the_entry(models);
 
 	voe_3d_models_clear(models, device);
