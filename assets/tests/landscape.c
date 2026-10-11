@@ -1,6 +1,7 @@
 // The landscape file: a written grid reads back as itself up to 2048 cells,
 // heights round to the millimetre, a resample keeps a plane and its corners,
-// and each refusal comes with its category.
+// layers and paint round-trip byte for byte and resample to sums of 255, and
+// each refusal comes with its category.
 //
 // The files refused are written by hand at four cells, the smallest a file may
 // have, so each case shows the one thing wrong with it.
@@ -215,6 +216,203 @@ static void a_size_out_of_range_is_unsupported(voe_base_arena *arena)
 		   VOE_BASE_ERROR_UNSUPPORTED);
 }
 
+// Layer `layer`'s weight at point `point`.
+static uint8_t weight(const voe_assets_landscape *landscape, size_t point,
+		      uint32_t layer)
+{
+	const size_t points = ((size_t)landscape->cells + 1) *
+			      ((size_t)landscape->cells + 1);
+
+	return landscape->paint[(layer / 4) * points * 4 + point * 4 +
+				layer % 4];
+}
+
+static void set_weight(voe_assets_landscape *landscape, size_t point,
+		       uint32_t layer, uint8_t value)
+{
+	const size_t points = ((size_t)landscape->cells + 1) *
+			      ((size_t)landscape->cells + 1);
+
+	landscape->paint[(layer / 4) * points * 4 + point * 4 + layer % 4] =
+		value;
+}
+
+// Every point's eight weights sum to 255.
+static bool every_point_sums_to_255(const voe_assets_landscape *landscape)
+{
+	const size_t points = ((size_t)landscape->cells + 1) *
+			      ((size_t)landscape->cells + 1);
+	bool all = true;
+
+	for (size_t p = 0; p < points; p++) {
+		uint32_t sum = 0;
+
+		for (uint32_t k = 0; k < VOE_ASSETS_LANDSCAPE_LAYERS; k++)
+			sum += weight(landscape, p, k);
+		all = all && sum == 255;
+	}
+	return all;
+}
+
+// A grid with `layer_count` layers and paint on `arena`, all layer 0.
+static voe_assets_landscape unpainted(uint32_t cells, uint32_t layer_count,
+				      voe_base_arena *arena)
+{
+	voe_assets_landscape grid = voe_assets_landscape_flat(64.0f, cells,
+							      arena);
+	const size_t points = ((size_t)cells + 1) * ((size_t)cells + 1);
+
+	grid.layer_count = layer_count;
+	for (uint32_t k = 0; k < layer_count; k++)
+		snprintf(grid.layers[k], sizeof(grid.layers[k]),
+			 "Assets/layer \"%u\".material", k);
+	grid.paint = voe_base_arena_push(arena, 8 * points);
+	for (size_t p = 0; p < points; p++)
+		set_weight(&grid, p, 0, 255);
+	return grid;
+}
+
+static void layers_and_paint_round_trip_byte_for_byte(voe_base_arena *arena)
+{
+	voe_assets_landscape grid = unpainted(4, 3, arena);
+	voe_assets_landscape_text text;
+	voe_assets_landscape_text again;
+	voe_assets_landscape back;
+
+	for (size_t p = 6; p <= 8; p++) {
+		set_weight(&grid, p, 1, 100);
+		set_weight(&grid, p, 0, 155);
+	}
+	set_weight(&grid, 12, 2, 200);
+	set_weight(&grid, 12, 1, 55);
+	set_weight(&grid, 12, 0, 0);
+	text = voe_assets_landscape_write(&grid, arena);
+
+	VOE_TEST_CHECK(strstr(text.text, "[Layers]\nlayer0=\"Assets/layer "
+					 "\\\"0\\\".material\"\n") != NULL);
+	VOE_TEST_CHECK(strstr(text.text, "paint1_1=0 100*3 0\n") != NULL);
+	VOE_TEST_CHECK(strstr(text.text, "paint1_2=0 0 55 0 0\n") != NULL);
+	// An unpainted layer row is one run, and layer 0 is never written.
+	VOE_TEST_CHECK(strstr(text.text, "paint2_0=0*5\n") != NULL);
+	VOE_TEST_CHECK(strstr(text.text, "paint0_") == NULL);
+
+	VOE_TEST_CHECK(voe_assets_landscape_read(text.text, text.size, arena,
+						 &back, NULL));
+	VOE_TEST_CHECK_INT(back.layer_count, 3);
+	VOE_TEST_CHECK(strcmp(back.layers[0], grid.layers[0]) == 0);
+	VOE_TEST_CHECK(strcmp(back.layers[2], grid.layers[2]) == 0);
+	VOE_TEST_CHECK(memcmp(back.paint, grid.paint, 8 * 25) == 0);
+	again = voe_assets_landscape_write(&back, arena);
+	VOE_TEST_CHECK_INT(again.size, text.size);
+	VOE_TEST_CHECK(strcmp(again.text, text.text) == 0);
+}
+
+static const char *const four_flat_rows =
+	"[Heights]\nrow0=0 0 0 0 0\nrow1=0 0 0 0 0\nrow2=0 0 0 0 0\n"
+	"row3=0 0 0 0 0\nrow4=0 0 0 0 0\n";
+
+static void layers_and_no_paint_read_as_all_layer_0(voe_base_arena *arena)
+{
+	char text[512];
+	voe_assets_landscape out;
+	bool ground = true;
+
+	snprintf(text, sizeof(text),
+		 "[Landscape]\nsize=64\ncells=4\n[Layers]\nlayer0=\"a.material\"\n"
+		 "layer1=\"b.material\"\nlayer3=\"lost.material\"\n%s",
+		 four_flat_rows);
+	VOE_TEST_CHECK(read_text(arena, text, &out, NULL));
+	// Read to the first missing key: layer3 is past the gap.
+	VOE_TEST_CHECK_INT(out.layer_count, 2);
+	VOE_TEST_CHECK(strcmp(out.layers[1], "b.material") == 0);
+	VOE_TEST_CHECK(out.paint != NULL);
+	for (size_t p = 0; p < 25; p++)
+		ground = ground && weight(&out, p, 0) == 255;
+	VOE_TEST_CHECK(ground && every_point_sums_to_255(&out));
+
+	// No layers at all: no paint either.
+	snprintf(text, sizeof(text), "[Landscape]\nsize=64\ncells=4\n%s",
+		 four_flat_rows);
+	VOE_TEST_CHECK(read_text(arena, text, &out, NULL));
+	VOE_TEST_CHECK_INT(out.layer_count, 0);
+	VOE_TEST_CHECK(out.paint == NULL);
+}
+
+static void bad_paint_and_layers_are_malformed(voe_base_arena *arena)
+{
+	const char *const head =
+		"[Landscape]\nsize=64\ncells=4\n[Layers]\nlayer0=\"a.material\"\n"
+		"layer1=\"b.material\"\nlayer2=\"c.material\"\n";
+	const char *const rows =
+		"paint1_1=0*5\npaint1_2=0*5\npaint1_3=0*5\npaint1_4=0*5\n"
+		"paint2_1=0*5\npaint2_2=0*5\npaint2_3=0*5\npaint2_4=0*5\n";
+	char text[1024];
+
+	// Layers 1 and 2 at one point pass 255.
+	snprintf(text, sizeof(text), "%s%s[Paint]\n%spaint1_0=200 0*4\n"
+		 "paint2_0=100 0*4\n", head, four_flat_rows, rows);
+	refused_as(arena, text, VOE_BASE_ERROR_MALFORMED);
+	// A row of four numbers.
+	snprintf(text, sizeof(text), "%s%s[Paint]\n%spaint1_0=0 0 0 0\n"
+		 "paint2_0=0*5\n", head, four_flat_rows, rows);
+	refused_as(arena, text, VOE_BASE_ERROR_MALFORMED);
+	// A value past 255, and a row missing.
+	snprintf(text, sizeof(text), "%s%s[Paint]\n%spaint1_0=256 0*4\n"
+		 "paint2_0=0*5\n", head, four_flat_rows, rows);
+	refused_as(arena, text, VOE_BASE_ERROR_MALFORMED);
+	snprintf(text, sizeof(text), "%s%s[Paint]\n%spaint1_0=0*5\n", head,
+		 four_flat_rows, rows);
+	refused_as(arena, text, VOE_BASE_ERROR_MALFORMED);
+	// A path not quoted.
+	snprintf(text, sizeof(text),
+		 "[Landscape]\nsize=64\ncells=4\n[Layers]\nlayer0=a.material\n%s",
+		 four_flat_rows);
+	refused_as(arena, text, VOE_BASE_ERROR_MALFORMED);
+	// And the same good rows are read.
+	snprintf(text, sizeof(text), "%s%s[Paint]\n%spaint1_0=200 0*4\n"
+		 "paint2_0=55 0*4\n", head, four_flat_rows, rows);
+	{
+		voe_assets_landscape out;
+
+		VOE_TEST_CHECK(read_text(arena, text, &out, NULL));
+		VOE_TEST_CHECK_INT(weight(&out, 0, 0), 0);
+		VOE_TEST_CHECK_INT(weight(&out, 0, 2), 55);
+	}
+}
+
+static void a_resample_of_paint_sums_to_255_and_keeps_corners(
+	voe_base_arena *arena)
+{
+	voe_assets_landscape halves = unpainted(4, 2, arena);
+	const uint32_t counts[] = { 12, 8, 4 };
+
+	// Columns 0-1 all layer 0, columns 2-4 all layer 1.
+	for (size_t p = 0; p < 25; p++)
+		if (p % 5 >= 2) {
+			set_weight(&halves, p, 0, 0);
+			set_weight(&halves, p, 1, 255);
+		}
+	for (size_t i = 0; i < sizeof(counts) / sizeof(counts[0]); i++) {
+		const uint32_t cells = counts[i];
+		const voe_assets_landscape to =
+			voe_assets_landscape_resample(&halves, cells, arena);
+		const size_t last = (size_t)(cells + 1) * (cells + 1) - 1;
+
+		VOE_TEST_CHECK_INT(to.layer_count, 2);
+		VOE_TEST_CHECK(strcmp(to.layers[1], halves.layers[1]) == 0);
+		VOE_TEST_CHECK(every_point_sums_to_255(&to));
+		VOE_TEST_CHECK_INT(weight(&to, 0, 0), 255);
+		VOE_TEST_CHECK_INT(weight(&to, cells, 1), 255);
+		VOE_TEST_CHECK_INT(weight(&to, (size_t)cells * (cells + 1), 0),
+				   255);
+		VOE_TEST_CHECK_INT(weight(&to, last, 1), 255);
+	}
+	// No paint stays no paint.
+	halves.paint = NULL;
+	VOE_TEST_CHECK(voe_assets_landscape_resample(&halves, 8, arena).paint ==
+		       NULL);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
@@ -228,6 +426,10 @@ int main(void)
 	a_missing_row_is_malformed(arena);
 	cells_not_a_multiple_of_four_is_unsupported(arena);
 	a_size_out_of_range_is_unsupported(arena);
+	layers_and_paint_round_trip_byte_for_byte(arena);
+	layers_and_no_paint_read_as_all_layer_0(arena);
+	bad_paint_and_layers_are_malformed(arena);
+	a_resample_of_paint_sums_to_255_and_keeps_corners(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

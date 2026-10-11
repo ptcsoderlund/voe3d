@@ -1,16 +1,22 @@
 // The landscape file behind assets/landscape.h: the sectioned reader for the
-// lines, then each value turned into a number here, and a printer for the way
-// back.
+// lines, then each value turned into a number or a path here, and a printer for
+// the way back. `[Paint]` is `landscape_paint.c`'s.
 //
 // A ROW IS FOUND BY NAME, one linear scan of its section's keys per row, so a
 // 2048-cell file is about two million string compares. That is tens of
 // milliseconds; an index from row number to key would lift it.
 //
+// A LAYER'S QUOTES ARE CHECKED IN THE TEXT. The sectioned reader strips them
+// and does not say, so the key's line is found by counting line breaks from
+// the start: eight scans at most, each ending at `[Layers]`, which the writer
+// puts before the heights. A reader that kept whether a value was quoted would
+// lift it.
+//
 // THE WRITER MEASURES, THEN PRINTS. A height is any float, so a millimetre
 // count can be forty digits long; one pass with no buffer counts the bytes, one
-// push holds exactly them, and the same pass prints into it.
-#include <assets/landscape.h>
-#include <assets/sectioned.h>
+// push holds exactly them, and the same pass prints into it. Paths are written
+// quoted with `"` and `\` escaped, as the material writer does (0149).
+#include "landscape_paint.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -20,6 +26,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+// One escaped path: every byte doubled at worst, two quotes and a NUL.
+#define QUOTED_PATH (2 * VOE_ASSETS_MATERIAL_PATH + 3)
 
 static bool cells_supported(int64_t cells)
 {
@@ -51,6 +61,15 @@ static bool refuse_row(voe_base_error *error, uint32_t row,
 		       const char *message)
 {
 	VOE_BASE_ERROR("assets", "landscape: row%u: %s", row, message);
+	if (error != NULL)
+		*error = VOE_BASE_ERROR_MALFORMED;
+	return false;
+}
+
+static bool refuse_layer(voe_base_error *error, uint32_t layer,
+			 const char *message)
+{
+	VOE_BASE_ERROR("assets", "landscape: layer%u: %s", layer, message);
 	if (error != NULL)
 		*error = VOE_BASE_ERROR_MALFORMED;
 	return false;
@@ -136,6 +155,60 @@ static bool read_shape(const voe_assets_sectioned *doc, double *size,
 	return true;
 }
 
+// Whether key `name` of `section` was written with its value in quotes: the
+// first non-blank after the `=` on the key's line is `"`.
+static bool written_quoted(const voe_assets_sectioned *doc, uint32_t section,
+			   const char *name, const char *text, size_t size)
+{
+	const voe_assets_sectioned_section *keys = &doc->sections[section];
+	const char *const end = text + size;
+	const char *at = text;
+	uint32_t line = 1;
+
+	for (uint32_t i = 0; i < keys->key_count; i++)
+		if (strcmp(doc->keys[keys->first_key + i].name, name) == 0)
+			line = doc->keys[keys->first_key + i].line;
+	for (uint32_t l = 1; l < line; l++) {
+		at = memchr(at, '\n', (size_t)(end - at));
+		VOE_BASE_ASSERT(at != NULL, "a key's line is in its text");
+		at++;
+	}
+	while (at < end && *at != '=')
+		at++;
+	at++;
+	while (at < end && (*at == ' ' || *at == '\t'))
+		at++;
+	return at < end && *at == '"';
+}
+
+// `[Layers]`' paths from layer0= to the first missing key, into `into`.
+static bool read_layers(const voe_assets_sectioned *doc, const char *text,
+			size_t size, voe_assets_landscape *into,
+			voe_base_error *error)
+{
+	const uint32_t section = voe_assets_sectioned_find(doc, "Layers");
+
+	if (section == VOE_ASSETS_SECTIONED_NONE)
+		return true;
+	for (uint32_t k = 0; k < VOE_ASSETS_LANDSCAPE_LAYERS; k++) {
+		char name[16];
+		const char *path;
+
+		snprintf(name, sizeof(name), "layer%u", k);
+		path = voe_assets_sectioned_value(doc, section, name);
+		if (path == NULL)
+			break;
+		if (!written_quoted(doc, section, name, text, size))
+			return refuse_layer(error, k, "a path not quoted");
+		if (strlen(path) >= VOE_ASSETS_MATERIAL_PATH)
+			return refuse_layer(error, k,
+					    "a path of 128 bytes or more");
+		strcpy(into->layers[k], path);
+		into->layer_count = k + 1;
+	}
+	return true;
+}
+
 voe_assets_landscape voe_assets_landscape_flat(float size, uint32_t cells,
 					       voe_base_arena *arena)
 {
@@ -152,18 +225,6 @@ voe_assets_landscape voe_assets_landscape_flat(float size, uint32_t cells,
 		.heights = voe_base_arena_push(
 			arena, height_count(cells) * sizeof(float)),
 	};
-}
-
-// Where new index `i` of `cells` falls on a grid of `from_cells`: the index
-// below and how far toward the next. Integer division keeps it exact, so the
-// same count lands on every old point with no fraction and an edge on an edge.
-static uint32_t source_index(uint32_t i, uint32_t cells, uint32_t from_cells,
-			     float *fraction)
-{
-	const uint64_t scaled = (uint64_t)i * from_cells;
-
-	*fraction = (float)(scaled % cells) / (float)cells;
-	return (uint32_t)(scaled / cells);
 }
 
 voe_assets_landscape
@@ -184,14 +245,16 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 	to = voe_assets_landscape_flat(from->size, cells, arena);
 	for (uint32_t row = 0; row <= cells; row++) {
 		float fz;
-		const uint32_t z0 = source_index(row, cells, from_cells, &fz);
+		const uint32_t z0 = voe_assets_landscape_source_index(
+			row, cells, from_cells, &fz);
 		const uint32_t z1 = z0 < from_cells ? z0 + 1 : z0;
 		const float *near = from->heights + (size_t)z0 * (from_cells + 1);
 		const float *far = from->heights + (size_t)z1 * (from_cells + 1);
 
 		for (uint32_t c = 0; c <= cells; c++) {
 			float fx;
-			const uint32_t x0 = source_index(c, cells, from_cells, &fx);
+			const uint32_t x0 = voe_assets_landscape_source_index(
+				c, cells, from_cells, &fx);
 			const uint32_t x1 = x0 < from_cells ? x0 + 1 : x0;
 			const float a = near[x0] + (near[x1] - near[x0]) * fx;
 			const float b = far[x0] + (far[x1] - far[x0]) * fx;
@@ -200,6 +263,9 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 				a + (b - a) * fz;
 		}
 	}
+	memcpy(to.layers, from->layers, sizeof(to.layers));
+	to.layer_count = from->layer_count;
+	to.paint = voe_assets_landscape_paint_resample(from, cells, arena);
 	return to;
 }
 
@@ -208,11 +274,10 @@ bool voe_assets_landscape_read(const char *text, size_t size,
 			       voe_assets_landscape *out,
 			       voe_base_error *error)
 {
+	voe_assets_landscape result = { 0 };
 	voe_assets_sectioned doc;
 	uint32_t heights_section;
 	double metres;
-	uint32_t cells;
-	float *heights;
 
 	VOE_BASE_ASSERT(text != NULL, "reading a landscape from nothing");
 	VOE_BASE_ASSERT(arena != NULL, "reading a landscape with no arena");
@@ -221,16 +286,19 @@ bool voe_assets_landscape_read(const char *text, size_t size,
 	if (!voe_assets_sectioned_parse(text, size, arena, &doc))
 		return refuse(error, VOE_BASE_ERROR_MALFORMED,
 			      "not sectioned text");
-	if (!read_shape(&doc, &metres, &cells, error))
+	if (!read_shape(&doc, &metres, &result.cells, error))
 		return false;
 	heights_section = voe_assets_sectioned_find(&doc, "Heights");
 	if (heights_section == VOE_ASSETS_SECTIONED_NONE)
 		return refuse(error, VOE_BASE_ERROR_MALFORMED,
 			      "no [Heights] section");
+	if (!read_layers(&doc, text, size, &result, error))
+		return false;
 
-	heights = voe_base_arena_push(arena,
-				      height_count(cells) * sizeof(float));
-	for (uint32_t row = 0; row <= cells; row++) {
+	result.size = (float)metres;
+	result.heights = voe_base_arena_push(
+		arena, height_count(result.cells) * sizeof(float));
+	for (uint32_t row = 0; row <= result.cells; row++) {
 		char name[16];
 		const char *line;
 
@@ -238,28 +306,24 @@ bool voe_assets_landscape_read(const char *text, size_t size,
 		line = voe_assets_sectioned_value(&doc, heights_section, name);
 		if (line == NULL)
 			return refuse_row(error, row, "missing");
-		if (!read_row(line, row, cells,
-			      heights + (size_t)row * (cells + 1), error))
+		if (!read_row(line, row, result.cells,
+			      result.heights + (size_t)row * (result.cells + 1),
+			      error))
+			return false;
+	}
+	if (result.layer_count > 0) {
+		result.paint = voe_assets_landscape_paint_read(
+			&doc, result.cells, result.layer_count, arena, error);
+		if (result.paint == NULL)
 			return false;
 	}
 
-	*out = (voe_assets_landscape){
-		.size = (float)metres,
-		.cells = cells,
-		.heights = heights,
-	};
+	*out = result;
 	return true;
 }
 
-// Where the printer is. With no buffer it only counts.
-struct printer {
-	char *buffer;
-	size_t capacity;
-	size_t used;
-};
-
-[[gnu::format(printf, 2, 3)]] static void print(struct printer *printer,
-						const char *format, ...)
+void voe_assets_landscape_print(struct voe_assets_landscape_printer *printer,
+				const char *format, ...)
 {
 	char *at = printer->buffer ? printer->buffer + printer->used : NULL;
 	size_t room = printer->buffer ? printer->capacity - printer->used : 0;
@@ -275,36 +339,72 @@ struct printer {
 	printer->used += (size_t)written;
 }
 
-static void print_landscape(struct printer *printer,
+// `path` between quotes with `"` and `\` escaped, into `quoted`.
+static void quote(const char *path, char *quoted)
+{
+	size_t at = 0;
+
+	VOE_BASE_ASSERT(memchr(path, '\0', VOE_ASSETS_MATERIAL_PATH) != NULL,
+			"a layer path not NUL-terminated in its room");
+	VOE_BASE_ASSERT(strpbrk(path, "\r\n") == NULL,
+			"a layer path with a line break");
+	quoted[at++] = '"';
+	for (size_t i = 0; path[i] != '\0'; i++) {
+		if (path[i] == '"' || path[i] == '\\')
+			quoted[at++] = '\\';
+		quoted[at++] = path[i];
+	}
+	quoted[at++] = '"';
+	quoted[at] = '\0';
+	VOE_BASE_ASSERT(at < QUOTED_PATH, "a quoted path outgrew its room");
+}
+
+static void print_landscape(struct voe_assets_landscape_printer *printer,
 			    const voe_assets_landscape *landscape)
 {
 	const uint32_t cells = landscape->cells;
 
-	print(printer, "[Landscape]\nsize=%.9g\ncells=%u\n\n[Heights]\n",
-	      (double)landscape->size, cells);
+	voe_assets_landscape_print(printer,
+				   "[Landscape]\nsize=%.9g\ncells=%u\n\n",
+				   (double)landscape->size, cells);
+	if (landscape->layer_count > 0)
+		voe_assets_landscape_print(printer, "[Layers]\n");
+	for (uint32_t k = 0; k < landscape->layer_count; k++) {
+		char quoted[QUOTED_PATH];
+
+		quote(landscape->layers[k], quoted);
+		voe_assets_landscape_print(printer, "layer%u=%s\n", k, quoted);
+	}
+	voe_assets_landscape_print(printer, landscape->layer_count > 0 ?
+						    "\n[Heights]\n" :
+						    "[Heights]\n");
 	for (uint32_t row = 0; row <= cells; row++) {
 		const float *heights =
 			landscape->heights + (size_t)row * (cells + 1);
 
-		print(printer, "row%u=", row);
+		voe_assets_landscape_print(printer, "row%u=", row);
 		for (uint32_t c = 0; c <= cells; c++)
 			// Adding 0.0 turns a rounded -0 into 0.
-			print(printer, c < cells ? "%.0f " : "%.0f\n",
-			      round((double)heights[c] * 1000.0) + 0.0);
+			voe_assets_landscape_print(
+				printer, c < cells ? "%.0f " : "%.0f\n",
+				round((double)heights[c] * 1000.0) + 0.0);
 	}
+	voe_assets_landscape_paint_print(printer, landscape);
 }
 
 voe_assets_landscape_text
 voe_assets_landscape_write(const voe_assets_landscape *landscape,
 			   voe_base_arena *arena)
 {
-	struct printer printer = { 0 };
+	struct voe_assets_landscape_printer printer = { 0 };
 
 	VOE_BASE_ASSERT(landscape != NULL && landscape->heights != NULL,
 			"writing no landscape");
 	VOE_BASE_ASSERT(size_supported((double)landscape->size) &&
 				cells_supported(landscape->cells),
 			"writing a landscape the reader would refuse");
+	VOE_BASE_ASSERT(landscape->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS,
+			"writing more layers than a landscape holds");
 	VOE_BASE_ASSERT(arena != NULL, "writing a landscape with no arena");
 
 	print_landscape(&printer, landscape);

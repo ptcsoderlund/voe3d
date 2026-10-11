@@ -18,8 +18,8 @@ way out: a decoder takes a buffer and an encoder hands one back, since
   interpreted. Its header says why it is layer one of three and why comments
   are `//`.
 - `include/assets/landscape.h` — a `.landscape` file's text to a grid of up
-  to 2048 cells of heights in whole millimetres, and back, and a grid resampled
-  bilinearly to another count.
+  to 2048 cells of heights in whole millimetres, up to eight material layers and
+  each point's paint weights, and back, and a grid resampled bilinearly.
 - `include/assets/material.h` — a `.material` file's text to a shader, its
   factors, repeat and three map paths, and back. Its header says the defaults
   and why a missing key reads as one.

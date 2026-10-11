@@ -23,7 +23,8 @@ belongs to.
 - `sectioned.c` — the principal's sketch read back as its text, one test
   per decision the format left open, and every shape of broken line.
 - `landscape.c` — a flat and a 2048-cell grid round-tripped, heights rounded
-  to the millimetre, a resample keeping a plane and its corners, and each
+  to the millimetre, a resample keeping a plane and its corners, layers and
+  paint round-tripped byte for byte and resampled to sums of 255, and each
   refusal with its category.
 - `material.c` — an empty section read as the defaults, a full file
   round-tripped field for field, and each bad value refused MALFORMED.
