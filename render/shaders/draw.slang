@@ -400,6 +400,9 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// and the metallic-roughness map is the green and blue of that. A file
 	// that puts its occlusion in the same picture points its occlusion
 	// texture at it as well, and then this samples the same slot twice.
+	// A named map replaces the roughness and metallic factors, not times
+	// them (0401); a non-zero id naming no live texture samples white and so
+	// reads fully rough and fully metal.
 	float4 orm =
 		voe_render_textures[shading.metallic_roughness_texture].Sample(uv);
 	float occlusion =
@@ -450,8 +453,9 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 			      float4(factor.rgb, factor.a * field_alpha) :
 			      factor * sheet;
 
-	float roughness = saturate(shading.roughness * orm.g);
-	float metallic = saturate(shading.metallic * orm.b);
+	bool mapped = shading.metallic_roughness_texture != VOE_RENDER_NO_TEXTURE;
+	float roughness = saturate(mapped ? orm.g : shading.roughness);
+	float metallic = saturate(mapped ? orm.b : shading.metallic);
 	float alpha = roughness * roughness;
 
 	// THE ALPHA MODE, RESOLVED HERE AND NOT AT THE RETURN, because there are
