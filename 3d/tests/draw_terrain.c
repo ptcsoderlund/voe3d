@@ -18,6 +18,12 @@
 // from the same eye at the bounce's VOE_3D_TERRAIN_BOUNCE_NODES draws one to
 // that many, and at 4 still draws (0397 point 1).
 //
+// A PAINTED LANDSCAPE DRAWS ITS LAYERS (0402 point 4): a 16 m, 4-cell one seen
+// straight down from 10 m, layers 0 and 1 a loaded red and green material,
+// layer 1 painted on its right half. Lit, so channels are compared: left red,
+// right green; red set to blue reads blue the next frame; a layer whose
+// material is not loaded draws the ground's own olive.
+//
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_model_fade.c does.
 #include <3d/draw_system.h>
@@ -28,6 +34,7 @@
 #include <3d/normal_matrix.h>
 #include <3d/panel_component.h>
 #include <assets/landscape.h>
+#include <assets/material.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <ecs/world.h>
@@ -55,15 +62,16 @@
 #define RIDGE 60.0f
 #define RIDGE_ROWS 64u
 
-// The shared grid, the ground's two records, a node per object and the view's
-// one pass.
+// The shared grid, two grounds' records and two materials', a node per object,
+// the view's one pass, and room to write the painted landscape's paint.
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 33 * 33,
 	.indices = 32 * 32 * 6,
 	.geometries = 1,
 	.objects = VOE_3D_LANDSCAPE_NODES,
-	.shadings = 2,
+	.shadings = 8,
 	.passes = 1,
+	.heights_texels = 64,
 };
 
 // The camera looking level along -Z from 2 m up, the sun and, with `model`, the
@@ -278,6 +286,167 @@ static void the_bounce_casts_coarse(voe_base_arena *arena,
 	VOE_TEST_CHECK(four <= 4);
 }
 
+#define PAINTED "Assets/Painted.landscape"
+#define RED "Assets/red.material"
+#define GREEN "Assets/green.material"
+
+// The camera 10 m up looking straight down, -Z up the picture, a sun from
+// above, and a thing at the origin wearing PAINTED.
+static voe_ecs_world *a_painted_world(voe_base_arena *arena)
+{
+	voe_ecs_limits limits = {
+		.entities = 3,
+		.component_types = 16,
+		.intent_types = 16,
+		.structure_requests = 16,
+		.structure_bytes = 1024,
+	};
+	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
+	voe_ecs_entity eye = { 0 }, sun = { 0 }, thing = { 0 };
+	voe_3d_model row = { .path = PAINTED };
+
+	voe_scene_transform_register(world, 3);
+	voe_scene_camera_register(world, 1);
+	voe_scene_light_register(world, 1);
+	voe_3d_mesh_register(world, 1);
+	voe_3d_material_register(world, 1);
+	voe_3d_panel_register(world, 1);
+	voe_3d_model_register(world, 1);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, sun,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ 0.1f, -1.0f, 0.1f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_light_add(
+		world, sun,
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
+				   .intensity = 3.0f }));
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &eye));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, eye,
+		(voe_scene_transform){
+			.position = { 0.0, 10.0, 0.0 },
+			.rotation = { -0.70710678f, 0.0f, 0.0f, 0.70710678f },
+			.scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_camera_add(
+		world, eye,
+		(voe_scene_camera){ .fov_y = 1.0f,
+				    .near_plane = 0.1f,
+				    .far_plane = 100.0f }));
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, thing,
+		(voe_scene_transform){ .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_3d_model_add(world, thing, row));
+	return world;
+}
+
+// One frame of `world` with the store's paint and materials written inside
+// it; the picture into `pixels`, SIDE² rgba rows top down.
+static void a_painted_frame(voe_ecs_world *world, voe_render_device *device,
+			    voe_base_arena *arena, voe_3d_models *models,
+			    uint8_t *pixels)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	voe_render_pass_camera camera = voe_3d_draw_system_camera(&frame);
+	voe_render_picture picture = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	bool drawing = false;
+
+	frame.models = models;
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (!drawing)
+		return;
+	voe_3d_models_landscape_frame(models, device);
+	voe_3d_models_material_frame(models, device);
+	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
+					     &camera));
+	voe_3d_draw_system_run(world, device, arena, frame);
+	voe_render_pass_end(device);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	VOE_TEST_CHECK(voe_render_target_read(device, VOE_RENDER_TARGET_WINDOW,
+					      arena, &picture, &error));
+	VOE_TEST_CHECK(picture.pixels != NULL && picture.width == SIDE &&
+		       picture.height == SIDE);
+	if (picture.pixels != NULL)
+		memcpy(pixels, picture.pixels, (size_t)SIDE * SIDE * 4);
+}
+
+// Whether channel `a` of the centre row's pixel `x` reads above twice `b`.
+static bool dominates(const uint8_t *picture, uint32_t x, uint32_t a,
+		      uint32_t b)
+{
+	const uint8_t *pixel = picture + ((size_t)(SIDE / 2) * SIDE + x) * 4;
+
+	printf("pixel %u: %u %u %u\n", x, pixel[0], pixel[1], pixel[2]);
+	return pixel[a] > 2 * pixel[b];
+}
+
+// A lit material of linear `r`, `g`, `b` as `path`, with no maps.
+static void a_material(voe_3d_models *models, voe_render_device *device,
+		       const char *path, float r, float g, float b)
+{
+	voe_assets_material_file material = voe_assets_material_default();
+	voe_3d_material_maps no_maps = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+
+	material.colour[0] = r;
+	material.colour[1] = g;
+	material.colour[2] = b;
+	VOE_TEST_CHECK(voe_3d_models_load_material(models, device, path, 1,
+						   &material, no_maps, &error));
+}
+
+static void the_layers_are_drawn(voe_base_arena *arena,
+				 voe_render_device *device,
+				 voe_3d_models *models)
+{
+	voe_assets_landscape land = voe_assets_landscape_flat(16.0f, 4, arena);
+	voe_assets_material_file blue = voe_assets_material_default();
+	voe_ecs_world *world = a_painted_world(arena);
+	uint8_t *seen = voe_base_arena_push(arena, (size_t)SIDE * SIDE * 4);
+	// Columns 3 and 4 of every row: layer 1 at 255 in plane 0, plane 1 bare.
+	uint8_t paint[2 * 10 * 4] = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	const uint32_t left = SIDE / 16, right = SIDE - 1 - SIDE / 16;
+	const uint8_t *pixel = seen + ((size_t)(SIDE / 2) * SIDE + right) * 4;
+
+	a_material(models, device, RED, 1.0f, 0.0f, 0.0f);
+	a_material(models, device, GREEN, 0.0f, 1.0f, 0.0f);
+	snprintf(land.layers[0], sizeof(land.layers[0]), "%s", RED);
+	snprintf(land.layers[1], sizeof(land.layers[1]), "%s", GREEN);
+	land.layer_count = 2;
+	VOE_TEST_CHECK(voe_3d_models_load_landscape(models, device, PAINTED, 1,
+						    &land, &error));
+	for (uint32_t p = 0; p < 10; p++)
+		paint[p * 4 + 1] = 255;
+	voe_3d_models_landscape_put_paint(
+		models, PAINTED, (voe_3d_landscape_rect){ 3, 0, 5, 5 }, paint);
+
+	a_painted_frame(world, device, arena, models, seen);
+	VOE_TEST_CHECK(dominates(seen, left, 0, 1));
+	VOE_TEST_CHECK(dominates(seen, right, 1, 0));
+
+	blue.colour[0] = 0.0f;
+	blue.colour[1] = 0.0f;
+	blue.colour[2] = 1.0f;
+	voe_3d_models_material_set(models, RED, &blue);
+	a_painted_frame(world, device, arena, models, seen);
+	VOE_TEST_CHECK(dominates(seen, left, 2, 0));
+
+	// Olive: green above red, below twice it, blue below red.
+	voe_3d_models_landscape_layer_set(models, PAINTED, 1,
+					  "Assets/none.material");
+	a_painted_frame(world, device, arena, models, seen);
+	VOE_TEST_CHECK(!dominates(seen, right, 1, 0));
+	VOE_TEST_CHECK(pixel[1] > pixel[0] && pixel[2] < pixel[0]);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -307,6 +476,7 @@ int main(void)
 
 	the_ridge_meets_the_sky(arena, device, models);
 	the_bounce_casts_coarse(arena, device, models);
+	the_layers_are_drawn(arena, device, models);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);

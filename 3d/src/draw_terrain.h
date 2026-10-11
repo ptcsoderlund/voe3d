@@ -16,6 +16,10 @@
 // nodes of the same ground; a crack between nodes two levels apart is
 // accepted there.
 //
+// A PAINTED LANDSCAPE'S LAYERS ARE ASKED OF THE STORE EACH FRAME (0402 point
+// 4): every record names its paint and each layer's material record, so an
+// Inspector tint or a reloaded map shows at once, in every pass alike.
+//
 // A node's records are on the caller's scratch, given back by its rewind.
 #pragma once
 
@@ -46,7 +50,8 @@ struct voe_3d_terrain_nodes {
 
 // `entry`'s nodes as the eye at `world`'s origin chooses them, at most
 // VOE_3D_LANDSCAPE_NODES: each `world` × its box, `normal` the row's own,
-// solid in the part's record and white. None for an entry that is no loaded
+// solid in the part's record and white, a painted one's paint and layers
+// named. None for an entry that is no loaded
 // landscape of `models`, or a `world` scaled to nothing.
 struct voe_3d_terrain_nodes
 voe_3d_draw_terrain_nodes(const voe_3d_models *models,

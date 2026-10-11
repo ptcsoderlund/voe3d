@@ -5,6 +5,7 @@
 // Used by draw_system.c for each landscape row of a pass, and by the shadow,
 // capture and sun-map passes through the cast, which takes no scratch and a
 // capacity: the bounce's passes choose at most VOE_3D_TERRAIN_BOUNCE_NODES.
+// A painted landscape's layers are looked up once per row per call (0402).
 //
 // Constraints: one selection per row per pass, from the root of the pyramid,
 // and every chosen node drawn: no frustum test, which is 093's (0395). A
@@ -13,6 +14,7 @@
 // because the shadows call takes no arena; an arena on the frame would lift it.
 #include "draw_terrain.h"
 
+#include "draw_material.h"
 #include "models_store.h"
 
 #include <3d/landscape.h>
@@ -21,13 +23,45 @@
 // The least box height, metres (0396 point 3).
 #define LEAST_BOX 0.001f
 
-// One node's record: `world` × the node's box, the row's `normal`, and the
-// heights, `terrain` and `morph` render's header asks for.
+// The record every node of `entry` shares (0402 point 4): the part's shading
+// and, with layers, `paint` and each layer's record, asked of the store now.
+// A layer whose material is not loaded takes the part's own record; layers
+// past the count repeat layer 0's. No layers: `paint` and `layers` nought.
+static voe_render_object look_of(const voe_3d_models *models,
+				 const voe_3d_model_entry *entry,
+				 const voe_3d_models_terrain *terrain)
+{
+	const voe_assets_landscape *land = entry->landscape;
+	const uint32_t own = entry->parts[0].material.shading.index;
+	voe_render_object look = { .shading = own };
+
+	VOE_BASE_ASSERT(land->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS,
+			"more layers than a landscape holds");
+	if (land->layer_count == 0)
+		return look;
+	look.paint[0] = terrain->paint[0].index + 1;
+	look.paint[1] = terrain->paint[1].index + 1;
+	for (uint32_t i = 0; i < land->layer_count; i++) {
+		const voe_3d_model_part *worn =
+			voe_3d_draw_material_named(models, land->layers[i]);
+
+		look.layers[i] = worn != NULL ? worn->material.shading.index :
+						own;
+	}
+	for (uint32_t i = land->layer_count; i < VOE_ASSETS_LANDSCAPE_LAYERS;
+	     i++)
+		look.layers[i] = look.layers[0];
+	VOE_BASE_ASSERT(look.paint[0] != 0, "a painted landscape with no paint");
+	return look;
+}
+
+// One node's record: `look` with `world` × the node's box, the row's
+// `normal`, and the heights, `terrain` and `morph` render's header asks for.
 static voe_render_object node_object(voe_math_float4x4 world,
 				     voe_math_float4x4 normal,
 				     const voe_3d_landscape_node *node,
 				     voe_render_texture heights, float side,
-				     voe_render_shading shading)
+				     const voe_render_object *look)
 {
 	const float tall = node->high - node->low > LEAST_BOX ?
 				   node->high - node->low :
@@ -36,15 +70,15 @@ static voe_render_object node_object(voe_math_float4x4 world,
 					       { 0, tall, 0, node->low },
 					       { 0, 0, node->side, node->z },
 					       { 0, 0, 0, 1 } } };
-	voe_render_object object = {
-		.world = voe_math_float4x4_mul(world, box),
-		.normal = normal,
-		.shading = shading.index,
-		.heights = heights.index + 1,
-		.colour = { 1.0f, 1.0f, 1.0f, 1.0f },
-		.terrain = { node->x, node->z, node->side, side },
-		.morph = { node->morph_start, node->morph_end, node->low, tall },
-	};
+	voe_render_object object = *look;
+
+	object.world = voe_math_float4x4_mul(world, box);
+	object.normal = normal;
+	object.heights = heights.index + 1;
+	object.colour = (voe_math_float4){ 1.0f, 1.0f, 1.0f, 1.0f };
+	object.terrain = (voe_math_float4){ node->x, node->z, node->side, side };
+	object.morph = (voe_math_float4){ node->morph_start, node->morph_end,
+					  node->low, tall };
 
 	VOE_BASE_ASSERT(node->side > 0.0f, "a node with no side");
 	VOE_BASE_ASSERT(object.morph.w > 0.0f, "a node box with no height");
@@ -87,6 +121,7 @@ voe_3d_draw_terrain_nodes(const voe_3d_models *models,
 	struct voe_3d_terrain_nodes out = { 0 };
 	voe_3d_models_terrain terrain;
 	voe_3d_landscape_node *chosen;
+	voe_render_object look;
 
 	VOE_BASE_ASSERT(scratch != NULL, "terrain nodes need scratch");
 	chosen = voe_base_arena_push(scratch,
@@ -97,12 +132,13 @@ voe_3d_draw_terrain_nodes(const voe_3d_models *models,
 		return out;
 	out.grid = terrain.grid;
 	out.part = &entry->parts[0];
+	look = look_of(models, entry, &terrain);
 	out.objects = voe_base_arena_push(scratch,
 					  sizeof(*out.objects) * out.count);
 	for (uint32_t i = 0; i < out.count; i++)
 		out.objects[i] = node_object(world, normal, &chosen[i],
 					     terrain.heights, entry->landscape->size,
-					     out.part->material.shading);
+					     &look);
 	return out;
 }
 
@@ -127,6 +163,7 @@ bool voe_3d_draw_terrain_cast(voe_render_device *device,
 {
 	voe_3d_landscape_node chosen[VOE_3D_LANDSCAPE_NODES];
 	voe_3d_models_terrain terrain;
+	voe_render_object look = { 0 };
 	uint32_t count;
 
 	VOE_BASE_ASSERT(device != NULL, "casting terrain needs a device");
@@ -135,12 +172,13 @@ bool voe_3d_draw_terrain_cast(voe_render_device *device,
 	count = choose(models, entry, world, &terrain, chosen, capacity);
 	VOE_BASE_ASSERT(count == 0 || entry->part_count >= 1,
 			"a landscape with no part");
+	if (count > 0)
+		look = look_of(models, entry, &terrain);
 	for (uint32_t i = 0; i < count; i++)
 		if (!voe_render_frame_draw(
 			    device, terrain.grid,
 			    node_object(world, normal, &chosen[i], terrain.heights,
-					entry->landscape->size,
-					entry->parts[0].material.shading)))
+					entry->landscape->size, &look)))
 			return false;
 	return true;
 }

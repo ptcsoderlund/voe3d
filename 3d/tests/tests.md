@@ -44,7 +44,9 @@ again, or to find where a claim that has started failing is written down.
   and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up shows its far ridge against the
   sky and ground below the horizon, within the node budget, nothing at fade 1, and the bounce's
-  cast within its own budget. Skips without a graphics card.
+  cast within its own budget; and that a painted landscape draws its red and green layers where
+  painted, a material set to blue at once, and an unloaded layer as its ground. Skips without a
+  graphics card.
 - `terrain_shadow.c` — that a 512 m landscape's 40 m ridge, under a low sun behind it, darkens
   the ground behind it and not the ground in front, in one frame, its nodes drawn into each
   cascade. Skips without a graphics card.
