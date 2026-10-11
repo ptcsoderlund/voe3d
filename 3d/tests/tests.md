@@ -136,8 +136,9 @@ again, or to find where a claim that has started failing is written down.
 - `models_material.c` — a `.material` with three maps loaded as one part with a live record and
   twin, a set written by a frame, a map that is no picture failing MALFORMED, and a rename. Skips
   without a card.
-- `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates. Needs
-  no graphics card.
+- `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, and
+  painting a layer: the sum kept, the radius held and a light stroke stopping at its strength.
+  Needs no graphics card.
 - `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
   once, neighbours within a level, within capacity, bounding their heights; an update equal to a
   fresh build and the pyramid's box. Needs no graphics card.

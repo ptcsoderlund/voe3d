@@ -159,6 +159,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow
   materials on one COLOUR texture, blended already so needing no twin.
-- `landscape.c` — the bilinear height, the marched and bisected ray, and the brush's stamp.
+- `landscape.c` — the bilinear height, the marched and bisected ray, and the brush's stamp on the
+  heights or, painting, on a layer's weights.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
