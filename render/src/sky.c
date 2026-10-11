@@ -16,7 +16,7 @@
 
 #define PI 3.14159265358979f
 
-static float unit_error(voe_math_float3 v)
+[[maybe_unused]] static float unit_error(voe_math_float3 v)
 {
 	return fabsf(voe_math_float3_length(v) - 1.0f);
 }
