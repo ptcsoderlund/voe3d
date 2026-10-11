@@ -90,8 +90,10 @@
 // The widest replace intent this panel will fill in. It is a buffer on the
 // stack rather than an allocation because an edit happens between a frame's end
 // and its rewind, and nothing that small is worth an arena; a registration
-// wider than this asserts, which is the program's own sizing being wrong.
-#define VOE_EDITOR_INSPECTOR_INTENT 256
+// wider than this asserts, which is the program's own sizing being wrong. The
+// widest today is a model's, its path and eight material paths, about 1.2 KB;
+// inspector_edit.c asserts at compile time that it fits.
+#define VOE_EDITOR_INSPECTOR_INTENT 2048
 
 // How many Remove buttons one frame may record — one per component type: the
 // engine's VOE_GAME_WORLD_TYPES (game/world.h) and a project's

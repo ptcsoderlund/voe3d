@@ -33,6 +33,8 @@
 
 #include <base/assert.h>
 
+#include <3d/model_component.h>
+
 #include <scene/camera_component.h>
 #include <scene/prefab_component.h>
 
@@ -41,6 +43,10 @@
 
 #include <stdbool.h>
 #include <string.h>
+
+// The widest replace intent the Inspector fills in, a model's (inspector.h).
+static_assert(sizeof(voe_3d_model_intent) <= VOE_EDITOR_INSPECTOR_INTENT,
+	      "a model's replace intent is wider than VOE_EDITOR_INSPECTOR_INTENT");
 
 // A component's fields sit on the theme's RAISED surface, a shade above the
 // panel's own SURFACE, so that two components read as two blocks.
