@@ -26,6 +26,9 @@ by reading the offscreen colour image back.
 - `terrain_vertex.c` — a terrain record over heights all 2 m drawing a quad grid as a 2 m plane
   would, and the same record with `heights` nought not covering the rows above the middle.
   Headless.
+- `terrain_layers.c` — a painted landscape seen from above: its left quarter the red layer, its
+  right the green, `paint_a` nought the object record's white, and a layer at weight 0 nowhere.
+  Headless.
 - `worker_guard.c` — a thread creating and destroying 100 textures and 100 geometries while the
   main thread runs 100 element-only frames, every call true and the thread joined. Headless.
 - `elements.c` — rectangles from records: the colours, the clip rectangle, paint order both ways
