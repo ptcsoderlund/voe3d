@@ -30,6 +30,10 @@
 // in the table is one failure, named, and a second call counts none; with the
 // material on disk as text a watch reports nothing and leaves it loaded.
 //
+// THE LAYERS, on a seventh store and an empty world: a landscape whose two
+// layers name table materials loads both, holds both paths and its painted
+// point's bytes as cooked; a layer naming no table material is one failure.
+//
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include <game/models.h>
@@ -72,6 +76,8 @@
 #define LANDSCAPE_ON_DISK FOLDER "/" LANDSCAPE
 #define MATERIAL "Assets/m.material"
 #define NO_MATERIAL "Assets/none.material"
+#define GREY_MATERIAL "Assets/grey.material"
+#define LAYERED_LANDSCAPE "layered.landscape"
 #define ASSETS_ON_DISK FOLDER "/Assets"
 #define MATERIAL_ON_DISK FOLDER "/" MATERIAL
 
@@ -81,7 +87,7 @@
 // Then a landscape as the store makes it (0396 point 3): the shared grid of
 // VOE_3D_LANDSCAPE_NODE_QUADS² quads, its ground and its twin, and the
 // heights texture, which takes a texture slot and no capacity. Then a
-// material's record and twin, with no geometry.
+// material's record and twin, with no geometry, and a second one's.
 #define GRID_SIDE (VOE_3D_LANDSCAPE_NODE_QUADS + 1)
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 16 + GRID_SIDE * GRID_SIDE,
@@ -89,7 +95,7 @@ static const voe_render_capacities CAPACITIES = {
 				VOE_3D_LANDSCAPE_NODE_QUADS * 6,
 	.geometries = 4 + 1,
 	.objects = 1,
-	.shadings = 10 + 2 + 2,
+	.shadings = 10 + 2 + 2 + 2,
 	.passes = 1,
 };
 
@@ -100,16 +106,41 @@ static const int32_t HILL[25] = {
 };
 
 static const voe_game_landscapes HILLS = {
-	(const voe_game_landscape[]){ { LANDSCAPE, 64.0f, 4, HILL } }, 1
+	(const voe_game_landscape[]){ { LANDSCAPE, 64.0f, 4, HILL, NULL, 0, NULL } },
+	1
 };
 
-// A lit, white material with the PNG as its colour map.
+// A lit, white material with the PNG as its colour map, and a grey one with
+// no maps.
 static const voe_game_materials MATERIALS = {
 	(const voe_game_material[]){ { MATERIAL,
 				       { .colour = { 1.0f, 1.0f, 1.0f },
 					 .roughness = 0.5f,
 					 .repeat = 1.0f,
-					 .colormap = PICTURE } } },
+					 .colormap = PICTURE } },
+				     { GREY_MATERIAL,
+				       { .colour = { 0.5f, 0.5f, 0.5f },
+					 .roughness = 0.5f,
+					 .repeat = 1.0f } } },
+	2
+};
+
+// One plane of a 4-cell landscape's paint: all layer 0 but the middle point,
+// 200 of layer 1. Filled by main, since a literal would be 100 bytes.
+#define PAINTED 12
+static uint8_t paint[25 * 4];
+
+static const voe_game_landscapes LAYERED = {
+	(const voe_game_landscape[]){
+		{ LAYERED_LANDSCAPE, 64.0f, 4, HILL,
+		  (const char *const[]){ MATERIAL, GREY_MATERIAL }, 2, paint } },
+	1
+};
+
+static const voe_game_landscapes UNKNOWN_LAYER = {
+	(const voe_game_landscape[]){
+		{ LAYERED_LANDSCAPE, 64.0f, 4, HILL,
+		  (const char *const[]){ NO_MATERIAL }, 1, NULL } },
 	1
 };
 
@@ -392,6 +423,73 @@ static void check_materials(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
+// `path` held in `models` as a loaded material.
+static bool holds_material(const voe_3d_models *models, const char *path)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, path);
+
+	return entry != NULL && entry->loaded && entry->material;
+}
+
+// The layered landscape's grid: both layer paths and the painted point's
+// bytes as cooked, the second plane nought.
+static void check_layered(const voe_3d_models *models)
+{
+	const voe_3d_model_entry *entry =
+		voe_3d_models_find(models, LAYERED_LANDSCAPE);
+	const uint8_t *point;
+
+	VOE_TEST_CHECK(entry != NULL && entry->landscape != NULL);
+	if (entry == NULL || entry->landscape == NULL)
+		return;
+	VOE_TEST_CHECK_INT(entry->landscape->layer_count, 2);
+	VOE_TEST_CHECK(strcmp(entry->landscape->layers[0], MATERIAL) == 0);
+	VOE_TEST_CHECK(strcmp(entry->landscape->layers[1], GREY_MATERIAL) == 0);
+	VOE_TEST_CHECK(entry->landscape->paint != NULL);
+	if (entry->landscape->paint == NULL)
+		return;
+	point = entry->landscape->paint + PAINTED * 4;
+	VOE_TEST_CHECK(memcmp(point, paint + PAINTED * 4, 4) == 0);
+	VOE_TEST_CHECK(memcmp(point + sizeof(paint), (uint8_t[4]){ 0 }, 4) ==
+		       0);
+}
+
+static void check_layers(voe_ecs_world *world, voe_render_device *device,
+			 voe_base_arena *scratch)
+{
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_models_failures failures;
+
+	for (uint32_t i = 0; i < 25; i++)
+		paint[i * 4] = 255;
+	paint[PAINTED * 4] = 55;
+	paint[PAINTED * 4 + 1] = 200;
+
+	// ---- two layers naming table materials: both loaded, the paint kept
+	failures = voe_game_models_landscapes(models, device, &LAYERED, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	failures = voe_game_models_materials(world, models, device, FOLDER,
+					     &MATERIALS, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(holds_material(models, MATERIAL));
+	VOE_TEST_CHECK(holds_material(models, GREY_MATERIAL));
+	check_layered(models);
+	voe_3d_models_clear(models, device);
+
+	// ---- a layer naming no table material: one failure, named
+	failures = voe_game_models_landscapes(models, device, &UNKNOWN_LAYER,
+					      scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	failures = voe_game_models_materials(world, models, device, FOLDER,
+					     &MATERIALS, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 1);
+	VOE_TEST_CHECK(failures.first != NULL &&
+		       strcmp(failures.first, NO_MATERIAL) == 0);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 static void check_files(voe_ecs_world *world, voe_render_device *device,
 			voe_base_arena *scratch, const uint8_t *glb,
 			uint32_t size)
@@ -480,6 +578,7 @@ int main(void)
 	voe_3d_models_clear(landscapes, device);
 	voe_3d_models_destroy(landscapes);
 	check_materials(voe_game_world_new(arena), device, scratch);
+	check_layers(voe_game_world_new(arena), device, scratch);
 	remove(GOOD_ON_DISK);
 	remove(PICTURE_ON_DISK);
 	remove(LANDSCAPE_ON_DISK);

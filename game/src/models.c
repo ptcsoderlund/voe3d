@@ -6,7 +6,8 @@
 // file, so a caller's own scratch data survives the call. With a progress, the
 // distinct unread paths are counted first and the stop flag asked before each.
 // A cooked landscape's millimetres become metres in scratch, rewound after it,
-// and the watch passes over every landscape and material entry.
+// its layer paths copied and its paint widened to both planes there too, and
+// the watch passes over every landscape and material entry.
 #include <game/models.h>
 
 #include <3d/emitter_component.h>
@@ -161,6 +162,33 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 	return failures;
 }
 
+// `cooked`'s layer paths into `landscape`, and its paint, when cooked, as
+// both planes in scratch: the second all nought when only one was cooked.
+static void copy_layers(voe_assets_landscape *landscape,
+			const voe_game_landscape *cooked, uint32_t heights,
+			voe_base_arena *scratch)
+{
+	size_t plane = (size_t)heights * 4;
+
+	VOE_BASE_ASSERT(cooked->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS,
+			"a cooked landscape with too many layers");
+	for (uint32_t k = 0; k < cooked->layer_count; k++) {
+		size_t length = strlen(cooked->layers[k]);
+
+		VOE_BASE_ASSERT(length < VOE_ASSETS_MATERIAL_PATH,
+				"a cooked layer path too long");
+		memcpy(landscape->layers[k], cooked->layers[k], length + 1);
+	}
+	landscape->layer_count = cooked->layer_count;
+	if (cooked->paint == NULL)
+		return;
+	landscape->paint = voe_base_arena_push(scratch, plane * 2);
+	memcpy(landscape->paint, cooked->paint,
+	       cooked->layer_count > 4 ? plane * 2 : plane);
+	if (cooked->layer_count <= 4)
+		memset(landscape->paint + plane, 0, plane);
+}
+
 voe_game_models_failures
 voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 			   const voe_game_landscapes *landscapes,
@@ -188,6 +216,7 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 		for (uint32_t h = 0; h < heights; h++)
 			landscape.heights[h] =
 				(float)((double)cooked->millimetres[h] / 1000.0);
+		copy_layers(&landscape, cooked, heights, scratch);
 		if (!voe_3d_models_load_landscape(models, device, cooked->path,
 						  0, &landscape, &error))
 			count_failure(&failures, models, cooked->path, error);

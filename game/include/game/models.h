@@ -31,12 +31,14 @@
 // material: its path is no model file, and the editor reloads one itself.
 //
 // MATERIALS come from a table too (game/materials.h, 0399 point 7): each shape
-// and model row's material path the store lacks is loaded from its entry at
-// stamp 0, maps read from the folder as files are, or kept failed when the
-// table has none; each failure counted as an update's, so it is tried once.
+// and model row's material path the store lacks, then each loaded landscape's
+// layer paths (0402 point 8), is loaded from its entry at stamp 0, maps read
+// from the folder as files are, or kept failed when the table has none; each
+// failure counted as an update's, so it is tried once.
 //
 // LANDSCAPES come from a table, never a file (game/landscapes.h, 0236): each
-// one's millimetres turned into metres in scratch and loaded at stamp 0, a
+// one's millimetres turned into metres in scratch, its layer paths and paint
+// carried, and loaded at stamp 0, a
 // failure counted as an update counts one. The game loads its cooked table so
 // before its first update, so a scene's landscape rows find their entries.
 //
@@ -103,8 +105,9 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 	const voe_game_material *material, uint64_t stamp,
 	voe_base_arena *scratch, voe_base_error *error);
 
-// Loads every shape's and model row's material path the store lacks from
-// `table`, failing one it has not. See the header.
+// Loads every shape's and model row's material path, and every loaded
+// landscape's layer path, the store lacks from `table`, failing one it has
+// not. See the header.
 voe_game_models_failures
 voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 			  voe_render_device *device, const char *folder,
