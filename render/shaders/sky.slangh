@@ -2,7 +2,8 @@
 // voe_render_sky_radiance in render/src/sky.h and sky.c, the same model, the
 // same constants and the same arithmetic, so the drawn sky and the CPU's agree
 // within 2/255. A change there is made here too; sky.h holds the model's words.
-// A part (ADR-0308): included by draw.slang, never compiled alone.
+// A part (ADR-0308): included by lighting.slangh and tone.slangh, once by its
+// #pragma once; never compiled alone.
 //
 //     float3 l = voe_render_sky_radiance(light.direction, sunlight, view);
 //
@@ -10,6 +11,7 @@
 // `view` a unit direction, both world space, +Y up; `sunlight` the sun's colour
 // × intensity. Below the horizon a view takes the horizon's colour at its own
 // azimuth, darkened linearly in −y to a tenth straight down.
+#pragma once
 
 static const float VOE_RENDER_SKY_PI = 3.14159265358979;
 static const float3 VOE_RENDER_SKY_RAYLEIGH = float3(0.0464, 0.108, 0.265);

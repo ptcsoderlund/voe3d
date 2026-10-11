@@ -86,6 +86,9 @@ by reading the offscreen colour image back.
 - `sky.c` — the sky drawn behind a pass: its pixels the CPU twin's radiance within 2/255, a quad
   over it, a zeroed sky the clear colour, a dark sun black, and `<pass>: sky` in the breakdown.
   Headless.
+- `haze.c` — far surfaces fading into the horizon's sky: a black quad at 2000 m three quarters
+  haze, at 50 m under a tenth, haze 0 and a draw after the depth clear black, and a blended one
+  keeping its blend over the sky. Headless.
 - `sky_light.c` — the sky lighting a grey cube: blue above red at noon, black at light 0, redder at
   evening; a smooth white metal quad the sky along R within 6/255, a rough one nearer E(R)/π, and
   Indoors black. Headless.

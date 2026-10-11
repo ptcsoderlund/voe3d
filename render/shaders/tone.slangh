@@ -1,23 +1,63 @@
-// Exposure and tone at every mesh exit (ADR-0405 point 7): voe_render_expose
-// takes a linear colour, multiplies it by 2^exposure from the pass's sky record
-// and puts it through the sky's curve, Clip (as it is, the 8-bit target
-// clamping) or Soft (Khronos PBR Neutral). A part (ADR-0308): included by
-// draw.slang after bindings.slangh, whose frame block and push constant it
-// reads; never compiled alone.
+// Haze, exposure and tone at every mesh exit (ADR-0405 points 6 and 7).
+// voe_render_haze mixes a linear colour towards the sky at the horizon by
+// distance; voe_render_expose then multiplies it by 2^exposure from the pass's
+// sky record and puts it through the sky's curve, Clip (as it is, the 8-bit
+// target clamping) or Soft (Khronos PBR Neutral). HAZE COMES BEFORE EXPOSURE
+// AND TONE: the haze is the sky's own radiance, exposed and toned with the
+// surface it covers. A part (ADR-0308): included by draw.slang after
+// bindings.slangh, whose frame block and push constant it reads; includes
+// sky.slangh; never compiled alone.
 //
-// draw.slang's lit, unlit and water exits call it on their straight colour
+//     float3 c = voe_render_expose(voe_render_haze(colour,
+//                                  world - voe_render_frame.camera.eye));
+//
+// draw.slang's lit, unlit and water exits call both on their straight colour
 // before voe_render_premultiplied, so a blended draw keeps its alpha. A draw
 // pushed `plain` (after the pass's first depth clear, ADR-0405 point 8) is
-// returned as it came. A zeroed sky is ×1 and Clip: the old picture, byte for
-// byte. Elements never come here.
+// returned as it came by both. A zeroed sky is no haze, ×1 and Clip: the old
+// picture, byte for byte. Elements and the sky's own fragment never haze.
 //
 // THERE IS NO HDR TARGET. The curve runs per fragment before an 8-bit sRGB
 // target, so blending happens after it; only see-through draws differ from a
 // resolve pass, which is the trade 0405 made.
 
+#include "sky.slangh"
+
 // render/device.h's VOE_RENDER_TONE_*, which these must equal.
 static const uint VOE_RENDER_TONE_CLIP = 0;
 static const uint VOE_RENDER_TONE_SOFT = 1;
+
+// The sky along `position`'s direction with its height clamped up to the
+// horizon, under the frame's light; black for an `unshaded` light or one with
+// no direction, as the drawn sky is. A view straight down has no azimuth and
+// takes +X's horizon.
+float3 voe_render_haze_colour(float3 position)
+{
+	voe_render_light sun = voe_render_frame.light;
+	float3 view = position;
+
+	view.y = max(view.y, 0.0);
+	if (dot(view, view) < VOE_LEAST)
+		view = float3(1.0, 0.0, 0.0);
+	if (sun.unshaded != 0 || dot(sun.direction, sun.direction) < VOE_LEAST)
+		return float3(0.0, 0.0, 0.0);
+	return voe_render_sky_radiance(normalize(sun.direction),
+				       sun.colour * sun.intensity,
+				       normalize(view));
+}
+
+// colour × (1 − f) + sky × f, f = 1 − 2^(−|position|/haze), `position` the
+// surface about the eye.
+float3 voe_render_haze(float3 colour, float3 position)
+{
+	float haze = voe_render_frame.sky.haze;
+
+	if (haze <= 0.0 || voe_render_draw_current.plain != 0)
+		return colour;
+	float f = 1.0 - exp2(-length(position) / haze);
+
+	return lerp(colour, voe_render_haze_colour(position), f);
+}
 
 // Khronos PBR Neutral: colours below about 0.8 stay as authored, brighter ones
 // roll off towards white and desaturate. The constants are the reference's.

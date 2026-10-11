@@ -1453,8 +1453,14 @@ typedef struct {
 //
 // `drawn` non-zero draws the sky first in the pass, behind everything, from
 // the pass's `light` (black for an `unshaded` one or one of intensity 0),
-// exposed and toned as below; `haze` the metres at which half a surface's
-// colour is haze, 0 none, at least 0, read by a later card.
+// exposed and toned as below.
+//
+// `haze`, at least 0, is the metres at which half a surface's colour is haze
+// (ADR-0405 point 6): every mesh exit, lit, unlit, water and blended (its
+// straight colour, alpha kept), mixes towards the sky's colour at the horizon
+// along its view by 1 − 2^(−distance/haze), before exposure and tone. That
+// colour is the sky's at the horizon whether or not `drawn`; black under an
+// `unshaded` light. 0 is none; plain draws (below) take none.
 //
 // `light`, at least 0, is how strongly the sky lights lit surfaces, drawn or
 // not (ADR-0405 point 5): a diffuse term from the sky's nine harmonics and a

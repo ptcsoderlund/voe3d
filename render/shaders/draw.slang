@@ -50,7 +50,7 @@
 // OpenGL's, whose texture origin is at the bottom.
 //
 // EIGHT PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
-// tone.slangh, after lighting.slangh, exposes and tone maps every exit;
+// tone.slangh, after lighting.slangh, hazes, exposes and tone maps every exit;
 // lighting.slangh includes sky.slangh, the sky's radiance, twin of src/sky.c.
 // bindings.slangh first: the frame block, the records and the bindings both
 // stages read. lighting.slangh next: the sun, its cascades, the fill, the BRDF
@@ -178,9 +178,10 @@
 // once as it stores them. There is no gamma arithmetic in this shader and there
 // must not be — that is the double-encode that makes everything pale.
 //
-// EVERY EXIT IS EXPOSED AND TONE MAPPED BY tone.slangh (ADR-0405 point 7), on
-// its straight colour before the premultiply, as the pass's sky record says; a
-// zeroed one is ×1 and Clip, so a bright enough light clips to white.
+// EVERY EXIT IS HAZED, THEN EXPOSED AND TONE MAPPED, BY tone.slangh (ADR-0405
+// points 6 and 7), on its straight colour before the premultiply, as the pass's
+// sky record says; a zeroed one is no haze, ×1 and Clip, so a bright enough
+// light clips to white.
 
 #include "bindings.slangh"
 #include "lighting.slangh"
@@ -371,6 +372,8 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// factor below reads this one.
 	float4 factor = shading.base_colour * object.colour;
 	voe_render_light sun = voe_render_frame.light;
+	// The surface about the eye, which every exit hazes by.
+	float3 about = vertex.world - voe_render_frame.camera.eye;
 
 	// EVERY SAMPLE HAPPENS BEFORE ANY BRANCH, AND THAT IS DELIBERATE. A
 	// Sample needs the derivatives the rasteriser computes across a quad of
@@ -504,13 +507,15 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// things — this one was asked for and that one is a file with no
 	// normals in it.
 	if (shading.unlit != 0)
-		return voe_render_premultiplied(voe_render_expose(base.rgb),
-						coverage);
+		return voe_render_premultiplied(
+			voe_render_expose(voe_render_haze(base.rgb, about)),
+			coverage);
 
 	// A pass with no sun: every surface unshaded. See the header.
 	if (sun.unshaded != 0)
-		return voe_render_premultiplied(voe_render_expose(base.rgb),
-						coverage);
+		return voe_render_premultiplied(
+			voe_render_expose(voe_render_haze(base.rgb, about)),
+			coverage);
 
 	// THE FOURTH UNIFORM BRANCH: water, before the vertex normal is read,
 	// because the plane's normal comes from its matrices. See the header.
@@ -519,8 +524,9 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 
 	// A normal of nothing: unlit rather than NaN. See the header.
 	if (dot(vertex.normal, vertex.normal) < VOE_LEAST)
-		return voe_render_premultiplied(voe_render_expose(base.rgb),
-						coverage);
+		return voe_render_premultiplied(
+			voe_render_expose(voe_render_haze(base.rgb, about)),
+			coverage);
 
 	// The geometric normal places the shadow lookup; the mapped one shades.
 	float3 surface = normalize(vertex.normal);
@@ -558,7 +564,8 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 		voe_render_sky_light(n, v, diffuse_colour, f0, roughness, mask);
 	float3 lit = direct + indirect * occlusion + shading.emissive * glow;
 
-	return voe_render_premultiplied(voe_render_expose(lit), coverage);
+	return voe_render_premultiplied(
+		voe_render_expose(voe_render_haze(lit, about)), coverage);
 }
 
 // How far a probe's picture reaches, in its volume's cells: the bounce
