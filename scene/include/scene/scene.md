@@ -31,3 +31,6 @@ stays on `scene/scene.md`.
   or Direct: its size along its transform's axes and its Block.
 - `light_blocker_system.h` — the replace intent, the direct call that creates
   one, and the run that drains it.
+- `sky_component.h` — the sky: light, haze, exposure and tone, Clip or Soft.
+- `sky_system.h` — the replace intent, the direct call that creates one, and
+  the run that drains it.
