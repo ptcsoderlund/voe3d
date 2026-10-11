@@ -45,7 +45,8 @@
 // prefab_<n> after Code/'s includes and named by its path under Assets/ less
 // .prefab; more than VOE_GAME_PREFAB_ENTITIES entities is refused. landscapes.c
 // and materials.c ARE EVERY `.landscape` AND `.material` AS SAVED (0379, 0399
-// point 7): landscape_<n> with its `Assets/…` path, size and cells; a
+// point 7): landscape_<n> with its `Assets/…` path, size and cells, and its
+// layer paths and cooked paint when it has layers (0402 point 8); a
 // material's path and values, floats in hex. A bad file is refused.
 //
 // THE TOOLS COME FROM THE EDITOR'S OWN BUILD (0237): toolchain.h names the

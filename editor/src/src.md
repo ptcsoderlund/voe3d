@@ -104,7 +104,8 @@ carries it out.
   skipped, in byte order of path, walked with an explicit stack of bounded depth.
 - `game_tree_find.c` — the folder check, the stack walk, the case-blind suffix match and the sort.
 - `game_tree_landscapes.c` — landscapes.c's text: every `.landscape` read and cooked in a rewound
-  scratch, then voe_game_landscapes_cooked naming each by its `Assets/` path, size and cells.
+  scratch with its paint and layer paths, then voe_game_landscapes_cooked naming each by its
+  `Assets/` path, size, cells, layers and paint.
 - `game_tree_materials.c` — materials.c's text: every `.material` read and parsed in a rewound
   scratch, then voe_game_materials_cooked with each one's `Assets/` path and values, floats in hex.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
@@ -204,7 +205,7 @@ carries it out.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
   the release and the ghost, the move's target, the drop point, the Inspector's fields, map and
   layer rows, the texture, material, map and layer swaps, the open material following a move, the undo step.
-- `assets_walk.h` — the project's `.scene`, `.prefab` and `.material` texts walked: who names a path before a
+- `assets_walk.h` — the project's `.scene`, `.prefab`, `.material` and `.landscape` texts walked: who names a path before a
   Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
   the match, and the follow with its room check and write.
