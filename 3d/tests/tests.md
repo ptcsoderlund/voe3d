@@ -42,11 +42,8 @@ again, or to find where a claim that has started failing is written down.
   or without it. Skips without a graphics card.
 - `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
   and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
-- `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up shows its far ridge against the
-  sky and ground below the horizon, within the node budget, nothing at fade 1, and the bounce's
-  cast within its own budget; and that a painted landscape draws its red and green layers where
-  painted, a material set to blue at once, and an unloaded layer as its ground. Skips without a
-  graphics card.
+- `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up draws its far ridge and ground
+  within the node budgets, and a painted one draws its layers. Skips without a graphics card.
 - `terrain_shadow.c` — that a 512 m landscape's 40 m ridge, under a low sun behind it, darkens
   the ground behind it and not the ground in front, in one frame, its nodes drawn into each
   cascade. Skips without a graphics card.
@@ -132,10 +129,8 @@ again, or to find where a claim that has started failing is written down.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
   blended twin and none leaked, pictures and the uncounted dot, and a model drawn only with the
   store. Skips without a card.
-- `models_landscape.c` — a `.landscape` loaded as one part on the shared grid with a heights
-  texture, a brush's dirt written by a frame, a put wider than the budget taking five frames, a
-  put's pyramid equal to a fresh build; on two layers a paint brush, a paint put and a third layer
-  added; and a rename, a layer's path following. Skips without a card.
+- `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
+  layers and renames written within a frame's budget. Skips without a card.
 - `models_material.c` — a `.material` with three maps loaded as one part with a live record and
   twin, a set written by a frame, a map that is no picture failing MALFORMED, and a rename. Skips
   without a card.
