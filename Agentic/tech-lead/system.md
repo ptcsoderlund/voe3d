@@ -20,7 +20,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — meshes, models, materials, painted landscapes, shapes, particles, water; picks, brush, markers.
+- **3d** — meshes, models, materials, painted landscapes, shapes, particles, water; picks, markers.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash worker.
