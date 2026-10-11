@@ -1,18 +1,19 @@
-// One sculpting stroke as an undo step carries it (0379 point 5): which
-// landscape, the height rectangle it touched, and that rectangle's heights
-// before and after, so stepping over it writes one or the other back into the
-// editor's model store.
+// One sculpting or paint stroke as an undo step carries it (0379 point 5, 0402
+// point 7): which landscape, the rectangle of points it touched, and that
+// rectangle's heights, or for a paint stroke its weights, before and after, so
+// stepping over it writes one or the other back into the editor's model store.
 //
 //     stroke = voe_editor_stroke_new(path, rect, before, after);
+//     paint = voe_editor_stroke_new_paint(path, rect, bytes, bytes2);
 //     voe_editor_undo_stroke(&undo, project, scratch, stroke); // undo owns it
 //     voe_editor_stroke_apply(stroke, models, false);          // back
 //     voe_editor_stroke_destroy(stroke);
 //
 // A STROKE RIDES BESIDE THE SCENE TEXT, NOT IN IT. A state of the undo line is
 // a whole-scene text of at most 64 KB (undo.h); a stroke over a 512-cell grid
-// is 513 × 513 heights twice, some 2 MB, which no text state holds and which a
-// scene text would only say as its unchanged model path. So a state points at
-// a stroke of its own instead.
+// is 513 × 513 heights twice, some 2 MB, and its weights 8 bytes a point twice,
+// some 4 MB, which no text state holds and which a scene text would only say
+// as its unchanged model path. So a state points at a stroke of its own.
 //
 // ITS OWN MEMORY, MALLOCED. This is rule 11's long-lived exception: a line of
 // 64 states may hold megabytes each or nothing at all, so pushing room for the
@@ -30,14 +31,20 @@
 #include <3d/model_component.h>
 
 #include <stdbool.h>
+#include <stdint.h>
 
-// A landscape's path, the height rectangle touched, and its heights row-major
-// as they were and as the stroke left them, both the stroke's own.
+// A landscape's path, the rectangle touched, and as they were and as the
+// stroke left them either its heights row-major, or when `paint` its weights
+// as voe_editor_models_put_paint takes them; all the stroke's own, the other
+// pair NULL.
 typedef struct {
 	char path[VOE_3D_MODEL_PATH];
 	voe_3d_landscape_rect rect;
+	bool paint;
 	float *before;
 	float *after;
+	uint8_t *paint_before;
+	uint8_t *paint_after;
 } voe_editor_stroke;
 
 // A stroke holding copies of `path` and of `rect`'s heights in `before` and
@@ -46,10 +53,17 @@ voe_editor_stroke *voe_editor_stroke_new(const char *path,
 					 voe_3d_landscape_rect rect,
 					 const float *before, const float *after);
 
-// Frees the stroke and its heights. NULL is nothing.
+// A paint stroke holding copies of `path` and of `rect`'s weights, 8 bytes a
+// point, plane 0's rect then plane 1's, in `before` and `after`. Never NULL.
+voe_editor_stroke *voe_editor_stroke_new_paint(const char *path,
+					       voe_3d_landscape_rect rect,
+					       const uint8_t *before,
+					       const uint8_t *after);
+
+// Frees the stroke and its heights or weights. NULL is nothing.
 void voe_editor_stroke_destroy(voe_editor_stroke *stroke);
 
-// Writes `after` into the store's landscape when `forward`, `before`
-// otherwise; nothing when the path is no loaded landscape.
+// Writes the after values into the store's landscape when `forward`, the
+// before otherwise; nothing when the path is no loaded landscape.
 void voe_editor_stroke_apply(const voe_editor_stroke *stroke,
 			     voe_editor_models *models, bool forward);

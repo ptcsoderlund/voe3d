@@ -250,12 +250,12 @@ carries it out.
   strings a text field per string, labels when it cannot be edited.
 - `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, and a
   rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
-- `sculpt.h` — the brush a person holds: chosen or not, its kind, radius, strength and softness
-  with their ranges, never saved or undone, whether a thing wears a landscape, and the held drag
-  that sculpts it as one undo step.
+- `sculpt.h` — the brush a person holds: chosen or not, its kind, layer, radius, strength and
+  softness with their ranges, never saved or undone, whether a thing wears a landscape, and the
+  held drag that sculpts or paints it as one undo step.
 - `sculpt.c` — the defaults set, the brush put down, the `.landscape` ending matched on a thing
-  not a prefab's part, the ground under the pointer, the press's copy, the stamps along the drag
-  and the release's stroke.
+  not a prefab's part, the ground under the pointer, the press's heights or paint copy, the stamps
+  along the drag and the release's heights or paint stroke.
 - `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
   chosen one lit, and Radius, Strength and Softness sliders, read after the frame.
 - `inspector_sculpt.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
@@ -305,15 +305,15 @@ carries it out.
   light and kept out of the blockers, every place marked and blocker lined, the brush's rings with
   the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
-  emptied on a different project, a broken file in the notice, and the one place its landscapes
-  and the project's materials are edited.
+  emptied on a different project, a broken file in the notice, and the one place its landscapes'
+  heights, paint and layers and the project's materials are edited.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
   table and the scan.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
-  with a failure's notice, and destroyed; its landscapes and materials written and loaded again as
-  models.h says.
+  with a failure's notice, and destroyed; its landscapes stamped, painted and put back, and with
+  its materials written and loaded again as models.h says.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector with its copy as last written.
@@ -341,9 +341,10 @@ carries it out.
   own memory beside the undo line's text, and the file written at once.
 - `material_steps.c` — the copy made and freed, the file's write, and the values put back either
   way into the table, file, store and open copy.
-- `strokes.h` — one sculpting stroke: a landscape's path, the rectangle touched and its heights
-  before and after, its own memory beside the undo line's text, and why.
-- `strokes.c` — the copies made and freed, and the heights written either way through the store.
+- `strokes.h` — one sculpting or paint stroke: a landscape's path, the rectangle touched and its
+  heights or weights before and after, its own memory beside the undo line's text, and why.
+- `strokes.c` — the copies made and freed, and the heights or paint written either way through the
+  store.
 - `entities.h` — Add entity, a dropped model's thing or prefab's copy, duplicating and deleting
   entities with their trees, and giving or taking components, all through the world's structural
   queue. Its header says the id and name rules.
