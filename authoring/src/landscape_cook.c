@@ -1,8 +1,9 @@
-// The landscape cook: heights printed as one int32_t array
-// (authoring/landscape_cook.h).
+// The landscape cook: heights printed as one int32_t array, paint as one
+// uint8_t array (authoring/landscape_cook.h).
 //
 // The text grows through cook_text.h's buffer, which needs only the arena; the
-// world-walking parts of that cook are not used. Eight numbers to a line.
+// world-walking parts of that cook are not used. Eight heights to a line,
+// sixteen paint bytes (four points).
 #include <authoring/landscape_cook.h>
 
 #include "cook_text.h"
@@ -14,6 +15,7 @@
 #include <stdint.h>
 
 #define NUMBERS_PER_LINE 8
+#define BYTES_PER_LINE 16
 
 static bool is_identifier(const char *name)
 {
@@ -52,6 +54,33 @@ voe_authoring_landscape_cook(const voe_assets_landscape *landscape,
 		voe_authoring_cook_put(&c, i % NUMBERS_PER_LINE == 0 ? "\n\t" :
 								     " ");
 		voe_authoring_cook_putf(&c, "%.0f,", millimetres);
+	}
+	voe_authoring_cook_put(&c, "\n};\n");
+	return (voe_authoring_text){ .text = c.bytes, .size = c.size };
+}
+
+voe_authoring_text
+voe_authoring_landscape_cook_paint(const voe_assets_landscape *landscape,
+				   const char *name, voe_base_arena *arena)
+{
+	VOE_BASE_ASSERT(landscape != NULL && landscape->paint != NULL,
+			"cooking no paint");
+	VOE_BASE_ASSERT(landscape->layer_count > 0,
+			"cooking the paint of a landscape with no layers");
+	VOE_BASE_ASSERT(name != NULL && is_identifier(name),
+			"a paint array named by a C identifier");
+	VOE_BASE_ASSERT(arena != NULL, "cooking paint with no arena");
+	const size_t planes = landscape->layer_count <= 4 ? 1 : 2;
+	const size_t count = planes * 4 * (landscape->cells + 1) *
+			     (landscape->cells + 1);
+	voe_authoring_cook c = { .arena = arena };
+
+	voe_authoring_cook_putf(&c, "static const uint8_t ");
+	voe_authoring_cook_put(&c, name);
+	voe_authoring_cook_putf(&c, "[%zu] = {", count);
+	for (size_t i = 0; i < count; i++) {
+		voe_authoring_cook_put(&c, i % BYTES_PER_LINE == 0 ? "\n\t" : " ");
+		voe_authoring_cook_putf(&c, "%u,", (unsigned)landscape->paint[i]);
 	}
 	voe_authoring_cook_put(&c, "\n};\n");
 	return (voe_authoring_text){ .text = c.bytes, .size = c.size };
