@@ -57,4 +57,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0333–0338, 0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0358, 0359, 0361–0364, 0370, 0371 — Blocks; moon; GPU ms; mips; splash; F.
 - 0374–0381, 0384–0388, 0392, 0395–0398 — 0.3's loghouse; bindless; hill; Windows; 60 fps; CDLOD.
-- 0399, 0400 — A material is a text file of the standard shader; colour, normal and ORM maps.
+- 0399–0401 — A material is a text file of the standard shader; colour, normal, ORM maps; ORM alone.
