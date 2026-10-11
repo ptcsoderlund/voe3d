@@ -505,8 +505,8 @@ typedef struct {
 // per fragment to fix a caller's mistake.
 //
 // `colour` IS LINEAR AND `intensity` HAS NO UNIT. A colour of (1, 1, 1) tints
-// nothing; the intensity is a multiplier that is whatever looks right, because
-// there is no exposure and no tone mapping in this engine yet. A light of no
+// nothing; the intensity is a multiplier that is whatever looks right, and the
+// pass's voe_render_sky record owns exposure and tone mapping. A light of no
 // intensity leaves every surface black but for its fill, which is what a frame
 // given a zeroed one looks like.
 //
@@ -524,12 +524,11 @@ typedef struct {
 // shadows through the pass's voe_render_shadow record below (ADR-0258); a pass
 // whose light is `unshaded` reads no shadow either, because it reads no sun.
 //
-// NOTHING IS TONE MAPPED, SO BRIGHT VALUES CLIP. A light strong enough to push a
-// surface past one is clamped by the target's format and the highlight goes
-// flat white. That is expected and it is not a bug to work around at a call
-// site by keeping intensities low; the card that maps a high-dynamic-range
-// target down to a screen is the card that fixes it, and card 013's offscreen
-// target is what makes it possible.
+// THE SKY RECORD OWNS EXPOSURE AND TONE (ADR-0405 point 7). Under its Clip curve,
+// the zeroed one, a light strong enough to push a surface past one is clamped by
+// the target's format and the highlight goes flat white; its Soft curve rolls it
+// off instead. Keeping intensities low at a call site is not the fix: the pass's
+// voe_render_sky below is.
 //
 // `unshaded` NON-ZERO MEANS THIS PASS HAS NO SUN. Every surface then draws its
 // own base colour, as an unlit material does, and direction, intensity, colour
@@ -1444,6 +1443,36 @@ typedef struct {
 					  voe_render_picture *out,
 					  voe_base_error *error);
 
+// Which curve takes a mesh's exposed colour to the 8-bit target (ADR-0405 point
+// 7): Clip as it is, the target clamping; Soft by Khronos PBR Neutral.
+#define VOE_RENDER_TONE_CLIP 0u
+#define VOE_RENDER_TONE_SOFT 1u
+
+// A pass's sky (ADR-0405 point 2), in voe_render_pass_camera. ZEROED IS THE OLD
+// PICTURE, BYTE FOR BYTE: no sky drawn, no sky light, no haze, ×1, Clip.
+//
+// `drawn` non-zero draws the sky at the pass's begin; `light` how strongly it
+// lights lit surfaces, at least 0; `haze` the metres at which half a surface's
+// colour is haze, 0 none, at least 0. `drawn`, `light` and `haze` are read by
+// later cards; this one carries them.
+//
+// `exposure` is in stops, −16 to 16: every mesh exit multiplies its linear
+// colour by 2^exposure and then puts it through `tone`, a VOE_RENDER_TONE_*; a
+// blended draw on its straight colour, its alpha kept. Draws after the pass's
+// first voe_render_frame_clear_depth (outline, gizmo, markers) are drawn as
+// authored (ADR-0405 point 8), and elements never take either.
+typedef struct {
+	uint32_t drawn;
+	float light;
+	float haze;
+	float exposure;
+	uint32_t tone;
+	uint32_t reserved[3];
+} voe_render_sky;
+
+static_assert(sizeof(voe_render_sky) == 32,
+	      "voe_render_sky is the 32 bytes bindings.slangh reads");
+
 // The camera, the sun, the sun's shadow and the point lights one pass draws with.
 // Handed over together because the shader reads them for the whole pass, and a
 // pass that has one has all of them; a zeroed `shadow` is none.
@@ -1466,6 +1495,9 @@ typedef struct {
 //
 // `more` ARE THE LIGHTS AFTER THE FIRST (ADR-0357 point 1); zero is the old
 // picture, byte for byte.
+//
+// `sky` IS THE PASS'S SKY, EXPOSURE AND TONE (ADR-0405 point 2); zeroed is the
+// old picture, byte for byte.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
@@ -1473,6 +1505,7 @@ typedef struct {
 	voe_render_point_lights points;
 	voe_render_light_blockers blockers;
 	voe_render_directional_lights more;
+	voe_render_sky sky;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass
@@ -1489,7 +1522,9 @@ typedef struct {
 //
 // Calling this outside a frame whose `drawing` came back true, with a pass
 // already open, or with a target id that names no target, is the caller's bug
-// and asserts.
+// and asserts. So is a camera whose `sky` holds a number not finite, a `light`
+// or `haze` below nought, an `exposure` past ±16, or a `tone` past
+// VOE_RENDER_TONE_SOFT.
 //
 // THE CAMERA MAY BE NULL, BECAUSE NOT EVERY PASS LOOKS AT A WORLD. A pass that
 // draws only elements — an interface filling the window — has no eye and no sun,

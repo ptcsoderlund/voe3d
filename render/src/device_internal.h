@@ -323,6 +323,10 @@ struct voe_render_device {
 	// what is presented is the clear colour and not last lap's picture.
 	bool pass_open;
 	bool pass_camera;
+	// Whether the open pass has had its first voe_render_frame_clear_depth:
+	// every mesh draw after it pushes `plain` 1, drawn as authored (ADR-0405
+	// point 8). Reset by voe_render_pass_start.
+	bool pass_depth_cleared;
 	uint32_t pass_count;
 	bool window_cleared;
 

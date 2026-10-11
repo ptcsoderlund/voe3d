@@ -11,6 +11,7 @@ shading records, five pipelines, the sun's and point lights' shadow maps and a f
   `src/src.md`.
 - `tests/` — sixteen programs, most of them headless, that check what reached the
   picture rather than what the bookkeeping said. See `tests/tests.md`.
-- `shaders/` — the three Slang shaders, compiled and embedded at build time. See
+- `shaders/` — the Slang shaders and their parts, compiled and embedded at build time,
+  every mesh exit exposed and tone mapped. See
   `shaders/shaders.md`.
 - `vulkan/` — the Khronos headers, vendored. See `vulkan/vulkan.md`.

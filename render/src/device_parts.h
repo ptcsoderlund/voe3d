@@ -66,6 +66,10 @@
 // each one's light, shadow record and the mask of the blockers holding its
 // place, cut to the pass's blocker count. Three reserved words round the count
 // to sixteen bytes.
+//
+// `sky` IS THE CAMERA'S voe_render_sky (ADR-0405 point 2), last; zeroed in a pass
+// with no camera and in the shadow, point-shadow and capture passes. Its 32
+// bytes are already a multiple of sixteen.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;
@@ -92,6 +96,7 @@ struct voe_render_frame_block {
 	uint32_t more_count;
 	uint32_t reserved[3];
 	struct voe_render_frame_light more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
+	voe_render_sky sky;
 };
 
 // One pass's region at binding 11 (ADR-0347 point 3): its light blockers as

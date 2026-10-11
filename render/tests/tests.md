@@ -80,6 +80,9 @@ by reading the offscreen colour image back.
 - `unshaded.c` — that `unshaded` draws a lit cube in its base colour and black without it, that a
   fill lifts a face the sun misses, and that a face the sun meets head-on or at N·L 0.5 reads the
   same with fill and without. Headless.
+- `exposure.c` — a pass's sky record on a quad: a zeroed one the old byte, exposure ±1 at Clip,
+  Soft as PBR Neutral, a lit quad's sun of 8 clipped at Clip and rolled off at Soft, a draw after
+  the depth clear as authored, and a blended one doubled before its blend. Headless.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
   red to a black surface whether the sun faces it or not, and a metal-roughness map replacing the
   factors. Headless.

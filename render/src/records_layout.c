@@ -32,8 +32,13 @@ static_assert(sizeof(voe_render_directional_light) == 368,
 	      "voe_render_directional_light is no longer the frame light and its bounce words");
 static_assert(sizeof(struct voe_render_frame_light) == 368,
 	      "the frame light no longer matches bindings.slangh's");
-static_assert(sizeof(struct voe_render_frame_block) == 656 + 3 * 368,
+static_assert(sizeof(struct voe_render_frame_block) == 656 + 3 * 368 + 32,
 	      "the per-pass block no longer matches what draw.slang reads at binding 0");
+static_assert(offsetof(struct voe_render_frame_block, sky) == 656 + 3 * 368,
+	      "the sky moved inside the per-pass block; draw.slang has it at 1760");
+static_assert(offsetof(voe_render_sky, exposure) == 12 &&
+		      offsetof(voe_render_sky, tone) == 16,
+	      "the sky record's exposure or tone moved; tone.slangh reads them at 12 and 16");
 static_assert(offsetof(struct voe_render_frame_block, more_count) == 640,
 	      "the further light count moved inside the per-pass block; draw.slang has it at 640");
 static_assert(offsetof(struct voe_render_frame_block, more) == 656,
