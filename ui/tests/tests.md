@@ -26,7 +26,8 @@ this folder computes is arithmetic checked against numbers worked out by hand.
   only when it has to, whose thumb drags, pages and stands in front of a button.
 - `slider.c` — that the thumb is against the track's left edge at the range's bottom, its right edge
   at the top and halfway between at the middle, that a drag past the dead zone moves the value by
-  the distance times the range over the width, and that an untouched frame hands the value back.
+  the distance times the range over the width, that an untouched frame hands the value back, and
+  that a shown slider is drawn as the slider is, takes no press or drag and clamps its thumb.
 - `theme.c` — that OKLab round-trips, that both modes are legible at both ends of both scalars, that
   every role shares the authored hue and a grey hue leaves no chroma, that each input moves what it
   names and nothing else, and that dark mode clamps chroma harder.

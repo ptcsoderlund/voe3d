@@ -22,7 +22,8 @@ pointer and the keyboard are values it is given.
   measured size read back after the frame ends; the file says why.
 - `include/ui/slider.h` — the slider (`voe_ui_slider`, `voe_ui_slider_action`,
   `voe_ui_slider_result`, `VOE_UI_SLIDER_HEIGHT`, `VOE_UI_SLIDER_THUMB`): a
-  track of a given width with a thumb at the value's place in a range.
+  track of a given width with a thumb at the value's place in a range, and
+  `voe_ui_slider_shown`, the same drawn so it cannot be moved.
 - `include/ui/theme.h` — `voe_ui_theme_inputs` (the five authored values),
   `voe_ui_theme` (the derived palette of roles and the `spacing` that scales
   widget pads and gaps), `voe_ui_theme_default_inputs` and `voe_ui_theme_derive`, which turns the one into the other in OKLab.

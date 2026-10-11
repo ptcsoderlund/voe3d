@@ -1,12 +1,21 @@
-// The slider: a number box with a track and a thumb in it (ADR-0196). Built
-// out of this folder's public calls and nothing else — no widget kind, no
-// field in the context, no entry in context.h — so everything it does is what
-// voe_ui_number_begin, voe_ui_row_begin and voe_ui_panel_begin already do. The
-// header says why that is the whole design; this file is the arithmetic.
+// The slider: a number box with a track and a thumb in it (ADR-0196), and the
+// shown slider beside it (ADR-0402), the same track and thumb in a box that
+// answers nothing. The slider proper is built out of this folder's public calls
+// and nothing else — no widget kind, no field in the context of its own — so
+// everything it does is what voe_ui_number_begin, voe_ui_row_begin and
+// voe_ui_panel_begin already do. The shown slider reaches into context.h for
+// two things only: the theme in force, for its resting fill and its pad, and a
+// keyed swatch node to draw that fill, so it is a box the size of a number box
+// with nothing to hit. The header says why; this file is the arithmetic, and
+// the track and the thumb are made in one place for both.
+#include "context.h"
+
 #include <ui/slider.h>
 
 #include <ui/layout.h>
 #include <ui/widgets.h>
+
+#include <base/assert.h>
 
 // `x` into `low..high`, with anything that is not a number landing at `low`:
 // the range may be empty and the value may have come from a division by a zero
@@ -18,25 +27,23 @@ static double clamped(double x, double low, double high)
 	return x > high ? high : x;
 }
 
-voe_ui_node voe_ui_slider(voe_ui_context *ui, const char *name, uint32_t index,
-			  double value, double min, double max, float width_mm)
+// The track and the thumb on it, opened and closed inside whatever box the
+// caller has open. Shared so that the two sliders cannot drift apart: a shown
+// slider's thumb is where the moving one's would be at the same value.
+static void track_and_thumb(voe_ui_context *ui, double value, double min,
+			    double max, float width_mm)
 {
 	// How far the thumb's left edge can travel: the track less the thumb,
 	// so the thumb's far edge stops at the track's and does not hang off
 	// the end at `max`.
 	double travel = (double)width_mm - (double)VOE_UI_SLIDER_THUMB;
-	// One track's width is one range, which is what makes the thumb follow
-	// the pointer: drag the whole width and the value crosses the whole
-	// range.
-	voe_ui_node slider = voe_ui_number_begin(ui, name, index, value,
-						 (max - min) / (double)width_mm);
 	float at = (float)clamped((value - min) / (max - min) * travel, 0.0,
 				  travel);
 
-	// The track. A row rather than a panel because the number box already
-	// draws the fill behind it, and fixed on both axes because an anchored
-	// child contributes nothing to a parent's natural size — a track that
-	// fitted its children would come out at nothing at all.
+	// The track. A row rather than a panel because the box around it
+	// already draws the fill behind it, and fixed on both axes because an
+	// anchored child contributes nothing to a parent's natural size — a
+	// track that fitted its children would come out at nothing at all.
 	voe_ui_row_begin(ui, (voe_ui_container){
 				     .size = { { VOE_UI_SIZE_FIXED, width_mm },
 					       { VOE_UI_SIZE_FIXED,
@@ -55,9 +62,62 @@ voe_ui_node voe_ui_slider(voe_ui_context *ui, const char *name, uint32_t index,
 
 	voe_ui_end(ui);
 	voe_ui_end(ui);
+}
+
+voe_ui_node voe_ui_slider(voe_ui_context *ui, const char *name, uint32_t index,
+			  double value, double min, double max, float width_mm)
+{
+	// One track's width is one range, which is what makes the thumb follow
+	// the pointer: drag the whole width and the value crosses the whole
+	// range.
+	voe_ui_node slider = voe_ui_number_begin(ui, name, index, value,
+						 (max - min) / (double)width_mm);
+
+	track_and_thumb(ui, value, min, max, width_mm);
 	voe_ui_end(ui);
 
 	return slider;
+}
+
+voe_ui_node voe_ui_slider_shown(voe_ui_context *ui, const char *name,
+				uint32_t index, double value, double min,
+				double max, float width_mm)
+{
+	const voe_ui_theme *theme = voe_ui_theme_current(ui);
+	voe_ui_node track;
+	uint64_t key;
+
+	VOE_BASE_ASSERT(ui != NULL, "showing a slider on no context");
+	VOE_BASE_ASSERT(name != NULL, "a shown slider with no name has no "
+				      "identity");
+	VOE_BASE_ASSERT(theme != NULL, "a shown slider needs a theme: see "
+				       "voe_ui_theme_set/voe_ui_theme_push");
+
+	// Keyed, though nothing reads the key, so that the thumb's own key is
+	// mixed with this slider's and two shown sliders in one panel are two.
+	key = voe_ui_widget_claim(ui, name, index);
+
+	// The number box's own shape — a row padded and centred as a button
+	// is — drawn as a swatch of its resting fill, a kind that takes no
+	// pointer, no focus and no Tab.
+	track = voe_ui_row_begin(ui, (voe_ui_container){
+					    .along = VOE_UI_ALONG_CENTER,
+					    .across = VOE_UI_ACROSS_CENTER,
+					    .pad = button_pad(theme) });
+	if (track != VOE_UI_NODE_NONE) {
+		ui->widgets[track].kind = VOE_UI_WIDGET_SWATCH;
+		ui->widgets[track].colour = (voe_math_float3){
+			theme->control.x, theme->control.y, theme->control.z
+		};
+		ui->widgets[track].key = key;
+		ui->widgets[track].keyed = true;
+		ui->widgets[track].theme = theme;
+	}
+
+	track_and_thumb(ui, value, min, max, width_mm);
+	voe_ui_end(ui);
+
+	return track;
 }
 
 voe_ui_slider_result voe_ui_slider_action(const voe_ui_context *ui,

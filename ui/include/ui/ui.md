@@ -10,8 +10,8 @@ The public headers, one entry each; the fuller account of all five stays on
   back through a handle; it lays out and does nothing else.
 - `slider.h` — a track of a given width in millimetres with a thumb at the
   value's place in a range, which IS a number box, so it is dragged, typed into
-  and drawn inverted while held, and what it costs in nodes and element
-  records.
+  and drawn inverted while held, the shown slider that cannot be moved, and
+  what each costs in nodes and element records.
 - `theme.h` — the five authored values of a theme, the palette of roles
   derived from them, the default inputs and the derivation, which cannot fail.
 - `widgets.h` — the theme set on the context or pushed over a subtree, the

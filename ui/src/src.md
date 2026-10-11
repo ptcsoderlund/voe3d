@@ -30,8 +30,9 @@ pointer and the keyboard have been at it. Nothing here is included from outside 
   an offset moves — a thumb dragged, a track pressed, the pointer's scroll
   passed outward, a node centred by a program.
 - `slider.c` — the slider: a number box holding a fixed-width track with the
-  thumb anchored at the value's place in the range, and the clamp that keeps a
-  drag from taking the value out of it.
+  thumb anchored at the value's place in the range, the clamp that keeps a
+  drag from taking the value out of it, and the shown slider, the same track
+  and thumb in a box that answers nothing.
 - `theme.c` — the derivation: every role in the one authored hue, differing only in lightness and
   shrinking chroma where the gamut makes it, and the inverse pair a held, dragged or selected
   control is drawn in.

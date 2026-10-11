@@ -87,3 +87,17 @@ typedef struct {
 voe_ui_slider_result voe_ui_slider_action(const voe_ui_context *ui,
 					  voe_ui_node slider, double min,
 					  double max);
+
+// A SLIDER THAT IS SHOWN AND CANNOT BE MOVED (ADR-0402): the same size and the
+// thumb at the same place as voe_ui_slider at the same value and width, the
+// value clamped into `min..max` for the thumb's place only. There is no number
+// box round it, so it answers nothing: no drag, no click into typing, no Tab
+// stop, no action to read. The node handed back is the track's, for layout
+// only. It takes the theme in force — the track in its `control` fill, the
+// thumb a raised panel — so a caller greys it by pushing a theme whose text is
+// `text_disabled` and whose fills do not light. It costs three nodes, the
+// track, the row inside it and the thumb, and three element records, the
+// track's fill and the thumb's border and surface.
+voe_ui_node voe_ui_slider_shown(voe_ui_context *ui, const char *name,
+				uint32_t index, double value, double min,
+				double max, float width_mm);
