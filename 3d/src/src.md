@@ -92,10 +92,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   `terrain` span, fading models held blended, then the held-back groups and the marks.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended, and why one eye chooses the same nodes in every pass; internal.
-- `draw_terrain.c` — the eye taken into the grid's space, the selection on scratch or, for a
-  shadow or capture pass, on the stack within the cast's capacity, 16 for the bounce's passes,
-  and each node's world box, heights, terrain and morph fields, a painted one's paint and its
-  layers' records asked of the store once per row per call.
+- `draw_terrain.c` — the eye taken into the grid's space, the nodes selected on scratch or, in
+  the cast, on the stack, and each node's record over the heights texture, its layers looked up
+  once per row per call.
 - `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
   its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
   a gone model casting nothing and a landscape by the view's nodes.
@@ -152,10 +151,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   landscape's heights and paint textures, pyramid and two dirts among them, a material's write
   mark, the terrain lookup the draw files ask, and the helpers models.c lends the other store
   files; internal.
-- `models_landscape.c` — a landscape's grid copied with its layers and owned paint, uploaded as a
-  heights texture, two paint textures and a pyramid, worn as one part on the shared grid; brushes
-  and puts growing the heights' or paint's dirt, the layer set, the frame writing both in one
-  budget, the terrain lookup, the saved mark and the rename with layer paths.
+- `models_landscape.c` — a landscape's grid copied with its layers and paint, uploaded as heights,
+  paint and a pyramid on the shared grid; brushes and puts growing its dirt, which the frame
+  writes a budget at a time.
 - `models_material.c` — a `.material`'s maps decoded and uploaded mipped with its record and
   twin as one part with no geometry, the set marking it and the frame rewriting both records.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
