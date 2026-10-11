@@ -95,6 +95,10 @@ which file to open — what each one owns, and where the seams between them run.
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
   rectangle of its box's corners.
+- `sky.h` — the sky's model and constants (ADR-0405), twin of `shaders/sky.slangh`: the radiance
+  along a view, its nine cosine-convolved harmonics, and the irradiance from them. Pure CPU.
+- `sky.c` — those three calls: single scattering through a flat atmosphere, the disc kept apart,
+  and the projection over 256 Fibonacci directions.
 - `light_blockers.c` — `voe_render_light_blockers_mask`, declared in `render/device.h`: the boxes
   holding a point, bit i for blocker i, a sphere compare, then three rows, inclusive at the face.
 - `point_shadow_faces.h` — a caster's bounding sphere from its vertices, moved under a world
