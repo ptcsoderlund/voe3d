@@ -1010,7 +1010,7 @@ typedef enum {
 } voe_render_prepare;
 
 // Each call builds the next thing this device still lacks, in the order solid,
-// blended, shadow, point shadow and capture pipelines (the last two only on a
+// blended, shadow, sky, point shadow and capture pipelines (the last two only on a
 // card with shaderOutputLayer), then the relight's startup. PREPARING while
 // something is left, PREPARED once nothing is (and on every later call).
 // PREPARE_FAILED, with a line on stderr, when a step failed, and on every later
@@ -1028,9 +1028,9 @@ typedef enum {
 voe_render_prepare voe_render_device_prepare(voe_render_device *device);
 
 // How many steps voe_render_device_prepare takes on this card from an unprepared
-// device: the solid, blended and shadow pipelines, and with shaderOutputLayer
-// the point shadow and capture ones and the relight's startup. So a caller can
-// show "2/6" as the steps are taken.
+// device: the solid, blended, shadow and sky pipelines, and with
+// shaderOutputLayer the point shadow and capture ones and the relight's
+// startup. So a caller can show "2/7" as the steps are taken.
 uint32_t voe_render_device_prepare_steps(const voe_render_device *device);
 
 // THE PIPELINE CACHE, AS BYTES OUT AND IN (ADR-0370 point 6). Every mesh
@@ -1451,10 +1451,11 @@ typedef struct {
 // A pass's sky (ADR-0405 point 2), in voe_render_pass_camera. ZEROED IS THE OLD
 // PICTURE, BYTE FOR BYTE: no sky drawn, no sky light, no haze, ×1, Clip.
 //
-// `drawn` non-zero draws the sky at the pass's begin; `light` how strongly it
-// lights lit surfaces, at least 0; `haze` the metres at which half a surface's
-// colour is haze, 0 none, at least 0. `drawn`, `light` and `haze` are read by
-// later cards; this one carries them.
+// `drawn` non-zero draws the sky first in the pass, behind everything, from
+// the pass's `light` (black for an `unshaded` one or one of intensity 0),
+// exposed and toned as below; `light` how strongly it lights lit surfaces, at
+// least 0; `haze` the metres at which half a surface's colour is haze, 0 none,
+// at least 0. `light` and `haze` are read by later cards; this one carries them.
 //
 // `exposure` is in stops, −16 to 16: every mesh exit multiplies its linear
 // colour by 2^exposure and then puts it through `tone`, a VOE_RENDER_TONE_*; a
@@ -1537,6 +1538,10 @@ typedef struct {
 // first and is hidden by whatever the first drew nearer — which is what makes two
 // passes onto one target a sequence and not two separate pictures. A frame that
 // opens no pass onto the window still presents the clear colour.
+//
+// A CAMERA WHOSE `sky` IS `drawn` HAS THE SKY DRAWN FIRST, before anything the
+// caller records, so every draw lands over it; it is timed as the span
+// `<pass>: sky`. Shadow, point-shadow and capture passes never draw it.
 //
 // PASSES DO NOT NEST. One is open at a time: a _pass_begin with one open asserts,
 // and so does a _frame_end.
@@ -2118,7 +2123,8 @@ typedef struct {
 // A SPAN IS LISTED RIGHT AFTER THE PASS THAT HELD IT (ADR-0396 point 6), named
 // `<pass name>: <span name>` cut to VOE_RENDER_PASS_NAME, e.g.
 // `view window: terrain`. Its time is part of that pass's, not beside it: the
-// sum over the passes alone is what stays at most the frame's.
+// sum over the passes alone is what stays at most the frame's. A camera pass
+// whose sky is drawn lists the span `<pass>: sky` (ADR-0405 point 4).
 [[nodiscard]] uint32_t voe_render_frame_pass_times(const voe_render_device *device,
 						   voe_render_pass_time *times,
 						   uint32_t capacity);

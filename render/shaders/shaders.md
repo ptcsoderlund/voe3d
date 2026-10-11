@@ -7,11 +7,13 @@ shader and never compiled alone.
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block with its sky, the
   records, set 0's bindings and the push constant with its `plain` word, each matching its C struct;
   the object record carries a landscape's paint and layers.
-- `draw.slang` — the mesh pipelines' entry points: placing, maps at the record's repeat, a painted
-  landscape's layers, alpha, the lit and unlit exits, exposed and tone mapped, the point-shadow
-  vertex stage and the capture pass's two.
+- `draw.slang` — the mesh pipelines' seven entry points: placing, maps at the record's repeat, a
+  painted landscape's layers, alpha, the lit and unlit exits, exposed and tone mapped, the
+  point-shadow vertex stage, the capture pass's two and the sky's full-screen two.
 - `tone.slangh` — exposure and tone at every mesh exit: × 2^exposure, then Clip or Soft by PBR
   Neutral, from the pass's sky; a `plain` draw as authored.
+- `sky.slangh` — the sky's radiance along a view, single scattering through a flat atmosphere, twin
+  of `src/sky.h`.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector and the clip position on
   it; draw and lookup share it.
 - `blockers.slangh` — which light blockers hold a point and whether a segment passes them, twin of

@@ -1,0 +1,91 @@
+// The sky's radiance along a view, in Slang (ADR-0405 point 3): the twin of
+// voe_render_sky_radiance in render/src/sky.h and sky.c, the same model, the
+// same constants and the same arithmetic, so the drawn sky and the CPU's agree
+// within 2/255. A change there is made here too; sky.h holds the model's words.
+// A part (ADR-0308): included by draw.slang, never compiled alone.
+//
+//     float3 l = voe_render_sky_radiance(light.direction, sunlight, view);
+//
+// `direction` is where the sun's light travels (the sun at −direction) and
+// `view` a unit direction, both world space, +Y up; `sunlight` the sun's colour
+// × intensity. Below the horizon a view takes the horizon's colour at its own
+// azimuth, darkened linearly in −y to a tenth straight down.
+
+static const float VOE_RENDER_SKY_PI = 3.14159265358979;
+static const float3 VOE_RENDER_SKY_RAYLEIGH = float3(0.0464, 0.108, 0.265);
+static const float VOE_RENDER_SKY_MIE = 0.0252;
+static const float VOE_RENDER_SKY_MIE_G = 0.76;
+static const float VOE_RENDER_SKY_GAIN = 4.0;
+static const float VOE_RENDER_SKY_DISC_DEGREES = 0.5;
+static const float VOE_RENDER_SKY_DISC_GAIN = 50.0;
+static const float VOE_RENDER_SKY_GROUND = 0.1;
+
+// Kasten–Young's relative air mass at `height`, the sine of the angle above the
+// horizon, clamped at the horizon.
+float voe_render_sky_air_mass(float height)
+{
+	float s = clamp(height, 0.0, 1.0);
+	float degrees = asin(s) * (180.0 / VOE_RENDER_SKY_PI);
+
+	return 1.0 / (s + 0.50572 * pow(degrees + 6.07995, -1.6364));
+}
+
+// Rayleigh and Mie summed per channel.
+float3 voe_render_sky_depth()
+{
+	return VOE_RENDER_SKY_RAYLEIGH + VOE_RENDER_SKY_MIE;
+}
+
+// The sunlight that reaches the air, after its path through it.
+float3 voe_render_sky_sunlight_in_air(float3 sun, float3 sunlight)
+{
+	return sunlight *
+	       exp(-voe_render_sky_depth() * voe_render_sky_air_mass(sun.y));
+}
+
+// The scattered light along `view` at or above the horizon, sun at `sun`.
+float3 voe_render_sky_scattered_above(float3 sun, float3 sunlight, float3 view)
+{
+	float c = dot(view, sun);
+	float g = VOE_RENDER_SKY_MIE_G;
+	float p_r = 3.0 / (16.0 * VOE_RENDER_SKY_PI) * (1.0 + c * c);
+	float p_m = (1.0 - g * g) /
+		    (4.0 * VOE_RENDER_SKY_PI * pow(1.0 + g * g - 2.0 * g * c, 1.5));
+	float3 depth = voe_render_sky_depth();
+	float3 through = exp(-depth * voe_render_sky_air_mass(view.y));
+	float3 gathered = (1.0 - through) / depth;
+	float3 phase = VOE_RENDER_SKY_RAYLEIGH * p_r + VOE_RENDER_SKY_MIE * p_m;
+
+	return gathered * phase * voe_render_sky_sunlight_in_air(sun, sunlight) *
+	       VOE_RENDER_SKY_GAIN;
+}
+
+// The scattered light along any `view`: below the horizon, the horizon's at
+// the view's azimuth (the sun's, straight down) darkened linearly in −y.
+float3 voe_render_sky_scattered(float3 sun, float3 sunlight, float3 view)
+{
+	if (view.y >= 0.0)
+		return voe_render_sky_scattered_above(sun, sunlight, view);
+	float3 flat = float3(view.x, 0.0, view.z);
+
+	if (length(flat) < 1e-4)
+		flat = float3(sun.x, 0.0, sun.z);
+	if (length(flat) < 1e-4)
+		flat = float3(1.0, 0.0, 0.0);
+	float darken = 1.0 - (1.0 - VOE_RENDER_SKY_GROUND) * -view.y;
+
+	return voe_render_sky_scattered_above(sun, sunlight, normalize(flat)) *
+	       darken;
+}
+
+float3 voe_render_sky_radiance(float3 direction, float3 sunlight, float3 view)
+{
+	float3 sun = -direction;
+	float3 radiance = voe_render_sky_scattered(sun, sunlight, view);
+	float disc = cos(VOE_RENDER_SKY_DISC_DEGREES * (VOE_RENDER_SKY_PI / 180.0));
+
+	if (view.y >= 0.0 && dot(view, sun) >= disc)
+		radiance += voe_render_sky_sunlight_in_air(sun, sunlight) *
+			    VOE_RENDER_SKY_DISC_GAIN;
+	return radiance;
+}

@@ -39,8 +39,8 @@ which file to open — what each one owns, and where the seams between them run.
   capture tool; each does nothing without debug-utils.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,
   and the `render` line that says which and why.
-- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the five
-  mesh pipelines, solid, blended, shadow, point shadow and capture, through the device's pipeline
+- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the six
+  mesh pipelines, solid, blended, shadow, sky, point shadow and capture, through the device's pipeline
   cache, then the relight, a step a call, and the count of those steps.
 - `pipeline_cache.c` — the device's pipeline cache: made empty at open, seeded from a caller's bytes
   before the first prepare step, and handed out behind render's own header.
@@ -99,6 +99,8 @@ which file to open — what each one owns, and where the seams between them run.
   along a view, its nine cosine-convolved harmonics, and the irradiance from them. Pure CPU.
 - `sky.c` — those three calls: single scattering through a flat atmosphere, the disc kept apart,
   and the projection over 256 Fibonacci directions.
+- `sky_draw.c` — the sky drawn first in a camera pass whose sky is `drawn`: one full-screen triangle
+  through the sky pipeline, timed as the span `sky`.
 - `light_blockers.c` — `voe_render_light_blockers_mask`, declared in `render/device.h`: the boxes
   holding a point, bit i for blocker i, a sphere compare, then three rows, inclusive at the face.
 - `point_shadow_faces.h` — a caster's bounding sphere from its vertices, moved under a world

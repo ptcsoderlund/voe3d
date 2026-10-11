@@ -1,5 +1,5 @@
-// The five mesh pipelines, solid, blended, shadow, point shadow and capture, and
-// the pipeline layout every pipeline in this folder shares. device.c's
+// The six mesh pipelines, solid, blended, shadow, sky, point shadow and capture,
+// and the pipeline layout every pipeline in this folder shares. device.c's
 // open_device calls voe_render_pipeline_layout_create once, after the
 // descriptors — see startup.h; the pipelines are not built at open.
 //
@@ -9,7 +9,7 @@
 // calls it until nothing is left; every pass that can use one calls that first,
 // so a caller who never prepares gets them all on its first such pass. A failed
 // step is final: every later call answers FAILED, and elements still draw.
-// voe_render_device_prepare_steps counts them: three, six with shaderOutputLayer.
+// voe_render_device_prepare_steps counts them: four, seven with shaderOutputLayer.
 // Every build passes the device's pipeline cache (pipeline_cache.c), which a
 // caller may have seeded with an earlier run's bytes.
 //
@@ -30,7 +30,7 @@
 // voe_render_vertex — which is why voe_render_descriptors_build runs before this
 // in open_device and not after it.
 //
-// THERE ARE FIVE OF THEM FROM ONE DESCRIPTION. The solid one writes depth and
+// THERE ARE SIX OF THEM FROM ONE DESCRIPTION. The solid one writes depth and
 // does not blend; the blended one tests depth the same way, writes none, and
 // blends premultiplied. The shadow one (ADR-0258) drops the fragment stage and
 // the colour attachment, culls nothing, and biases the depth it writes away from
@@ -39,6 +39,8 @@
 // built only on a device with shaderOutputLayer, as is the capture one (ADR-0326):
 // its own vertex stage writing the layer, its own fragment writing albedo (RGBA8
 // sRGB) and normal with distance (RGBA16F), nothing culled, unbiased, unblended.
+// The sky one (ADR-0405 point 4) has its own two stages, no vertex input, no
+// depth test or write, no blend and nothing culled: one full-screen triangle.
 // The shader module, the vertex input, the layout are shared, which is
 // what keeps them from drifting apart: create_pipeline's `kind` is the whole of
 // the difference.
@@ -87,10 +89,12 @@ const size_t voe_render_draw_spv_size = sizeof(voe_render_draw_spv);
 #define POINT_SHADOW_VERTEX_ENTRY "voe_render_point_shadow_vertex"
 #define CAPTURE_VERTEX_ENTRY "voe_render_capture_vertex"
 #define CAPTURE_FRAGMENT_ENTRY "voe_render_capture_fragment"
+#define SKY_VERTEX_ENTRY "voe_render_sky_vertex"
+#define SKY_FRAGMENT_ENTRY "voe_render_sky_fragment"
 
-// Which of the five create_pipeline builds.
+// Which of the six create_pipeline builds.
 enum mesh_kind { MESH_SOLID, MESH_BLENDED, MESH_SHADOW, MESH_POINT_SHADOW,
-		 MESH_CAPTURE };
+		 MESH_CAPTURE, MESH_SKY };
 
 // The capture scratch's two, albedo and normal with distance (bounce_capture.c).
 static const VkFormat capture_formats[2] = { VK_FORMAT_R8G8B8A8_SRGB,
@@ -109,7 +113,7 @@ static const VkFormat capture_formats[2] = { VK_FORMAT_R8G8B8A8_SRGB,
 #define SHADOW_BIAS_CONSTANT -2.0f
 #define SHADOW_BIAS_SLOPE -2.5f
 
-// All three pipelines, from one description. `kind` is the only thing that
+// All six pipelines, from one description. `kind` is the only thing that
 // differs between them and the lines it touches are marked below.
 static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 			    VkPipeline *out)
@@ -119,6 +123,7 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	const bool point_shadow = kind == MESH_POINT_SHADOW;
 	const bool shadow = kind == MESH_SHADOW || point_shadow;
 	const bool capture = kind == MESH_CAPTURE;
+	const bool sky = kind == MESH_SKY;
 	const uint32_t colours = shadow ? 0 : capture ? 2 : 1;
 	VkShaderModuleCreateInfo module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -163,10 +168,13 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	};
 	VkPipelineVertexInputStateCreateInfo vertex_input = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-		.vertexBindingDescriptionCount = 1,
+		// None for the sky, whose vertex stage reads only its index.
+		.vertexBindingDescriptionCount = sky ? 0 : 1,
 		.pVertexBindingDescriptions = &binding,
 		// Position alone for the point-shadow stage, which reads no other.
-		.vertexAttributeDescriptionCount = point_shadow ? 1 : 3,
+		.vertexAttributeDescriptionCount = sky	    ? 0 :
+						   point_shadow ? 1 :
+								  3,
 		.pVertexAttributeDescriptions = attributes,
 	};
 	VkPipelineInputAssemblyStateCreateInfo assembly = {
@@ -214,8 +222,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	VkPipelineRasterizationStateCreateInfo raster = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = shadow || capture ? VK_CULL_MODE_NONE :
-						VK_CULL_MODE_BACK_BIT,
+		.cullMode = shadow || capture || sky ? VK_CULL_MODE_NONE :
+						       VK_CULL_MODE_BACK_BIT,
 		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
 		.depthBiasEnable = shadow ? VK_TRUE : VK_FALSE,
 		.depthBiasConstantFactor = shadow ? SHADOW_BIAS_CONSTANT : 0.0f,
@@ -249,8 +257,9 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	// nothing at all.
 	VkPipelineDepthStencilStateCreateInfo depth = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-		.depthTestEnable = VK_TRUE,
-		.depthWriteEnable = blended ? VK_FALSE : VK_TRUE,
+		// The sky neither tests nor writes: it is behind everything.
+		.depthTestEnable = sky ? VK_FALSE : VK_TRUE,
+		.depthWriteEnable = blended || sky ? VK_FALSE : VK_TRUE,
 		.depthCompareOp = VK_COMPARE_OP_GREATER,
 		.depthBoundsTestEnable = VK_FALSE,
 		.stencilTestEnable = VK_FALSE,
@@ -340,6 +349,7 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	};
 	const char *what = point_shadow ? "point shadow" :
 			   capture	? "capture" :
+			   sky		? "sky" :
 			   shadow	? "shadow" :
 			   blended	? "blended" :
 					  "solid";
@@ -361,13 +371,16 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		.module = module,
 		.pName = point_shadow ? POINT_SHADOW_VERTEX_ENTRY :
 			 capture      ? CAPTURE_VERTEX_ENTRY :
+			 sky	      ? SKY_VERTEX_ENTRY :
 					DRAW_VERTEX_ENTRY,
 	};
 	stages[1] = (VkPipelineShaderStageCreateInfo){
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 		.stage = VK_SHADER_STAGE_FRAGMENT_BIT,
 		.module = module,
-		.pName = capture ? CAPTURE_FRAGMENT_ENTRY : DRAW_FRAGMENT_ENTRY,
+		.pName = capture ? CAPTURE_FRAGMENT_ENTRY :
+			 sky	 ? SKY_FRAGMENT_ENTRY :
+				   DRAW_FRAGMENT_ENTRY,
 	};
 	// Neither of the capture's two attachments blends.
 	attachments[0] = attachment;
@@ -448,7 +461,7 @@ bool voe_render_pipeline_layout_create(voe_render_device *device)
 
 // ------------------------------------------------------------------ prepare
 
-// Whether every step prepare takes has been taken: the three pipelines every
+// Whether every step prepare takes has been taken: the four pipelines every
 // device has, and with shaderOutputLayer the point shadow, the capture and the
 // relight's startup.
 static bool prepared(const voe_render_device *device)
@@ -456,6 +469,7 @@ static bool prepared(const voe_render_device *device)
 	return device->pipeline != VK_NULL_HANDLE &&
 	       device->pipeline_blended != VK_NULL_HANDLE &&
 	       device->pipeline_shadow != VK_NULL_HANDLE &&
+	       device->pipeline_sky != VK_NULL_HANDLE &&
 	       (!device->output_layer ||
 		(device->pipeline_point_shadow != VK_NULL_HANDLE &&
 		 device->pipeline_capture != VK_NULL_HANDLE &&
@@ -478,6 +492,8 @@ static bool take_step(voe_render_device *device)
 	if (device->pipeline_shadow == VK_NULL_HANDLE)
 		return create_pipeline(device, MESH_SHADOW,
 				       &device->pipeline_shadow);
+	if (device->pipeline_sky == VK_NULL_HANDLE)
+		return create_pipeline(device, MESH_SKY, &device->pipeline_sky);
 	if (device->pipeline_point_shadow == VK_NULL_HANDLE)
 		return create_pipeline(device, MESH_POINT_SHADOW,
 				       &device->pipeline_point_shadow);
@@ -505,12 +521,12 @@ voe_render_prepare voe_render_device_prepare(voe_render_device *device)
 	return prepared(device) ? VOE_RENDER_PREPARED : VOE_RENDER_PREPARING;
 }
 
-// Matches prepared() above: the three every device has, then two pipelines and
+// Matches prepared() above: the four every device has, then two pipelines and
 // the relight's startup only with shaderOutputLayer.
 uint32_t voe_render_device_prepare_steps(const voe_render_device *device)
 {
 	VOE_BASE_ASSERT(device != NULL, "counting the prepare steps of no device");
-	return device->output_layer ? 6u : 3u;
+	return device->output_layer ? 7u : 4u;
 }
 
 bool voe_render_device_ready(voe_render_device *device)

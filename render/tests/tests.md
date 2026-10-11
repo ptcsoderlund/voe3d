@@ -65,7 +65,7 @@ by reading the offscreen colour image back.
   only for `VOE_RENDER_BEST_PRACTICES` exactly `1`; needs no graphics card.
 - `new_messages.c` — what the Best Practices classifier keeps for the close to name, on made-up
   messages; needs no graphics card.
-- `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within six
+- `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within seven
   calls and one more than the step count says, a pass with no camera drawing an element before any,
   a camera pass preparing it all, and prepare on a thread while element frames draw. Headless.
 - `pipeline_cache.c` — the pipeline cache as bytes: one device's handed out and taken by a second,
@@ -83,6 +83,9 @@ by reading the offscreen colour image back.
 - `exposure.c` — a pass's sky record on a quad: a zeroed one the old byte, exposure ±1 at Clip,
   Soft as PBR Neutral, a lit quad's sun of 8 clipped at Clip and rolled off at Soft, a draw after
   the depth clear as authored, and a blended one doubled before its blend. Headless.
+- `sky.c` — the sky drawn behind a pass: its pixels the CPU twin's radiance within 2/255, a quad
+  over it, a zeroed sky the clear colour, a dark sun black, and `<pass>: sky` in the breakdown.
+  Headless.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
   red to a black surface whether the sun faces it or not, and a metal-roughness map replacing the
   factors. Headless.

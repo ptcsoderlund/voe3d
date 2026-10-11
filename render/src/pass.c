@@ -49,7 +49,8 @@
 // ITS SKY (ADR-0405 point 2) is copied into its block's `sky`; a number not
 // finite, light or haze below nought, exposure past ±16 or tone past SOFT
 // asserts. A pass with no camera, and every shadow, point-shadow and capture
-// pass, leaves it zeroed: as authored.
+// pass, leaves it zeroed: as authored. A camera pass whose sky is `drawn` has
+// it drawn by sky_draw.c as soon as its block is written, before anything else.
 //
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
@@ -657,6 +658,8 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 			      name);
 	device->pass_camera = camera != NULL;
 	device->pass_shadow = false;
+	// The sky first, behind everything the caller draws (ADR-0405 point 4).
+	voe_render_sky_draw(device);
 	return true;
 }
 

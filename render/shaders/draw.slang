@@ -22,9 +22,9 @@
 // array below. Every one of them is the same integer the CPU handed out
 // (ADR-0018), so there is no table anywhere between the two sides of the bus.
 //
-// ONE FILE, FIVE ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
-// to draw.spv with all of them in it (the point-shadow pass's vertex stage, which writes the layer, and the capture
-// pass's two), and pipeline.c names them by the names
+// ONE FILE, SEVEN ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
+// to draw.spv with all of them in it (the point-shadow pass's vertex stage, which writes the layer, the capture
+// pass's two and the sky's two), and pipeline.c names them by the names
 // spelled here — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
 // keeps those strings true.
 //
@@ -49,8 +49,9 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// SEVEN PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
-// tone.slangh, after lighting.slangh, exposes and tone maps every exit.
+// EIGHT PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// tone.slangh, after lighting.slangh, exposes and tone maps every exit;
+// sky.slangh after it, the sky's radiance, twin of src/sky.c.
 // bindings.slangh first: the frame block, the records and the bindings both
 // stages read. lighting.slangh next: the sun, its cascades, the fill, the BRDF
 // terms and voe_render_points, the point lights the lit exit adds to the sun's
@@ -184,6 +185,7 @@
 #include "bindings.slangh"
 #include "lighting.slangh"
 #include "tone.slangh"
+#include "sky.slangh"
 
 // The locations are stated rather than left to declaration order, because the C
 // side names the same three numbers in its VkVertexInputAttributeDescription and
@@ -644,4 +646,51 @@ voe_render_capture_targets voe_render_capture_fragment(voe_render_capture_in ver
 				    object.colour.rgb;
 	result.normal = float4(n, length(vertex.about));
 	return result;
+}
+
+// What the sky's vertex stage hands on (ADR-0405 point 4): the clip position
+// and the world direction through it, not normalized.
+struct voe_render_sky_out {
+	float4 position : SV_Position;
+	float3 direction : TEXCOORD;
+};
+
+// THE SKY'S VERTEX STAGE: one triangle over the whole target from the vertex
+// index, at the far plane. The view direction through a corner is the clip
+// position over the projection's scale terms, looking along −Z, turned into the
+// world by the view's rotation transposed; an orthographic projection (its
+// [3][3] not nought) looks along the view's −Z everywhere.
+[shader("vertex")]
+voe_render_sky_out voe_render_sky_vertex(uint index : SV_VertexID)
+{
+	voe_render_sky_out out;
+	float2 corner = float2((index << 1) & 2, index & 2) * 2.0 - 1.0;
+	float4x4 projection = voe_render_frame.camera.projection;
+	float4x4 view = voe_render_frame.camera.view;
+	float3 eye = float3(0.0, 0.0, -1.0);
+
+	if (projection[3][3] == 0.0)
+		eye = float3(corner.x / projection[0][0],
+			     corner.y / projection[1][1], -1.0);
+	out.position = float4(corner, 0.0, 1.0);
+	out.direction = eye.x * view[0].xyz + eye.y * view[1].xyz +
+			eye.z * view[2].xyz;
+	return out;
+}
+
+// THE SKY'S FRAGMENT: the radiance along the direction under the pass's sun,
+// exposed and tone mapped as every mesh exit is; black for an `unshaded` light
+// or one with no direction. Opaque: everything later draws over it.
+[shader("fragment")]
+float4 voe_render_sky_fragment(voe_render_sky_out vertex) : SV_Target
+{
+	voe_render_light sun = voe_render_frame.light;
+	float3 radiance = float3(0.0, 0.0, 0.0);
+
+	if (sun.unshaded == 0 && dot(sun.direction, sun.direction) >= VOE_LEAST &&
+	    dot(vertex.direction, vertex.direction) >= VOE_LEAST)
+		radiance = voe_render_sky_radiance(normalize(sun.direction),
+						   sun.colour * sun.intensity,
+						   normalize(vertex.direction));
+	return voe_render_premultiplied(voe_render_expose(radiance), 1.0);
 }

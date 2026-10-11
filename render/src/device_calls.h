@@ -436,6 +436,12 @@ void voe_render_texture_levels_record(voe_render_device *device,
 				      uint32_t width, uint32_t height,
 				      uint32_t level_count);
 
+// sky_draw.c. Inside an open camera pass whose block's sky is `drawn`, the sky:
+// the span `sky`, the sky pipeline, three vertices, `bound` left for the next
+// mesh draw to rebind. Does nothing otherwise. pass.c calls it once, right after
+// a camera pass's block is written.
+void voe_render_sky_draw(voe_render_device *device);
+
 // probe.c. The pipeline that reads a matrix and reports what it saw, built on
 // demand and owned by the caller — VK_NULL_HANDLE on failure, and destroyed with
 // voe_render_vk.destroy_pipeline. It shares the device's pipeline layout, so it

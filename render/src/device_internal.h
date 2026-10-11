@@ -193,6 +193,9 @@ struct voe_render_device {
 	// writing albedo and normal with distance, nothing culled, no bias.
 	// VK_NULL_HANDLE without output_layer.
 	VkPipeline pipeline_capture;
+	// The sky's (ADR-0405 point 4): one full-screen triangle, no vertex
+	// input, no depth test or write, no blend; sky_draw.c draws it.
+	VkPipeline pipeline_sky;
 	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
 	// settle, relight and sum pipelines; per frame slot a mapped list buffer,
 	// a mapped record buffer of a region per volume, each at its descriptor
