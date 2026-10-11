@@ -16,7 +16,14 @@
 // 8. case 1 with an occlusion texel of red 0: case 1 again, the sun's direct
 //    light undarkened (ADR-0400);
 // 9. the sun pointing away and a fill turned up, occlusion red 255: the fill;
-// 10. the same with occlusion red 0: darker in every channel, the fill occluded.
+// 10. the same with occlusion red 0: darker in every channel, the fill occluded;
+// 11. a white base, roughness 1, metallic 0, under the sun: the matte reference;
+// 12. roughness 0.1 and a metal-roughness texel green 255 blue 0: case 11
+//     again, the shiny factor not read (ADR-0401);
+// 13. roughness 1, metallic 1: the metal reference;
+// 14. metallic 0 and a texel green 255 blue 255: case 13 again.
+// Checked once when written: roughness 0.1 with no map reads 255 where case 11
+// reads 151, and case 13 reads 80, so 12 and 14 would fail under a multiply.
 //
 // The maps are one-pixel DATA textures, so the channel bytes arrive as written.
 // Built the way unshaded.c builds its device, camera and readback, including
@@ -39,7 +46,7 @@
 
 #define SIDE 64
 #define IMAGE_BYTES ((VkDeviceSize)SIDE * SIDE * 4)
-#define CASES 10
+#define CASES 14
 
 // VK_FORMAT_B8G8R8A8_SRGB, which the headless device takes.
 #define BLUE 0
@@ -55,7 +62,7 @@ static const voe_render_capacities CAPACITIES = {
 	.indices = 6,
 	.geometries = 1,
 	.objects = 1,
-	.shadings = 8,
+	.shadings = 12,
 	.passes = 1,
 };
 
@@ -83,6 +90,10 @@ static const uint8_t TILTED_TEXEL[4] = { 238, 128, 191, 255 };
 // Occlusion in red: wholly occluded, and not at all.
 static const uint8_t OCCLUDED_TEXEL[4] = { 0, 0, 0, 255 };
 static const uint8_t OPEN_TEXEL[4] = { 255, 255, 255, 255 };
+
+// Metal-roughness in green and blue: fully rough, not metal; and fully metal.
+static const uint8_t ROUGH_TEXEL[4] = { 0, 255, 0, 255 };
+static const uint8_t METAL_TEXEL[4] = { 0, 255, 255, 255 };
 
 // Eight texels across, four black then four white, as rgba.
 #define HALVES_WIDTH 8
@@ -263,9 +274,10 @@ static voe_render_texture data_pixel(voe_render_device *device,
 	return texture;
 }
 
-// The eight shading records: plain, flat map, tilted map, black and glowing,
-// the halves texture repeated four times and with a repeat of 0, and plain
-// wholly occluded and not occluded at all.
+// The twelve shading records: plain, flat map, tilted map, black and glowing,
+// the halves texture repeated four times and with a repeat of 0, plain
+// wholly occluded and not occluded at all, and white matte, white with a rough
+// map, white metal and white with a metal map.
 static void make_shadings(voe_render_device *device, voe_render_shading *out)
 {
 	voe_base_error error = VOE_BASE_OK;
@@ -280,6 +292,11 @@ static void make_shadings(voe_render_device *device, voe_render_shading *out)
 	};
 	voe_render_shading_values plain = {
 		.base_colour = { 0.6f, 0.5f, 0.4f, 1.0f },
+		.roughness = 1.0f,
+		.base_colour_uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f },
+	};
+	voe_render_shading_values white = {
+		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
 		.roughness = 1.0f,
 		.base_colour_uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f },
 	};
@@ -319,6 +336,21 @@ static void make_shadings(voe_render_device *device, voe_render_shading *out)
 	plain.occlusion_texture = data_pixel(device, OPEN_TEXEL).index;
 	VOE_TEST_CHECK(voe_render_shading_create(device, plain, &out[7],
 						 &error));
+	VOE_TEST_CHECK(voe_render_shading_create(device, white, &out[8],
+						 &error));
+	white.roughness = 0.1f;
+	white.metallic_roughness_texture = data_pixel(device, ROUGH_TEXEL).index;
+	VOE_TEST_CHECK(voe_render_shading_create(device, white, &out[9],
+						 &error));
+	white.roughness = 1.0f;
+	white.metallic = 1.0f;
+	white.metallic_roughness_texture = VOE_RENDER_NO_TEXTURE;
+	VOE_TEST_CHECK(voe_render_shading_create(device, white, &out[10],
+						 &error));
+	white.metallic = 0.0f;
+	white.metallic_roughness_texture = data_pixel(device, METAL_TEXEL).index;
+	VOE_TEST_CHECK(voe_render_shading_create(device, white, &out[11],
+						 &error));
 }
 
 int main(void)
@@ -329,7 +361,7 @@ int main(void)
 	voe_render_device *device;
 	struct voe_render_buffer readback = { 0 };
 	voe_render_geometry quad = { 0 };
-	voe_render_shading shadings[8] = { 0 };
+	voe_render_shading shadings[12] = { 0 };
 	// Travelling down −Z into the face: N·L of one.
 	voe_render_light sun = {
 		.direction = { 0.0f, 0.0f, -1.0f },
@@ -396,6 +428,9 @@ int main(void)
 		  IMAGE_BYTES * 8);
 	draw_case(device, quad, shadings[6], filled, readback.buffer,
 		  IMAGE_BYTES * 9);
+	for (int i = 8; i < 12; i++)
+		draw_case(device, quad, shadings[i], sun, readback.buffer,
+			  IMAGE_BYTES * (VkDeviceSize)(i + 2));
 
 	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 						    readback.memory, 0,
@@ -410,6 +445,8 @@ int main(void)
 		VOE_TEST_CHECK_INT(white_runs(mapped, 6), 1);
 		check_same(centre_of(mapped, 7), centre_of(mapped, 0));
 		check_darker(centre_of(mapped, 9), centre_of(mapped, 8));
+		check_same(centre_of(mapped, 11), centre_of(mapped, 10));
+		check_same(centre_of(mapped, 13), centre_of(mapped, 12));
 		voe_render_vk.unmap_memory(device->device, readback.memory);
 	}
 

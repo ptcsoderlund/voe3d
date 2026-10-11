@@ -261,7 +261,7 @@ carries it out.
 - `inspector_sculpt.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: a fired button chooses its kind or none, each slider's value taken.
 - `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour swatch,
-  Roughness and Metal sliders, Repeat clamped 0.01–1000, and the three map rows with ×.
+  Roughness and Metal sliders (greyed and unread while ORMmap is set), Repeat clamped 0.01–1000, and the three map rows with ×.
 - `inspector_material.c` — the section's one frame of `ui` calls, its nodes forgotten each frame,
   and the read into the shown copy only.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each

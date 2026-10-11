@@ -3,7 +3,12 @@
 // the press, the release, the dead zone and the drag are all
 // `ui/tests/button.c`'s already; what is new here and what this file pins down
 // is the two ends of the range — the thumb's place in the track, and the clamp
-// that keeps a hand from dragging the value out of it.
+// that keeps a hand from dragging the value out of it. A drag past the dead
+// zone moves the value by the distance times the range over the track's
+// width, and an untouched frame hands the value back. Then the shown slider
+// (ADR-0402): the slider's rectangle and thumb at the bottom, the middle and
+// the top, a press, drag and click across it taking no focus and moving no
+// thumb, and a value past either end drawing the thumb at that end.
 //
 // NO GRAPHICS CARD AND NO WINDOW SYSTEM. Nothing here composes a label: a
 // slider is a fill, a thumb and no letters, and a number box only draws its
@@ -233,6 +238,80 @@ static void an_untouched_slider_answers_what_it_was_given(
 	VOE_TEST_CHECK(r.value == MAX);
 }
 
+// One shown slider in a bare column at the origin, as build makes the slider.
+static voe_ui_node build_shown(voe_ui_context *ui, voe_base_arena *arena,
+			       double value, float x, bool down)
+{
+	voe_ui_node s;
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_pointer_set(ui, (voe_ui_pointer){ .at = { x, ON_Y },
+						 .over = true,
+						 .down = down });
+
+	voe_ui_column_begin(ui, (voe_ui_container){ 0 });
+	s = voe_ui_slider_shown(ui, "s", 0, value, MIN, MAX, WIDE);
+	voe_ui_end(ui);
+
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+	return s;
+}
+
+// THE SHOWN SLIDER LOOKS LIKE THE SLIDER (ADR-0402): the same rectangle, and
+// the thumb in the same place at the bottom, the middle and the top.
+static void a_shown_slider_is_drawn_where_the_slider_is(voe_ui_context *ui,
+							voe_base_arena *arena)
+{
+	const double values[] = { MIN, (MIN + MAX) / 2.0, MAX };
+
+	for (uint32_t i = 0; i < 3; i++) {
+		struct frame f = build(ui, arena, values[i], 0.0f, false,
+				       false);
+		voe_ui_rect want = voe_ui_node_rect(ui, f.s);
+		voe_math_float4 want_thumb = thumb(ui);
+		voe_ui_node s = build_shown(ui, arena, values[i], 0.0f, false);
+		voe_ui_rect r = voe_ui_node_rect(ui, s);
+		voe_math_float4 t = thumb(ui);
+
+		VOE_TEST_CHECK_FLOAT(r.min.x, want.min.x, 0.001f);
+		VOE_TEST_CHECK_FLOAT(r.min.y, want.min.y, 0.001f);
+		VOE_TEST_CHECK_FLOAT(r.size.x, SLIDER_WIDE, 0.001f);
+		VOE_TEST_CHECK_FLOAT(r.size.y, SLIDER_HIGH, 0.001f);
+		VOE_TEST_CHECK_FLOAT(t.x, want_thumb.x, 0.001f);
+		VOE_TEST_CHECK_FLOAT(t.y, want_thumb.y, 0.001f);
+		VOE_TEST_CHECK_FLOAT(t.z, want_thumb.z, 0.001f);
+		VOE_TEST_CHECK_FLOAT(t.w, want_thumb.w, 0.001f);
+	}
+}
+
+// AND IT ANSWERS NOTHING. A press, a drag across it over two frames and a
+// release where the press was — which on a slider would open it for typing —
+// take no focus and leave the thumb where the value puts it.
+static void a_shown_slider_does_not_move(voe_ui_context *ui,
+					 voe_base_arena *arena)
+{
+	const float xs[] = { 10.0f, 10.0f, 21.0f, 23.0f, 10.0f, 10.0f };
+	const bool downs[] = { false, true, true, true, true, false };
+
+	for (uint32_t i = 0; i < 6; i++) {
+		(void)build_shown(ui, arena, 50.0, xs[i], downs[i]);
+		VOE_TEST_CHECK(!voe_ui_typing(ui));
+		VOE_TEST_CHECK_FLOAT(thumb(ui).x, TRACK_X + TRAVEL / 2.0f,
+				     0.001f);
+	}
+}
+
+// A value outside the range draws the thumb at the range's end it is past.
+static void a_shown_value_past_an_end_sits_at_it(voe_ui_context *ui,
+						 voe_base_arena *arena)
+{
+	(void)build_shown(ui, arena, MAX + 10.0, 0.0f, false);
+	VOE_TEST_CHECK_FLOAT(thumb(ui).x, TRACK_X + TRAVEL, 0.001f);
+
+	(void)build_shown(ui, arena, MIN - 10.0, 0.0f, false);
+	VOE_TEST_CHECK_FLOAT(thumb(ui).x, TRACK_X, 0.001f);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -250,6 +329,9 @@ int main(void)
 	a_sideways_drag_moves_the_value(ui, arena);
 	a_drag_past_an_end_stops_at_it(ui, arena);
 	an_untouched_slider_answers_what_it_was_given(ui, arena);
+	a_shown_slider_is_drawn_where_the_slider_is(ui, arena);
+	a_shown_slider_does_not_move(ui, arena);
+	a_shown_value_past_an_end_sits_at_it(ui, arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

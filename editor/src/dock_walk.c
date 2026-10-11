@@ -426,6 +426,8 @@ void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 		voe_editor_scene_list_draw(ui, palette, scene);
 		return;
 	case VOE_EDITOR_PANEL_INSPECTOR:
+		voe_editor_inspector_material_dim(&scene->material_controls,
+						  palette);
 		inspector_panel(ui, scene);
 		return;
 	case VOE_EDITOR_PANEL_SCENE_VIEW:

@@ -584,9 +584,10 @@ bool voe_render_texture_startup(voe_render_device *device)
 	//
 	// IT STANDS IN FOR A MISSING TEXTURE OF EITHER KIND, AND WHITE IS THE
 	// ONE COLOUR WHERE THAT WORKS. White is 1 under both formats — the sRGB
-	// curve fixes both ends — so a material with no base colour map and a
-	// material with no roughness map both multiply their factor by exactly
-	// one. Any other default would have to be two textures. It is built in
+	// curve fixes both ends — so a material with no base colour map
+	// multiplies its factor by exactly one. The metal-roughness slot is not
+	// that case: an empty one is read as empty by its id and its factors
+	// used instead (0401). It is built in
 	// the data format because that is the one that does no decoding, which
 	// is the easier of the two to reason about when reading this.
 	static const uint8_t WHITE[4] = { 0xff, 0xff, 0xff, 0xff };

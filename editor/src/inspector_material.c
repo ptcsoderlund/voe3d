@@ -5,6 +5,10 @@
 // The shader buttons are indexed as voe_assets_material_shader, so a button's
 // index is its shader; the map rows as the file lists them: colour, normal,
 // roughness.
+//
+// While ORMmap is set, Roughness and Metal are drawn under `controls->dim` with
+// voe_ui_slider_shown and their nodes left VOE_UI_NODE_NONE, so the read takes
+// nothing from them (0401, 0402).
 #include "inspector_material.h"
 
 #include "scene.h"
@@ -76,6 +80,20 @@ static const char *file_name(const char *path)
 	VOE_BASE_ASSERT(path != NULL, "the name of no path");
 	slash = strrchr(path, '/');
 	return slash != NULL ? slash + 1 : path;
+}
+
+void voe_editor_inspector_material_dim(voe_editor_inspector_material *controls,
+				       const voe_ui_theme *palette)
+{
+	VOE_BASE_ASSERT(controls != NULL && palette != NULL,
+			"dimming no material section or from no palette");
+
+	controls->dim = *palette;
+	controls->dim.text_primary = palette->text_disabled;
+	controls->dim.text_secondary = palette->text_disabled;
+	controls->dim.inverse_ink = palette->text_disabled;
+	controls->dim.control_hovered = palette->control;
+	controls->dim.inverse = palette->control;
 }
 
 void voe_editor_inspector_material_forget(
@@ -173,19 +191,29 @@ void voe_editor_inspector_material_draw(
 	voe_ui_end(ui);
 	voe_ui_end(ui);
 
+	const bool greyed = material->ormmap[0] != '\0';
+
 	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_SLIDERS; i++) {
 		const float value =
 			i == 0 ? material->roughness : material->metal;
 
+		if (greyed)
+			voe_ui_theme_push(ui, &controls->dim);
 		row_open(ui);
 		voe_ui_label(ui, SLIDER_NAMES[i]);
-		controls->sliders[i] = voe_ui_slider(ui, "material slider", i,
-						     value, 0.0f, 1.0f,
-						     SLIDER_WIDE);
+		if (greyed)
+			voe_ui_slider_shown(ui, "material slider", i, value,
+					    0.0f, 1.0f, SLIDER_WIDE);
+		else
+			controls->sliders[i] = voe_ui_slider(
+				ui, "material slider", i, value, 0.0f, 1.0f,
+				SLIDER_WIDE);
 		snprintf(controls->figures[i], sizeof controls->figures[i],
 			 "%.2f", (double)value);
 		voe_ui_label(ui, controls->figures[i]);
 		voe_ui_end(ui);
+		if (greyed)
+			voe_ui_theme_pop(ui);
 	}
 
 	row_open(ui);

@@ -386,7 +386,9 @@ typedef struct {
 	// a lit surface's normal through a tangent frame built per pixel from
 	// screen derivatives (glTF's convention, no tangent attribute), and the
 	// emissive map times `emissive` is added to a lit surface, unshadowed
-	// (ADR-0278).
+	// (ADR-0278). A metallic-roughness texture's green and blue replace
+	// `roughness` and `metallic` outright, as stored; with none the two
+	// fields are the values (0401).
 	//
 	// A COLOUR TEXTURE AND A DATA TEXTURE ARE NOT INTERCHANGEABLE HERE. The
 	// base colour and the emissive ones are uploaded as
