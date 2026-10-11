@@ -33,6 +33,7 @@
 
 #include <3d/landscape.h>
 #include <3d/model_component.h>
+#include <assets/landscape.h>
 #include <base/arena.h>
 #include <ecs/world.h>
 #include <math/float2.h>
@@ -71,6 +72,9 @@ struct voe_editor_models;
 // Room for a slider's shown figure.
 #define VOE_EDITOR_SCULPT_FIGURE 16
 
+// The Layers section's rows: one per layer, and the add row.
+#define VOE_EDITOR_SCULPT_LAYER_ROWS (VOE_ASSETS_LANDSCAPE_LAYERS + 1)
+
 typedef struct {
 	// Whether a brush is chosen, and which; `kind` means nothing when not.
 	bool chosen;
@@ -87,6 +91,13 @@ typedef struct {
 	voe_ui_node buttons[VOE_EDITOR_SCULPT_KINDS];
 	voe_ui_node sliders[VOE_EDITOR_SCULPT_SLIDERS];
 	char figures[VOE_EDITOR_SCULPT_SLIDERS][VOE_EDITOR_SCULPT_FIGURE];
+	// The Layers section's rows as drawn this frame, row i layer i and
+	// row `layers_drawn` the add row, VOE_UI_NODE_NONE when not drawn; and
+	// where each showed at the last read, for a drop the next frame
+	// (assets_drag.h), no size for one not drawn (inspector_layers.h).
+	voe_ui_node layer_rows[VOE_EDITOR_SCULPT_LAYER_ROWS];
+	voe_ui_rect layers_seen[VOE_EDITOR_SCULPT_LAYER_ROWS];
+	uint32_t layers_drawn;
 	// The ground under the pointer this frame, when `hit`: (x, z) in the
 	// grid's own space of `entity`'s landscape.
 	bool hit;

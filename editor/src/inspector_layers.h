@@ -1,0 +1,59 @@
+// The Inspector's Layers section, under Sculpt on a thing that wears a loaded
+// landscape (0402 point 7): a "Layers" heading as Sculpt's, one row per layer
+// of the landscape's grid by its material's file name, the one being painted
+// drawn chosen, then "Drop a material to add a layer" while it holds fewer
+// than eight. Pressing a row chooses painting that layer with Sculpt's
+// sliders; pressing it again chooses none. A `.material` dropped on a row
+// replaces that layer, on the last row adds one (assets_drag.h).
+//
+//     voe_editor_inspector_layers_forget(&scene->sculpt);        // frame opened
+//     voe_editor_inspector_layers_draw(ui, &scene->sculpt, store,
+//                                      world, selected);         // inspector.c
+//     ...voe_ui_frame_end...
+//     voe_editor_inspector_layers_read(ui, &scene->sculpt);      // interface_read.c
+//
+// THE NODES LIVE IN THE SCULPT STATE (sculpt.h), for the reason the Sculpt
+// section's do (inspector_sculpt.h): a widget answers only after
+// voe_ui_frame_end. Each frame forgets them first; the read keeps each row's
+// rectangle for a drop the next frame, as the material map rows' are kept
+// (inspector_material.h), and a frame that does not draw the section leaves
+// none.
+//
+// Constraints: draw, forget and read are called in one frame's window, read
+// before the frame's arena is rewound; nothing here allocates. A row's label
+// points into the store's grid, which stands until voe_ui_frame_end.
+#pragma once
+
+#include "sculpt.h"
+
+#include <3d/models.h>
+
+#include <assets/landscape.h>
+
+#include <ecs/world.h>
+
+#include <ui/layout.h>
+
+// The loaded grid `entity` wears, NULL when it wears none (sculpt.h's
+// voe_editor_sculpt_wears) or its file is not loaded. `path`, when not NULL,
+// is set to the model row's path.
+const voe_assets_landscape *voe_editor_inspector_layers_grid(
+	const voe_3d_models *store, const voe_ecs_world *world,
+	voe_ecs_entity entity, const char **path);
+
+// Forgets last frame's rows, keeping their rectangles. Called when the frame
+// opens.
+void voe_editor_inspector_layers_forget(voe_editor_sculpt *sculpt);
+
+// Puts the Layers section for `entity`'s loaded grid on the panel, recording
+// its rows in `sculpt`; nothing when it wears none.
+void voe_editor_inspector_layers_draw(voe_ui_context *ui,
+				      voe_editor_sculpt *sculpt,
+				      const voe_3d_models *store,
+				      const voe_ecs_world *world,
+				      voe_ecs_entity entity);
+
+// After voe_ui_frame_end: a fired layer row chooses PAINT with that layer, or
+// none when it was the chosen one; each row's rectangle kept.
+void voe_editor_inspector_layers_read(const voe_ui_context *ui,
+				      voe_editor_sculpt *sculpt);

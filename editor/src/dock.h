@@ -34,6 +34,7 @@
 #include "scene.h"
 #include "view.h"
 
+#include <3d/models.h>
 #include <math/float2.h>
 #include <ui/layout.h>
 #include <ui/theme.h>
@@ -309,7 +310,8 @@ voe_editor_dock_closes_read(const voe_ui_context *ui,
 // `scene` is what the panels read and write: the list is its identity table and
 // the selection is its own (scene.h). `views` is where a scene view's panel
 // finds its picture and records where the picture sat, and passes through on the
-// same terms as `scene`. IT PASSES STRAIGHT THROUGH AND THE TREE
+// same terms as `scene`, as does `store`, the model store the Inspector's
+// Layers section reads (inspector_layers.h). IT PASSES STRAIGHT THROUGH AND THE TREE
 // NEVER LOOKS AT IT — no node holds one, no split reads one, and a tree built
 // for one scene lays out identically for another. The parameter is here because
 // voe_editor_panel_draw is called from inside the walk and a panel's contents
@@ -323,7 +325,8 @@ voe_editor_dock_closes_read(const voe_ui_context *ui,
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
 			  const voe_ui_theme *palette, voe_editor_scene *scene,
-			  voe_editor_views *views, voe_editor_dock_closes *closes);
+			  voe_editor_views *views, const voe_3d_models *store,
+			  voe_editor_dock_closes *closes);
 
 // What is on one panel. One function, one `switch`, no table and no function
 // pointer; a panel's contents are ordinary `ui` calls and the tree above owns
@@ -339,4 +342,5 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 // `palette` is the walk's, read only by the Scene list for its drag's marks.
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 			   uint32_t view, const voe_ui_theme *palette,
-			   voe_editor_scene *scene, voe_editor_views *views);
+			   voe_editor_scene *scene, voe_editor_views *views,
+			   const voe_3d_models *store);

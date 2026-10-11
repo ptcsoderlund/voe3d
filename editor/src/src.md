@@ -199,11 +199,11 @@ carries it out.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
-  folder row or Up, a new thing or copy placed in a scene view, a swap or a filled map over the
-  Inspector, elsewhere nothing.
+  folder row or Up, a new thing or copy placed in a scene view, a swap, a filled map or a set
+  landscape layer over the Inspector, elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the move's target, the drop point, the Inspector's fields and map
-  rows, the texture, material and map swaps, the open material following a move, the undo step.
+  the release and the ghost, the move's target, the drop point, the Inspector's fields, map and
+  layer rows, the texture, material, map and layer swaps, the open material following a move, the undo step.
 - `assets_walk.h` — the project's `.scene`, `.prefab` and `.material` texts walked: who names a path before a
   Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
@@ -245,21 +245,27 @@ carries it out.
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
 - `inspector.c` — the Duplicate and Delete row, the walk over described component types, each
   section's heading, Remove and "Needs" line, Add component and its menu, the open list, a part
-  shown read-only, the Sculpt section on a landscape, and an open material's section in place of it.
+  shown read-only, the Sculpt and Layers sections on a landscape, and an open material's section in
+  place of it.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
   strings a text field per string, labels when it cannot be edited.
 - `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, and a
   rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
 - `sculpt.h` — the brush a person holds: chosen or not, its kind, layer, radius, strength and
-  softness with their ranges, never saved or undone, whether a thing wears a landscape, and the
-  held drag that sculpts or paints it as one undo step.
+  softness with their ranges, never saved or undone, the Sculpt and Layers sections' nodes, whether
+  a thing wears a landscape, and the held drag that sculpts or paints it as one undo step.
 - `sculpt.c` — the defaults set, the brush put down, the `.landscape` ending matched on a thing
   not a prefab's part, the ground under the pointer, the press's heights or paint copy, the stamps
   along the drag and the release's heights or paint stroke.
 - `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
-  chosen one lit, and Radius, Strength and Softness sliders, read after the frame.
+  chosen one lit, none while painting, and Radius, Strength and Softness sliders, read after the
+  frame.
 - `inspector_sculpt.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: a fired button chooses its kind or none, each slider's value taken.
+- `inspector_layers.h` — the Inspector's Layers section under Sculpt: a row per layer by its
+  material's file name choosing it to paint, and the add row a dropped material lands on.
+- `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
+  read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
 - `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour swatch,
   Roughness and Metal sliders (greyed and unread while ORMmap is set), Repeat clamped 0.01–1000, and the three map rows with ×.
 - `inspector_material.c` — the section's one frame of `ui` calls, its nodes forgotten each frame,

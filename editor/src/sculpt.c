@@ -36,6 +36,8 @@ void voe_editor_sculpt_start(voe_editor_sculpt *sculpt)
 		sculpt->buttons[i] = VOE_UI_NODE_NONE;
 	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_SLIDERS; i++)
 		sculpt->sliders[i] = VOE_UI_NODE_NONE;
+	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_LAYER_ROWS; i++)
+		sculpt->layer_rows[i] = VOE_UI_NODE_NONE;
 
 	VOE_BASE_ASSERT(!sculpt->chosen, "a started brush already chosen");
 }

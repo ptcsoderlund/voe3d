@@ -29,6 +29,10 @@
 //   (inspector_material.h) that map's path in `scene->material`, which
 //   interface_read.c carries to the table; while the selected thing has an
 //   emitter, its texture through voe_3d_emitter_submit, one step and unsaved.
+// - A `.material` over the Layers section of a thing wearing a loaded
+//   landscape (inspector_layers.h, 0402 point 7): over a layer row, that layer
+//   through voe_editor_models_layer_set; over the add row, a layer added;
+//   unsaved as a stroke is, no undo step. With eight layers there is no add row.
 // - A `.material` over the Inspector showing a thing (0399 point 8): over its
 //   model's Materials n field, `materials[n-1]` through voe_3d_model_submit;
 //   elsewhere, a shape's `material` through voe_3d_shape_submit; one step and
@@ -53,7 +57,8 @@
 // field's room is no drag.
 //
 // CONSTRAINTS. The Inspector's rectangle is the dock tree laid out below the
-// bar, and the panel's rows, Up, the Inspector's fields and the map rows are
+// bar, and the panel's rows, Up, the Inspector's fields, the map rows and the
+// layer rows are
 // last frame's rectangles, not what `ui`
 // drew, because the frame's nodes are gone by the time this runs. A drop and
 // Ctrl+D on one frame would give two new things one id (entities.h); nothing
