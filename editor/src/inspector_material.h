@@ -3,8 +3,11 @@
 // name as heading, Lit and Unlit with the chosen one lit, Colour as a swatch
 // inside a button, Roughness and Metal as sliders 0–1, Repeat as a number box
 // clamped 0.01–1000, and the Colormap, Normalmap and ORMmap rows, each the
-// map's file name or "None" with × while set.
+// map's file name or "None" with × while set. While ORMmap is set, Roughness
+// and Metal are drawn greyed and cannot move, and nothing reads them, so the
+// file's values stand untouched until the map is emptied (0401, 0402).
 //
+//     voe_editor_inspector_material_dim(&scene->material_controls, palette);
 //     voe_editor_inspector_material_forget(&scene->material_controls);
 //     voe_editor_inspector_material_draw(ui, &scene->material_controls,
 //                                        scene->material_open, &scene->material);
@@ -32,6 +35,7 @@
 #include <assets/material.h>
 
 #include <ui/layout.h>
+#include <ui/theme.h>
 
 // Lit and Unlit, indexed as voe_assets_material_shader.
 #define VOE_EDITOR_MATERIAL_SHADERS 2
@@ -62,7 +66,15 @@ typedef struct {
 	voe_ui_rect maps_seen[VOE_EDITOR_MATERIAL_MAPS];
 	char figures[VOE_EDITOR_MATERIAL_SLIDERS][VOE_EDITOR_MATERIAL_FIGURE];
 	char repeat_figure[VOE_EDITOR_MATERIAL_FIGURE];
+	// The theme the greyed Roughness and Metal rows are pushed under; here
+	// because a pushed theme must outlive the frame.
+	voe_ui_theme dim;
 } voe_editor_inspector_material;
+
+// Derives `controls->dim` from `palette`, each frame before the draw: text as
+// `text_disabled`, fills that do not light (as the Scene list dims a row).
+void voe_editor_inspector_material_dim(voe_editor_inspector_material *controls,
+				       const voe_ui_theme *palette);
 
 // Forgets last frame's controls. Called when the frame opens.
 void voe_editor_inspector_material_forget(
@@ -80,5 +92,6 @@ struct voe_editor_scene;
 // `scene->material_controls`: a fired shader button chooses it, each drawn
 // slider's value taken, Repeat's taken clamped, a fired × empties its map, a
 // fired swatch opens the picker on the material; each map row's rectangle kept.
+// A greyed slider is not drawn as one, so nothing is taken from it.
 void voe_editor_inspector_material_read(const voe_ui_context *ui,
 					struct voe_editor_scene *scene);
