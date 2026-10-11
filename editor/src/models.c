@@ -2,7 +2,8 @@
 // different folder, its materials' table read again then, filled and re-read
 // through game/models.h once a frame, the table's materials loaded after the
 // models, cleared through the device and destroyed, and handed out read-only;
-// its landscapes' heights and materials' records written in the frame,
+// its landscapes' heights and paint stamped, put back and their layers set,
+// heights and materials' records written in the frame,
 // landscapes written on Save and read again, and one reshaped, written at once
 // and loaded again at the next update; an edited material set live, or loaded
 // again at the next update when a map changed.
@@ -331,6 +332,27 @@ void voe_editor_models_put(voe_editor_models *models, const char *path,
 	VOE_BASE_ASSERT(path != NULL && values != NULL,
 			"putting no heights or onto no path");
 	voe_3d_models_landscape_put(models->store, path, rect, values);
+}
+
+void voe_editor_models_put_paint(voe_editor_models *models, const char *path,
+				 voe_3d_landscape_rect rect,
+				 const uint8_t *values)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"putting paint into no store");
+	VOE_BASE_ASSERT(path != NULL && values != NULL,
+			"putting no paint or onto no path");
+	voe_3d_models_landscape_put_paint(models->store, path, rect, values);
+}
+
+void voe_editor_models_layer_set(voe_editor_models *models, const char *path,
+				 uint32_t index, const char *material)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"setting a layer in no store");
+	VOE_BASE_ASSERT(path != NULL && material != NULL,
+			"setting no material or onto no path");
+	voe_3d_models_landscape_layer_set(models->store, path, index, material);
 }
 
 void voe_editor_models_rename(voe_editor_models *models, const char *from,

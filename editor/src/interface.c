@@ -37,6 +37,7 @@
 #include "errors.h"
 #include "inspector.h"
 #include "inspector_edit.h"
+#include "inspector_layers.h"
 #include "inspector_sculpt.h"
 #include "interface_assets.h"
 #include "interface_read.h"
@@ -256,6 +257,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_inspector_frame_begin(&scene->inspector, arena,
 						 &scene->dropdown);
 		voe_editor_inspector_sculpt_forget(&scene->sculpt);
+		voe_editor_inspector_layers_forget(&scene->sculpt);
 		voe_editor_inspector_material_forget(&scene->material_controls);
 
 		// ONE COLUMN IS THIS FRAME'S ROOT, AND THE BAR AND THE TREE ARE
@@ -285,7 +287,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				       session->notice.text, prefab_open);
 		voe_editor_dock_walk(&below_bar, VOE_EDITOR_DOCK_COLUMN, ui,
 				     &voe_editor_themes_chosen(themes)->palette,
-				     scene, views, &closes);
+				     scene, views,
+				     voe_editor_models_store(models), &closes);
 		// A Scene list or Assets drag's ghost, anchored beside the
 		// pointer (ADR-0282, 0286); before the overlays, so they paint
 		// over it.

@@ -16,10 +16,10 @@
 // numbers filled that way undoes as one step.
 //
 // OR A STEP IS A STROKE (0379 point 5): voe_editor_undo_stroke pushes a state
-// whose text equals the one before it, carrying a sculpting stroke
-// (strokes.h). Back from it writes the stroke's `before` into the store,
-// forward onto it its `after`. Each stroke is its own malloced memory, up to
-// some 2 MB at 512 cells, so a line of 64 strokes may hold over 100 MB; every
+// whose text equals the one before it, carrying a sculpting or paint stroke
+// (strokes.h, 0402 point 7). Back from it writes the stroke's before into the
+// store, forward onto it its after. Each stroke is its own malloced memory, up
+// to some 4 MB at 512 cells, so a line of 64 may hold over 200 MB; every
 // state dropped frees its stroke.
 //
 // OR A STEP IS A MATERIAL EDIT (0399 point 9): voe_editor_undo_material pushes

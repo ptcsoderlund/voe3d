@@ -40,6 +40,8 @@
 // and re-read it are made here and nowhere else. Each frame _frame, inside the
 // draw, writes its dirty heights into its texture (0396 point 5). Save writes
 // every edited one to its file; a New or Open reads every edited one again.
+// Its paint and layers (0402) are edited here too, and Save writes them with
+// the heights, the writer carrying them.
 // The Landscape panel's size and cells are written at once and re-read at the next
 // update; one re-read waits at a time, enough for a panel that writes at most
 // one a frame, and a second before the update would replace the first.
@@ -118,6 +120,19 @@ voe_3d_landscape_rect voe_editor_models_brush(voe_editor_models *models,
 // stroke put back (strokes.h). Nothing for a path that is no loaded landscape.
 void voe_editor_models_put(voe_editor_models *models, const char *path,
 			   voe_3d_landscape_rect rect, const float *values);
+
+// `rect`'s paint written into `path`'s landscape, plane 0's rect of RGBA8
+// row-major then plane 1's: a paint stroke put back (strokes.h). Nothing for a
+// path that is no loaded landscape.
+void voe_editor_models_put_paint(voe_editor_models *models, const char *path,
+				 voe_3d_landscape_rect rect,
+				 const uint8_t *values);
+
+// Layer `index` of `path`'s landscape takes `material`'s path, `index` equal
+// to its layer count adding one (3d/models.h). Nothing for a path that is no
+// loaded landscape.
+void voe_editor_models_layer_set(voe_editor_models *models, const char *path,
+				 uint32_t index, const char *material);
 
 // Every entry at `from` or under `from/` takes `to` in its place, both under
 // `Assets/`: a rename or move keeps a landscape's unsaved heights (0379 point 6).

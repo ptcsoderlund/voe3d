@@ -13,5 +13,5 @@ defines, and `models.h`, which has two.
 - `progress.c` — the progress record's atomic stores and loads and its line.
 - `run.c` — the run's steps in the handed window and its threads, and the only file naming the cooked scene, prefabs, landscapes and materials, the materials loaded after each models update.
 - `splashscreen.png` — the engine's splash, read by the editor from the source and put beside a game's program by `cmake/game.cmake` when the project has none (0356).
-- `models.c` — a path joined onto the folder, stamped, read into rewound scratch and loaded, the dot and the water record when the world needs them; a cooked landscape's millimetres as metres, never watched; each failure a stderr line and counted.
-- `models_materials.c` — a table material's maps read from the folder into rewound scratch and loaded; each row's material path the store lacks found in the table or kept failed, each failure counted.
+- `models.c` — a path joined onto the folder, stamped, read into rewound scratch and loaded, the dot and the water record when the world needs them; a cooked landscape's millimetres as metres with its layers and paint, never watched; each failure a stderr line and counted.
+- `models_materials.c` — a table material's maps read from the folder into rewound scratch and loaded; each row's material path and landscape layer the store lacks found in the table or kept failed, each failure counted.

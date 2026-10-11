@@ -1,5 +1,5 @@
-// A landscape's heights cooked into C source: one array a game tree compiles in
-// (ADR-0379 point 7).
+// A landscape's heights and paint cooked into C source: arrays a game tree
+// compiles in (ADR-0379 point 7, ADR-0402 point 8).
 //
 //     static const int32_t hill[25] = {
 //             0, 0, 0, 0, 0, 0, 120, 250,
@@ -13,6 +13,15 @@
 //
 // WHOLE MILLIMETRES, ROUNDED AS THE FILE WRITES THEM, so Play loads exactly the
 // heights the saved file holds and no float is printed.
+//
+// PAINT IS COOKED BESIDE THE HEIGHTS (ADR-0402 point 8): the RGBA8 planes as
+// assets/landscape.h lays them out, plane 0 (layers 0-3) then plane 1 (4-7).
+// Up to four layers plane 1 is all nought, so plane 0 alone is cooked; past
+// four, both. WHOLE BYTES, so the game reads exactly the weights saved.
+//
+// A game table entry with no layers names no paint, NULL: the caller does not
+// call the paint cook then. The layer paths are the table's, written by the
+// game tree; this writes no path.
 //
 // THE TABLE NAMING THE ARRAYS IS THE GAME TREE'S (editor): this knows no game
 // type and writes no include. Nothing here opens a file.
@@ -29,3 +38,11 @@
 voe_authoring_text
 voe_authoring_landscape_cook(const voe_assets_landscape *landscape,
 			     const char *name, voe_base_arena *arena);
+
+// `static const uint8_t <name>[<n>] = { ... };\n` pushed into `arena` as above,
+// n being one plane's (cells + 1)² · 4 bytes when layer_count ≤ 4, both
+// planes' when more. Cannot fail. Asserts `paint` is not NULL, layer_count is
+// above nought and `name` is a C identifier.
+voe_authoring_text
+voe_authoring_landscape_cook_paint(const voe_assets_landscape *landscape,
+				   const char *name, voe_base_arena *arena);

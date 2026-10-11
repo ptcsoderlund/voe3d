@@ -5,9 +5,11 @@ build time and `#embed`ded, so nothing is read at run time. A `.slangh` is a par
 shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block, the records, set 0's
-  bindings and the push constant, each matching its C struct.
-- `draw.slang` — the mesh pipelines' entry points: placing, maps at the record's repeat, alpha, the
-  lit and unlit exits, the point-shadow vertex stage and the capture pass's two.
+  bindings and the push constant, each matching its C struct; the object record carries a landscape's
+  paint and layers.
+- `draw.slang` — the mesh pipelines' entry points: placing, maps at the record's repeat, a painted
+  landscape's layers, alpha, the lit and unlit exits, the point-shadow vertex stage and the capture
+  pass's two.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector and the clip position on
   it; draw and lookup share it.
 - `blockers.slangh` — which light blockers hold a point and whether a segment passes them, twin of
@@ -18,6 +20,8 @@ shader and never compiled alone.
   point lights, each gated by the light blockers.
 - `terrain.slangh` — a landscape node's vertex: the grid point morphed by distance, its height and
   normal from the height map.
+- `terrain_layers.slangh` — a painted landscape's surface: the paint's weights, up to eight layers
+  blended by height, every map read hex-tiled.
 - `water.slangh` — the water path, lit by directional light 0 alone: wave normals, fresnel and
   coverage from its depth.
 - `elements.slang` — the element pipeline: a rectangle per instance from its vertex index, clipped,

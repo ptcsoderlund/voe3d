@@ -104,7 +104,8 @@ carries it out.
   skipped, in byte order of path, walked with an explicit stack of bounded depth.
 - `game_tree_find.c` — the folder check, the stack walk, the case-blind suffix match and the sort.
 - `game_tree_landscapes.c` — landscapes.c's text: every `.landscape` read and cooked in a rewound
-  scratch, then voe_game_landscapes_cooked naming each by its `Assets/` path, size and cells.
+  scratch with its paint and layer paths, then voe_game_landscapes_cooked naming each by its
+  `Assets/` path, size, cells, layers and paint.
 - `game_tree_materials.c` — materials.c's text: every `.material` read and parsed in a rewound
   scratch, then voe_game_materials_cooked with each one's `Assets/` path and values, floats in hex.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
@@ -199,12 +200,12 @@ carries it out.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
-  folder row or Up, a new thing or copy placed in a scene view, a swap or a filled map over the
-  Inspector, elsewhere nothing.
+  folder row or Up, a new thing or copy placed in a scene view, a swap, a filled map or a set
+  landscape layer over the Inspector, elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the move's target, the drop point, the Inspector's fields and map
-  rows, the texture, material and map swaps, the open material following a move, the undo step.
-- `assets_walk.h` — the project's `.scene`, `.prefab` and `.material` texts walked: who names a path before a
+  the release and the ghost, the move's target, the drop point, the Inspector's rows, and each
+  swap with its undo step.
+- `assets_walk.h` — the project's `.scene`, `.prefab`, `.material` and `.landscape` texts walked: who names a path before a
   Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
   the match, and the follow with its room check and write.
@@ -243,23 +244,28 @@ carries it out.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
-- `inspector.c` — the Duplicate and Delete row, the walk over described component types, each
-  section's heading, Remove and "Needs" line, Add component and its menu, the open list, a part
-  shown read-only, the Sculpt section on a landscape, and an open material's section in place of it.
+- `inspector.c` — the Duplicate and Delete row, each described component's heading, Remove and
+  "Needs" line, Add component, its menu and open list, a part read-only, the Sculpt and Layers
+  sections on a landscape, or an open material's section instead.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
   strings a text field per string, labels when it cannot be edited.
 - `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, and a
   rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
-- `sculpt.h` — the brush a person holds: chosen or not, its kind, radius, strength and softness
-  with their ranges, never saved or undone, whether a thing wears a landscape, and the held drag
-  that sculpts it as one undo step.
+- `sculpt.h` — the brush a person holds: chosen or not, its kind, layer, radius, strength and
+  softness with their ranges, never saved or undone, the Sculpt and Layers sections' nodes, whether
+  a thing wears a landscape, and the held drag that sculpts or paints it as one undo step.
 - `sculpt.c` — the defaults set, the brush put down, the `.landscape` ending matched on a thing
-  not a prefab's part, the ground under the pointer, the press's copy, the stamps along the drag
-  and the release's stroke.
+  not a prefab's part, the ground under the pointer, the press's heights or paint copy, the stamps
+  along the drag and the release's heights or paint stroke.
 - `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
-  chosen one lit, and Radius, Strength and Softness sliders, read after the frame.
+  chosen one lit, none while painting, and Radius, Strength and Softness sliders, read after the
+  frame.
 - `inspector_sculpt.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: a fired button chooses its kind or none, each slider's value taken.
+- `inspector_layers.h` — the Inspector's Layers section under Sculpt: a row per layer by its
+  material's file name choosing it to paint, and the add row a dropped material lands on.
+- `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
+  read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
 - `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour swatch,
   Roughness and Metal sliders (greyed and unread while ORMmap is set), Repeat clamped 0.01–1000, and the three map rows with ×.
 - `inspector_material.c` — the section's one frame of `ui` calls, its nodes forgotten each frame,
@@ -305,15 +311,15 @@ carries it out.
   light and kept out of the blockers, every place marked and blocker lined, the brush's rings with
   the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
-  emptied on a different project, a broken file in the notice, and the one place its landscapes
-  and the project's materials are edited.
+  emptied on a different project, a broken file in the notice, and the one place its landscapes'
+  heights, paint and layers and the project's materials are edited.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
   table and the scan.
 - `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
-  with a failure's notice, and destroyed; its landscapes and materials written and loaded again as
-  models.h says.
+  with a failure's notice, and destroyed; its landscapes stamped, painted and put back, and with
+  its materials written and loaded again as models.h says.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector with its copy as last written.
@@ -341,9 +347,10 @@ carries it out.
   own memory beside the undo line's text, and the file written at once.
 - `material_steps.c` — the copy made and freed, the file's write, and the values put back either
   way into the table, file, store and open copy.
-- `strokes.h` — one sculpting stroke: a landscape's path, the rectangle touched and its heights
-  before and after, its own memory beside the undo line's text, and why.
-- `strokes.c` — the copies made and freed, and the heights written either way through the store.
+- `strokes.h` — one sculpting or paint stroke: a landscape's path, the rectangle touched and its
+  heights or weights before and after, its own memory beside the undo line's text, and why.
+- `strokes.c` — the copies made and freed, and the heights or paint written either way through the
+  store.
 - `entities.h` — Add entity, a dropped model's thing or prefab's copy, duplicating and deleting
   entities with their trees, and giving or taking components, all through the world's structural
   queue. Its header says the id and name rules.

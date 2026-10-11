@@ -136,7 +136,9 @@ typedef struct voe_render_device voe_render_device;
 // heights_texels IS THE SIXTH THAT MAY BE NOUGHT, and per frame slot like the
 // transient ones: how many texels one frame may write into heights textures with
 // voe_render_texture_write_heights, staged at 4 bytes each per slot (ADR-0396
-// point 5). Nought is no writes; the first is refused with a message.
+// point 5). Nought is no writes; the first is refused with a message. Pixel
+// writes (voe_render_texture_write_pixels, ADR-0402) share the same room, a
+// pixel's 4 bytes counting as one texel.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
@@ -757,13 +759,19 @@ typedef struct {
 // over the heights texture by `terrain` and `morph`. `world` maps the node's box
 // to camera-relative space; `normal` is the landscape's own normal matrix, not
 // the box's, because the normal is worked out in the landscape's space.
+//
+// A PAINTED LANDSCAPE (ADR-0402 point 4) ALSO HAS `paint[0]` NOT NOUGHT. `paint`
+// is its two RGBA8 weight textures' indices plus one, layers 0–3 then 4–7, nought
+// none; `layers` the shading record indices of its layers 0–7. Both are read
+// only when `heights` and `paint[0]` are not nought. They grew the record from
+// 224 to 256 bytes.
 typedef struct {
 	voe_math_float4x4 world;
 	voe_math_float4x4 normal;
 	uint32_t shading;
 	// A heights texture's index plus one; nought draws the geometry as ever.
 	uint32_t heights;
-	uint32_t reserved[2];
+	uint32_t paint[2];
 	voe_math_float4 colour;
 	// Read only when the shading record is `water`; zero everywhere else.
 	// `waves` is (height m, length m, seconds, deep m): the tallest wave's
@@ -782,6 +790,7 @@ typedef struct {
 	// and its height, above nought.
 	voe_math_float4 terrain;
 	voe_math_float4 morph;
+	uint32_t layers[8];
 } voe_render_object;
 
 // What one element is. Two kinds, and the field exists so that adding the second
@@ -1212,6 +1221,23 @@ bool voe_render_texture_destroy(voe_render_device *device,
 						    uint32_t height,
 						    const float *values,
 						    voe_base_error *error);
+
+// Writes `rgba`, `width` × `height` pixels of 4 bytes row-major, into a one-level
+// RGBA8 texture (VOE_RENDER_SAMPLING_SHARP or _FIELD) at (x, y), inside a frame
+// and before its first pass (ADR-0402 point 4): a landscape's paint. As
+// voe_render_texture_write_heights, from the same frame slot's staging and its
+// heights_texels room, with the barriers round the copy against fragment reads.
+//
+// REFUSED, with the frame still drawing, when the slot's remaining
+// heights_texels are fewer than width × height. Asserts outside a frame, after a
+// pass began, on a rectangle past the texture, or a SMOOTH or heights texture.
+[[nodiscard]] bool voe_render_texture_write_pixels(voe_render_device *device,
+						   voe_render_texture texture,
+						   uint32_t x, uint32_t y,
+						   uint32_t width,
+						   uint32_t height,
+						   const uint8_t *rgba,
+						   voe_base_error *error);
 
 // ---------------------------------------------------------------- shading
 

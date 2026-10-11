@@ -423,6 +423,8 @@ static bool create_texture(voe_render_device *device,
 	// is kept because the descriptor write below runs again every time the
 	// table changes and has to name the same sampler each time.
 	slot->sampling = sampling;
+	slot->width = width;
+	slot->height = height;
 	slot->generation++;
 	slot->live = true;
 

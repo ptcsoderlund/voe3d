@@ -1,8 +1,9 @@
 // The material loader of game/include/game/models.h: a table entry's maps
 // joined onto the folder, read into scratch and handed to the store with the
-// values; every material path a shape or model row names that the store lacks
-// looked up in the table, loaded or kept failed, each failure one line on
-// stderr and counted. Scratch is rewound after each material.
+// values; every material path a shape or model row names, then every layer of
+// a loaded landscape entry, that the store lacks looked up in the table,
+// loaded or kept failed, each failure one line on stderr and counted. Scratch
+// is rewound after each material.
 //
 // Constraints: a path is found in the table by comparing it with every entry,
 // a scan per unread path, once each since a failure is kept; a sorted table
@@ -110,6 +111,31 @@ static void count_failure(voe_game_models_failures *failures,
 	failures->count++;
 }
 
+// Loads `path` from `table` when it is not empty and the store lacks it, or
+// keeps it failed and counts it when the table has none. False when the
+// store is full: it said so once, and the call ends.
+static bool load_missing(voe_3d_models *models, voe_render_device *device,
+			 const char *folder, const voe_game_materials *table,
+			 const char *path, voe_base_arena *scratch,
+			 voe_game_models_failures *failures)
+{
+	const voe_game_material *material;
+	voe_base_error error = VOE_BASE_ERROR_UNAVAILABLE;
+
+	if (path[0] == '\0' || voe_3d_models_find(models, path) != NULL)
+		return true;
+	if (voe_3d_models_count(models) == VOE_3D_MODELS)
+		return false;
+	material = find(table, path);
+	if (material == NULL)
+		voe_3d_models_fail(models, path, 0);
+	else if (voe_game_models_material_load(models, device, folder,
+					       material, 0, scratch, &error))
+		return true;
+	count_failure(failures, models, path, error);
+	return true;
+}
+
 voe_game_models_failures
 voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 			  voe_render_device *device, const char *folder,
@@ -119,28 +145,26 @@ voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 	uint32_t paths = voe_3d_shape_count(world) +
 			 voe_3d_model_count(world) * VOE_3D_MODEL_MATERIALS;
 	voe_game_models_failures failures = { 0 };
+	bool room = true;
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(folder != NULL && table != NULL && scratch != NULL,
 			"no folder, table or scratch");
-	for (uint32_t i = 0; i < paths; i++) {
-		const char *path = path_at(world, i);
-		const voe_game_material *material;
-		voe_base_error error = VOE_BASE_ERROR_UNAVAILABLE;
+	for (uint32_t i = 0; room && i < paths; i++)
+		room = load_missing(models, device, folder, table,
+				    path_at(world, i), scratch, &failures);
+	// The landscapes' layers; an entry's index is stable as the store grows.
+	for (uint32_t i = 0; room && i < voe_3d_models_count(models); i++) {
+		const voe_3d_model_entry *entry = voe_3d_models_at(models, i);
+		uint32_t layers = entry->loaded && entry->landscape != NULL ?
+					  entry->landscape->layer_count :
+					  0;
 
-		if (path[0] == '\0' || voe_3d_models_find(models, path) != NULL)
-			continue;
-		// A full store said so once; the call ends.
-		if (voe_3d_models_count(models) == VOE_3D_MODELS)
-			break;
-		material = find(table, path);
-		if (material == NULL)
-			voe_3d_models_fail(models, path, 0);
-		else if (voe_game_models_material_load(models, device, folder,
-						       material, 0, scratch,
-						       &error))
-			continue;
-		count_failure(&failures, models, path, error);
+		for (uint32_t k = 0; room && k < layers; k++)
+			room = load_missing(
+				models, device, folder, table,
+				voe_3d_models_at(models, i)->landscape->layers[k],
+				scratch, &failures);
 	}
 	return failures;
 }

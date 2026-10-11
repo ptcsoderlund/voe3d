@@ -1,7 +1,8 @@
 // The walk over the world's component types, each component's panel with a row
 // per described field (inspector_rows.h), Add component and the open list. See
 // the header for why this file names no component; the replace intent a moved
-// control becomes is inspector_edit.c's. While a material is open its section
+// control becomes is inspector_edit.c's. A thing wearing a landscape gets the
+// Sculpt section and, its grid loaded, Layers. While a material is open its section
 // (inspector_material.h) is drawn in place of the entity's.
 //
 // IT IS DRIVEN BY base/describe.h AND BY NOTHING ELSE. There is no table in here
@@ -24,12 +25,15 @@
 #include "inspector.h"
 
 #include "entity_field.h"
+#include "inspector_layers.h"
 #include "inspector_rows.h"
 #include "inspector_sculpt.h"
 #include "inspector_value.h"
 #include "themes.h"
 
 #include <base/assert.h>
+
+#include <3d/model_component.h>
 
 #include <scene/camera_component.h>
 #include <scene/prefab_component.h>
@@ -39,6 +43,10 @@
 
 #include <stdbool.h>
 #include <string.h>
+
+// The widest replace intent the Inspector fills in, a model's (inspector.h).
+static_assert(sizeof(voe_3d_model_intent) <= VOE_EDITOR_INSPECTOR_INTENT,
+	      "a model's replace intent is wider than VOE_EDITOR_INSPECTOR_INTENT");
 
 // A component's fields sit on the theme's RAISED surface, a shade above the
 // panel's own SURFACE, so that two components read as two blocks.
@@ -360,6 +368,7 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_ecs_world *world, voe_ecs_entity selected,
 			       const voe_ecs_type *kept, uint32_t kept_count,
 			       voe_editor_sculpt *sculpt,
+			       const voe_3d_models *store,
 			       const char *material_open,
 			       const voe_assets_material_file *material,
 			       voe_editor_inspector_material *controls)
@@ -375,7 +384,8 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(world != NULL, "drawing an inspector on no world");
 	VOE_BASE_ASSERT(kept != NULL || kept_count == 0,
 			"kept types counted but not handed in");
-	VOE_BASE_ASSERT(sculpt != NULL, "drawing an inspector with no brush");
+	VOE_BASE_ASSERT(sculpt != NULL && store != NULL,
+			"drawing an inspector with no brush or no store");
 	VOE_BASE_ASSERT(material_open != NULL && material != NULL &&
 				controls != NULL,
 			"drawing an inspector with no material slot");
@@ -449,8 +459,11 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 				(const uint8_t *)row);
 	}
 
-	if (voe_editor_sculpt_wears(world, selected))
+	if (voe_editor_sculpt_wears(world, selected)) {
 		voe_editor_inspector_sculpt_draw(ui, sculpt);
+		voe_editor_inspector_layers_draw(ui, sculpt, store, world,
+						 selected);
+	}
 
 	if (part) {
 		voe_ui_end(ui);

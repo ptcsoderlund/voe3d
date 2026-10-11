@@ -28,6 +28,12 @@
 // Seconds are clamped to 0.1 so a stalled frame stamps no more than a tenth of
 // a second does: one long frame must not raise a mountain.
 //
+// PAINT (0402 point 3) moves its layer's share up toward strength·weight by
+// min(1, 8·s) of the gap and never down, so a light stroke stops at its
+// strength however long it is held. The other seven scale down by what that
+// leaves, rounded down, the rounding given to layer 0 (layer 1 when 0 is
+// painted): a point's eight bytes still sum to 255.
+//
 // THE NODE GRID. A level-L node is 32 × 32 quads stepping 2^L cells; levels
 // run until one node covers the grid, and a node past its edge holds nothing
 // and is never chosen. Level 0's range is twice a leaf's diagonal, each next
@@ -89,6 +95,8 @@ typedef enum {
 	VOE_3D_BRUSH_LOWER,
 	VOE_3D_BRUSH_SMOOTH,
 	VOE_3D_BRUSH_FLATTEN,
+	// After the four sculpting kinds, which the editor indexes by value.
+	VOE_3D_BRUSH_PAINT,
 } voe_3d_brush_kind;
 
 typedef struct {
@@ -101,6 +109,8 @@ typedef struct {
 	float softness;
 	// Flatten's height, in metres.
 	float target;
+	// The layer PAINT raises, below the landscape's `layer_count`.
+	uint32_t layer;
 } voe_3d_brush;
 
 // The bilinear height at (x, z), the point clamped onto the grid.
@@ -115,7 +125,9 @@ float voe_3d_landscape_height(const voe_assets_landscape *landscape, float x,
 					float *distance);
 
 // One stamp at (x, z) over `seconds`; smooth's copy goes on `scratch`, which
-// is rewound. The rect of heights it changed, empty off the grid.
+// is rewound. The rect of heights it changed, empty off the grid. PAINT stamps
+// `paint`, which must not be NULL, instead, and returns the rect of points
+// whose bytes changed.
 voe_3d_landscape_rect voe_3d_landscape_brush(voe_assets_landscape *landscape,
 					     const voe_3d_brush *brush, float x,
 					     float z, float seconds,

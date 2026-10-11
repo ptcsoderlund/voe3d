@@ -64,6 +64,8 @@
 #include "inspector_material.h"
 #include "sculpt.h"
 
+#include <3d/models.h>
+
 #include <ecs/component.h>
 #include <ecs/world.h>
 
@@ -88,8 +90,10 @@
 // The widest replace intent this panel will fill in. It is a buffer on the
 // stack rather than an allocation because an edit happens between a frame's end
 // and its rewind, and nothing that small is worth an arena; a registration
-// wider than this asserts, which is the program's own sizing being wrong.
-#define VOE_EDITOR_INSPECTOR_INTENT 256
+// wider than this asserts, which is the program's own sizing being wrong. The
+// widest today is a model's, its path and eight material paths, about 1.2 KB;
+// inspector_edit.c asserts at compile time that it fits.
+#define VOE_EDITOR_INSPECTOR_INTENT 2048
 
 // How many Remove buttons one frame may record — one per component type: the
 // engine's VOE_GAME_WORLD_TYPES (game/world.h) and a project's
@@ -346,7 +350,8 @@ bool voe_editor_inspector_is_part(const voe_ecs_world *world,
 // not alive — including nothing selected at all — is one line saying so.
 // `kept` holds `kept_count` types whose sections have no Remove button. After
 // the sections, a thing that wears a landscape gets `sculpt`'s Sculpt section
-// (inspector_sculpt.h). While `material_open` is not "", `material`'s section
+// (inspector_sculpt.h) and, its grid loaded in `store`, the Layers section
+// (inspector_layers.h). While `material_open` is not "", `material`'s section
 // is drawn in place of all of it into `controls` (inspector_material.h), and
 // no entity is recorded, so no entity's edit is read.
 void voe_editor_inspector_draw(voe_ui_context *ui,
@@ -354,6 +359,7 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_ecs_world *world, voe_ecs_entity selected,
 			       const voe_ecs_type *kept, uint32_t kept_count,
 			       voe_editor_sculpt *sculpt,
+			       const voe_3d_models *store,
 			       const char *material_open,
 			       const voe_assets_material_file *material,
 			       voe_editor_inspector_material *controls);

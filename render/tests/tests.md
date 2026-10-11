@@ -19,10 +19,15 @@ by reading the offscreen colour image back.
 - `heights.c` — a 2049 × 2049 heights texture made and a side past 4096 refused; inside a frame a
   4 × 4 write taken, one past the slot's remaining `heights_texels` refused with the frame still
   drawing, and every slot's budget whole again the next frames. Headless.
+- `pixels_write.c` — inside a frame a 4 × 4 red write into an RGBA8 FIELD texture taken, an 8 × 8
+  one past the room refused with the frame still drawing, and an unlit quad wearing it red. Headless.
 - `shading_write.c` — a quad's record written blue inside a frame before its pass reading blue that
   frame, and a write in each of three frames in a row reading the last. Headless.
 - `terrain_vertex.c` — a terrain record over heights all 2 m drawing a quad grid as a 2 m plane
   would, and the same record with `heights` nought not covering the rows above the middle.
+  Headless.
+- `terrain_layers.c` — a painted landscape seen from above: its left quarter the red layer, its
+  right the green, `paint_a` nought the object record's white, and a layer at weight 0 nowhere.
   Headless.
 - `worker_guard.c` — a thread creating and destroying 100 textures and 100 geometries while the
   main thread runs 100 element-only frames, every call true and the thread joined. Headless.

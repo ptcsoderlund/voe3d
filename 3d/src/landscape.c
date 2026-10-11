@@ -1,6 +1,6 @@
 // The landscape arithmetic of 3d/landscape.h: the bilinear height, the ray
 // marched and bisected through the box, and a brush's stamp over the rect its
-// radius covers.
+// radius covers, on the heights or, for PAINT, on the layers' bytes.
 //
 // Used by the model store (the brush), the pick (the ray) and the editor (the
 // brush). Heights are row-major, row r (z) starting at r·(cells + 1).
@@ -233,6 +233,78 @@ static float *copy_around(const voe_assets_landscape *landscape,
 	return copy;
 }
 
+// Layer `layer`'s byte of point `point`: plane layer / 4, channel layer % 4.
+static uint8_t *paint_byte(const voe_assets_landscape *landscape,
+			   size_t point, uint32_t layer)
+{
+	const size_t n = landscape->cells + 1;
+
+	VOE_BASE_ASSERT(layer < VOE_ASSETS_LANDSCAPE_LAYERS, "a layer");
+	return &landscape->paint[(layer / 4) * n * n * 4 + point * 4 + layer % 4];
+}
+
+// One point's layer moved toward `target` bytes by `rate` of the gap, never
+// down and never past it; the others scaled into what is left, rounded down,
+// the rounding to layer 0, or 1 when 0 is painted. True when a byte changed.
+static bool paint_point(const voe_assets_landscape *landscape, size_t point,
+			uint32_t layer, float target, float rate)
+{
+	uint8_t *own = paint_byte(landscape, point, layer);
+	const float moved = roundf((float)*own + (target - (float)*own) * rate);
+	const uint32_t raised = (uint32_t)fminf(moved, floorf(target));
+	const uint32_t rest = 255 - *own;
+	const uint32_t left = 255 - raised;
+	const uint32_t receiver = layer == 0 ? 1 : 0;
+	uint32_t given = 0;
+
+	if (raised <= *own)
+		return false;
+	for (uint32_t k = 0; k < VOE_ASSETS_LANDSCAPE_LAYERS; k++) {
+		uint8_t *other = paint_byte(landscape, point, k);
+
+		if (k == layer || k == receiver)
+			continue;
+		*other = (uint8_t)((uint32_t)*other * left / rest);
+		given += *other;
+	}
+	VOE_BASE_ASSERT(given <= left, "the scaled layers fit what is left");
+	*paint_byte(landscape, point, receiver) = (uint8_t)(left - given);
+	*own = (uint8_t)raised;
+	return true;
+}
+
+// PAINT over the points of `rect`; the rect of points whose bytes changed.
+static voe_3d_landscape_rect paint(voe_assets_landscape *landscape,
+				   const voe_3d_brush *brush, float x, float z,
+				   float s, voe_3d_landscape_rect rect)
+{
+	VOE_BASE_ASSERT(landscape->paint, "the store always holds paint");
+	VOE_BASE_ASSERT(brush->layer < landscape->layer_count, "a held layer");
+	const float half = 0.5f * landscape->size;
+	const float cell = cell_size(landscape);
+	const uint32_t n = landscape->cells + 1;
+	const float rate = fminf(1.0f, 8.0f * s);
+	voe_3d_landscape_rect changed = { n, n, 0, 0 };
+
+	for (uint32_t r = rect.z0; r < rect.z1; r++) {
+		for (uint32_t c = rect.x0; c < rect.x1; c++) {
+			const float dx = -half + (float)c * cell - x;
+			const float dz = -half + (float)r * cell - z;
+			const float w = weight(brush, sqrtf(dx * dx + dz * dz));
+
+			if (w <= 0.0f ||
+			    !paint_point(landscape, (size_t)r * n + c, brush->layer,
+					 brush->strength * w * 255.0f, rate))
+				continue;
+			changed.x0 = c < changed.x0 ? c : changed.x0;
+			changed.z0 = r < changed.z0 ? r : changed.z0;
+			changed.x1 = c + 1 > changed.x1 ? c + 1 : changed.x1;
+			changed.z1 = r + 1 > changed.z1 ? r + 1 : changed.z1;
+		}
+	}
+	return changed.x0 < changed.x1 ? changed : (voe_3d_landscape_rect){ 0 };
+}
+
 voe_3d_landscape_rect voe_3d_landscape_brush(voe_assets_landscape *landscape,
 					     const voe_3d_brush *brush, float x,
 					     float z, float seconds,
@@ -252,6 +324,8 @@ voe_3d_landscape_rect voe_3d_landscape_brush(voe_assets_landscape *landscape,
 	span(landscape, z, brush->radius, &rect.z0, &rect.z1);
 	if (rect.x0 >= rect.x1 || rect.z0 >= rect.z1)
 		return (voe_3d_landscape_rect){ 0 };
+	if (brush->kind == VOE_3D_BRUSH_PAINT)
+		return paint(landscape, brush, x, z, s, rect);
 	const struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	voe_3d_landscape_rect around = { 0 };
 	const float *copy = brush->kind == VOE_3D_BRUSH_SMOOTH ?

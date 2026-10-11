@@ -1,6 +1,7 @@
 // The landscape arithmetic of 3d/landscape.h: the bilinear height between four
 // heights, a ray meeting a raised cell and missing beside the grid, raise,
-// smooth and flatten by 0379 point 3's rates. Needs no graphics card.
+// smooth and flatten by 0379 point 3's rates, and paint raising a layer, the
+// sum kept and a light stroke stopping at its strength. Needs no graphics card.
 #include <3d/landscape.h>
 #include <assets/landscape.h>
 #include <base/arena.h>
@@ -8,6 +9,9 @@
 #include <testing/test.h>
 
 #include <math.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #define ARENA (1024 * 1024)
 
@@ -127,6 +131,96 @@ static void flatten_moves_toward_the_target(voe_base_arena *arena)
 	VOE_TEST_CHECK_FLOAT(*height_at(&land, 10, 8), 0.0f, 0.0f);
 }
 
+// 16 m with 8 cells, a point every 2 m, the centre at (4, 4); three layers
+// and paint all layer 0.
+static voe_assets_landscape painted_flat(voe_base_arena *arena)
+{
+	voe_assets_landscape land = voe_assets_landscape_flat(16.0f, 8, arena);
+	const size_t points = 9 * 9;
+
+	land.layer_count = 3;
+	land.paint = voe_base_arena_push(arena, points * 8);
+	for (size_t i = 0; i < points * 8; i++)
+		land.paint[i] = (i < points * 4 && i % 4 == 0) ? 255 : 0;
+	return land;
+}
+
+static uint8_t layer_at(const voe_assets_landscape *land, uint32_t c,
+			uint32_t r, uint32_t layer)
+{
+	const size_t point = (size_t)r * 9 + c;
+
+	return land->paint[(layer / 4) * 81 * 4 + point * 4 + layer % 4];
+}
+
+static bool every_point_sums_to_255(const voe_assets_landscape *land)
+{
+	for (uint32_t r = 0; r < 9; r++) {
+		for (uint32_t c = 0; c < 9; c++) {
+			uint32_t sum = 0;
+
+			for (uint32_t k = 0; k < 8; k++)
+				sum += layer_at(land, c, r, k);
+			if (sum != 255)
+				return false;
+		}
+	}
+	return true;
+}
+
+// Strength 1 for 0.1 s moves layer 2 at the centre 8·0.1 of the way to 255,
+// 204, and layer 0 down to the 51 left; 6 m out, past the 4 m radius, nothing.
+static void paint_raises_a_layer_and_keeps_the_sum(voe_base_arena *arena)
+{
+	voe_assets_landscape land = painted_flat(arena);
+	const voe_3d_brush brush = { .kind = VOE_3D_BRUSH_PAINT,
+				     .radius = 4.0f,
+				     .strength = 1.0f,
+				     .softness = 0.5f,
+				     .layer = 2 };
+	const voe_3d_landscape_rect rect =
+		voe_3d_landscape_brush(&land, &brush, 0.0f, 0.0f, 0.1f, arena);
+
+	VOE_TEST_CHECK(layer_at(&land, 4, 4, 2) == 204);
+	VOE_TEST_CHECK(layer_at(&land, 4, 4, 0) == 51);
+	VOE_TEST_CHECK(every_point_sums_to_255(&land));
+	VOE_TEST_CHECK(layer_at(&land, 4, 7, 0) == 255);
+	VOE_TEST_CHECK(layer_at(&land, 4, 7, 2) == 0);
+	VOE_TEST_CHECK(rect.x0 <= 4 && rect.x1 > 4 && rect.z0 <= 4 &&
+		       rect.z1 > 4 && rect.x1 <= 7 && rect.z1 <= 7);
+}
+
+// Held at strength 0.3, layer 2 stops at 0.3·255 and never passes it; layer
+// 0 painted over it then takes layer 2 down.
+static void a_light_stroke_stops_at_its_strength(voe_base_arena *arena)
+{
+	voe_assets_landscape land = painted_flat(arena);
+	voe_3d_brush brush = { .kind = VOE_3D_BRUSH_PAINT,
+			       .radius = 4.0f,
+			       .strength = 0.3f,
+			       .softness = 0.5f,
+			       .layer = 2 };
+	bool never_above = true;
+
+	for (int i = 0; i < 50; i++) {
+		(void)voe_3d_landscape_brush(&land, &brush, 0.0f, 0.0f, 0.1f,
+					     arena);
+		if (layer_at(&land, 4, 4, 2) > 0.3f * 255.0f)
+			never_above = false;
+	}
+	VOE_TEST_CHECK(never_above);
+	VOE_TEST_CHECK_FLOAT((float)layer_at(&land, 4, 4, 2), 0.3f * 255.0f,
+			     2.0f);
+	VOE_TEST_CHECK(every_point_sums_to_255(&land));
+	const uint8_t before = layer_at(&land, 4, 4, 2);
+
+	brush.layer = 0;
+	brush.strength = 1.0f;
+	(void)voe_3d_landscape_brush(&land, &brush, 0.0f, 0.0f, 0.1f, arena);
+	VOE_TEST_CHECK(layer_at(&land, 4, 4, 2) < before);
+	VOE_TEST_CHECK(every_point_sums_to_255(&land));
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(ARENA);
@@ -137,6 +231,8 @@ int main(void)
 	raise_lifts_the_middle_most_and_the_rim_not_at_all(arena);
 	smooth_lowers_a_spike(arena);
 	flatten_moves_toward_the_target(arena);
+	paint_raises_a_layer_and_keeps_the_sum(arena);
+	a_light_stroke_stops_at_its_strength(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

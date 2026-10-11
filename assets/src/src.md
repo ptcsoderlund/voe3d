@@ -32,8 +32,12 @@ of them is internal to this folder rather than reachable from outside it.
 - `sectioned.c` — two passes over one line lexer. Its header says why the
   caller states no capacity here where the JSON reader demands one, and why
   there is nothing for rule 14 to worry about.
-- `landscape.c` — the landscape file over the sectioned reader, and its
-  measure-then-print writer.
+- `landscape.c` — the landscape file over the sectioned reader: shape, quoted
+  layer paths and heights, and its measure-then-print writer.
+- `landscape_paint.h` — the paint's read, print and resample, internal to this
+  folder, with the printer and source index `landscape.c` shares with it.
+- `landscape_paint.c` — `[Paint]`'s rows and `v*n` runs into two RGBA8 planes,
+  back out, and resampled per weight.
 - `material.c` — the material file over the sectioned reader, with a scratch
   arena of its own, and a writer that quotes every path.
 - `json.h` — a JSON reader, internal to this folder. Its header says why it

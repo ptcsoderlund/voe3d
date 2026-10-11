@@ -172,7 +172,8 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		      uint32_t index, voe_editor_dock_axis parent,
 		      voe_math_float2 size, uint32_t depth, uint32_t lit,
 		      const voe_ui_theme *palette, voe_editor_scene *scene,
-		      voe_editor_views *views, voe_editor_dock_closes *closes)
+		      voe_editor_views *views, const voe_3d_models *store,
+		      voe_editor_dock_closes *closes)
 {
 	const voe_editor_dock_node *node;
 	voe_math_float2 head;
@@ -211,7 +212,7 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 
 		if (picture) {
 			voe_editor_panel_draw(ui, node->panel, node->view,
-					      palette, scene, views);
+					      palette, scene, views, store);
 			voe_ui_end(ui);
 			return;
 		}
@@ -238,7 +239,7 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 			scene->list_area = area;
 
 		voe_editor_panel_draw(ui, node->panel, node->view,
-				      palette, scene, views);
+				      palette, scene, views, store);
 		voe_ui_end(ui);
 		voe_ui_end(ui);
 		return;
@@ -251,7 +252,7 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 			  places->nodes[node->first].laid ? node->first :
 							    node->second,
 			  parent, size, depth + 1, lit, palette, scene, views,
-			  closes);
+			  store, closes);
 		return;
 	}
 
@@ -272,17 +273,18 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 	}
 
 	walk_node(ui, tree, places, node->first, node->axis, head, depth + 1,
-		  lit, palette, scene, views, closes);
+		  lit, palette, scene, views, store, closes);
 	seam_draw(ui, node->axis, palette, index == lit);
 	walk_node(ui, tree, places, node->second, node->axis, tail, depth + 1,
-		  lit, palette, scene, views, closes);
+		  lit, palette, scene, views, store, closes);
 	voe_ui_end(ui);
 }
 
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
 			  const voe_ui_theme *palette, voe_editor_scene *scene,
-			  voe_editor_views *views, voe_editor_dock_closes *closes)
+			  voe_editor_views *views, const voe_3d_models *store,
+			  voe_editor_dock_closes *closes)
 {
 	voe_editor_dock_arrangement places;
 
@@ -294,6 +296,7 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 	VOE_BASE_ASSERT(palette != NULL, "walking a dock root with no palette");
 	VOE_BASE_ASSERT(scene != NULL, "walking a dock root with no scene");
 	VOE_BASE_ASSERT(views != NULL, "walking a dock root with no views");
+	VOE_BASE_ASSERT(store != NULL, "walking a dock root with no store");
 	VOE_BASE_ASSERT(closes != NULL, "walking a dock root with no closes");
 
 	// A leaf the walk does not reach draws no ×.
@@ -320,7 +323,7 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 						 .across = VOE_UI_ACROSS_FILL });
 	walk_node(ui, &root->tree, &places, root->tree.root,
 		  VOE_EDITOR_DOCK_ROW, root->size, 0, root->lit, palette, scene,
-		  views, closes);
+		  views, store, closes);
 	voe_ui_end(ui);
 }
 
@@ -347,7 +350,8 @@ voe_editor_dock_closes_read(const voe_ui_context *ui,
 // first, and the scene's one camera keeps its component (ADR-0218). The
 // transform is not among them: it is an ordinary component, removable when no
 // other row of the entity needs it (0300, 0302), which the Inspector decides.
-static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
+static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene,
+			    const voe_3d_models *store)
 {
 	const voe_ecs_type kept[] = {
 		voe_ecs_component_type(scene->world, &voe_scene_identity_key),
@@ -358,7 +362,7 @@ static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene)
 	voe_editor_inspector_draw(ui, &scene->inspector, scene->world,
 				  voe_editor_scene_selected(scene), kept,
 				  sizeof(kept) / sizeof(kept[0]), &scene->sculpt,
-				  scene->material_open, &scene->material,
+				  store, scene->material_open, &scene->material,
 				  &scene->material_controls);
 }
 
@@ -412,7 +416,8 @@ static void scene_view_panel(voe_ui_context *ui, uint32_t view,
 
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 			   uint32_t view, const voe_ui_theme *palette,
-			   voe_editor_scene *scene, voe_editor_views *views)
+			   voe_editor_scene *scene, voe_editor_views *views,
+			   const voe_3d_models *store)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing a panel into no interface");
 	VOE_BASE_ASSERT(palette != NULL, "drawing a panel with no palette");
@@ -428,7 +433,7 @@ void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 	case VOE_EDITOR_PANEL_INSPECTOR:
 		voe_editor_inspector_material_dim(&scene->material_controls,
 						  palette);
-		inspector_panel(ui, scene);
+		inspector_panel(ui, scene, store);
 		return;
 	case VOE_EDITOR_PANEL_SCENE_VIEW:
 		scene_view_panel(ui, view, views);

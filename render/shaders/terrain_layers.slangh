@@ -1,0 +1,204 @@
+// A painted landscape's surface (ADR-0402 points 5 and 6): up to eight material
+// layers weighted by the paint, blended by height, every map read hex-tiled. A
+// part (ADR-0308): included by draw.slang after terrain.slangh and
+// voe_render_repeated_uv, never compiled alone. Both fragment entries call
+// voe_render_layer_surface_at when the object's `heights` and `paint_a` are not
+// nought, and take its colour (and, the draw, its normal and ORM) in place of
+// the object's record; alpha and lit stay the record's.
+//
+// THE PAINT. `paint_a` and `paint_b` are two RGBA8 FIELD textures' indices plus
+// one, layers 0–3 then 4–7, `paint_b` nought reading all nought. A texel is a
+// height point, so uv' = (uv·(w − 1) + 0.5) / w puts texel centres on them and
+// the bilinear read is the weight between points.
+//
+// THE BLEND. A layer's maps are read at landscape metres (uv × side) times its
+// record's uv_repeat, nought read as one. Its height is its ORM map's red
+// (`occlusion_texture`), else its base colour texture's luminance. Of the
+// layers with weight above 1/255, s = height + weight; each blends by
+// max(0, s − (max s − 0.2)), normalised, so the highest always blends and a
+// layer more than 0.2 below it not at all. Colour (texture × factor), normal
+// texel and ORM blend by it; roughness and metal are the ORM's green and blue
+// when the record names a metallic-roughness map, else its values (0401).
+//
+// HEX TILING. Every map is read at the three nearest cells of a hex grid in uv,
+// each at a hashed offset, blended by barycentric weight sharpened by the
+// sample's luminance, normalised: hex cells never line up, so no grid of copies
+// shows from far. Each tap is a SampleGrad with the unoffset uv's gradients, so
+// an offset's jump makes no mip seam, and so it is legal in the per-layer
+// branches below. No rotation: a normal map's tangent frame stays the
+// landscape's and needs no turning.
+//
+// COST. Three taps a map, per layer present at the pixel: a layer under 1/255
+// is not read, one whose blend is nought only for its height. A layer's first
+// read (ORM or colour) is kept and not taken again.
+
+// Below this a paint weight is no layer at all: one step of an RGBA8 channel.
+static const float VOE_RENDER_LAYER_PRESENT = 1.0 / 255.0;
+
+// How far below the highest s a layer still blends.
+static const float VOE_RENDER_LAYER_BAND = 0.2;
+
+// The flat tangent-space normal, what a layer with no normal map blends in.
+static const float3 VOE_RENDER_LAYER_FLAT = float3(0.5, 0.5, 1.0);
+
+// The blended surface: base colour, the normal texel when any blended layer
+// has a normal map, occlusion, roughness and metal.
+struct voe_render_layer_surface {
+	float3 base_colour;
+	float3 normal_texel;
+	bool has_normal;
+	float occlusion;
+	float roughness;
+	float metallic;
+};
+
+float voe_render_layer_luminance(float3 colour)
+{
+	return dot(colour, float3(0.2126, 0.7152, 0.0722));
+}
+
+// A hex cell's offset: a hash of its integer coordinates, 0..1 in each axis.
+float2 voe_render_hex_offset(int2 cell)
+{
+	float2 r = mul(float2x2(127.1, 311.7, 269.5, 183.3), float2(cell));
+
+	return frac(sin(r) * 43758.5453);
+}
+
+// `texture` read hex-tiled at `uv` with the unoffset uv's gradients `dx`, `dy`.
+// The grid is skewed into triangles (Mikkelsen's hex tiling); a triangle's
+// three corners are the three nearest hex centres and its barycentric weights
+// theirs. Sharpened by luminance, then a power of seven, normalised.
+float4 voe_render_hex_read(float2 uv, uint texture, float2 dx, float2 dy)
+{
+	float2 skewed = mul(float2x2(1.0, 0.0, -0.57735027, 1.15470054),
+			    uv * 3.4641016);
+	int2 base = int2(floor(skewed));
+	float3 corner = float3(frac(skewed), 0.0);
+	corner.z = 1.0 - corner.x - corner.y;
+	float s = step(0.0, -corner.z);
+	float s2 = 2.0 * s - 1.0;
+	float3 w = float3(-corner.z * s2, s - corner.y * s2, s - corner.x * s2);
+	int si = int(s);
+	int2 cells[3] = { base + int2(si, si), base + int2(si, 1 - si),
+			  base + int2(1 - si, si) };
+	float4 taps[3];
+	float3 lum;
+
+	for (uint i = 0; i < 3; i++) {
+		taps[i] = voe_render_textures[texture].SampleGrad(
+			uv + voe_render_hex_offset(cells[i]), dx, dy);
+		lum[i] = voe_render_layer_luminance(taps[i].rgb);
+	}
+	float3 weight = lerp(float3(1.0, 1.0, 1.0), lum, 0.6) * pow(w, 7.0);
+	weight /= max(weight.x + weight.y + weight.z, VOE_LEAST);
+	return taps[0] * weight.x + taps[1] * weight.y + taps[2] * weight.z;
+}
+
+// One paint texture's four weights at landscape `uv`; nought for none.
+float4 voe_render_paint_read(uint paint, float2 uv)
+{
+	uint width;
+	uint height;
+
+	if (paint == 0)
+		return float4(0.0, 0.0, 0.0, 0.0);
+	voe_render_textures[paint - 1].GetDimensions(width, height);
+	float2 size = float2(float(width), float(height));
+	return voe_render_textures[paint - 1].SampleLevel(
+		(uv * (size - 1.0) + 0.5) / size, 0.0);
+}
+
+// Layer `i`'s shading record.
+voe_render_shading voe_render_layer_record(voe_render_object object, uint i)
+{
+	return voe_render_shadings[i < 4 ? object.layers_low[i] :
+					   object.layers_high[i - 4]];
+}
+
+// The surface of `object`'s layers at landscape `uv`. `colour_only` reads no
+// normal or ORM past the heights, for the capture pass. Called in uniform
+// control flow: it takes the derivatives before any branch.
+voe_render_layer_surface voe_render_layer_surface_at(voe_render_object object,
+						     float2 uv, bool colour_only)
+{
+	float4 low = voe_render_paint_read(object.paint_a, uv);
+	float4 high = voe_render_paint_read(object.paint_b, uv);
+	float weights[8] = { low.x, low.y, low.z, low.w,
+			     high.x, high.y, high.z, high.w };
+	float2 metres = uv * object.terrain.w;
+	float2 metres_dx = ddx(metres);
+	float2 metres_dy = ddy(metres);
+	float4 first[8];
+	float scores[8];
+	float top = -1.0;
+
+	for (uint i = 0; i < 8; i++) {
+		scores[i] = -1.0;
+		first[i] = float4(1.0, 1.0, 1.0, 1.0);
+		if (weights[i] <= VOE_RENDER_LAYER_PRESENT)
+			continue;
+		voe_render_shading layer = voe_render_layer_record(object, i);
+		float repeat = layer.uv_repeat != 0.0 ? layer.uv_repeat : 1.0;
+		bool orm = layer.occlusion_texture != VOE_RENDER_NO_TEXTURE;
+		first[i] = voe_render_hex_read(
+			metres * repeat,
+			orm ? layer.occlusion_texture : layer.base_colour_texture,
+			metres_dx * repeat, metres_dy * repeat);
+		float h = orm ? first[i].r : voe_render_layer_luminance(first[i].rgb);
+		scores[i] = h + weights[i];
+		top = max(top, scores[i]);
+	}
+
+	float blends[8];
+	float total = 0.0;
+	for (uint i = 0; i < 8; i++) {
+		blends[i] = scores[i] < 0.0 ?
+				    0.0 :
+				    max(0.0, scores[i] - (top - VOE_RENDER_LAYER_BAND));
+		total += blends[i];
+	}
+
+	voe_render_layer_surface surface = { float3(0.0, 0.0, 0.0),
+					     float3(0.0, 0.0, 0.0), false, 0.0,
+					     0.0, 0.0 };
+	for (uint i = 0; i < 8; i++) {
+		if (blends[i] <= 0.0)
+			continue;
+		float b = blends[i] / max(total, VOE_LEAST);
+		voe_render_shading layer = voe_render_layer_record(object, i);
+		float repeat = layer.uv_repeat != 0.0 ? layer.uv_repeat : 1.0;
+		float2 at = metres * repeat;
+		float2 dx = metres_dx * repeat;
+		float2 dy = metres_dy * repeat;
+		bool orm = layer.occlusion_texture != VOE_RENDER_NO_TEXTURE;
+		float4 colour = orm ? voe_render_hex_read(at, layer.base_colour_texture,
+							  dx, dy) :
+				      first[i];
+
+		surface.base_colour += colour.rgb * layer.base_colour.rgb * b;
+		if (colour_only)
+			continue;
+		float3 tilt = VOE_RENDER_LAYER_FLAT;
+		if (layer.normal_texture != VOE_RENDER_NO_TEXTURE) {
+			tilt = voe_render_hex_read(at, layer.normal_texture, dx, dy).rgb;
+			surface.has_normal = true;
+		}
+		float4 occlusion = orm ? first[i] : float4(1.0, 1.0, 1.0, 1.0);
+		float roughness = layer.roughness;
+		float metallic = layer.metallic;
+		uint mr = layer.metallic_roughness_texture;
+		if (mr != VOE_RENDER_NO_TEXTURE) {
+			float4 texel = mr == layer.occlusion_texture ?
+					       first[i] :
+					       voe_render_hex_read(at, mr, dx, dy);
+			roughness = texel.g;
+			metallic = texel.b;
+		}
+		surface.normal_texel += tilt * b;
+		surface.occlusion += occlusion.r * b;
+		surface.roughness += roughness * b;
+		surface.metallic += metallic * b;
+	}
+	return surface;
+}

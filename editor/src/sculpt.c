@@ -1,5 +1,6 @@
 // The brush's start, its put-down, whether a thing wears a landscape, and the
-// held drag that sculpts it: hover, press, stamps and the release's undo step.
+// held drag that sculpts or paints it: hover, press with its heights or paint
+// copy, stamps and the release's heights or paint undo step.
 // See the header for why the brush is never saved or undone.
 #include "sculpt.h"
 
@@ -35,6 +36,8 @@ void voe_editor_sculpt_start(voe_editor_sculpt *sculpt)
 		sculpt->buttons[i] = VOE_UI_NODE_NONE;
 	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_SLIDERS; i++)
 		sculpt->sliders[i] = VOE_UI_NODE_NONE;
+	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_LAYER_ROWS; i++)
+		sculpt->layer_rows[i] = VOE_UI_NODE_NONE;
 
 	VOE_BASE_ASSERT(!sculpt->chosen, "a started brush already chosen");
 }
@@ -166,7 +169,8 @@ static void stamp(voe_editor_sculpt *sculpt, voe_editor_models *models,
 				     .radius = sculpt->radius,
 				     .strength = sculpt->strength,
 				     .softness = sculpt->softness,
-				     .target = sculpt->target };
+				     .target = sculpt->target,
+				     .layer = sculpt->layer };
 	uint32_t count = 1;
 
 	VOE_BASE_ASSERT(spacing > 0.0f, "a brush with no radius");
@@ -190,7 +194,26 @@ static void stamp(voe_editor_sculpt *sculpt, voe_editor_models *models,
 	VOE_BASE_ASSERT(count <= VOE_EDITOR_SCULPT_STAMPS, "stamps past the cap");
 }
 
-// The press: the path and the whole grid copied, flatten's height taken.
+// A malloced copy of `land`'s two paint planes, 8 bytes a point; NULL paint
+// copied as every point all layer 0.
+static uint8_t *paint_copy(const voe_assets_landscape *land)
+{
+	const size_t points = (size_t)(land->cells + 1) * (land->cells + 1);
+	uint8_t *copy = malloc(points * 8);
+
+	VOE_BASE_ASSERT(copy != NULL, "out of memory copying paint at a press");
+	if (land->paint != NULL) {
+		memcpy(copy, land->paint, points * 8);
+		return copy;
+	}
+	memset(copy, 0, points * 8);
+	for (size_t i = 0; i < points; i++)
+		copy[i * 4] = 255;
+	return copy;
+}
+
+// The press: the path and the whole grid's heights copied and flatten's height
+// taken, or for PAINT its paint copied.
 static void begin(voe_editor_sculpt *sculpt, const voe_editor_models *models,
 		  const char *path)
 {
@@ -203,21 +226,91 @@ static void begin(voe_editor_sculpt *sculpt, const voe_editor_models *models,
 			"a stroke's path past its room");
 	memcpy(sculpt->path, path, strlen(path) + 1);
 	sculpt->cells = land->cells;
-	count = (size_t)(land->cells + 1) * (land->cells + 1);
-	sculpt->before = malloc(count * sizeof(*sculpt->before));
-	VOE_BASE_ASSERT(sculpt->before != NULL,
-			"out of memory copying a grid at a press");
-	memcpy(sculpt->before, land->heights, count * sizeof(*sculpt->before));
-	sculpt->target = voe_3d_landscape_height(land, sculpt->x, sculpt->z);
+	if (sculpt->kind == VOE_3D_BRUSH_PAINT) {
+		sculpt->before_paint = paint_copy(land);
+	} else {
+		count = (size_t)(land->cells + 1) * (land->cells + 1);
+		sculpt->before = malloc(count * sizeof(*sculpt->before));
+		VOE_BASE_ASSERT(sculpt->before != NULL,
+				"out of memory copying a grid at a press");
+		memcpy(sculpt->before, land->heights,
+		       count * sizeof(*sculpt->before));
+		sculpt->target =
+			voe_3d_landscape_height(land, sculpt->x, sculpt->z);
+	}
 	sculpt->last_x = sculpt->x;
 	sculpt->last_z = sculpt->z;
 	sculpt->touched = (voe_3d_landscape_rect){ 0 };
 	sculpt->stroking = true;
 }
 
-// The release: the touched rect's heights from the copy and the store made a
-// stroke and handed to the undo line, the project marked edited. An empty
-// rect, or a grid gone or resized under the stroke, records nothing.
+// The touched rect's heights from the press copy and the store, as a stroke.
+static voe_editor_stroke *heights_stroke(const voe_editor_sculpt *sculpt,
+					 const voe_assets_landscape *land,
+					 voe_3d_landscape_rect rect)
+{
+	const uint32_t width = rect.x1 - rect.x0;
+	const uint32_t side = sculpt->cells + 1;
+	const size_t count = (size_t)width * (rect.z1 - rect.z0);
+	float *heights = malloc(2 * count * sizeof(*heights));
+	voe_editor_stroke *stroke;
+
+	VOE_BASE_ASSERT(heights != NULL,
+			"out of memory cutting a stroke's heights");
+	for (uint32_t z = rect.z0; z < rect.z1; z++) {
+		const size_t from = (size_t)z * side + rect.x0;
+		const size_t to = (size_t)(z - rect.z0) * width;
+
+		memcpy(heights + to, sculpt->before + from,
+		       width * sizeof(*heights));
+		memcpy(heights + count + to, land->heights + from,
+		       width * sizeof(*heights));
+	}
+	stroke = voe_editor_stroke_new(sculpt->path, rect, heights,
+				       heights + count);
+	free(heights);
+	return stroke;
+}
+
+// The touched rect's weights from the press copy and the store, as a paint
+// stroke: each side plane 0's rect then plane 1's. NULL when the store holds
+// no paint, which no stamp changed.
+static voe_editor_stroke *paint_stroke(const voe_editor_sculpt *sculpt,
+				       const voe_assets_landscape *land,
+				       voe_3d_landscape_rect rect)
+{
+	const uint32_t width = rect.x1 - rect.x0;
+	const size_t side = sculpt->cells + 1;
+	const size_t plane = side * side * 4;
+	const size_t count = (size_t)width * (rect.z1 - rect.z0);
+	uint8_t *bytes;
+	voe_editor_stroke *stroke;
+
+	if (land->paint == NULL)
+		return NULL;
+	bytes = malloc(2 * count * 8);
+	VOE_BASE_ASSERT(bytes != NULL, "out of memory cutting a stroke's paint");
+	for (uint32_t p = 0; p < 2; p++)
+		for (uint32_t z = rect.z0; z < rect.z1; z++) {
+			const size_t from =
+				p * plane + ((size_t)z * side + rect.x0) * 4;
+			const size_t to =
+				p * count * 4 + (size_t)(z - rect.z0) * width * 4;
+
+			memcpy(bytes + to, sculpt->before_paint + from,
+			       (size_t)width * 4);
+			memcpy(bytes + count * 8 + to, land->paint + from,
+			       (size_t)width * 4);
+		}
+	stroke = voe_editor_stroke_new_paint(sculpt->path, rect, bytes,
+					     bytes + count * 8);
+	free(bytes);
+	return stroke;
+}
+
+// The release: the touched rect's heights or weights from the copy and the
+// store made a stroke and handed to the undo line, the project marked edited.
+// An empty rect, or a grid gone or resized under the stroke, records nothing.
 static void end(voe_editor_sculpt *sculpt, const voe_editor_models *models,
 		struct voe_editor_undo *undo,
 		struct voe_editor_session *session, voe_base_arena *scratch)
@@ -225,34 +318,25 @@ static void end(voe_editor_sculpt *sculpt, const voe_editor_models *models,
 	const voe_assets_landscape *land = grid(models, sculpt->path);
 	const voe_3d_landscape_rect rect = sculpt->touched;
 
-	VOE_BASE_ASSERT(sculpt->stroking && sculpt->before != NULL,
+	VOE_BASE_ASSERT(sculpt->stroking && (sculpt->before != NULL ||
+					     sculpt->before_paint != NULL),
 			"ending no stroke");
 	if (!rect_empty(rect) && land != NULL && land->cells == sculpt->cells) {
-		const uint32_t width = rect.x1 - rect.x0;
-		const uint32_t side = sculpt->cells + 1;
-		const size_t count = (size_t)width * (rect.z1 - rect.z0);
-		float *heights = malloc(2 * count * sizeof(*heights));
+		voe_editor_stroke *stroke =
+			sculpt->before_paint != NULL ?
+				paint_stroke(sculpt, land, rect) :
+				heights_stroke(sculpt, land, rect);
 
-		VOE_BASE_ASSERT(heights != NULL,
-				"out of memory cutting a stroke's heights");
-		for (uint32_t z = rect.z0; z < rect.z1; z++) {
-			const size_t from = (size_t)z * side + rect.x0;
-			const size_t to = (size_t)(z - rect.z0) * width;
-
-			memcpy(heights + to, sculpt->before + from,
-			       width * sizeof(*heights));
-			memcpy(heights + count + to, land->heights + from,
-			       width * sizeof(*heights));
+		if (stroke != NULL) {
+			voe_editor_undo_stroke(undo, session->project, scratch,
+					       stroke);
+			voe_editor_session_edited(session);
 		}
-		voe_editor_undo_stroke(undo, session->project, scratch,
-				       voe_editor_stroke_new(sculpt->path, rect,
-							     heights,
-							     heights + count));
-		free(heights);
-		voe_editor_session_edited(session);
 	}
 	free(sculpt->before);
+	free(sculpt->before_paint);
 	sculpt->before = NULL;
+	sculpt->before_paint = NULL;
 	sculpt->stroking = false;
 	VOE_BASE_ASSERT(sculpt->before == NULL, "a stroke's copy kept");
 }

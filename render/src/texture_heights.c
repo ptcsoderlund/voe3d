@@ -1,6 +1,11 @@
 // A landscape's heights (ADR-0396 points 3 and 5): an R32F texture of metres the
 // vertex stage reads with texel loads, made once and written a rectangle at a
-// time inside a frame. See render/include/render/device.h for what a caller sees.
+// time inside a frame. Its paint (ADR-0402 point 4) is written the same way into
+// one-level RGBA8 textures the fragment stage samples. See
+// render/include/render/device.h for what a caller sees.
+//
+// BOTH WRITES SHARE THE SLOT'S STAGING: a height and a pixel are 4 bytes each,
+// so one count of texels spent covers both, and the room is heights_texels.
 //
 // CREATE IS texture.c's UPLOAD WITH ANOTHER FORMAT. voe_render_texture_fill
 // builds the image, copies the floats in and idles; the slot is then claimed
@@ -8,11 +13,11 @@
 // under the device's guard as voe_render_texture_create is.
 //
 // A WRITE IS RECORDED, NOT SUBMITTED. Each frame slot has its own host-visible
-// staging of capacities.heights_texels floats, mapped for its life; a write
+// staging of capacities.heights_texels texels, mapped for its life; a write
 // copies into it after what this frame already wrote and records into the
 // frame's own command buffer, before any pass: the image leaves
-// SHADER_READ_ONLY for TRANSFER_DST after earlier vertex reads, takes the copy,
-// and returns before this frame's vertex reads. Reads by a frame still in flight
+// SHADER_READ_ONLY for TRANSFER_DST after earlier reads (vertex for heights,
+// fragment for pixels), takes the copy, and returns before this frame's reads. Reads by a frame still in flight
 // were submitted earlier, so the queue's order covers them; nothing waits. The
 // staging is the slot's for the reason the transient pools are: the fence at the
 // frame's top says the card is done with it, and frame.c then empties it.
@@ -147,17 +152,16 @@ bool voe_render_texture_create_heights(voe_render_device *device,
 	return created;
 }
 
-// One heights image's layout move with the vertex stage on the far side.
-static void heights_barrier(VkCommandBuffer commands, VkImage image,
-			    bool to_transfer)
+// One written image's layout move with `reader`, the shader stage that reads
+// it, on the far side.
+static void write_barrier(VkCommandBuffer commands, VkImage image,
+			  VkPipelineStageFlags2 reader, bool to_transfer)
 {
 	VkImageMemoryBarrier2 barrier = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-		.srcStageMask = to_transfer ? VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT :
-					      VK_PIPELINE_STAGE_2_COPY_BIT,
+		.srcStageMask = to_transfer ? reader : VK_PIPELINE_STAGE_2_COPY_BIT,
 		.srcAccessMask = to_transfer ? 0 : VK_ACCESS_2_TRANSFER_WRITE_BIT,
-		.dstStageMask = to_transfer ? VK_PIPELINE_STAGE_2_COPY_BIT :
-					      VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT,
+		.dstStageMask = to_transfer ? VK_PIPELINE_STAGE_2_COPY_BIT : reader,
 		.dstAccessMask = to_transfer ? VK_ACCESS_2_TRANSFER_WRITE_BIT :
 					       VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
 		.oldLayout = to_transfer ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL :
@@ -183,16 +187,42 @@ static void heights_barrier(VkCommandBuffer commands, VkImage image,
 	voe_render_vk.cmd_pipeline_barrier2(commands, &dependency);
 }
 
-bool voe_render_texture_write_heights(voe_render_device *device,
-				      voe_render_texture texture, uint32_t x,
-				      uint32_t y, uint32_t width,
-				      uint32_t height, const float *values,
-				      voe_base_error *error)
+// The checks both writes share, then the slot's texture.
+static const struct voe_render_texture_slot *
+write_slot(const voe_render_device *device, voe_render_texture texture,
+	   uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
 	const struct voe_render_texture_slot *slot;
-	struct voe_render_frame *frame;
+
+	VOE_BASE_ASSERT(device->recording,
+			"writing texels with no frame open — the staging is the slot voe_render_frame_begin picks");
+	VOE_BASE_ASSERT(!device->pass_open && device->pass_count == 0,
+			"writing texels after a pass began — every pass of the frame must read them");
+	VOE_BASE_ASSERT(texture.index < VOE_RENDER_MAX_TEXTURES,
+			"writing texels into no texture");
+	slot = &device->textures[texture.index];
+	VOE_BASE_ASSERT(slot->live && slot->generation == texture.generation,
+			"writing texels into a texture that is not live");
+	VOE_BASE_ASSERT(width > 0 && height > 0 && width <= slot->width &&
+				height <= slot->height &&
+				x <= slot->width - width &&
+				y <= slot->height - height,
+			"writing a rectangle past the texture");
+	return slot;
+}
+
+// The staging copy and the recorded copy both writes are: `count` texels of 4
+// bytes after what this frame already staged, refused whole over the room.
+static bool write_staged(voe_render_device *device,
+			 const struct voe_render_texture_slot *slot,
+			 uint32_t x, uint32_t y, uint32_t width,
+			 uint32_t height, const void *texels,
+			 VkPipelineStageFlags2 reader, voe_base_error *error)
+{
+	struct voe_render_frame *frame = voe_render_frame_open(device);
 	const uint32_t count = width * height;
 	VkBufferImageCopy region = {
+		.bufferOffset = (VkDeviceSize)frame->heights_used * 4,
 		.imageSubresource = {
 			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
 			.layerCount = 1,
@@ -201,27 +231,9 @@ bool voe_render_texture_write_heights(voe_render_device *device,
 		.imageExtent = { width, height, 1 },
 	};
 
-	VOE_BASE_DEBUG_ASSERT(device != NULL && values != NULL,
-			      "writing heights on no device or from nothing");
-	VOE_BASE_ASSERT(device->recording,
-			"writing heights with no frame open — the staging is the slot voe_render_frame_begin picks");
-	VOE_BASE_ASSERT(!device->pass_open && device->pass_count == 0,
-			"writing heights after a pass began — every pass of the frame must read them");
-	VOE_BASE_ASSERT(texture.index < VOE_RENDER_MAX_TEXTURES,
-			"writing heights into no texture");
-	slot = &device->textures[texture.index];
-	VOE_BASE_ASSERT(slot->live && slot->generation == texture.generation &&
-				slot->heights,
-			"writing heights into a texture that is not a live heights one");
-	VOE_BASE_ASSERT(width > 0 && height > 0 && x <= slot->width - width &&
-				y <= slot->height - height && width <= slot->width &&
-				height <= slot->height,
-			"writing a heights rectangle past the texture");
-
-	frame = voe_render_frame_open(device);
 	if (count > device->capacities.heights_texels - frame->heights_used) {
 		VOE_BASE_ERROR("render",
-			       "no room this frame for %u heights texels — %u of %u spent; heights_texels is too small for what this frame writes",
+			       "no room this frame for %u texels — %u of %u spent; heights_texels is too small for what this frame writes",
 			       count, frame->heights_used,
 			       device->capacities.heights_texels);
 		if (error != NULL)
@@ -230,19 +242,53 @@ bool voe_render_texture_write_heights(voe_render_device *device,
 	}
 
 	// Coherent memory, so the submit makes the write visible.
-	memcpy((float *)frame->heights_mapped + frame->heights_used, values,
-	       (size_t)count * sizeof(float));
-	region.bufferOffset = (VkDeviceSize)frame->heights_used * sizeof(float);
+	memcpy((uint8_t *)frame->heights_mapped + region.bufferOffset, texels,
+	       (size_t)count * 4);
 
-	heights_barrier(frame->commands, slot->image, true);
+	write_barrier(frame->commands, slot->image, reader, true);
 	voe_render_vk.cmd_copy_buffer_to_image(
 		frame->commands, frame->heights.buffer, slot->image,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-	heights_barrier(frame->commands, slot->image, false);
+	write_barrier(frame->commands, slot->image, reader, false);
 
 	frame->heights_used += count;
 	VOE_BASE_DEBUG_ASSERT(frame->heights_used <=
 				      device->capacities.heights_texels,
 			      "heights staging overrun");
 	return true;
+}
+
+bool voe_render_texture_write_heights(voe_render_device *device,
+				      voe_render_texture texture, uint32_t x,
+				      uint32_t y, uint32_t width,
+				      uint32_t height, const float *values,
+				      voe_base_error *error)
+{
+	const struct voe_render_texture_slot *slot;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL && values != NULL,
+			      "writing heights on no device or from nothing");
+	slot = write_slot(device, texture, x, y, width, height);
+	VOE_BASE_ASSERT(slot->heights,
+			"writing heights into a texture that is not a heights one");
+	return write_staged(device, slot, x, y, width, height, values,
+			    VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT, error);
+}
+
+bool voe_render_texture_write_pixels(voe_render_device *device,
+				     voe_render_texture texture, uint32_t x,
+				     uint32_t y, uint32_t width,
+				     uint32_t height, const uint8_t *rgba,
+				     voe_base_error *error)
+{
+	const struct voe_render_texture_slot *slot;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL && rgba != NULL,
+			      "writing pixels on no device or from nothing");
+	slot = write_slot(device, texture, x, y, width, height);
+	VOE_BASE_ASSERT(!slot->heights && !slot->is_target &&
+				slot->sampling != VOE_RENDER_SAMPLING_SMOOTH,
+			"writing pixels into a texture that is not a one-level RGBA8 one");
+	return write_staged(device, slot, x, y, width, height, rgba,
+			    VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, error);
 }

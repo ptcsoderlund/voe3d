@@ -49,7 +49,7 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// FIVE PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// SIX PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
 // bindings.slangh first: the frame block, the records and the bindings both
 // stages read. lighting.slangh next: the sun, its cascades, the fill, the BRDF
 // terms and voe_render_points, the point lights the lit exit adds to the sun's
@@ -57,8 +57,10 @@
 // the sun, the fill and the lamps by Rooms and crossings (ADR-0350), with the
 // decisions in its header;
 // it includes point_shadow.slangh, a cube face's pick and projection. terrain.slangh
-// after the vertex input: a landscape node's vertex (ADR-0396). water.slangh last,
-// after the vertex stage and voe_render_premultiplied, which it uses. A part is
+// after the vertex input: a landscape node's vertex (ADR-0396). water.slangh
+// after the vertex stage and voe_render_premultiplied, which it uses.
+// terrain_layers.slangh last, after voe_render_repeated_uv: a painted
+// landscape's layers blended by height, hex-tiled (ADR-0402). A part is
 // never compiled alone, and cmake/voe.cmake rebuilds every shader when one
 // changes.
 //
@@ -354,6 +356,8 @@ float2 voe_render_repeated_uv(voe_render_shading shading, float2 uv)
 	return uv * (shading.uv_repeat != 0.0 ? shading.uv_repeat : 1.0);
 }
 
+#include "terrain_layers.slangh"
+
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 {
@@ -456,6 +460,20 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	bool mapped = shading.metallic_roughness_texture != VOE_RENDER_NO_TEXTURE;
 	float roughness = saturate(mapped ? orm.g : shading.roughness);
 	float metallic = saturate(mapped ? orm.b : shading.metallic);
+	bool tilted = shading.normal_texture != VOE_RENDER_NO_TEXTURE;
+
+	// A painted landscape takes colour, normal and ORM from its layers
+	// (ADR-0402 point 5); alpha and lit stay its own record's.
+	if (object.heights != 0 && object.paint_a != 0) {
+		voe_render_layer_surface ground =
+			voe_render_layer_surface_at(object, vertex.uv, false);
+		base.rgb = ground.base_colour * object.colour.rgb;
+		tilt = ground.normal_texel;
+		tilted = ground.has_normal;
+		occlusion = ground.occlusion;
+		roughness = saturate(ground.roughness);
+		metallic = saturate(ground.metallic);
+	}
 	float alpha = roughness * roughness;
 
 	// THE ALPHA MODE, RESOLVED HERE AND NOT AT THE RETURN, because there are
@@ -500,7 +518,7 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// The geometric normal places the shadow lookup; the mapped one shades.
 	float3 surface = normalize(vertex.normal);
 	float3 n = surface;
-	if (shading.normal_texture != VOE_RENDER_NO_TEXTURE)
+	if (tilted)
 		n = voe_render_mapped_normal(surface, tilt, world_dx, world_dy,
 					     uv_dx, uv_dy);
 	float3 v =normalize(voe_render_frame.camera.eye - vertex.world);
@@ -593,7 +611,7 @@ voe_render_capture_vertex(voe_render_draw_vertex_in vertex,
 }
 
 // THE CAPTURE PASS'S FRAGMENT: linear albedo, the base factor × texture × object
-// colour, alpha one; and the world normal,
+// colour (a painted landscape's layers' colour × object colour), alpha one; and the world normal,
 // nought for a normal of nothing, with the distance from the probe in w.
 [shader("fragment")]
 voe_render_capture_targets voe_render_capture_fragment(voe_render_capture_in vertex)
@@ -612,6 +630,12 @@ voe_render_capture_targets voe_render_capture_fragment(voe_render_capture_in ver
 	voe_render_capture_targets result;
 
 	result.albedo = float4((factor * sheet).rgb, 1.0);
+	// A painted landscape's albedo is its layers' blended colour (ADR-0402).
+	if (object.heights != 0 && object.paint_a != 0)
+		result.albedo.rgb = voe_render_layer_surface_at(object, vertex.uv,
+								true)
+					    .base_colour *
+				    object.colour.rgb;
 	result.normal = float4(n, length(vertex.about));
 	return result;
 }

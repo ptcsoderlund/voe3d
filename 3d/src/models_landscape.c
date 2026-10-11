@@ -1,19 +1,22 @@
 // The model store's landscapes (3d/models.h; 0379 points 2 and 6, 0396 points
-// 3 and 5): a grid copied into its entry, uploaded as a heights texture and
+// 3 and 5, 0402 points 1, 3 and 4): a grid copied into its entry with its
+// layers and paint, uploaded as a heights texture and two paint textures and
 // built into a min/max pyramid, worn as one part on the store's shared grid; a
-// brush or a put updating the pyramid and growing the dirty rect; the frame
-// writing the dirt into the texture a budget at a time; the lookup the draw
-// files ask; the saved mark and the rename.
+// brush or a put updating the pyramid and growing the heights' dirty rect, or
+// a paint brush or put growing the paint's; a layer set; the frame writing
+// both kinds of dirt a shared budget at a time; the lookup the draw files ask;
+// the saved mark and the rename, layer paths following.
 //
 // Used by models.c's _load for a `.landscape` path, by the draw files through
 // voe_3d_models_terrain_of, and by the editor: the brush and the frame while a
-// stroke is held, the put for an undo step, the rename for a moved file.
+// stroke is held, the puts for an undo step, the layer set for a dropped
+// material, the rename for a moved file.
 //
-// Constraints: an entry's dirt is one rect, so two stamps far apart write all
-// the heights between them; a list of rects would lift it. The frame writes
-// whole rows of the rect, the first entries first, so one big put can hold
-// another landscape's dirt back a few frames. The frame, the rename and the
-// lookup walk every entry.
+// Constraints: an entry's dirt is one rect a kind, so two stamps far apart
+// write all the points between them; a list of rects would lift it. The frame
+// writes whole rows of the rect, the first entries first, so one big put can
+// hold another landscape's dirt back a few frames. The frame, the rename and
+// the lookup walk every entry. A layer path that would not fit renamed is kept.
 #include "models_store.h"
 
 #include <3d/landscape.h>
@@ -28,6 +31,9 @@
 // The shared grid's quads a side.
 #define GRID VOE_3D_LANDSCAPE_NODE_QUADS
 #define GRID_BLOCK (128 * 1024)
+// A point's paint bytes in each plane, and in both.
+#define TEXEL 4
+#define PAINT_BYTES (2 * TEXEL)
 
 // 0379 point 2's ground until 085 paints it: lit, opaque, linear olive.
 static voe_3d_material ground(void)
@@ -49,18 +55,51 @@ static voe_3d_material ground(void)
 	};
 }
 
-// `from`'s grid copied onto `memory`.
+// `from`'s grid copied onto `memory`, its layers carried and its paint owned:
+// every point all layer 0 when `from` has none.
 static voe_assets_landscape *copy_grid(voe_base_arena *memory,
 				       const voe_assets_landscape *from)
 {
-	const size_t bytes =
-		(size_t)(from->cells + 1) * (from->cells + 1) * sizeof(float);
+	const size_t points = (size_t)(from->cells + 1) * (from->cells + 1);
 	voe_assets_landscape *to = voe_base_arena_push(memory, sizeof(*to));
 
 	*to = *from;
-	to->heights = voe_base_arena_push(memory, bytes);
-	memcpy(to->heights, from->heights, bytes);
+	to->heights = voe_base_arena_push(memory, points * sizeof(float));
+	memcpy(to->heights, from->heights, points * sizeof(float));
+	to->paint = voe_base_arena_push(memory, points * PAINT_BYTES);
+	if (from->paint != NULL) {
+		memcpy(to->paint, from->paint, points * PAINT_BYTES);
+	} else {
+		memset(to->paint, 0, points * PAINT_BYTES);
+		for (size_t i = 0; i < points; i++)
+			to->paint[i * TEXEL] = 255;
+	}
 	return to;
+}
+
+// The two paint planes as DATA textures, FIELD-sampled, listed in `textures`
+// so the entry's release frees them; on failure none is left made.
+static bool upload_paint(voe_render_device *device,
+			 const voe_assets_landscape *land, entry_held *held,
+			 voe_base_error *error)
+{
+	const uint32_t n = land->cells + 1;
+	const size_t plane = (size_t)n * n * TEXEL;
+
+	for (uint32_t p = 0; p < 2; p++) {
+		if (voe_render_texture_create(device, VOE_RENDER_TEXTURE_DATA,
+					      VOE_RENDER_SAMPLING_FIELD, n, n,
+					      land->paint + p * plane,
+					      &held->paint[p], error))
+			continue;
+		if (p == 1)
+			(void)voe_render_texture_destroy(device, held->paint[0]);
+		return false;
+	}
+	held->textures = voe_base_arena_push(held->memory, sizeof(held->paint));
+	memcpy(held->textures, held->paint, sizeof(held->paint));
+	held->texture_count = 2;
+	return true;
 }
 
 // The store's grid (models_store.h), made on the first landscape. Corner
@@ -105,8 +144,8 @@ static bool grid_ready(voe_3d_models *models, voe_render_device *device,
 	return models->has_grid;
 }
 
-// `entry`'s heights as its texture and pyramid, its one part the grid; on
-// failure gives back what it made, the grid kept for the store.
+// `entry`'s heights as its texture and pyramid, its paint as two textures, its
+// one part the grid; on failure gives back what it made, the grid kept.
 static bool upload_landscape(voe_3d_models *models, voe_render_device *device,
 			     voe_3d_model_entry *entry, entry_held *held,
 			     voe_base_error *error)
@@ -116,13 +155,14 @@ static bool upload_landscape(voe_3d_models *models, voe_render_device *device,
 	const bool material = grid_ready(models, device, error) &&
 			      voe_3d_material_upload(device, &part.material,
 						     error);
-	bool twin = false;
+	bool twin = false, heights = false;
 
 	part.faded = part.material.shading;
 	twin = material && voe_3d_models_twin(device, &part, error);
-	if (twin && voe_render_texture_create_heights(device, n, n,
-						      entry->landscape->heights,
-						      &held->heights, error)) {
+	heights = twin && voe_render_texture_create_heights(
+				  device, n, n, entry->landscape->heights,
+				  &held->heights, error);
+	if (heights && upload_paint(device, entry->landscape, held, error)) {
 		part.geometry = models->grid;
 		entry->parts[0] = part;
 		entry->part_count = 1;
@@ -135,6 +175,8 @@ static bool upload_landscape(voe_3d_models *models, voe_render_device *device,
 						       held->memory);
 		return true;
 	}
+	if (heights)
+		(void)voe_render_texture_destroy(device, held->heights);
 	if (twin)
 		(void)voe_render_shading_destroy(device, part.faded);
 	if (material)
@@ -158,6 +200,8 @@ bool voe_3d_models_load_landscape(voe_3d_models *models,
 				landscape->cells >= 1 &&
 				landscape->cells <= VOE_ASSETS_LANDSCAPE_CELLS_MAX,
 			"loading a landscape of 1 to the most cells");
+	VOE_BASE_ASSERT(landscape->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS,
+			"loading a landscape of at most eight layers");
 
 	if (!voe_3d_models_room(models, path, error))
 		return false;
@@ -185,9 +229,14 @@ bool voe_3d_models_terrain_of(const voe_3d_models *models,
 			continue;
 		if (!entry->loaded || entry->landscape == NULL)
 			return false;
-		*out = (voe_3d_models_terrain){ .heights = models->held[i].heights,
-						.lod = &models->held[i].lod,
-						.grid = models->grid };
+		const entry_held *held = &models->held[i];
+
+		*out = (voe_3d_models_terrain){
+			.heights = held->heights,
+			.lod = &held->lod,
+			.grid = models->grid,
+			.paint = { held->paint[0], held->paint[1] },
+		};
 		return true;
 	}
 	return false;
@@ -209,26 +258,42 @@ static bool is_empty(voe_3d_landscape_rect rect)
 	return rect.x0 >= rect.x1 || rect.z0 >= rect.z1;
 }
 
+// `dirty` grown to hold the non-empty `changed`.
+static void grow(voe_3d_landscape_rect *dirty, voe_3d_landscape_rect changed)
+{
+	if (is_empty(*dirty)) {
+		*dirty = changed;
+		return;
+	}
+	dirty->x0 = changed.x0 < dirty->x0 ? changed.x0 : dirty->x0;
+	dirty->z0 = changed.z0 < dirty->z0 ? changed.z0 : dirty->z0;
+	dirty->x1 = changed.x1 > dirty->x1 ? changed.x1 : dirty->x1;
+	dirty->z1 = changed.z1 > dirty->z1 ? changed.z1 : dirty->z1;
+}
+
 // The heights `changed` refreshed in the pyramid, added to the dirty rect, and
 // the entry edited; nothing for an empty rect.
 static void grow_dirt(voe_3d_models *models, uint32_t index,
 		      voe_3d_landscape_rect changed)
 {
 	entry_held *held = &models->held[index];
-	voe_3d_landscape_rect *dirty = &held->dirty;
 
 	if (is_empty(changed))
 		return;
 	voe_3d_landscape_lod_update(&held->lod,
 				    models->entries[index].landscape, changed);
-	if (is_empty(*dirty)) {
-		*dirty = changed;
-	} else {
-		dirty->x0 = changed.x0 < dirty->x0 ? changed.x0 : dirty->x0;
-		dirty->z0 = changed.z0 < dirty->z0 ? changed.z0 : dirty->z0;
-		dirty->x1 = changed.x1 > dirty->x1 ? changed.x1 : dirty->x1;
-		dirty->z1 = changed.z1 > dirty->z1 ? changed.z1 : dirty->z1;
-	}
+	grow(&held->dirty, changed);
+	models->entries[index].edited = true;
+}
+
+// The paint `changed` added to the paint's dirty rect and the entry edited;
+// nothing for an empty rect.
+static void grow_paint(voe_3d_models *models, uint32_t index,
+		       voe_3d_landscape_rect changed)
+{
+	if (is_empty(changed))
+		return;
+	grow(&models->held[index].paint_dirty, changed);
 	models->entries[index].edited = true;
 }
 
@@ -248,7 +313,10 @@ voe_3d_models_landscape_brush(voe_3d_models *models, const char *path,
 		return (voe_3d_landscape_rect){ 0 };
 	rect = voe_3d_landscape_brush(models->entries[index].landscape, brush,
 				      x, z, seconds, scratch);
-	grow_dirt(models, index, rect);
+	if (brush->kind == VOE_3D_BRUSH_PAINT)
+		grow_paint(models, index, rect);
+	else
+		grow_dirt(models, index, rect);
 	return rect;
 }
 
@@ -272,6 +340,56 @@ void voe_3d_models_landscape_put(voe_3d_models *models, const char *path,
 		       &values[(size_t)(r - rect.z0) * width],
 		       width * sizeof(float));
 	grow_dirt(models, index, rect);
+}
+
+void voe_3d_models_landscape_put_paint(voe_3d_models *models, const char *path,
+				       voe_3d_landscape_rect rect,
+				       const uint8_t *values)
+{
+	VOE_BASE_ASSERT(models != NULL && path != NULL,
+			"putting paint needs a store and a path");
+	const uint32_t index = landscape_index(models, path);
+
+	if (index == VOE_3D_MODELS || is_empty(rect))
+		return;
+	voe_assets_landscape *land = models->entries[index].landscape;
+	const uint32_t n = land->cells + 1;
+	const size_t plane = (size_t)n * n * TEXEL;
+	const size_t row = (size_t)(rect.x1 - rect.x0) * TEXEL;
+	const size_t given = row * (rect.z1 - rect.z0);
+
+	VOE_BASE_ASSERT(values != NULL, "putting no paint");
+	VOE_BASE_ASSERT(rect.x1 <= n && rect.z1 <= n, "a rect on the grid");
+	for (uint32_t p = 0; p < 2; p++) {
+		for (uint32_t r = rect.z0; r < rect.z1; r++)
+			memcpy(&land->paint[p * plane +
+					    ((size_t)r * n + rect.x0) * TEXEL],
+			       &values[p * given + (r - rect.z0) * row], row);
+	}
+	grow_paint(models, index, rect);
+}
+
+void voe_3d_models_landscape_layer_set(voe_3d_models *models, const char *path,
+				       uint32_t index, const char *material)
+{
+	VOE_BASE_ASSERT(models != NULL && path != NULL,
+			"setting a layer needs a store and a path");
+	VOE_BASE_ASSERT(material != NULL &&
+				strlen(material) < VOE_ASSETS_MATERIAL_PATH,
+			"a layer's material path that fits");
+	const uint32_t at = landscape_index(models, path);
+
+	if (at == VOE_3D_MODELS)
+		return;
+	voe_assets_landscape *land = models->entries[at].landscape;
+
+	VOE_BASE_ASSERT(index <= land->layer_count &&
+				index < VOE_ASSETS_LANDSCAPE_LAYERS,
+			"a held layer or the next of eight");
+	memcpy(land->layers[index], material, strlen(material) + 1);
+	if (index == land->layer_count)
+		land->layer_count++;
+	models->entries[at].edited = true;
 }
 
 // Entry `i`'s dirty rows written into its texture while `budget` texels last,
@@ -314,6 +432,52 @@ static uint32_t write_dirt(voe_3d_models *models, voe_render_device *device,
 	return budget - rows * width;
 }
 
+// Entry `i`'s dirty paint rows written into both its textures while `budget`
+// texels last, a row costing its width once a plane, gathered as bytes in the
+// store's `written`; the budget left, nought after a refusal.
+static uint32_t write_paint(voe_3d_models *models, voe_render_device *device,
+			    uint32_t i, uint32_t budget)
+{
+	entry_held *held = &models->held[i];
+	const voe_3d_landscape_rect dirty = held->paint_dirty;
+	const voe_3d_model_entry *entry = &models->entries[i];
+	uint8_t *written = (uint8_t *)models->written;
+	voe_base_error error = VOE_BASE_OK;
+
+	if (is_empty(dirty))
+		return budget;
+	VOE_BASE_ASSERT(entry->loaded && entry->landscape != NULL,
+			"paint dirt only on a loaded landscape");
+	const uint32_t n = entry->landscape->cells + 1;
+	const size_t plane = (size_t)n * n * TEXEL;
+	const uint32_t width = dirty.x1 - dirty.x0;
+	const uint32_t most = budget / (2 * width);
+	const uint32_t rows =
+		dirty.z1 - dirty.z0 < most ? dirty.z1 - dirty.z0 : most;
+
+	if (rows == 0)
+		return budget;
+	for (uint32_t p = 0; p < 2; p++) {
+		for (uint32_t r = 0; r < rows; r++)
+			memcpy(&written[(size_t)r * width * TEXEL],
+			       &entry->landscape->paint[p * plane +
+							((size_t)(dirty.z0 + r) * n +
+							 dirty.x0) * TEXEL],
+			       (size_t)width * TEXEL);
+		if (!voe_render_texture_write_pixels(device, held->paint[p],
+						     dirty.x0, dirty.z0, width,
+						     rows, written, &error)) {
+			VOE_BASE_ERROR("3d", "the paint of %s waits for a later frame",
+				       entry->path);
+			return 0;
+		}
+	}
+	held->paint_dirty.z0 += rows;
+	if (is_empty(held->paint_dirty))
+		held->paint_dirty = (voe_3d_landscape_rect){ 0 };
+	return budget - 2 * rows * width;
+}
+
 void voe_3d_models_landscape_frame(voe_3d_models *models,
 				   voe_render_device *device)
 {
@@ -321,8 +485,10 @@ void voe_3d_models_landscape_frame(voe_3d_models *models,
 	VOE_BASE_ASSERT(device != NULL, "a landscape frame needs a device");
 	uint32_t budget = VOE_3D_LANDSCAPE_WRITE_TEXELS;
 
-	for (uint32_t i = 0; budget > 0 && i < models->count; i++)
+	for (uint32_t i = 0; budget > 0 && i < models->count; i++) {
 		budget = write_dirt(models, device, i, budget);
+		budget = write_paint(models, device, i, budget);
+	}
 }
 
 void voe_3d_models_landscape_saved(voe_3d_models *models, const char *path)
@@ -335,6 +501,42 @@ void voe_3d_models_landscape_saved(voe_3d_models *models, const char *path)
 		models->entries[index].edited = false;
 }
 
+// What follows `from` in `path` when `path` is `from` or under `from/`; NULL
+// for any other path.
+static const char *tail_after(const char *path, const char *from,
+			      size_t from_length)
+{
+	if (strncmp(path, from, from_length) != 0 ||
+	    (path[from_length] != '\0' && path[from_length] != '/'))
+		return NULL;
+	return path + from_length;
+}
+
+// `land`'s layer paths under `from` take `to` in its place; one that would not
+// fit is kept and said on stderr.
+static void rename_layers(voe_assets_landscape *land, const char *from,
+			  const char *to)
+{
+	const size_t from_length = strlen(from);
+	const size_t to_length = strlen(to);
+
+	for (uint32_t k = 0; k < land->layer_count; k++) {
+		const char *rest = tail_after(land->layers[k], from, from_length);
+
+		if (rest == NULL)
+			continue;
+		const size_t rest_length = strlen(rest) + 1;
+
+		if (to_length + rest_length > VOE_ASSETS_MATERIAL_PATH) {
+			VOE_BASE_ERROR("3d", "the layer %s is too long renamed; kept",
+				       land->layers[k]);
+			continue;
+		}
+		memmove(land->layers[k] + to_length, rest, rest_length);
+		memcpy(land->layers[k], to, to_length);
+	}
+}
+
 void voe_3d_models_rename(voe_3d_models *models, const char *from,
 			  const char *to)
 {
@@ -344,12 +546,13 @@ void voe_3d_models_rename(voe_3d_models *models, const char *from,
 	const size_t to_length = strlen(to);
 
 	for (uint32_t i = 0; i < models->count; i++) {
-		const char *path = models->entries[i].path;
+		if (models->entries[i].landscape != NULL)
+			rename_layers(models->entries[i].landscape, from, to);
+		const char *rest =
+			tail_after(models->entries[i].path, from, from_length);
 
-		if (strncmp(path, from, from_length) != 0 ||
-		    (path[from_length] != '\0' && path[from_length] != '/'))
+		if (rest == NULL)
 			continue;
-		const char *rest = path + from_length;
 		const size_t rest_length = strlen(rest) + 1;
 		char *renamed = voe_base_arena_push(models->held[i].memory,
 						    to_length + rest_length);

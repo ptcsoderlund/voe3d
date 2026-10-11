@@ -29,6 +29,10 @@
 //   (inspector_material.h) that map's path in `scene->material`, which
 //   interface_read.c carries to the table; while the selected thing has an
 //   emitter, its texture through voe_3d_emitter_submit, one step and unsaved.
+// - A `.material` over the Layers section of a thing wearing a loaded
+//   landscape (inspector_layers.h, 0402 point 7): over a layer row, that layer
+//   through voe_editor_models_layer_set; over the add row, a layer added;
+//   unsaved as a stroke is, no undo step. With eight layers there is no add row.
 // - A `.material` over the Inspector showing a thing (0399 point 8): over its
 //   model's Materials n field, `materials[n-1]` through voe_3d_model_submit;
 //   elsewhere, a shape's `material` through voe_3d_shape_submit; one step and
@@ -40,11 +44,6 @@
 // pointer, refused (drag_ghost.h) wherever the release would do nothing: over
 // the dragged row itself too, or a folder inside a dragged folder.
 //
-// THE POINT is what the view's pick ray meets first; else where it crosses
-// y = 0 in front of the eye, because a person dropping onto empty space in a
-// scene with a floor means the floor; else, looking up or level, 10 m along
-// the ray, near enough to be seen and far enough to be out of the camera.
-//
 // THE INSPECTOR DROP REPLACES THE PATH rather than adding a component: an
 // entity has at most one row of a type, so a second model is not a thing to
 // add, and swapping what a placed thing wears is what dropping onto its panel
@@ -53,9 +52,9 @@
 // field's room is no drag.
 //
 // CONSTRAINTS. The Inspector's rectangle is the dock tree laid out below the
-// bar, and the panel's rows, Up, the Inspector's fields and the map rows are
-// last frame's rectangles, not what `ui`
-// drew, because the frame's nodes are gone by the time this runs. A drop and
+// bar, and the panel's rows, Up, the Inspector's fields, the map rows and the
+// layer rows are last frame's rectangles, not what `ui` drew, because the
+// frame's nodes are gone by the time this runs. A drop and
 // Ctrl+D on one frame would give two new things one id (entities.h); nothing
 // guards that pair.
 #pragma once
@@ -111,6 +110,12 @@ typedef struct {
 
 // This frame's button against the drag: a start from the Assets panel's held
 // row, or at the release one of the outcomes above. `pointer` is in `root`'s millimetres and `down` is its primary button.
+//
+// A dropped model or prefab lands at what the view's pick ray meets first;
+// else where it crosses y = 0 in front of the eye, because a person dropping
+// onto empty space in a scene with a floor means the floor; else, looking up
+// or level, 10 m along the ray, near enough to be seen and far enough to be
+// out of the camera.
 void voe_editor_assets_drag_read(
 	voe_editor_assets_drag *drag, voe_editor_session *session,
 	voe_editor_undo *undo, voe_editor_scene *scene,

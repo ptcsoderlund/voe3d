@@ -18,10 +18,13 @@
 // left press on it, stamps along the drag until the release, which records
 // the touched rectangle as one undo step (strokes.h) and marks the project
 // edited. A press that misses the ground is left to the gizmo and the pick.
+// With kind PAINT the drag paints `layer` instead (0402 points 3 and 7), and
+// the release's step carries the rectangle's weights.
 //
 // Constraints: the numbers are kept inside the ranges below by whoever writes
 // them, the Sculpt section's sliders clamping. A stroke mallocs a copy of the
-// whole grid at the press, up to 513² heights, and frees it at the release; a
+// whole grid at the press, up to 513² heights, or for paint its weights at 8
+// bytes a point, and frees it at the release; a
 // frame stamps at most VOE_EDITOR_SCULPT_STAMPS times, so a jump longer than
 // that many quarter radii is stamped sparser; a higher cap would lift it.
 #pragma once
@@ -30,6 +33,7 @@
 
 #include <3d/landscape.h>
 #include <3d/model_component.h>
+#include <assets/landscape.h>
 #include <base/arena.h>
 #include <ecs/world.h>
 #include <math/float2.h>
@@ -68,6 +72,9 @@ struct voe_editor_models;
 // Room for a slider's shown figure.
 #define VOE_EDITOR_SCULPT_FIGURE 16
 
+// The Layers section's rows: one per layer, and the add row.
+#define VOE_EDITOR_SCULPT_LAYER_ROWS (VOE_ASSETS_LANDSCAPE_LAYERS + 1)
+
 typedef struct {
 	// Whether a brush is chosen, and which; `kind` means nothing when not.
 	bool chosen;
@@ -75,6 +82,8 @@ typedef struct {
 	float radius;
 	float strength;
 	float softness;
+	// The layer a PAINT brush paints.
+	uint32_t layer;
 	// The Sculpt section's buttons and sliders as drawn this frame, and the
 	// figures beside the sliders, kept because a label is read after the
 	// call that drew it. VOE_UI_NODE_NONE when not drawn
@@ -82,6 +91,13 @@ typedef struct {
 	voe_ui_node buttons[VOE_EDITOR_SCULPT_KINDS];
 	voe_ui_node sliders[VOE_EDITOR_SCULPT_SLIDERS];
 	char figures[VOE_EDITOR_SCULPT_SLIDERS][VOE_EDITOR_SCULPT_FIGURE];
+	// The Layers section's rows as drawn this frame, row i layer i and
+	// row `layers_drawn` the add row, VOE_UI_NODE_NONE when not drawn; and
+	// where each showed at the last read, for a drop the next frame
+	// (assets_drag.h), no size for one not drawn (inspector_layers.h).
+	voe_ui_node layer_rows[VOE_EDITOR_SCULPT_LAYER_ROWS];
+	voe_ui_rect layers_seen[VOE_EDITOR_SCULPT_LAYER_ROWS];
+	uint32_t layers_drawn;
 	// The ground under the pointer this frame, when `hit`: (x, z) in the
 	// grid's own space of `entity`'s landscape.
 	bool hit;
@@ -91,9 +107,10 @@ typedef struct {
 	// The left button last frame, for its down edge.
 	bool left_was;
 	// The stroke held, when `stroking`: the last hit stamped to, flatten's
-	// height, the heights touched so far, the landscape's path, and its
-	// grid as it was at the press, `cells` a side, malloced then and freed
-	// at the release.
+	// height, the points touched so far, the landscape's path, and its
+	// grid's heights, or for PAINT both its paint planes, as they were at
+	// the press, `cells` a side, malloced then and freed at the release;
+	// the other copy NULL.
 	bool stroking;
 	float last_x;
 	float last_z;
@@ -102,6 +119,7 @@ typedef struct {
 	char path[VOE_3D_MODEL_PATH];
 	uint32_t cells;
 	float *before;
+	uint8_t *before_paint;
 } voe_editor_sculpt;
 
 // No brush chosen, the numbers at their defaults, nothing drawn.

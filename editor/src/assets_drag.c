@@ -1,11 +1,13 @@
 // The drag's start from the held row, the outcome at the pointer each frame
 // for the ghost, and its release into a view, onto the Inspector, onto a
-// folder row or Up, or nowhere. See the header for the outcomes, the point a
-// placed model lands at and why the Inspector drop replaces the path.
+// folder row or Up, or nowhere; after a move the open material follows the
+// file. See the header for the outcomes, the point a placed model lands at and
+// why the Inspector drop replaces the path.
 #include "assets_drag.h"
 
 #include "assets_manage.h"
 #include "entities.h"
+#include "inspector_layers.h"
 #include "inspector_place.h"
 #include "scene_list.h"
 
@@ -113,6 +115,7 @@ typedef enum {
 	OUTCOME_MODEL_ONTO_INSPECTOR,
 	OUTCOME_PREFAB_INTO_VIEW,
 	OUTCOME_PICTURE_ONTO_INSPECTOR,
+	OUTCOME_MATERIAL_ONTO_LAYER,
 	OUTCOME_MATERIAL_ONTO_MODEL,
 	OUTCOME_MATERIAL_ONTO_SHAPE,
 	OUTCOME_PICTURE_ONTO_MAP,
@@ -230,13 +233,42 @@ static bool map_row_at(const voe_editor_scene *scene, voe_math_float2 pointer,
 	return false;
 }
 
+// The Layers row of the selected thing's loaded grid that showed under
+// `pointer` at the last read, into `index`: a layer's own, or the add row's at
+// the layer count, never past the eighth. False over none, or when the
+// Inspector's records are not the selected thing's.
+static bool layer_row_at(const voe_editor_scene *scene,
+			 const voe_3d_models *store, voe_ecs_entity selected,
+			 voe_math_float2 pointer, uint32_t *index)
+{
+	const voe_assets_landscape *land;
+
+	VOE_BASE_ASSERT(scene != NULL && index != NULL, "a layer row of nothing");
+	if (scene->inspector.entity.index != selected.index ||
+	    scene->inspector.entity.generation != selected.generation)
+		return false;
+	land = voe_editor_inspector_layers_grid(store, scene->world, selected)
+		       .grid;
+	if (land == NULL)
+		return false;
+	for (uint32_t i = 0;
+	     i <= land->layer_count && i < VOE_ASSETS_LANDSCAPE_LAYERS; i++)
+		if (voe_editor_inspector_rect_contains(
+			    scene->sculpt.layers_seen[i], pointer)) {
+			*index = i;
+			return true;
+		}
+	return false;
+}
+
 // Over the Inspector: a picture onto the open material's map row, else, while
 // it shows the selected thing and that is no prefab's part, a material onto
-// its model's Materials n field or its shape, a picture onto its emitter, a
-// model onto its model.
+// its grid's Layers row, its model's Materials n field or its shape, a picture
+// onto its emitter, a model onto its model.
 static void onto_inspector(const voe_editor_assets_drag *drag,
 			   const voe_editor_scene *scene,
-			   voe_math_float2 pointer, outcome *out)
+			   const voe_3d_models *store, voe_math_float2 pointer,
+			   outcome *out)
 {
 	const voe_ecs_entity selected = voe_editor_scene_selected(scene);
 
@@ -253,7 +285,9 @@ static void onto_inspector(const voe_editor_assets_drag *drag,
 	    voe_editor_inspector_is_part(scene->world, selected, NULL))
 		return;
 	if (drag->material) {
-		if (voe_3d_model_get(scene->world, selected) != NULL &&
+		if (layer_row_at(scene, store, selected, pointer, &out->index))
+			out->kind = OUTCOME_MATERIAL_ONTO_LAYER;
+		else if (voe_3d_model_get(scene->world, selected) != NULL &&
 		    materials_field_at(scene, selected, pointer, &out->index))
 			out->kind = OUTCOME_MATERIAL_ONTO_MODEL;
 		else if (voe_3d_shape_get(scene->world, selected) != NULL)
@@ -272,7 +306,8 @@ static outcome outcome_at(const voe_editor_assets_drag *drag,
 			  const voe_editor_scene *scene,
 			  const voe_editor_views *views,
 			  const voe_editor_dock_root *root,
-			  const voe_editor_topbar *bar, voe_math_float2 pointer,
+			  const voe_editor_topbar *bar,
+			  const voe_3d_models *store, voe_math_float2 pointer,
 			  bool blocked)
 {
 	outcome out = { .kind = OUTCOME_NOTHING };
@@ -297,7 +332,7 @@ static outcome outcome_at(const voe_editor_assets_drag *drag,
 	} else if (voe_editor_dock_over_panel(
 			   root, voe_editor_topbar_high(bar, root->size.y),
 			   VOE_EDITOR_PANEL_INSPECTOR, pointer)) {
-		onto_inspector(drag, scene, pointer, &out);
+		onto_inspector(drag, scene, store, pointer, &out);
 	}
 	return out;
 }
@@ -373,7 +408,8 @@ static void drop(const voe_editor_assets_drag *drag,
 		 voe_editor_models *models, voe_math_float2 pointer)
 {
 	outcome out = outcome_at(drag, session, scene, views, root, bar,
-				 pointer, false);
+				 voe_editor_models_store(models), pointer,
+				 false);
 	voe_3d_model_intent swap = { .entity =
 					     voe_editor_scene_selected(scene) };
 	bool done;
@@ -399,6 +435,15 @@ static void drop(const voe_editor_assets_drag *drag,
 	}
 	if (out.kind == OUTCOME_PICTURE_ONTO_MAP) {
 		map_fill(&scene->material, out.index, drag->path);
+		return;
+	}
+	// A layer set is no scene edit and no undo step; unsaved as a stroke.
+	if (out.kind == OUTCOME_MATERIAL_ONTO_LAYER) {
+		voe_editor_models_layer_set(
+			models,
+			voe_3d_model_get(scene->world, swap.entity)->path,
+			out.index, drag->path);
+		voe_editor_session_edited(session);
 		return;
 	}
 	if (out.kind == OUTCOME_MATERIAL_ONTO_MODEL ||
@@ -458,7 +503,8 @@ void voe_editor_assets_drag_read(
 		}
 		drag->refused = drag->dragging &&
 				outcome_at(drag, session, scene, views, root,
-					   bar, pointer, blocked)
+					   bar, voe_editor_models_store(models),
+					   pointer, blocked)
 						.kind == OUTCOME_NOTHING;
 		return;
 	}
