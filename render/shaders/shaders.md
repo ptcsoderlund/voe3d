@@ -5,7 +5,8 @@ build time and `#embed`ded, so nothing is read at run time. A `.slangh` is a par
 shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block, the records, set 0's
-  bindings and the push constant, each matching its C struct.
+  bindings and the push constant, each matching its C struct; the object record carries a landscape's
+  paint and layers.
 - `draw.slang` — the mesh pipelines' entry points: placing, maps at the record's repeat, alpha, the
   lit and unlit exits, the point-shadow vertex stage and the capture pass's two.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector and the clip position on

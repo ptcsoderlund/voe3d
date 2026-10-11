@@ -19,6 +19,8 @@ by reading the offscreen colour image back.
 - `heights.c` — a 2049 × 2049 heights texture made and a side past 4096 refused; inside a frame a
   4 × 4 write taken, one past the slot's remaining `heights_texels` refused with the frame still
   drawing, and every slot's budget whole again the next frames. Headless.
+- `pixels_write.c` — inside a frame a 4 × 4 red write into an RGBA8 FIELD texture taken, an 8 × 8
+  one past the room refused with the frame still drawing, and an unlit quad wearing it red. Headless.
 - `shading_write.c` — a quad's record written blue inside a frame before its pass reading blue that
   frame, and a write in each of three frames in a row reading the last. Headless.
 - `terrain_vertex.c` — a terrain record over heights all 2 m drawing a quad grid as a 2 m plane

@@ -254,8 +254,9 @@ struct voe_render_texture_slot {
 	bool is_target;
 	bool depth;
 	uint32_t target;
-	// A landscape's heights (texture_heights.c): R32F, one level, `width` ×
-	// `height` texels, the one kind voe_render_texture_write_heights takes.
+	// A landscape's heights (texture_heights.c): R32F, one level, the one
+	// kind voe_render_texture_write_heights takes. `width` × `height` texels
+	// for it and for every texture voe_render_texture_create made.
 	bool heights;
 	uint32_t width;
 	uint32_t height;
