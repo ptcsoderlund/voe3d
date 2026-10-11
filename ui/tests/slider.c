@@ -3,7 +3,9 @@
 // the press, the release, the dead zone and the drag are all
 // `ui/tests/button.c`'s already; what is new here and what this file pins down
 // is the two ends of the range — the thumb's place in the track, and the clamp
-// that keeps a hand from dragging the value out of it. Then the shown slider
+// that keeps a hand from dragging the value out of it. A drag past the dead
+// zone moves the value by the distance times the range over the track's
+// width, and an untouched frame hands the value back. Then the shown slider
 // (ADR-0402): the slider's rectangle and thumb at the bottom, the middle and
 // the top, a press, drag and click across it taking no focus and moving no
 // thumb, and a value past either end drawing the thumb at that end.
