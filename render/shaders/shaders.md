@@ -4,7 +4,7 @@ The engine's shaders and the only files `slangc` runs over: Slang compiled to ro
 build time and `#embed`ded, so nothing is read at run time. A `.slangh` is a part, included by a
 shader and never compiled alone.
 
-- `bindings.slangh` — the part `draw.slang` includes first: the frame block with its sky, the
+- `bindings.slangh` — the part `draw.slang` includes first: the frame block with its sky and its harmonics, the
   records, set 0's bindings and the push constant with its `plain` word, each matching its C struct;
   the object record carries a landscape's paint and layers.
 - `draw.slang` — the mesh pipelines' seven entry points: placing, maps at the record's repeat, a
@@ -20,8 +20,8 @@ shader and never compiled alone.
   `src/light_blockers.c`.
 - `bounce_read.slangh` — the bounce's one read: E(n) from a probe volume's eight nearest probes,
   weighted and normalised.
-- `lighting.slangh` — the directional lights, their shadows and fills, the bounce and the binned
-  point lights, each gated by the light blockers.
+- `lighting.slangh` — the directional lights, their shadows and fills, the bounce, the binned
+  point lights and the sky's light and reflection, each gated by the light blockers.
 - `terrain.slangh` — a landscape node's vertex: the grid point morphed by distance, its height and
   normal from the height map.
 - `terrain_layers.slangh` — a painted landscape's surface: the paint's weights, up to eight layers

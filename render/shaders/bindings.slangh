@@ -92,7 +92,7 @@ struct voe_render_frame_light {
 };
 
 // The pass's sky: voe_render_sky in render/device.h, 32 bytes. exposure and
-// tone are tone.slangh's; drawn, light and haze later cards' (ADR-0405).
+// tone are tone.slangh's, light lighting.slangh's; haze a later card's (ADR-0405).
 struct voe_render_sky {
 	uint drawn;
 	float light;
@@ -120,6 +120,8 @@ struct voe_render_frame_block {
 	uint more_reserved2;
 	voe_render_frame_light more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
 	voe_render_sky sky;
+	// The sky's nine harmonics, sky.h's order, zero for no sky light.
+	float4 sky_harmonics[9];
 };
 
 [[vk::binding(0, 0)]]

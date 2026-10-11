@@ -51,11 +51,15 @@
 // asserts. A pass with no camera, and every shadow, point-shadow and capture
 // pass, leaves it zeroed: as authored. A camera pass whose sky is `drawn` has
 // it drawn by sky_draw.c as soon as its block is written, before anything else.
+// Its sky `light` above nought fills the block's nine harmonics by
+// voe_render_sky_harmonics from its sun's direction and colour × intensity; an
+// unshaded or dark sun leaves them nought.
 //
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
 #include "frame_internal.h"
 #include "light_bins.h"
+#include "sky.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -528,6 +532,28 @@ static void place_sky(const voe_render_pass_camera *camera,
 	block->sky = sky;
 }
 
+// The sky's light into `block->sky_harmonics` (ADR-0405 point 5): the nine of
+// `camera`'s sun when its sky `light` is above nought and the sun lights; left
+// zero otherwise, so an unshaded or dark sun, whose direction may be nothing,
+// is never projected.
+static void place_sky_light(const voe_render_pass_camera *camera,
+			    struct voe_render_frame_block *block)
+{
+	const voe_render_light sun = camera->light;
+
+	VOE_BASE_DEBUG_ASSERT(block->sky_harmonics[0].x == 0.0f,
+			      "placing the sky's light into a block that already has it");
+	if (!(camera->sky.light > 0.0f) || sun.unshaded != 0 ||
+	    !(sun.intensity > 0.0f))
+		return;
+	voe_render_sky_harmonics(sun.direction,
+				 voe_math_float3_scale(sun.colour,
+						       sun.intensity),
+				 block->sky_harmonics);
+	VOE_BASE_DEBUG_ASSERT(isfinite(block->sky_harmonics[0].x),
+			      "the sky's harmonics are not finite");
+}
+
 // A PASS IS ONE RENDERING BLOCK AND THE FRAME IS ANY NUMBER OF THEM (ADR-0148).
 // _begin records nothing that draws; _pass_begin opens the block, writes the
 // pass's camera into its own block of the slot's uniform buffer and binds the set
@@ -618,6 +644,7 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 			       camera->points, &block);
 		place_further_lights(device, camera, &block);
 		place_sky(camera, &block);
+		place_sky_light(camera, &block);
 	}
 
 	// The window's pair or this frame slot's pair of the target, each with

@@ -1453,9 +1453,14 @@ typedef struct {
 //
 // `drawn` non-zero draws the sky first in the pass, behind everything, from
 // the pass's `light` (black for an `unshaded` one or one of intensity 0),
-// exposed and toned as below; `light` how strongly it lights lit surfaces, at
-// least 0; `haze` the metres at which half a surface's colour is haze, 0 none,
-// at least 0. `light` and `haze` are read by later cards; this one carries them.
+// exposed and toned as below; `haze` the metres at which half a surface's
+// colour is haze, 0 none, at least 0, read by a later card.
+//
+// `light`, at least 0, is how strongly the sky lights lit surfaces, drawn or
+// not (ADR-0405 point 5): a diffuse term from the sky's nine harmonics and a
+// reflection of the sky, sharp on a smooth surface and its irradiance on a rough
+// one, both occluded and both only on a surface whose blocker mask holds no
+// Indoors or Room bit. 0 adds nothing; an `unshaded` light lights by none.
 //
 // `exposure` is in stops, −16 to 16: every mesh exit multiplies its linear
 // colour by 2^exposure and then puts it through `tone`, a VOE_RENDER_TONE_*; a
