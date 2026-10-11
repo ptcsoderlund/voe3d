@@ -32,11 +32,6 @@
 // scene.c includes every `.h` in `Code/`, sorted by name, before the cooked
 // text, which names the project's own structs and keys.
 //
-// EACH FILE IS WRITTEN ONLY WHEN IT IS MISSING OR ITS BYTES DIFFER, because
-// Ninja rebuilds by timestamp: an unchanged CMakeLists.txt or main.c rewritten
-// on every Play would reconfigure or recompile for nothing, so a second Play
-// rebuilds only the scene.
-//
 // scene.c IS THE WORLD AS IT IS NOW, unsaved edits included (ADR-0188), cooked
 // by authoring/scene_cook.h; project->unsaved is left as it was.
 //
@@ -72,6 +67,11 @@
 // .gitignore listing /Build/ and /Cache/ when the project has none. False with
 // why naming the file or folder on a refused cook, folder or write; the report
 // is cleared first. project->folder must be set.
+//
+// Each file is written only when it is missing or its bytes differ, because
+// Ninja rebuilds by timestamp: an unchanged CMakeLists.txt or main.c rewritten
+// on every Play would reconfigure or recompile for nothing, so a second Play
+// rebuilds only the scene.
 [[nodiscard]] bool voe_editor_game_tree_write(const voe_editor_project *project,
 					      voe_base_arena *arena,
 					      voe_editor_notice *why);

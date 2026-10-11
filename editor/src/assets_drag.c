@@ -1,7 +1,8 @@
 // The drag's start from the held row, the outcome at the pointer each frame
 // for the ghost, and its release into a view, onto the Inspector, onto a
-// folder row or Up, or nowhere. See the header for the outcomes, the point a
-// placed model lands at and why the Inspector drop replaces the path.
+// folder row or Up, or nowhere; after a move the open material follows the
+// file. See the header for the outcomes, the point a placed model lands at and
+// why the Inspector drop replaces the path.
 #include "assets_drag.h"
 
 #include "assets_manage.h"
@@ -246,8 +247,8 @@ static bool layer_row_at(const voe_editor_scene *scene,
 	if (scene->inspector.entity.index != selected.index ||
 	    scene->inspector.entity.generation != selected.generation)
 		return false;
-	land = voe_editor_inspector_layers_grid(store, scene->world, selected,
-						NULL);
+	land = voe_editor_inspector_layers_grid(store, scene->world, selected)
+		       .grid;
 	if (land == NULL)
 		return false;
 	for (uint32_t i = 0;

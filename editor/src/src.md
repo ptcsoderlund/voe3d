@@ -203,8 +203,8 @@ carries it out.
   folder row or Up, a new thing or copy placed in a scene view, a swap, a filled map or a set
   landscape layer over the Inspector, elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the move's target, the drop point, the Inspector's fields, map and
-  layer rows, the texture, material, map and layer swaps, the open material following a move, the undo step.
+  the release and the ghost, the move's target, the drop point, the Inspector's rows, and each
+  swap with its undo step.
 - `assets_walk.h` — the project's `.scene`, `.prefab`, `.material` and `.landscape` texts walked: who names a path before a
   Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
@@ -244,10 +244,9 @@ carries it out.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
-- `inspector.c` — the Duplicate and Delete row, the walk over described component types, each
-  section's heading, Remove and "Needs" line, Add component and its menu, the open list, a part
-  shown read-only, the Sculpt and Layers sections on a landscape, and an open material's section in
-  place of it.
+- `inspector.c` — the Duplicate and Delete row, each described component's heading, Remove and
+  "Needs" line, Add component, its menu and open list, a part read-only, the Sculpt and Layers
+  sections on a landscape, or an open material's section instead.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
   strings a text field per string, labels when it cannot be edited.
 - `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, and a

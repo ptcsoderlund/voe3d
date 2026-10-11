@@ -24,26 +24,26 @@
 #define SECTION_PAD (2.0f * VOE_EDITOR_SPACING)
 #define SECTION_GAP (1.5f * VOE_EDITOR_SPACING)
 
-const voe_assets_landscape *voe_editor_inspector_layers_grid(
+voe_editor_inspector_layers_worn voe_editor_inspector_layers_grid(
 	const voe_3d_models *store, const voe_ecs_world *world,
-	voe_ecs_entity entity, const char **path)
+	voe_ecs_entity entity)
 {
+	const voe_editor_inspector_layers_worn none = { 0 };
 	const voe_3d_model_entry *entry;
 	const char *worn;
 
 	VOE_BASE_ASSERT(store != NULL && world != NULL,
 			"a worn grid from no store or world");
 	if (!voe_editor_sculpt_wears(world, entity))
-		return NULL;
+		return none;
 	worn = voe_3d_model_get(world, entity)->path;
 	if (memchr(worn, '\0', VOE_3D_MODEL_PATH) == NULL)
-		return NULL;
+		return none;
 	entry = voe_3d_models_find(store, worn);
 	if (entry == NULL || !entry->loaded || entry->landscape == NULL)
-		return NULL;
-	if (path != NULL)
-		*path = worn;
-	return entry->landscape;
+		return none;
+	return (voe_editor_inspector_layers_worn){ .grid = entry->landscape,
+						   .path = worn };
 }
 
 void voe_editor_inspector_layers_forget(voe_editor_sculpt *sculpt)
@@ -66,7 +66,7 @@ void voe_editor_inspector_layers_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(ui != NULL, "drawing a Layers section into no interface");
 	VOE_BASE_ASSERT(sculpt != NULL, "drawing no Layers section");
 
-	land = voe_editor_inspector_layers_grid(store, world, entity, NULL);
+	land = voe_editor_inspector_layers_grid(store, world, entity).grid;
 	if (land == NULL)
 		return;
 	VOE_BASE_ASSERT(land->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS,

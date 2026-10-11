@@ -34,12 +34,19 @@
 
 #include <ui/layout.h>
 
-// The loaded grid `entity` wears, NULL when it wears none (sculpt.h's
-// voe_editor_sculpt_wears) or its file is not loaded. `path`, when not NULL,
-// is set to the model row's path.
-const voe_assets_landscape *voe_editor_inspector_layers_grid(
+// The landscape a thing wears, as voe_editor_inspector_layers_grid finds it.
+typedef struct {
+	// The loaded grid, NULL when the thing wears none or it is not loaded.
+	const voe_assets_landscape *grid;
+	// The model row's path, NULL whenever grid is.
+	const char *path;
+} voe_editor_inspector_layers_worn;
+
+// The loaded grid `entity` wears and its model row's path, both NULL when it
+// wears none (sculpt.h's voe_editor_sculpt_wears) or its file is not loaded.
+voe_editor_inspector_layers_worn voe_editor_inspector_layers_grid(
 	const voe_3d_models *store, const voe_ecs_world *world,
-	voe_ecs_entity entity, const char **path);
+	voe_ecs_entity entity);
 
 // Forgets last frame's rows, keeping their rectangles. Called when the frame
 // opens.
