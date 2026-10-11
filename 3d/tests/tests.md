@@ -78,6 +78,9 @@ again, or to find where a claim that has started failing is written down.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.
+- `sky.c` — that a frame's sky is zeroed with no sky table or row and is the first row with drawn
+  1, carried by the pass camera, and that a drawn sky is blue behind a sunlit red slab where the
+  clear colour is without it. The picture skips without a graphics card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
   outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.

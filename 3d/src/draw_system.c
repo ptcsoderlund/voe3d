@@ -1,5 +1,5 @@
-// The draw system: the camera, the first light, the pass camera a frame opens
-// with, the matrices each object is drawn with, and one draw per drawable into
+// The draw system: the camera, the first light, the first sky row, the pass
+// camera a frame opens with, the matrices each object is drawn with, and one draw per drawable into
 // the frame the loop has opened.
 //
 // IT WALKS THE MESH, MODEL AND PANEL TABLES AND LOOKS THE OTHER COMPONENTS UP
@@ -44,6 +44,7 @@
 #include <base/report.h>
 #include <scene/camera_component.h>
 #include <scene/light_component.h>
+#include <scene/sky_component.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -77,6 +78,34 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 	return sun;
 }
 
+static_assert(VOE_SCENE_SKY_TONE_CLIP == VOE_RENDER_TONE_CLIP &&
+		      VOE_SCENE_SKY_TONE_SOFT == VOE_RENDER_TONE_SOFT,
+	      "a sky row's tone is copied as render's");
+
+// The world's first sky row as the pass takes it (0405 point 2), zeroed with
+// no sky table — walked for, because voe_ecs_component_type asserts on a key
+// nothing registered — or no row.
+static voe_render_sky first_sky(const voe_ecs_world *world)
+{
+	uint32_t types = voe_ecs_component_type_count(world);
+
+	for (uint32_t i = 0; i < types; i++) {
+		voe_scene_sky row;
+
+		if (voe_ecs_component_key(world, voe_ecs_component_type_at(world, i)) !=
+			    &voe_scene_sky_key ||
+		    voe_scene_sky_count(world) == 0)
+			continue;
+		row = voe_scene_sky_rows(world)[0];
+		return (voe_render_sky){ .drawn = 1,
+					 .light = row.light,
+					 .haze = row.haze,
+					 .exposure = row.exposure,
+					 .tone = row.tone };
+	}
+	return (voe_render_sky){ 0 };
+}
+
 voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame)
 {
 	VOE_BASE_ASSERT(frame != NULL, "the camera of no frame");
@@ -89,6 +118,7 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame)
 		.shadow = frame->shadow,
 		.points = frame->points,
 		.blockers = frame->blockers,
+		.sky = frame->sky,
 		.more = { .lights = frame->more_lights,
 			  .count = frame->more_count },
 	};
@@ -143,6 +173,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.points = (voe_render_point_lights){ 0 };
 	// No blocker until voe_3d_draw_system_light_blockers fills them (0347).
 	frame.blockers = (voe_render_light_blockers){ 0 };
+	// The first sky row, zeroed with none (0405 point 2).
+	frame.sky = first_sky(world);
 	// No light after the first until voe_3d_draw_system_lights (0357).
 	frame.more_lights = NULL;
 	frame.more_count = 0;

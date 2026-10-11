@@ -284,6 +284,12 @@ typedef struct {
 	// none. _frame leaves it zeroed, voe_3d_draw_system_light_blockers
 	// fills it, and the loop hands it to the pass camera beside `points`.
 	voe_render_light_blockers blockers;
+	// The pass's sky, exposure and tone (0405 point 2); zero is the old
+	// picture. _frame fills it from the world's first sky row — drawn 1,
+	// light, haze, exposure and tone copied, the tone's 0 and 1 meaning
+	// render's — zeroed with no sky table or no row, and the loop hands it
+	// to the pass camera beside `blockers`.
+	voe_render_sky sky;
 	// The directional lights after the first (0357 point 1), `more_count`
 	// of them; none is NULL and 0. _frame leaves them zeroed,
 	// voe_3d_draw_system_lights fills them, and voe_3d_draw_system_shadows
@@ -425,7 +431,8 @@ typedef struct {
 #define VOE_3D_POINT_SHADOW_TEXELS 256u
 
 
-// The camera and the sun out of the tables, for the frame about to begin. `size`
+// The camera, the sun and the sky (`sky`, from the first sky row, zeroed with
+// none) out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
@@ -562,8 +569,8 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 					     voe_3d_frame *frame,
 					     voe_base_arena *arena);
 
-// The pass camera of `frame`: its view, light, shadow, point lights, blockers
-// and the lights after the first as `more`.
+// The pass camera of `frame`: its view, light, shadow, point lights, blockers,
+// sky and the lights after the first as `more`.
 voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 
 // The directional lights' shadow passes for `frame`, opened between the frame's
