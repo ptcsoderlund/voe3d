@@ -26,6 +26,7 @@
 #include <scene/identity_system.h>
 #include <scene/light_blocker_system.h>
 #include <scene/light_system.h>
+#include <scene/sky_system.h>
 #include <scene/transform_system.h>
 
 #include <ui/widgets.h>
@@ -42,6 +43,7 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes)
 	voe_scene_transform_system_run(world);
 	voe_scene_identity_system_run(world);
 	voe_scene_light_system_run(world);
+	voe_scene_sky_system_run(world);
 	voe_scene_light_blocker_system_run(world);
 	voe_3d_shape_system_run(world, shapes);
 	voe_3d_model_system_run(world);

@@ -44,18 +44,20 @@
 // the box's top edge stands: the game draws nothing for a blocker (0347).
 //
 // THE DIRECT CASE: the same ground under a low sun with a fill and a Direct
-// blocker floating over it, its block drained and cooked as any row's field
-// (0350, 0352).
-// Two frames, both true; read back, the ground in its shadow reads the fill,
-// not black and below sunlit ground clear of it, and its edge is plain grey.
+// blocker over it (0350, 0352). Two frames, both true; read back, the ground
+// in its shadow reads the fill, not black and below sunlit ground clear of
+// it, and its edge is plain grey.
+//
+// THE SKY CASE: the lit cube with a sky row, read back: the corner reads blue
+// above red, not the clear colour; an exposure replace of -4 between the
+// frames darkens the cube's centre; no sky row leaves the clear colour (0405).
 //
 // THE MODEL CASE: a store from voe_3d_models_new with nothing loaded, and a
 // thing whose model path the store lacks; two frames with that store come
 // back true, the thing drawing as nothing. The other cases pass no store.
 //
-// Each draw case writes one file into the working directory, checks it is there,
-// and removes it, pass or fail. A machine with no usable Vulkan skips and
-// says so.
+// Each draw case writes one file into the working directory, checks it and
+// removes it, pass or fail. A machine with no usable Vulkan skips and says so.
 #include <game/frame.h>
 #include <game/interface.h>
 #include <game/landscapes.h>
@@ -78,6 +80,7 @@
 #include <scene/light_blocker_system.h>
 #include <scene/light_system.h>
 #include <scene/point_light_system.h>
+#include <scene/sky_system.h>
 #include <scene/transform_system.h>
 
 #include <3d/model_component.h>
@@ -90,6 +93,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #define WIDTH 128
 #define HEIGHT 72
@@ -485,6 +489,79 @@ static void direct_case(voe_app *app, voe_base_arena *arena,
 	}
 }
 
+// The clear colour render/src/pass.c clears to, #17171A as drawn.
+#define CLEAR_RED 0x17
+#define CLEAR_BLUE 0x1A
+
+// The corner's and the cube centre's channels of one sky case's last frame.
+typedef struct {
+	uint8_t corner[3];
+	uint8_t centre[3];
+} sky_read;
+
+// A fresh lit world, with a sky row when `sky`, two frames with an exposure
+// replace of `exposure` between them when it is not 0, read back.
+static sky_read sky_case(voe_app *app, voe_base_arena *arena,
+			 voe_base_arena *scratch, const voe_3d_shapes *shapes,
+			 bool sky, float exposure)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_ecs_world *world = voe_game_world_new(arena);
+	const voe_scene_sky row = { .light = 1.0f,
+				    .haze = 1000.0f,
+				    .tone = VOE_SCENE_SKY_TONE_SOFT };
+	voe_ecs_entity settings;
+	voe_render_picture picture;
+	sky_read read = { 0 };
+
+	(void)build(world, true);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &settings));
+	if (sky)
+		VOE_TEST_CHECK(voe_scene_sky_add(world, settings, row));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL, NULL));
+	if (exposure != 0.0f) {
+		voe_scene_sky darker = row;
+
+		darker.exposure = exposure;
+		VOE_TEST_CHECK(voe_scene_sky_submit(
+			world, (voe_scene_sky_intent){ .entity = settings,
+						       .sky = darker }));
+	}
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL, NULL));
+	if (sky) {
+		const voe_scene_sky *got = voe_scene_sky_get(world, settings);
+
+		VOE_TEST_CHECK(got != NULL && got->exposure == exposure);
+	}
+	picture = read_window(app, scratch);
+	if (picture.pixels == NULL)
+		return read;
+	memcpy(read.corner, pixel_at(picture, 0, 0), 3);
+	memcpy(read.centre, pixel_at(picture, WIDTH / 2, HEIGHT / 2), 3);
+	return read;
+}
+
+// A sky behind the cube, the exposure replace darkening the cube, and no sky
+// row leaving the clear colour.
+static void sky_cases(voe_app *app, voe_base_arena *arena,
+		      voe_base_arena *scratch, const voe_3d_shapes *shapes)
+{
+	const sky_read lit = sky_case(app, arena, scratch, shapes, true, 0.0f);
+	const sky_read dark = sky_case(app, arena, scratch, shapes, true, -4.0f);
+	const sky_read none = sky_case(app, arena, scratch, shapes, false, 0.0f);
+
+	VOE_TEST_CHECK(lit.corner[2] > lit.corner[0]);
+	VOE_TEST_CHECK(lit.corner[2] > CLEAR_BLUE + TOLERANCE);
+	for (int channel = 0; channel < 3; channel++)
+		VOE_TEST_CHECK(dark.centre[channel] < lit.centre[channel]);
+	VOE_TEST_CHECK(none.corner[0] >= CLEAR_RED - TOLERANCE &&
+		       none.corner[0] <= CLEAR_RED + TOLERANCE);
+	VOE_TEST_CHECK(none.corner[2] >= CLEAR_BLUE - TOLERANCE &&
+		       none.corner[2] <= CLEAR_BLUE + TOLERANCE);
+}
+
 // A fresh lit world with a thing wearing a path an empty store lacks, two
 // frames drawn with that store, both true.
 static void model_case(voe_app *app, voe_base_arena *arena,
@@ -579,6 +656,7 @@ int main(void)
 	landscape_case(app, arena, scratch, &shapes);
 	blocker_case(app, arena, scratch, &shapes);
 	direct_case(app, arena, scratch, &shapes);
+	sky_cases(app, arena, scratch, &shapes);
 	interface_case(app, arena, scratch, &shapes);
 	model_case(app, arena, scratch, &shapes);
 

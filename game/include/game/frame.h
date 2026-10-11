@@ -1,6 +1,7 @@
 // One frame of the game: the world's systems run in the editor's order, then
 // the sun's shadows and the world drawn into the window through the scene's
-// own camera, and the project's interface over it.
+// own camera, its sky with it (the first sky row, 0405), and the project's
+// interface over it.
 //
 //     voe_app_frame frame = voe_app_frame_open(app);
 //     if (frame.closing)
@@ -11,8 +12,8 @@
 //             ...                        // the device stopped answering
 //
 // THE ORDER: the world step — the structural queue applied, the project's
-// replaces (game/project.h), the transform, identity, light and light blocker
-// systems, the shape system, the model system, the collider and body systems, then the
+// replaces (game/project.h), the transform, identity, light, sky and light
+// blocker systems, the shape system, the model system, the collider and body systems, then the
 // sound system with no mixer, which applies edits and plays nothing — then a draw opened, the
 // light blockers (voe_3d_draw_system_light_blockers, 0347; nothing is drawn
 // for them), the point lights with their shadow slots (voe_3d_draw_system_point_lights, 0320,

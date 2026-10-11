@@ -1,4 +1,4 @@
-// The twenty-four registrations and the room behind them, the shape changes
+// The twenty-five registrations and the room behind them, the shape changes
 // table (3d/shape_system.h) right after the shapes it marks, with their room.
 // The reasoning is in
 // game/include/game/world.h; what is here is the numbers and the order, which
@@ -33,16 +33,17 @@
 #include <scene/parent_system.h>
 #include <scene/point_light_system.h>
 #include <scene/prefab_system.h>
+#include <scene/sky_system.h>
 #include <scene/transform_system.h>
 
-// Twenty-four component types, thirteen of them with an intent queue and the
-// emitter and the sound with a second, their control, fifteen in all, each with room for a project's types and their
+// Twenty-five component types, fourteen of them with an intent queue and the
+// emitter and the sound with a second, their control, sixteen in all, each with room for a project's types and their
 // replace intents behind it. The entities are room for what a game spawns while
 // it runs, shells and enemies by the hundred, each a prefab's whole tree (0283
 // point 11).
 #define MAX_ENTITIES 4096
 #define MAX_COMPONENT_TYPES (VOE_GAME_WORLD_TYPES + VOE_GAME_PROJECT_TYPES)
-#define MAX_INTENT_TYPES (15 + VOE_GAME_PROJECT_TYPES)
+#define MAX_INTENT_TYPES (16 + VOE_GAME_PROJECT_TYPES)
 
 // The structural queue (ecs/structure.h): room for a frame's Add, Delete,
 // Duplicate or component change many times over, and for the rows they carry:
@@ -77,6 +78,7 @@ voe_ecs_world *voe_game_world_new(voe_base_arena *arena)
 	voe_scene_parent_register(world, MAX_TRANSFORMS);
 	voe_scene_prefab_register(world, VOE_GAME_WORLD_AUTHORED);
 	voe_scene_light_register(world, VOE_GAME_WORLD_AUTHORED);
+	voe_scene_sky_register(world, VOE_GAME_WORLD_SKIES);
 	voe_scene_light_blocker_register(world, VOE_GAME_WORLD_LIGHT_BLOCKERS);
 	voe_scene_point_light_register(world, VOE_GAME_WORLD_POINT_LIGHTS);
 	voe_scene_camera_register(world, MAX_CAMERAS);

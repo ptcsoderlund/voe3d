@@ -42,6 +42,7 @@
 #include <scene/parent_component.h>
 #include <scene/point_light_component.h>
 #include <scene/prefab_component.h>
+#include <scene/sky_component.h>
 #include <scene/transform_component.h>
 
 #include <stdbool.h>
