@@ -198,6 +198,14 @@ voe_render_target_at(voe_render_device *device, voe_render_target target);
 // in the engine — read the comment above it in pass.c before touching it.
 VkViewport voe_render_frame_viewport(VkExtent2D extent);
 
+// pass_sky.c. A camera pass's sky into its block, checked, then the nine
+// harmonics of its sun's light when its sky lights; voe_render_pass_begin calls
+// both, in that order, after the block's lights.
+void voe_render_pass_place_sky(const voe_render_pass_camera *camera,
+			       struct voe_render_frame_block *block);
+void voe_render_pass_place_sky_light(const voe_render_pass_camera *camera,
+				     struct voe_render_frame_block *block);
+
 // frame.c. The slot the next frame will use, and the one the recording that is
 // open belongs to. Reading it is how the tests get at a frame's target and its
 // fence without indexing an array they would have to bound-check themselves.
