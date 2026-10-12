@@ -50,13 +50,13 @@
 // slot × 4 + cascade; past the last split it is fully lit. The direct term and
 // the reach that turns the fill away are both multiplied by it.
 //
-// THE SKY IS LIGHT 0'S FILL UNDER A SKY (ADR-0406 point 3, 0407 point 7):
-// voe_render_sky_light, (1 − metal) × base × E(n)/π plus lerp(sky(R), E(R)/π,
-// roughness) × Karis's EnvBRDFApprox, times the sky's `fill`, light 0's fill
-// intensity; E from the block's nine harmonics, R the reflected view, and
-// draw.slang occludes it. It is nought unless the sky is `drawn`, at fill
-// nought and where voe_render_sky_reaches fails: a mask with a bit outside
-// the walls'.
+// THE SKY IS LIGHT 0'S FILL UNDER A SKY (ADR-0406 point 3, 0408):
+// voe_render_sky_light, (1 − metal) × base × E(n)/π times the sky's `fill`
+// and light 0's fill weight, so it fades as that fill does, plus lerp(sky(R),
+// E(R)/π, roughness) × Karis's EnvBRDFApprox, whole; E from the nine
+// harmonics, R the reflected view, draw.slang occluding both. Nought unless
+// the sky is `drawn` and where voe_render_sky_reaches fails: a mask with a bit
+// outside the walls'.
 //
 // THE ARITHMETIC IS glTF'S METALNESS-ROUGHNESS BRDF, WRITTEN OUT: GGX, Smith's
 // height-correlated visibility with the denominator folded in, Schlick's
@@ -261,13 +261,19 @@ float3 voe_render_sun_radiance(voe_render_light light, float reach)
 	return light.colour * light.intensity * reach;
 }
 
+// A light's fill weight at a surface it reaches by `reach`: whole at nought,
+// faded along a smoothstep, gone from VOE_FILL_FADE_REACH (ADR-0276).
+float voe_render_fill_weight(float reach)
+{
+	return 1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
+}
+
 // `light`'s fill as a floor under the bounce at a surface it reaches by
-// `reach`: whole at nought, faded along a smoothstep, gone from
-// VOE_FILL_FADE_REACH, and none unless `reaches`. See the header.
+// `reach`: times voe_render_fill_weight, and none unless `reaches`. See the
+// header.
 float3 voe_render_fill(voe_render_light light, float reach, bool reaches)
 {
-	float weight = !reaches ? 0.0 :
-			      1.0 - smoothstep(0.0, VOE_FILL_FADE_REACH, reach);
+	float weight = !reaches ? 0.0 : voe_render_fill_weight(reach);
 
 	return weight * light.fill;
 }
@@ -358,18 +364,17 @@ bool voe_render_sky_reaches(uint mask)
 	       (mask & ~voe_render_light_blockers[voe_render_frame.region].walls) == 0;
 }
 
-// What the sky gives a lit surface facing `n`, seen along `v`, of mask `mask`:
-// its diffuse half and its reflection, times the sky's `fill`, unoccluded;
-// nought unless `drawn`, at fill nought and where voe_render_sky_reaches
-// fails. See the header.
+// What the sky gives a lit surface facing `n`, seen along `v`, of mask `mask`,
+// unoccluded: its diffuse half, light 0's fill, times the sky's `fill` and
+// `sky_weight`, light 0's fill weight there; its reflection whole. Nought
+// unless `drawn` and where voe_render_sky_reaches fails. See the header.
 float3 voe_render_sky_light(float3 n, float3 v, float3 diffuse_colour,
-			    float3 f0, float roughness, uint mask)
+			    float3 f0, float roughness, uint mask,
+			    float sky_weight)
 {
-	float strength = voe_render_frame.sky.drawn != 0 ?
-				 voe_render_frame.sky.fill : 0.0;
 	voe_render_light light = voe_render_frame.light;
 
-	if (!(strength > 0.0))
+	if (voe_render_frame.sky.drawn == 0)
 		return float3(0.0, 0.0, 0.0);
 	if (!voe_render_sky_reaches(mask))
 		return float3(0.0, 0.0, 0.0);
@@ -382,18 +387,19 @@ float3 voe_render_sky_light(float3 n, float3 v, float3 diffuse_colour,
 			    voe_render_environment_brdf(f0, roughness,
 							saturate(dot(n, v)));
 
-	return (diffuse + reflection) * strength;
+	return diffuse * voe_render_frame.sky.fill * sky_weight + reflection;
 }
 
 // What the pass's directional lights give a surface at `world` (`surface` its
 // geometric normal, `mask` its blockers) facing `n`, seen along `v`: the sum of
 // each light's BRDF times its radiance by its reach, N·L times its own shadow,
-// nought where its own gate stops it; and into `fill` the sum of each one's
-// fill by that reach and its own gate, light 0's left out where the drawn sky
-// reaches. See the header.
+// nought where its own gate stops it; into `fill` the sum of each one's fill
+// by that reach and its own gate, light 0's left out where the drawn sky
+// reaches; and into `sky_weight` light 0's voe_render_fill_weight at its
+// reach, which the sky's diffuse half fades by. See the header.
 float3 voe_render_directionals(float3 world, float3 surface, float3 n, float3 v,
 			       float3 diffuse_colour, float3 f0, float alpha,
-			       uint mask, out float3 fill)
+			       uint mask, out float3 fill, out float sky_weight)
 {
 	float n_dot_v = saturate(dot(n, v));
 	float3 sum = float3(0.0, 0.0, 0.0);
@@ -401,6 +407,7 @@ float3 voe_render_directionals(float3 world, float3 surface, float3 n, float3 v,
 			 voe_render_sky_reaches(mask);
 
 	fill = float3(0.0, 0.0, 0.0);
+	sky_weight = 1.0;
 	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
 		if (i > voe_render_frame.more_count)
 			break;
@@ -425,6 +432,8 @@ float3 voe_render_directionals(float3 world, float3 surface, float3 n, float3 v,
 				voe_render_sunlight(voe_render_directional_shadow(i),
 						    world, surface);
 		sum += (diffuse + specular) * voe_render_sun_radiance(light, reach);
+		if (i == 0)
+			sky_weight = voe_render_fill_weight(reach);
 		if (i == 0 && sky_fills)
 			continue;
 		fill += voe_render_fill(light, reach,

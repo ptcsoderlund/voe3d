@@ -9,9 +9,10 @@
 // asserts. A pass with no camera, and every shadow, point-shadow and capture
 // pass, leaves both zeroed: as authored. A camera pass whose sky is `drawn` has
 // it drawn by sky_draw.c as soon as its block is written, before anything else.
-// A `drawn` sky whose `fill` is above nought fills the block's nine harmonics by
-// voe_render_sky_harmonics from its light's direction and voe_render_sky_sun;
-// an unshaded or dark light projects the plain gradient.
+// A `drawn` sky fills the block's nine harmonics by voe_render_sky_harmonics
+// from its light's direction and voe_render_sky_sun, at any `fill`, since its
+// reflection does not follow `fill` (ADR-0408); an unshaded or dark light
+// projects the plain gradient.
 #include "device_internal.h"
 #include "sky.h"
 
@@ -61,7 +62,7 @@ void voe_render_pass_place_sky(const voe_render_pass_camera *camera,
 }
 
 // The sky's light into `block->sky_harmonics` (ADR-0405 point 5): the nine of
-// `camera`'s sky when it is `drawn` with `fill` above nought, under its sun or,
+// `camera`'s sky when it is `drawn`, whatever its `fill`, under its sun or,
 // for an unshaded or dark light whose direction may be nothing, without one;
 // left zero otherwise.
 void voe_render_pass_place_sky_light(const voe_render_pass_camera *camera,
@@ -71,7 +72,7 @@ void voe_render_pass_place_sky_light(const voe_render_pass_camera *camera,
 
 	VOE_BASE_DEBUG_ASSERT(block->sky_harmonics[0].x == 0.0f,
 			      "placing the sky's light into a block that already has it");
-	if (camera->sky.drawn == 0 || !(camera->sky.fill > 0.0f))
+	if (camera->sky.drawn == 0)
 		return;
 	voe_render_sky_harmonics(&camera->sky, light.direction,
 				 voe_render_sky_sun(light),

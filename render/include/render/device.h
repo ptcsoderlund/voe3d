@@ -1476,10 +1476,11 @@ typedef struct {
 // draws take none.
 //
 // `fill`, at least 0, is the first directional light's fill intensity, set by
-// `3d` (ADR-0406 point 3): with `drawn`, how strongly the sky lights lit
-// surfaces, a diffuse term from the sky's nine harmonics and a reflection of
-// the sky, sharp on a smooth surface and its irradiance on a rough one, both
-// occluded. UNDER A DRAWN SKY THE SKY STANDS IN FOR LIGHT 0'S `fill` outside
+// `3d` (ADR-0406 point 3): with `drawn`, how strongly the sky's diffuse light,
+// from its nine harmonics, lights lit surfaces in shade only, fading as light
+// 0's fill does where that light reaches (0408). The sky's reflection, sharp
+// on a smooth surface and its irradiance on a rough one, does not follow
+// `fill`: it is whole wherever the sky reaches. Both occluded. UNDER A DRAWN SKY THE SKY STANDS IN FOR LIGHT 0'S `fill` outside
 // Indoors and Room (0407 point 7): on a surface whose blocker mask holds no
 // Indoors or Room bit, that light's `fill` is not added and the sky is; inside
 // them that `fill` lights as before and the sky not at all. `drawn` 0 adds

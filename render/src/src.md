@@ -127,7 +127,7 @@ which file to open — what each one owns, and where the seams between them run.
   volume, point lights, light blockers and further lights, the clear colour, the
   first-clears-later-load rule, the one Y flip, and each pass's name, timed by `pass_timing.c`.
 - `pass_sky.c` — a camera pass's sky and exposure placed into its block, checked, and the nine
-  harmonics of its sun's light when its sky is drawn with a fill.
+  harmonics of its sun's light when its sky is drawn.
 - `pass_timing.c` — every pass timed and labelled by its name: a timestamp pair per pass in the
   slot's pool, read after the fence into the breakdown `voe_render_frame_pass_times` copies out.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
