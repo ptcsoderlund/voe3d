@@ -82,11 +82,11 @@ static_assert(VOE_SCENE_SKY_TONE_CLIP == VOE_RENDER_TONE_CLIP &&
 		      VOE_SCENE_SKY_TONE_SOFT == VOE_RENDER_TONE_SOFT,
 	      "a sky row's tone is copied as render's");
 
-// The world's first sky row as the pass takes it (0405 point 2), zeroed with
-// no sky table — walked for, because voe_ecs_component_type asserts on a key
-// nothing registered — or no row.
-static voe_render_sky first_sky(const voe_ecs_world *world)
+// The sky table is walked for, because voe_ecs_component_type asserts on a
+// key nothing registered.
+voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world)
 {
+	VOE_BASE_ASSERT(world != NULL, "the sky of no world");
 	uint32_t types = voe_ecs_component_type_count(world);
 
 	for (uint32_t i = 0; i < types; i++) {
@@ -174,7 +174,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	// No blocker until voe_3d_draw_system_light_blockers fills them (0347).
 	frame.blockers = (voe_render_light_blockers){ 0 };
 	// The first sky row, zeroed with none (0405 point 2).
-	frame.sky = first_sky(world);
+	frame.sky = voe_3d_draw_system_sky(world);
 	// No light after the first until voe_3d_draw_system_lights (0357).
 	frame.more_lights = NULL;
 	frame.more_count = 0;

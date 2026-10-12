@@ -1,8 +1,8 @@
 // What a frame draws into the scene views: per view the dock tree shows, the
 // sun's shadow passes fitted to it (voe_3d_draw_system_shadows, ADR-0258),
 // then a pass onto that view's target with its own camera, the light
-// voe_editor_view_light gives (the world's or the preview) and those shadows:
-// the world and its models (voe_3d_draw_system_run), the selection's outline,
+// voe_editor_view_light gives (the world's or the preview), the world's sky
+// (voe_3d_draw_system_sky, 0405) and those shadows: the world and its models (voe_3d_draw_system_run), the selection's outline,
 // a model's too (ADR-0203), its collider as lines (0253), its move gizmo
 // (ADR-0205), the scene camera's marker (0223), every sun's (0360) and every
 // point light's (0320) and every meshless place's (0365), the brush's two

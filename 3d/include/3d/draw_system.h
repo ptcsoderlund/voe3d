@@ -501,6 +501,12 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // light by handing its passes a different light (ADR-0287).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 
+// The world's first sky row as a pass takes it (0405 point 2): `drawn` 1 and
+// the row's light, haze, exposure and tone; zeroed with no sky table or no
+// row, which draws the picture from before the sky. Public so a view that
+// builds its own frame, as the editor's do, carries the same sky as _frame.
+voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world);
+
 // Fills `frame->points` from every point light whose entity has a transform
 // (0320 point 6): its world place at `frame->lag`, about `frame->eye` in float
 // (ADR-0250); its range and its falloff as authored (0322); its colour times
