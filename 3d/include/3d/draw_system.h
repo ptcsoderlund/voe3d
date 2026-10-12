@@ -284,12 +284,14 @@ typedef struct {
 	// none. _frame leaves it zeroed, voe_3d_draw_system_light_blockers
 	// fills it, and the loop hands it to the pass camera beside `points`.
 	voe_render_light_blockers blockers;
-	// The pass's sky, exposure and tone (0405 point 2); zero is the old
-	// picture. _frame fills it from the world's first sky row — drawn 1,
-	// light, haze, exposure and tone copied, the tone's 0 and 1 meaning
-	// render's — zeroed with no sky table or no row, and the loop hands it
-	// to the pass camera beside `blockers`.
+	// The pass's sky (0406 point 1); zero is the old picture. _frame fills
+	// it with voe_3d_draw_system_sky, and the loop hands it to the pass
+	// camera beside `blockers`.
 	voe_render_sky sky;
+	// The pass's exposure and tone (0406 point 4); zero is x1 and Clip, the
+	// old picture. _frame fills it with voe_3d_draw_system_picture, and the
+	// loop hands it to the pass camera beside `sky`.
+	voe_render_exposure exposure;
 	// The directional lights after the first (0357 point 1), `more_count`
 	// of them; none is NULL and 0. _frame leaves them zeroed,
 	// voe_3d_draw_system_lights fills them, and voe_3d_draw_system_shadows
@@ -431,8 +433,9 @@ typedef struct {
 #define VOE_3D_POINT_SHADOW_TEXELS 256u
 
 
-// The camera, the sun and the sky (`sky`, from the first sky row, zeroed with
-// none) out of the tables, for the frame about to begin. `size`
+// The camera, the sun, the sky and the exposure (`sky` from the first sky row
+// and `exposure` from the first picture row, each zeroed with none) out of the
+// tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
@@ -501,11 +504,18 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // light by handing its passes a different light (ADR-0287).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 
-// The world's first sky row as a pass takes it (0405 point 2): `drawn` 1 and
-// the row's light, haze, exposure and tone; zeroed with no sky table or no
-// row, which draws the picture from before the sky. Public so a view that
-// builds its own frame, as the editor's do, carries the same sky as _frame.
+// The world's first sky row as a pass takes it (0406 point 1, 0407 point 1):
+// `drawn` 1, the row's colours, horizon height, sun size, sun glow, sunset and
+// haze, and `fill` the first light row's `fill_intensity` (0 with no light);
+// zeroed with no sky table or no row, which draws the picture from before the
+// sky. Public so a view that builds its own frame, as the editor's do, carries
+// the same sky as _frame.
 voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world);
+
+// The world's first picture row as a pass takes it (0406 point 4): its
+// exposure and tone, the tone's 0 and 1 meaning render's; zeroed, x1 and Clip,
+// with no picture table or no row. Public for the same reason as _sky.
+voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world);
 
 // Fills `frame->points` from every point light whose entity has a transform
 // (0320 point 6): its world place at `frame->lag`, about `frame->eye` in float
@@ -576,7 +586,7 @@ voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world);
 					     voe_base_arena *arena);
 
 // The pass camera of `frame`: its view, light, shadow, point lights, blockers,
-// sky and the lights after the first as `more`.
+// sky, exposure and the lights after the first as `more`.
 voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 
 // The directional lights' shadow passes for `frame`, opened between the frame's
