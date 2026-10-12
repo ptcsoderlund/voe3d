@@ -48,9 +48,11 @@
 // in its shadow reads the fill, not black and below sunlit ground clear of
 // it, and its edge is plain grey.
 //
-// THE SKY CASE: the lit cube with a sky row, read back: the corner reads blue
-// above red, not the clear colour; an exposure replace of -4 between the
-// frames darkens the cube's centre; no sky row leaves the clear colour (0405).
+// THE SKY CASE: the lit cube with a sky row of 0406's defaults and a picture
+// row, read back: the corner reads blue above red, not the clear colour; an
+// exposure replace of -4 on the picture row between the frames darkens the
+// cube's centre; neither row leaves the clear colour; a picture row at -4 and
+// no sky darkens the cube against no row (0405, 0406).
 //
 // THE MODEL CASE: a store from voe_3d_models_new with nothing loaded, and a
 // thing whose model path the store lacks; two frames with that store come
@@ -79,6 +81,7 @@
 #include <scene/camera_system.h>
 #include <scene/light_blocker_system.h>
 #include <scene/light_system.h>
+#include <scene/picture_system.h>
 #include <scene/point_light_system.h>
 #include <scene/sky_system.h>
 #include <scene/transform_system.h>
@@ -499,17 +502,27 @@ typedef struct {
 	uint8_t centre[3];
 } sky_read;
 
-// A fresh lit world, with a sky row when `sky`, two frames with an exposure
-// replace of `exposure` between them when it is not 0, read back.
+// A fresh lit world, with a sky row of 0406's defaults when `sky` and a Soft
+// picture row at exposure 0 when `lit`, two frames with a picture replace of
+// `exposure` between them when it is not 0, read back.
 static sky_read sky_case(voe_app *app, voe_base_arena *arena,
 			 voe_base_arena *scratch, const voe_3d_shapes *shapes,
-			 bool sky, float exposure)
+			 bool sky, bool lit, float exposure)
 {
 	voe_platform_size size = { WIDTH, HEIGHT };
 	voe_ecs_world *world = voe_game_world_new(arena);
-	const voe_scene_sky row = { .light = 1.0f,
-				    .haze = 1000.0f,
-				    .tone = VOE_SCENE_SKY_TONE_SOFT };
+	const voe_scene_sky row = {
+		.zenith = { 0.15f, 0.35f, 0.80f },
+		.horizon = { 0.60f, 0.75f, 0.90f },
+		.ground = { 0.20f, 0.18f, 0.16f },
+		.horizon_height = 0.25f,
+		.sun_size = 1.5f,
+		.sun_glow = 0.5f,
+		.sunset = 0.5f,
+		.haze = 1000.0f,
+	};
+	const voe_scene_picture look = { .exposure = 0.0f,
+					 .tone = VOE_SCENE_PICTURE_TONE_SOFT };
 	voe_ecs_entity settings;
 	voe_render_picture picture;
 	sky_read read = { 0 };
@@ -518,20 +531,23 @@ static sky_read sky_case(voe_app *app, voe_base_arena *arena,
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &settings));
 	if (sky)
 		VOE_TEST_CHECK(voe_scene_sky_add(world, settings, row));
+	if (lit)
+		VOE_TEST_CHECK(voe_scene_picture_add(world, settings, look));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
 				      0.0f, NULL, NULL));
-	if (exposure != 0.0f) {
-		voe_scene_sky darker = row;
+	if (lit && exposure != 0.0f) {
+		voe_scene_picture darker = look;
 
 		darker.exposure = exposure;
-		VOE_TEST_CHECK(voe_scene_sky_submit(
-			world, (voe_scene_sky_intent){ .entity = settings,
-						       .sky = darker }));
+		VOE_TEST_CHECK(voe_scene_picture_submit(
+			world, (voe_scene_picture_intent){ .entity = settings,
+							   .picture = darker }));
 	}
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
 				      0.0f, NULL, NULL));
-	if (sky) {
-		const voe_scene_sky *got = voe_scene_sky_get(world, settings);
+	if (lit) {
+		const voe_scene_picture *got =
+			voe_scene_picture_get(world, settings);
 
 		VOE_TEST_CHECK(got != NULL && got->exposure == exposure);
 	}
@@ -543,19 +559,26 @@ static sky_read sky_case(voe_app *app, voe_base_arena *arena,
 	return read;
 }
 
-// A sky behind the cube, the exposure replace darkening the cube, and no sky
-// row leaving the clear colour.
+// A sky behind the cube, the exposure replace darkening the cube with and
+// without a sky, and neither row leaving the clear colour.
 static void sky_cases(voe_app *app, voe_base_arena *arena,
 		      voe_base_arena *scratch, const voe_3d_shapes *shapes)
 {
-	const sky_read lit = sky_case(app, arena, scratch, shapes, true, 0.0f);
-	const sky_read dark = sky_case(app, arena, scratch, shapes, true, -4.0f);
-	const sky_read none = sky_case(app, arena, scratch, shapes, false, 0.0f);
+	const sky_read lit =
+		sky_case(app, arena, scratch, shapes, true, true, 0.0f);
+	const sky_read dark =
+		sky_case(app, arena, scratch, shapes, true, true, -4.0f);
+	const sky_read none =
+		sky_case(app, arena, scratch, shapes, false, false, 0.0f);
+	const sky_read bare =
+		sky_case(app, arena, scratch, shapes, false, true, -4.0f);
 
 	VOE_TEST_CHECK(lit.corner[2] > lit.corner[0]);
 	VOE_TEST_CHECK(lit.corner[2] > CLEAR_BLUE + TOLERANCE);
-	for (int channel = 0; channel < 3; channel++)
+	for (int channel = 0; channel < 3; channel++) {
 		VOE_TEST_CHECK(dark.centre[channel] < lit.centre[channel]);
+		VOE_TEST_CHECK(bare.centre[channel] < none.centre[channel]);
+	}
 	VOE_TEST_CHECK(none.corner[0] >= CLEAR_RED - TOLERANCE &&
 		       none.corner[0] <= CLEAR_RED + TOLERANCE);
 	VOE_TEST_CHECK(none.corner[2] >= CLEAR_BLUE - TOLERANCE &&

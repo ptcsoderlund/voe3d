@@ -40,6 +40,7 @@
 #include <scene/light_blocker_component.h>
 #include <scene/light_component.h>
 #include <scene/parent_component.h>
+#include <scene/picture_component.h>
 #include <scene/point_light_component.h>
 #include <scene/prefab_component.h>
 #include <scene/sky_component.h>

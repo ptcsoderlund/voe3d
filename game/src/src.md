@@ -4,8 +4,8 @@
 `prefabs.h`, `landscapes.h` and `materials.h`, which a project's cooked C
 defines, and `models.h`, which has two.
 
-- `world.c` — the twenty-five registrations and sixteen intent queues, the emitter, its particles, the sound, its voice row, the water, its waves, the point light, the light blocker and the sky among them, their capacities and the room for a project's types.
-- `frame.c` — the world step's drains in order, the sky's after the light's, and the frame: that step, the light blockers, the point lights, the lights after the first, the shadow passes, then the window pass lit by them with the interface over the world.
+- `world.c` — the twenty-six registrations and seventeen intent queues, the emitter, its particles, the sound, its voice row, the water, its waves, the point light, the light blocker, the sky and the picture among them, their capacities and the room for a project's types.
+- `frame.c` — the world step's drains in order, the sky's and the picture's after the light's, and the frame: that step, the light blockers, the point lights, the lights after the first, the shadow passes, then the window pass lit by them with the interface over the world.
 - `steps.c` — one fixed step's calls in order (systems, world step, move, transforms, after-the-move systems, world step again, emitters, point lights, waters, sounds with the window's aspect), the mixer in each step, and the bank.
 - `project.c` — the 32 replace keys, a project type's registration and the drain of its replaces; a prefab spawned by name and a tree removed, both queued.
 - `interface.c` — the interface made once, the surface's millimetres, and a frame begun with the pointer divided into them and the asks put in.

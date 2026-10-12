@@ -2,9 +2,9 @@
 
 The public headers, one entry each.
 
-- `world.h` — the twenty-five component types a project's world registers, the sound, its voice row, the water, its waves, the point light, the light blocker and the one sky among them, the room for each, and room for a project's own.
+- `world.h` — the twenty-six component types a project's world registers, the sound, its voice row, the water, its waves, the point light, the light blocker, the one sky and the one picture among them, the room for each, and room for a project's own.
 - `scene.h` — the include the cook is handed: `voe_game_scene_build`, defined by a project's cooked `scene.c`.
-- `frame.h` — the world step and one frame of it: the step, the sky row's drain among it, the window pass with its sky and the interface over it, with the device capacities it needs.
+- `frame.h` — the world step and one frame of it: the step, the sky and picture rows' drains among it, the window pass with its sky and picture and the interface over it, with the device capacities it needs.
 - `steps.h` — the fixed steps: elapsed time banked, up to four steps of 1/60 s a frame, the project's systems in two slots, before and after the bodies' move, the lag the draw sits behind, and the mixer put in every step and playing the sounds last.
 - `project.h` — the seam a project's code is written against: its types registered through game, the step with the mixer and prefab table, spawning a prefab by name and removing a tree, the interface's asks to pause and restart, and the four entry points.
 - `prefabs.h` — the cooked prefab table a game spawns from, defined by a project's cooked `prefabs.c`, and the one include that file needs.
