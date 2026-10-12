@@ -54,9 +54,7 @@
 // cube's centre; neither row leaves the clear colour; a picture row at -4 and
 // no sky darkens the cube against no row (0405, 0406).
 //
-// THE MODEL CASE: a store from voe_3d_models_new with nothing loaded, and a
-// thing whose model path the store lacks; two frames with that store come
-// back true, the thing drawing as nothing. The other cases pass no store.
+// THE MODEL CASE: a thing whose model an empty store lacks draws as nothing.
 //
 // Each draw case writes one file into the working directory, checks it and
 // removes it, pass or fail. A machine with no usable Vulkan skips and says so.
@@ -586,7 +584,8 @@ static void sky_cases(voe_app *app, voe_base_arena *arena,
 }
 
 // A fresh lit world with a thing wearing a path an empty store lacks, two
-// frames drawn with that store, both true.
+// frames drawn with that store from voe_3d_models_new, both true, the thing
+// drawing as nothing. The other cases pass no store.
 static void model_case(voe_app *app, voe_base_arena *arena,
 		       voe_base_arena *scratch, const voe_3d_shapes *shapes)
 {
