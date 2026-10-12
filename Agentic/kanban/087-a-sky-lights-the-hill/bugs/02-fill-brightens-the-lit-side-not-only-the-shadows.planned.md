@@ -12,3 +12,8 @@ Haze is fine as it is: "I understand haze now, it looks beautiful."
   surface in full light reads the same whatever the fill strength.
 - Raising fill makes the shadows brighter, never brighter than the same surface in full light.
 - This holds with the sky drawn (the sky as light 0's fill, card 14) and without it.
+
+## How to reproduce
+1. Open lumberhill in the editor, with Rendering / Sky on an entity and the sun well above the horizon.
+2. Raise the directional light's fill intensity from 0 to 1 and watch a sunlit slope and a shaded one.
+3. Remove the sky and do the same.

@@ -15,3 +15,7 @@ the point is.
 ## Expected
 - The ground under the sun shades and hazes like the ground beside it; no band.
 - The sun disc and glow appear only in the sky, above the horizon.
+
+## How to reproduce
+1. Open lumberhill_project in the editor; the light white, intensity 3.142, fill 0.801, the sky's haze on.
+2. Turn the sun low over the horizon and look towards it in an editor view.
