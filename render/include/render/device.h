@@ -506,7 +506,7 @@ typedef struct {
 //
 // `colour` IS LINEAR AND `intensity` HAS NO UNIT. A colour of (1, 1, 1) tints
 // nothing; the intensity is a multiplier that is whatever looks right, and the
-// pass's voe_render_sky record owns exposure and tone mapping. A light of no
+// pass's voe_render_exposure record owns exposure and tone mapping. A light of no
 // intensity leaves every surface black but for its fill, which is what a frame
 // given a zeroed one looks like.
 //
@@ -524,11 +524,11 @@ typedef struct {
 // shadows through the pass's voe_render_shadow record below (ADR-0258); a pass
 // whose light is `unshaded` reads no shadow either, because it reads no sun.
 //
-// THE SKY RECORD OWNS EXPOSURE AND TONE (ADR-0405 point 7). Under its Clip curve,
-// the zeroed one, a light strong enough to push a surface past one is clamped by
-// the target's format and the highlight goes flat white; its Soft curve rolls it
-// off instead. Keeping intensities low at a call site is not the fix: the pass's
-// voe_render_sky below is.
+// THE EXPOSURE RECORD OWNS EXPOSURE AND TONE (ADR-0406 point 4). Under its Clip
+// curve, the zeroed one, a light strong enough to push a surface past one is
+// clamped by the target's format and the highlight goes flat white; its Soft
+// curve rolls it off instead. Keeping intensities low at a call site is not the
+// fix: the pass's voe_render_exposure below is.
 //
 // `unshaded` NON-ZERO MEANS THIS PASS HAS NO SUN. Every surface then draws its
 // own base colour, as an unlit material does, and direction, intensity, colour
@@ -1444,29 +1444,59 @@ typedef struct {
 					  voe_base_error *error);
 
 // Which curve takes a mesh's exposed colour to the 8-bit target (ADR-0405 point
-// 7): Clip as it is, the target clamping; Soft by Khronos PBR Neutral.
+// 7), voe_render_exposure's `tone`: Clip as it is, the target clamping; Soft by
+// Khronos PBR Neutral.
 #define VOE_RENDER_TONE_CLIP 0u
 #define VOE_RENDER_TONE_SOFT 1u
 
-// A pass's sky (ADR-0405 point 2), in voe_render_pass_camera. ZEROED IS THE OLD
-// PICTURE, BYTE FOR BYTE: no sky drawn, no sky light, no haze, ×1, Clip.
+// A pass's sky (ADR-0406 point 1, 0407 point 1), in voe_render_pass_camera,
+// four float4s. ZEROED IS THE OLD PICTURE, BYTE FOR BYTE: no sky drawn, no sky
+// light, no haze.
+//
+// `zenith`, `horizon` and `ground` are linear colours, each at least 0, drawn
+// as authored: the gradient from ground through horizon to zenith.
+// `horizon_height`, 0 to 1, is how far up the horizon colour reaches, 0 a hard
+// band and 1 horizon colour almost to the top. `sun_size`, 0 to 10, is the
+// disc's angular radius in degrees, 0 no disc. `sun_glow`, 0 to 1, is how
+// strong and wide the halo around the sun is. `sunset`, 0 to 1, is how much the
+// sky turns to evening as the sun lowers, 0 none.
 //
 // `drawn` non-zero draws the sky first in the pass, behind everything, from
 // the pass's `light` (black for an `unshaded` one or one of intensity 0),
-// exposed and toned as below.
+// exposed and toned by the pass's voe_render_exposure.
 //
 // `haze`, at least 0, is the metres at which half a surface's colour is haze
 // (ADR-0405 point 6): every mesh exit, lit, unlit, water and blended (its
 // straight colour, alpha kept), mixes towards the sky's colour at the horizon
 // along its view by 1 − 2^(−distance/haze), before exposure and tone. That
 // colour is the sky's at the horizon whether or not `drawn`; black under an
-// `unshaded` light. 0 is none; plain draws (below) take none.
+// `unshaded` light. 0 is none; plain draws take none.
 //
-// `light`, at least 0, is how strongly the sky lights lit surfaces, drawn or
-// not (ADR-0405 point 5): a diffuse term from the sky's nine harmonics and a
-// reflection of the sky, sharp on a smooth surface and its irradiance on a rough
-// one, both occluded and both only on a surface whose blocker mask holds no
-// Indoors or Room bit. 0 adds nothing; an `unshaded` light lights by none.
+// `fill`, at least 0, is the first directional light's fill intensity, set by
+// `3d` (ADR-0406 point 3): with `drawn`, how strongly the sky lights lit
+// surfaces, a diffuse term from the sky's nine harmonics and a reflection of
+// the sky, sharp on a smooth surface and its irradiance on a rough one, both
+// occluded and both only on a surface whose blocker mask holds no Indoors or
+// Room bit. 0, or `drawn` 0, adds nothing; an `unshaded` light lights by none.
+typedef struct {
+	voe_math_float3 zenith;
+	float horizon_height;
+	voe_math_float3 horizon;
+	float sun_size;
+	voe_math_float3 ground;
+	float sun_glow;
+	uint32_t drawn;
+	float fill;
+	float haze;
+	float sunset;
+} voe_render_sky;
+
+static_assert(sizeof(voe_render_sky) == 64,
+	      "voe_render_sky is the 64 bytes bindings.slangh reads");
+
+// A pass's picture row (ADR-0406 point 4, 0407 point 1), in
+// voe_render_pass_camera after its sky. ZEROED IS ×1 AND CLIP, the old picture,
+// with a sky or without one.
 //
 // `exposure` is in stops, −16 to 16: every mesh exit multiplies its linear
 // colour by 2^exposure and then puts it through `tone`, a VOE_RENDER_TONE_*; a
@@ -1474,16 +1504,13 @@ typedef struct {
 // first voe_render_frame_clear_depth (outline, gizmo, markers) are drawn as
 // authored (ADR-0405 point 8), and elements never take either.
 typedef struct {
-	uint32_t drawn;
-	float light;
-	float haze;
 	float exposure;
 	uint32_t tone;
-	uint32_t reserved[3];
-} voe_render_sky;
+	uint32_t reserved[2];
+} voe_render_exposure;
 
-static_assert(sizeof(voe_render_sky) == 32,
-	      "voe_render_sky is the 32 bytes bindings.slangh reads");
+static_assert(sizeof(voe_render_exposure) == 16,
+	      "voe_render_exposure is the 16 bytes bindings.slangh reads");
 
 // The camera, the sun, the sun's shadow and the point lights one pass draws with.
 // Handed over together because the shader reads them for the whole pass, and a
@@ -1508,8 +1535,9 @@ static_assert(sizeof(voe_render_sky) == 32,
 // `more` ARE THE LIGHTS AFTER THE FIRST (ADR-0357 point 1); zero is the old
 // picture, byte for byte.
 //
-// `sky` IS THE PASS'S SKY, EXPOSURE AND TONE (ADR-0405 point 2); zeroed is the
-// old picture, byte for byte.
+// `sky` IS THE PASS'S SKY AND `exposure` ITS PICTURE (ADR-0406 points 1 and 4);
+// either zeroed is the old picture, byte for byte, and each works without the
+// other.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
@@ -1518,6 +1546,7 @@ typedef struct {
 	voe_render_light_blockers blockers;
 	voe_render_directional_lights more;
 	voe_render_sky sky;
+	voe_render_exposure exposure;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass
@@ -1534,9 +1563,9 @@ typedef struct {
 //
 // Calling this outside a frame whose `drawing` came back true, with a pass
 // already open, or with a target id that names no target, is the caller's bug
-// and asserts. So is a camera whose `sky` holds a number not finite, a `light`
-// or `haze` below nought, an `exposure` past ±16, or a `tone` past
-// VOE_RENDER_TONE_SOFT.
+// and asserts. So is a camera whose `sky` or `exposure` holds a number not
+// finite or a sky field outside its range (voe_render_sky above), an
+// `exposure` past ±16, or a `tone` past VOE_RENDER_TONE_SOFT.
 //
 // THE CAMERA MAY BE NULL, BECAUSE NOT EVERY PASS LOOKS AT A WORLD. A pass that
 // draws only elements — an interface filling the window — has no eye and no sun,

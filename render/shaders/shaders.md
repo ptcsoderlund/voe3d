@@ -4,14 +4,14 @@ The engine's shaders and the only files `slangc` runs over: Slang compiled to ro
 build time and `#embed`ded, so nothing is read at run time. A `.slangh` is a part, included by a
 shader and never compiled alone.
 
-- `bindings.slangh` — the part `draw.slang` includes first: the frame block with its sky and its harmonics, the
+- `bindings.slangh` — the part `draw.slang` includes first: the frame block with its sky, exposure and harmonics, the
   records, set 0's bindings and the push constant with its `plain` word, each matching its C struct;
   the object record carries a landscape's paint and layers.
 - `draw.slang` — the mesh pipelines' seven entry points: placing, maps at the record's repeat, a
   painted landscape's layers, alpha, the lit and unlit exits, hazed, exposed and tone mapped, the
   point-shadow vertex stage, the capture pass's two and the sky's full-screen two.
 - `tone.slangh` — haze, exposure and tone at every mesh exit: mixed towards the sky at the horizon
-  by distance, × 2^exposure, then Clip or Soft by PBR Neutral, from the pass's sky; a `plain` draw
+  by distance, × 2^exposure, then Clip or Soft by PBR Neutral, from the pass's exposure; a `plain` draw
   as authored.
 - `sky.slangh` — the sky's radiance along a view, single scattering through a flat atmosphere, twin
   of `src/sky.h`.

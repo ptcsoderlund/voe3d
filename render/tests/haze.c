@@ -107,8 +107,8 @@ static void draw_frame(struct scene *scene, const struct haze_case *with)
 	voe_render_pass_camera camera = {
 		.view = the_camera(),
 		.light = SUN,
-		.sky = { .drawn = with->drawn, .haze = with->haze,
-			 .tone = VOE_RENDER_TONE_CLIP },
+		.sky = { .drawn = with->drawn, .haze = with->haze },
+		.exposure = { .tone = VOE_RENDER_TONE_CLIP },
 	};
 	voe_render_object object = {
 		.world = voe_math_float4x4_identity(),

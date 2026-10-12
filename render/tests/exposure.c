@@ -1,8 +1,9 @@
-// A PASS EXPOSES AND TONE MAPS ITS MESH DRAWS BY ITS SKY RECORD (ADR-0405 points
-// 2, 7 and 8). One quad facing the eye, read at the centre of nine pictures:
+// A PASS EXPOSES AND TONE MAPS ITS MESH DRAWS BY ITS EXPOSURE RECORD (ADR-0405
+// points 7 and 8, 0406 point 4). One quad facing the eye, read at the centre of
+// ten pictures:
 //
-// 1. an unlit quad of 0.5 under a zeroed sky: the sRGB byte of 0.5, the old
-//    picture, the zeroed sky being exposure 0 and Clip;
+// 1. an unlit quad of 0.5 under a zeroed exposure record: the sRGB byte of 0.5,
+//    the old picture, the zeroed record being exposure 0 and Clip;
 // 2. exposure 1 at Clip: 255; 3. exposure −1: the sRGB byte of 0.25;
 // 4. Soft at exposure 0: the sRGB byte of PBR Neutral(0.5), worked out here,
 //    within 2/255;
@@ -11,7 +12,9 @@
 // 8. an unlit quad drawn after the pass's depth clear at exposure −2: as
 //    authored, the sRGB byte of 0.5;
 // 9. a blended unlit quad of 0.5 at alpha 0.5 at exposure 1: its straight colour
-//    doubled to 1, then blended over the clear colour at half.
+//    doubled to 1, then blended over the clear colour at half;
+// 10. the unlit quad under a zeroed sky with exposure 1: still 255, so the
+//    picture works with no sky.
 //
 // Built as unshaded.c builds its device, camera and readback; it includes
 // render's internal header because reading a target back is not render's
@@ -33,7 +36,7 @@
 
 #define SIDE 64
 #define IMAGE_BYTES ((VkDeviceSize)SIDE * SIDE * 4)
-#define CASES 9
+#define CASES 10
 
 // VK_FORMAT_B8G8R8A8_SRGB, which the headless device takes.
 #define BLUE 0
@@ -76,12 +79,13 @@ static const voe_render_vertex QUAD_VERTICES[4] = {
 
 static const uint32_t QUAD_INDICES[6] = { 3, 2, 1, 3, 1, 0 };
 
-// One picture: the record drawn, the light and sky it is drawn under, and
-// whether it goes through the blended pipeline or after a depth clear.
+// One picture: the record drawn, the light and exposure it is drawn under, and
+// whether it goes through the blended pipeline or after a depth clear. Every
+// case's sky is zeroed.
 struct exposure_case {
 	voe_render_shading shading;
 	voe_render_light light;
-	voe_render_sky sky;
+	voe_render_exposure exposure;
 	bool blended;
 	bool after_clear;
 };
@@ -130,7 +134,8 @@ static void draw_frame(voe_render_device *device, voe_render_geometry quad,
 	voe_render_pass_camera camera = {
 		.view = the_camera(device->resolution),
 		.light = with->light,
-		.sky = with->sky,
+		.sky = { 0 },
+		.exposure = with->exposure,
 	};
 	bool drawing = false;
 
@@ -272,9 +277,10 @@ static void check_pictures(const unsigned char *mapped)
 	check_colour(centre_of(mapped, 7), 0.5f, 0.5f, TOLERANCE);
 	check_colour(centre_of(mapped, 8), 0.5f + 0.5f * CLEAR_RED,
 		     0.5f + 0.5f * CLEAR_BLUE, CURVE_TOLERANCE);
+	check_colour(centre_of(mapped, 9), 1.0f, 1.0f, 0);
 }
 
-// The nine cases, in the order the header lists them.
+// The ten cases, in the order the header lists them.
 static void draw_cases(voe_render_device *device, voe_render_geometry quad,
 		       const voe_render_shading shadings[3], VkBuffer buffer)
 {
@@ -301,6 +307,9 @@ static void draw_cases(voe_render_device *device, voe_render_geometry quad,
 		  false },
 		{ shadings[0], dark, { .exposure = -2.0f }, false, true },
 		{ shadings[2], dark, { .exposure = 1.0f }, true, false },
+		{ shadings[0], dark,
+		  { .exposure = 1.0f, .tone = VOE_RENDER_TONE_CLIP }, false,
+		  false },
 	};
 
 	for (int i = 0; i < CASES; i++)

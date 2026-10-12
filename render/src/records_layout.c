@@ -33,16 +33,25 @@ static_assert(sizeof(voe_render_directional_light) == 368,
 static_assert(sizeof(struct voe_render_frame_light) == 368,
 	      "the frame light no longer matches bindings.slangh's");
 static_assert(sizeof(struct voe_render_frame_block) ==
-		      656 + 3 * 368 + 32 + 9 * 16,
+		      656 + 3 * 368 + 64 + 16 + 9 * 16,
 	      "the per-pass block no longer matches what draw.slang reads at binding 0");
 static_assert(offsetof(struct voe_render_frame_block, sky_harmonics) ==
-		      656 + 3 * 368 + 32,
-	      "the sky's harmonics moved inside the per-pass block; draw.slang has them at 1792");
+		      656 + 3 * 368 + 64 + 16,
+	      "the sky's harmonics moved inside the per-pass block; draw.slang has them at 1840");
 static_assert(offsetof(struct voe_render_frame_block, sky) == 656 + 3 * 368,
 	      "the sky moved inside the per-pass block; draw.slang has it at 1760");
-static_assert(offsetof(voe_render_sky, exposure) == 12 &&
-		      offsetof(voe_render_sky, tone) == 16,
-	      "the sky record's exposure or tone moved; tone.slangh reads them at 12 and 16");
+static_assert(offsetof(struct voe_render_frame_block, exposure) ==
+		      656 + 3 * 368 + 64,
+	      "the exposure moved inside the per-pass block; draw.slang has it at 1824");
+static_assert(offsetof(voe_render_sky, horizon) == 16 &&
+		      offsetof(voe_render_sky, ground) == 32 &&
+		      offsetof(voe_render_sky, drawn) == 48 &&
+		      offsetof(voe_render_sky, fill) == 52 &&
+		      offsetof(voe_render_sky, haze) == 56,
+	      "the sky record's float4s moved; bindings.slangh has them at 0, 16, 32 and 48");
+static_assert(offsetof(voe_render_exposure, exposure) == 0 &&
+		      offsetof(voe_render_exposure, tone) == 4,
+	      "the exposure record's fields moved; tone.slangh reads them at 0 and 4");
 static_assert(offsetof(struct voe_render_frame_block, more_count) == 640,
 	      "the further light count moved inside the per-pass block; draw.slang has it at 640");
 static_assert(offsetof(struct voe_render_frame_block, more) == 656,

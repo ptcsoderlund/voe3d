@@ -1,10 +1,10 @@
 // THE SKY LIGHTS AND SHINES ON LIT SURFACES (ADR-0405 point 5). A target of the
 // test's own seen by a camera at the origin looking along −Z, read back with
-// voe_render_target_read, the sky not drawn and exposure 0 at Clip:
+// voe_render_target_read, the sky drawn and exposure 0 at Clip:
 //
 // 1. a grey lit cube 3 m ahead, the sun 50° up behind it so its +Z face, read
-//    at the centre, is turned away: with sky light 1 the face lit, blue above
-//    red; with sky light 0 black, as before the sky lit anything;
+//    at the centre, is turned away: with the sky's fill 1 the face lit, blue
+//    above red; with fill 0 black, as before the sky lit anything;
 // 2. the sun 5° up on the face's side: the face's red over blue above noon's;
 // 3. a smooth white metal quad tilted 30° up to the camera reads the sRGB of
 //    voe_render_sky_radiance (render/src/sky.h) along the reflected view times
@@ -147,7 +147,8 @@ static const uint8_t *picture_of(struct scene *scene,
 		.view = the_camera(),
 		.light = light,
 		.blockers = blockers,
-		.sky = { .light = sky_light, .tone = VOE_RENDER_TONE_CLIP },
+		.sky = { .drawn = 1, .fill = sky_light },
+		.exposure = { .tone = VOE_RENDER_TONE_CLIP },
 	};
 	voe_render_object object = {
 		.world = voe_math_float4x4_identity(),

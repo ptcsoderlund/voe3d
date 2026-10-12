@@ -80,16 +80,17 @@ by reading the offscreen colour image back.
 - `unshaded.c` — that `unshaded` draws a lit cube in its base colour and black without it, that a
   fill lifts a face the sun misses, and that a face the sun meets head-on or at N·L 0.5 reads the
   same with fill and without. Headless.
-- `exposure.c` — a pass's sky record on a quad: a zeroed one the old byte, exposure ±1 at Clip,
-  Soft as PBR Neutral, a lit quad's sun of 8 clipped at Clip and rolled off at Soft, a draw after
-  the depth clear as authored, and a blended one doubled before its blend. Headless.
+- `exposure.c` — a pass's exposure record on a quad: a zeroed one the old byte, exposure ±1 at
+  Clip, Soft as PBR Neutral, a lit quad's sun of 8 clipped at Clip and rolled off at Soft, a draw
+  after the depth clear as authored, a blended one doubled before its blend, and exposure with no
+  sky. Headless.
 - `sky.c` — the sky drawn behind a pass: its pixels the CPU twin's radiance within 2/255, a quad
   over it, a zeroed sky the clear colour, a dark sun black, and `<pass>: sky` in the breakdown.
   Headless.
 - `haze.c` — far surfaces fading into the horizon's sky: a black quad at 2000 m three quarters
   haze, at 50 m under a tenth, haze 0 and a draw after the depth clear black, and a blended one
   keeping its blend over the sky. Headless.
-- `sky_light.c` — the sky lighting a grey cube: blue above red at noon, black at light 0, redder at
+- `sky_light.c` — the sky lighting a grey cube: blue above red at noon, black at fill 0, redder at
   evening; a smooth white metal quad the sky along R within 6/255, a rough one nearer E(R)/π, and
   Indoors black. Headless.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds

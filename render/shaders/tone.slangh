@@ -1,7 +1,7 @@
 // Haze, exposure and tone at every mesh exit (ADR-0405 points 6 and 7).
 // voe_render_haze mixes a linear colour towards the sky at the horizon by
 // distance; voe_render_expose then multiplies it by 2^exposure from the pass's
-// sky record and puts it through the sky's curve, Clip (as it is, the 8-bit
+// exposure record and puts it through its curve, Clip (as it is, the 8-bit
 // target clamping) or Soft (Khronos PBR Neutral). HAZE COMES BEFORE EXPOSURE
 // AND TONE: the haze is the sky's own radiance, exposed and toned with the
 // surface it covers. A part (ADR-0308): included by draw.slang after
@@ -14,8 +14,8 @@
 // draw.slang's lit, unlit and water exits call both on their straight colour
 // before voe_render_premultiplied, so a blended draw keeps its alpha. A draw
 // pushed `plain` (after the pass's first depth clear, ADR-0405 point 8) is
-// returned as it came by both. A zeroed sky is no haze, ×1 and Clip: the old
-// picture, byte for byte. Elements and the sky's own fragment never haze.
+// returned as it came by both. A zeroed sky is no haze and a zeroed exposure
+// record ×1 and Clip: the old picture, byte for byte. Elements and the sky's own fragment never haze.
 //
 // THERE IS NO HDR TARGET. The curve runs per fragment before an 8-bit sRGB
 // target, so blending happens after it; only see-through draws differ from a
@@ -81,12 +81,12 @@ float3 voe_render_pbr_neutral(float3 colour)
 
 float3 voe_render_expose(float3 linear)
 {
-	voe_render_sky sky = voe_render_frame.sky;
+	voe_render_exposure picture = voe_render_frame.exposure;
 
 	if (voe_render_draw_current.plain != 0)
 		return linear;
-	float3 exposed = linear * exp2(sky.exposure);
-	if (sky.tone == VOE_RENDER_TONE_SOFT)
+	float3 exposed = linear * exp2(picture.exposure);
+	if (picture.tone == VOE_RENDER_TONE_SOFT)
 		return voe_render_pbr_neutral(exposed);
 	return exposed;
 }

@@ -107,6 +107,7 @@ static void draw_frame(struct scene *scene, voe_render_light light,
 		.view = the_camera(),
 		.light = light,
 		.sky = sky,
+		.exposure = { .tone = VOE_RENDER_TONE_CLIP },
 	};
 	voe_render_object object = {
 		.world = voe_math_float4x4_identity(),
@@ -196,8 +197,7 @@ static void check_sky(const uint8_t *pixels, voe_render_light sun)
 
 static void check_pictures(struct scene *scene)
 {
-	const voe_render_sky drawn = { .drawn = 1,
-				       .tone = VOE_RENDER_TONE_CLIP };
+	const voe_render_sky drawn = { .drawn = 1 };
 	const voe_render_light sun = the_sun(1.0f);
 	const uint8_t *pixels;
 

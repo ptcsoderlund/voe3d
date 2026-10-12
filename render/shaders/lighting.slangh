@@ -50,9 +50,10 @@
 //
 // THE SKY LIGHTS A LIT SURFACE BESIDE THE INDIRECT TERM (ADR-0405 point 5):
 // voe_render_sky_light, (1 − metal) × base × E(n)/π plus lerp(sky(R), E(R)/π,
-// roughness) × Karis's EnvBRDFApprox, times the sky's `light`; E from the
+// roughness) × Karis's EnvBRDFApprox, times the sky's `fill`; E from the
 // block's nine harmonics, R the reflected view, and draw.slang occludes it. It
-// is nought at light nought and for a mask with a bit outside the walls'.
+// is nought unless the sky is `drawn`, at fill nought and for a mask with a bit
+// outside the walls'.
 //
 // THE ARITHMETIC IS glTF'S METALNESS-ROUGHNESS BRDF, WRITTEN OUT: GGX, Smith's
 // height-correlated visibility with the denominator folded in, Schlick's
@@ -346,13 +347,14 @@ float3 voe_render_environment_brdf(float3 f0, float roughness, float n_dot_v)
 }
 
 // What the sky gives a lit surface facing `n`, seen along `v`, of mask `mask`:
-// its diffuse half and its reflection, times the sky's `light`, unoccluded;
-// nought at light nought and where the blockers hold an Indoors or Room bit.
-// See the header.
+// its diffuse half and its reflection, times the sky's `fill`, unoccluded;
+// nought unless `drawn`, at fill nought and where the blockers hold an Indoors
+// or Room bit. See the header.
 float3 voe_render_sky_light(float3 n, float3 v, float3 diffuse_colour,
 			    float3 f0, float roughness, uint mask)
 {
-	float strength = voe_render_frame.sky.light;
+	float strength = voe_render_frame.sky.drawn != 0 ?
+				 voe_render_frame.sky.fill : 0.0;
 	voe_render_light sun = voe_render_frame.light;
 
 	if (!(strength > 0.0))
