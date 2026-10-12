@@ -92,8 +92,9 @@ by reading the offscreen colour image back.
   haze, at 50 m under a tenth, haze 0 and a draw after the depth clear black, and a blended one
   keeping its blend over the sky. Headless.
 - `sky_light.c` — the sky lighting a grey cube: blue above red at noon, black at fill 0, redder at
-  a sunset-1 evening; a smooth white metal quad the sky along R within 6/255, a rough one nearer E(R)/π, and
-  Indoors black. Headless.
+  a sunset-1 evening; a smooth white metal quad the sky along R within 6/255, a rough one nearer
+  E(R)/π; Indoors black; a red light-0 fill replaced by the sky, black at fill 0, kept Indoors and
+  with no sky. Headless.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
   red to a black surface whether the sun faces it or not, and a metal-roughness map replacing the
   factors. Headless.

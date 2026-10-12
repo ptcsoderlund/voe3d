@@ -516,6 +516,8 @@ typedef struct {
 // to every lit surface: a side facing away from the sun or in its shadow reads
 // the fill and not black, a sunlit one the sun alone. Zero is no fill, and a
 // zeroed record draws as before it existed. An `unshaded` pass reads none.
+// Under a drawn sky the first light's `fill` gives way to the sky outside
+// Indoors and Room: see voe_render_sky's `fill`.
 //
 // ONE DIRECTIONAL LIGHT, HANDED OVER WITH THE CAMERA, ONCE A PASS. It is the
 // sun: a direction, a colour and a strength, the same for every draw in the
@@ -1477,8 +1479,11 @@ typedef struct {
 // `3d` (ADR-0406 point 3): with `drawn`, how strongly the sky lights lit
 // surfaces, a diffuse term from the sky's nine harmonics and a reflection of
 // the sky, sharp on a smooth surface and its irradiance on a rough one, both
-// occluded and both only on a surface whose blocker mask holds no Indoors or
-// Room bit. 0, or `drawn` 0, adds nothing; an `unshaded` light lights by none.
+// occluded. UNDER A DRAWN SKY THE SKY STANDS IN FOR LIGHT 0'S `fill` outside
+// Indoors and Room (0407 point 7): on a surface whose blocker mask holds no
+// Indoors or Room bit, that light's `fill` is not added and the sky is; inside
+// them that `fill` lights as before and the sky not at all. `drawn` 0 adds
+// nothing and leaves every fill as before; an `unshaded` light lights by none.
 typedef struct {
 	voe_math_float3 zenith;
 	float horizon_height;

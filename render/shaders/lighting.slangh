@@ -15,8 +15,10 @@
 // fill)` per channel: E the bounce's irradiance out of the pass's probe volumes
 // (ADR-0326 point 7), no gain (0317), and the fills a floor under it (0307). A
 // light's weight is whole where it does not reach, fading as its reach rises and
-// gone from 0.3 (ADR-0276); a fill of zero is no floor. more_count 0 is the
-// picture of one light. The water path lights by light 0 alone.
+// gone from 0.3 (ADR-0276); a fill of zero is no floor. Light 0's fill is left
+// out of the sum where the sky is `drawn` and voe_render_sky_reaches the
+// surface's mask: the sky stands in for it there (0407 point 7). more_count 0
+// is the picture of one light. The water path lights by light 0 alone.
 //
 // POINT LIGHTS ADD TO THE DIRECT TERM (ADR-0320): voe_render_points, the same
 // BRDF towards each light, times N·L, its colour and saturate(1 −
@@ -48,12 +50,13 @@
 // slot × 4 + cascade; past the last split it is fully lit. The direct term and
 // the reach that turns the fill away are both multiplied by it.
 //
-// THE SKY LIGHTS A LIT SURFACE BESIDE THE INDIRECT TERM (ADR-0405 point 5):
+// THE SKY IS LIGHT 0'S FILL UNDER A SKY (ADR-0406 point 3, 0407 point 7):
 // voe_render_sky_light, (1 − metal) × base × E(n)/π plus lerp(sky(R), E(R)/π,
-// roughness) × Karis's EnvBRDFApprox, times the sky's `fill`; E from the
-// block's nine harmonics, R the reflected view, and draw.slang occludes it. It
-// is nought unless the sky is `drawn`, at fill nought and for a mask with a bit
-// outside the walls'.
+// roughness) × Karis's EnvBRDFApprox, times the sky's `fill`, light 0's fill
+// intensity; E from the block's nine harmonics, R the reflected view, and
+// draw.slang occludes it. It is nought unless the sky is `drawn`, at fill
+// nought and where voe_render_sky_reaches fails: a mask with a bit outside
+// the walls'.
 //
 // THE ARITHMETIC IS glTF'S METALNESS-ROUGHNESS BRDF, WRITTEN OUT: GGX, Smith's
 // height-correlated visibility with the denominator folded in, Schlick's
@@ -346,10 +349,19 @@ float3 voe_render_environment_brdf(float3 f0, float roughness, float n_dot_v)
 	return f0 * ab.x + ab.y;
 }
 
+// Whether the sky's light reaches a surface of mask `mask`: no blockers, or no
+// Indoors or Room bit, none outside the walls'. Where it does and the sky is
+// `drawn`, the sky stands in for light 0's fill. See the header.
+bool voe_render_sky_reaches(uint mask)
+{
+	return voe_render_frame.blockers == 0 ||
+	       (mask & ~voe_render_light_blockers[voe_render_frame.region].walls) == 0;
+}
+
 // What the sky gives a lit surface facing `n`, seen along `v`, of mask `mask`:
 // its diffuse half and its reflection, times the sky's `fill`, unoccluded;
-// nought unless `drawn`, at fill nought and where the blockers hold an Indoors
-// or Room bit. See the header.
+// nought unless `drawn`, at fill nought and where voe_render_sky_reaches
+// fails. See the header.
 float3 voe_render_sky_light(float3 n, float3 v, float3 diffuse_colour,
 			    float3 f0, float roughness, uint mask)
 {
@@ -359,8 +371,7 @@ float3 voe_render_sky_light(float3 n, float3 v, float3 diffuse_colour,
 
 	if (!(strength > 0.0))
 		return float3(0.0, 0.0, 0.0);
-	if (voe_render_frame.blockers != 0 &&
-	    (mask & ~voe_render_light_blockers[voe_render_frame.region].walls) != 0)
+	if (!voe_render_sky_reaches(mask))
 		return float3(0.0, 0.0, 0.0);
 	float3 r = reflect(-v, n);
 	float3 sky = voe_render_sky_radiance(voe_render_frame.sky, light.direction,
@@ -378,13 +389,16 @@ float3 voe_render_sky_light(float3 n, float3 v, float3 diffuse_colour,
 // geometric normal, `mask` its blockers) facing `n`, seen along `v`: the sum of
 // each light's BRDF times its radiance by its reach, N·L times its own shadow,
 // nought where its own gate stops it; and into `fill` the sum of each one's
-// fill by that reach and its own gate. See the header.
+// fill by that reach and its own gate, light 0's left out where the drawn sky
+// reaches. See the header.
 float3 voe_render_directionals(float3 world, float3 surface, float3 n, float3 v,
 			       float3 diffuse_colour, float3 f0, float alpha,
 			       uint mask, out float3 fill)
 {
 	float n_dot_v = saturate(dot(n, v));
 	float3 sum = float3(0.0, 0.0, 0.0);
+	bool sky_fills = voe_render_frame.sky.drawn != 0 &&
+			 voe_render_sky_reaches(mask);
 
 	fill = float3(0.0, 0.0, 0.0);
 	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
@@ -411,6 +425,8 @@ float3 voe_render_directionals(float3 world, float3 surface, float3 n, float3 v,
 				voe_render_sunlight(voe_render_directional_shadow(i),
 						    world, surface);
 		sum += (diffuse + specular) * voe_render_sun_radiance(light, reach);
+		if (i == 0 && sky_fills)
+			continue;
 		fill += voe_render_fill(light, reach,
 					voe_render_fill_reaches(mask, source));
 	}
