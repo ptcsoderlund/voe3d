@@ -21,10 +21,6 @@
 //                                         light, &scene, &geometries, models,
 //                                         &shapes, palette, &gizmo, ppmm);
 //
-// A REFUSED PASS STOPS THE REST, a shadow pass as much as a view's: no later
-// view is begun and the call returns false, the caller's `drawn`, and the frame
-// is still the caller's to close.
-//
 // WHAT THE DEVICE'S CAPACITIES MUST COVER is VOE_EDITOR_CAPACITIES below, kept
 // beside the passes so the next capacity a pass needs is added here. The
 // editor uploads one cube and one material — the shapes' own, see
@@ -212,6 +208,9 @@
 // outline through `models` (NULL for none), and returns false at the first
 // pass the device refuses. Called inside an open draw, never inside a pass.
 // `views` is written only by 3d, into each view's remembered casters (0394).
+// A REFUSED PASS STOPS THE REST, a shadow pass as much as a view's: no later
+// view is begun and the call returns false, the caller's `drawn`, and the frame
+// is still the caller's to close.
 [[nodiscard]] bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
 	voe_editor_views *views, const voe_editor_dock_root *root,
