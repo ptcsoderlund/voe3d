@@ -1,9 +1,9 @@
-// The sky's four calls: its sun, its radiance along a view, its projection onto
-// nine harmonics, and the irradiance read back from them (see sky.h for the
-// model, ADR-0407 for the curves).
+// The sky's five calls: its sun, its gradient and radiance along a view, its
+// projection onto nine harmonics, and the irradiance read back from them (see
+// sky.h for the model, ADR-0407 for the curves).
 //
-// The disc is a flag of the one radiance function so the harmonics can leave it
-// out; every call is plain arithmetic, allocates nothing and keeps no state.
+// The radiance is the gradient plus the glow and disc (ADR-0409); the disc is a
+// flag of the one radiance function so the harmonics can leave it out; every call is plain arithmetic, allocates nothing and keeps no state.
 //
 // CONSTRAINTS. The projection's 256 directions are worked out on every call
 // rather than kept in a table; a table would lift that if a profile names it.
@@ -52,16 +52,28 @@ voe_math_float3 voe_render_sky_sun(voe_render_light light)
 	return on ? light.colour : nought;
 }
 
-// The radiance along `view`, the disc added when `disc` (ADR-0407 points 3 to
-// 5); `sun` nought reads neither `direction` nor the evening.
-static voe_math_float3 radiance(const voe_render_sky *sky,
+// The unit direction to the sun, +Y when `sun` is nought.
+static voe_math_float3 toward_sun(voe_math_float3 direction, voe_math_float3 sun)
+{
+	return lit(sun) ? voe_math_float3_neg(voe_math_float3_normalize(direction)) :
+			  (voe_math_float3){ 0.0f, 1.0f, 0.0f };
+}
+
+// How far night has come for a sun whose height (sine) is `e`, 0 with no sun.
+static float night(const voe_render_sky *sky, float e, voe_math_float3 sun)
+{
+	return lit(sun) ? sky->sunset * saturate(-e / VOE_RENDER_SKY_NIGHT_DEPTH) :
+			  0.0f;
+}
+
+// The evening-shifted, dimmed gradient along `view` (ADR-0407 points 3 and 4);
+// `sun` nought reads neither `direction` nor the evening.
+static voe_math_float3 gradient(const voe_render_sky *sky,
 				voe_math_float3 direction, voe_math_float3 sun,
-				voe_math_float3 view, bool disc)
+				voe_math_float3 view)
 {
 	const bool on = lit(sun);
-	const voe_math_float3 s =
-		on ? voe_math_float3_neg(voe_math_float3_normalize(direction)) :
-		     (voe_math_float3){ 0.0f, 1.0f, 0.0f };
+	const voe_math_float3 s = toward_sun(direction, sun);
 	const float e = s.y;
 	const float h = view.y;
 	const float toward = voe_math_float3_dot(view, s);
@@ -69,8 +81,7 @@ static voe_math_float3 radiance(const voe_render_sky *sky,
 				     saturate((VOE_RENDER_SKY_EVENING_HEIGHT - e) /
 					      VOE_RENDER_SKY_EVENING_HEIGHT) :
 			     0.0f;
-	const float n = on ? sky->sunset * saturate(-e / VOE_RENDER_SKY_NIGHT_DEPTH) :
-			     0.0f;
+	const float n = night(sky, e, sun);
 	const float side = 0.5f + 0.5f * toward;
 	const float brightest = fmaxf(sky->horizon.x,
 				      fmaxf(sky->horizon.y, sky->horizon.z));
@@ -88,10 +99,23 @@ static voe_math_float3 radiance(const voe_render_sky *sky,
 			voe_math_float3_lerp(horizon, sky->ground,
 					     saturate(-VOE_RENDER_SKY_GROUND_FADE * h));
 
-	out = voe_math_float3_scale(out, (1.0f - VOE_RENDER_SKY_EVENING_DIM * k) *
-						 (1.0f - VOE_RENDER_SKY_NIGHT_DIM * n));
-	if (!on)
+	return voe_math_float3_scale(out, (1.0f - VOE_RENDER_SKY_EVENING_DIM * k) *
+						  (1.0f - VOE_RENDER_SKY_NIGHT_DIM * n));
+}
+
+// The gradient plus the glow, and the disc when `disc` (ADR-0407 point 5).
+static voe_math_float3 radiance(const voe_render_sky *sky,
+				voe_math_float3 direction, voe_math_float3 sun,
+				voe_math_float3 view, bool disc)
+{
+	voe_math_float3 out = gradient(sky, direction, sun, view);
+
+	if (!lit(sun))
 		return out;
+	const voe_math_float3 s = toward_sun(direction, sun);
+	const float h = view.y;
+	const float toward = voe_math_float3_dot(view, s);
+	const float n = night(sky, s.y, sun);
 	const float glow =
 		sky->sun_glow *
 		powf(saturate(toward),
@@ -110,6 +134,19 @@ static voe_math_float3 radiance(const voe_render_sky *sky,
 			out, voe_math_float3_scale(sun, VOE_RENDER_SKY_DISC_GAIN *
 								edge * (1.0f - n)));
 	}
+	return out;
+}
+
+voe_math_float3 voe_render_sky_gradient(const voe_render_sky *sky,
+					voe_math_float3 direction,
+					voe_math_float3 sun,
+					voe_math_float3 view)
+{
+	assert(sky != NULL && unit_error(view) < 1e-3f);
+	assert(sun.x >= 0.0f && sun.y >= 0.0f && sun.z >= 0.0f);
+	const voe_math_float3 out = gradient(sky, direction, sun, view);
+
+	assert(isfinite(out.x) && isfinite(out.y) && isfinite(out.z));
 	return out;
 }
 

@@ -5,13 +5,16 @@
 // at the centre pixel. The quad is an unlit black square filling the view at a
 // distance, scaled by its object matrix:
 //
-// 1. at 2000 m: within 3/255 of the sRGB of (1 − 2^−2) × the horizon's radiance
-//    along the pixel's direction, from voe_render_sky_radiance (../src/sky.h);
-// 2. at 50 m: darker than a tenth of that radiance;
+// 1. at 2000 m: within 3/255 of the sRGB of (1 − 2^−2) × the horizon's gradient
+//    along the pixel's direction, from voe_render_sky_gradient (../src/sky.h);
+// 2. at 50 m: darker than a tenth of that gradient;
 // 3. haze 0 at 2000 m: black, byte for byte;
 // 4. drawn after the pass's depth clear at 2000 m: black, as authored;
 // 5. a blended black quad of alpha 0.5 at 2000 m over the drawn sky: half its
-//    hazed colour plus half the sky along the pixel, within 3/255.
+//    hazed colour plus half the sky along the pixel, within 3/255;
+// 6. the sun 0.5° up ahead, its disc reaching the horizon, at 2000 m: as case
+//    1 under it, no disc and no glow (ADR-0409); at sunset 0 no channel above
+//    the same quad's with the sun 90° round to the side, plus 3/255.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO. The skip is a pass and it
 // prints its reason.
@@ -70,13 +73,16 @@ struct scene {
 	voe_render_shading see_through;
 };
 
-// One picture: the quad's distance and record, the sky, and how it is drawn.
+// One picture: the quad's distance and record, the sky, and how it is drawn;
+// `light` and `sky` NULL are SUN and SKY.
 struct haze_case {
 	float distance;
 	float haze;
 	bool drawn;
 	bool blended;
 	bool after_clear;
+	const voe_render_light *light;
+	const voe_render_sky *sky;
 };
 
 // sky.c's camera with its far plane past the far quad.
@@ -118,8 +124,8 @@ static void draw_frame(struct scene *scene, const struct haze_case *with)
 	voe_platform_size size = { SIDE, SIDE };
 	voe_render_pass_camera camera = {
 		.view = the_camera(),
-		.light = SUN,
-		.sky = SKY,
+		.light = with->light != NULL ? *with->light : SUN,
+		.sky = with->sky != NULL ? *with->sky : SKY,
 		.exposure = { .tone = VOE_RENDER_TONE_CLIP },
 	};
 	voe_render_object object = {
@@ -195,14 +201,18 @@ static voe_math_float3 radiance_along(voe_math_float3 view)
 				       voe_render_sky_sun(SUN), view);
 }
 
-// The haze's colour at the centre: the sky along it, its height clamped up to
-// the horizon, as tone.slangh's voe_render_haze_colour.
-static voe_math_float3 horizon_radiance(void)
+// The haze's colour at the centre under `light` and `sky`: the sky's gradient
+// along it, its height clamped up to the horizon, as tone.slangh's
+// voe_render_haze_colour.
+static voe_math_float3 horizon_gradient(const voe_render_light *light,
+					const voe_render_sky *sky)
 {
 	voe_math_float3 view = centre_direction();
 
 	view.y = fmaxf(view.y, 0.0f);
-	return radiance_along(voe_math_float3_normalize(view));
+	return voe_render_sky_gradient(sky, light->direction,
+				       voe_render_sky_sun(*light),
+				       voe_math_float3_normalize(view));
 }
 
 static void check_pixel(const char *name, const uint8_t *pixel,
@@ -218,12 +228,17 @@ static void check_pixel(const char *name, const uint8_t *pixel,
 
 static void check_pictures(struct scene *scene)
 {
-	const struct haze_case far = { FAR_QUAD, HAZE, false, false, false };
-	const struct haze_case near = { NEAR_QUAD, HAZE, false, false, false };
-	const struct haze_case none = { FAR_QUAD, 0.0f, false, false, false };
-	const struct haze_case plain = { FAR_QUAD, HAZE, false, false, true };
-	const struct haze_case blended = { FAR_QUAD, HAZE, true, true, false };
-	const voe_math_float3 horizon = horizon_radiance();
+	const struct haze_case far = { FAR_QUAD, HAZE, false, false, false,
+				       NULL, NULL };
+	const struct haze_case near = { NEAR_QUAD, HAZE, false, false, false,
+					NULL, NULL };
+	const struct haze_case none = { FAR_QUAD, 0.0f, false, false, false,
+					NULL, NULL };
+	const struct haze_case plain = { FAR_QUAD, HAZE, false, false, true,
+					 NULL, NULL };
+	const struct haze_case blended = { FAR_QUAD, HAZE, true, true, false,
+					   NULL, NULL };
+	const voe_math_float3 horizon = horizon_gradient(&SUN, &SKY);
 	const voe_math_float3 hazed = voe_math_float3_scale(horizon, 0.75f);
 	const voe_math_float3 black = { 0.0f, 0.0f, 0.0f };
 	const uint8_t *pixel;
@@ -252,6 +267,43 @@ static void check_pictures(struct scene *scene)
 					    radiance_along(centre_direction()),
 					    0.5f)),
 			    TOLERANCE);
+}
+
+// The sun 0.5° up ahead, its disc reaching the horizon: the far quad takes the
+// gradient alone. Sunset 0 for the side-by-side, so the evening's warmer
+// horizon on the sun's side is not read as the sun.
+static void check_low_sun(struct scene *scene)
+{
+	const float e = 0.5f * (3.14159265f / 180.0f);
+	const voe_render_light ahead = { .direction = { 0.0f, -sinf(e), cosf(e) },
+					 .intensity = 1.0f,
+					 .colour = { 1.0f, 1.0f, 1.0f } };
+	voe_render_light side = ahead;
+	voe_render_sky still = SKY;
+	const struct haze_case low = { FAR_QUAD, HAZE, false, false, false,
+				       &ahead, NULL };
+	const struct haze_case low_still = { FAR_QUAD, HAZE, false, false, false,
+					     &ahead, &still };
+	const struct haze_case side_still = { FAR_QUAD, HAZE, false, false,
+					      false, &side, &still };
+	const uint8_t *pixel;
+	const uint8_t *beside;
+
+	side.direction = (voe_math_float3){ -cosf(e), -sinf(e), 0.0f };
+	still.sunset = 0.0f;
+	if ((pixel = centre_of(scene, &low)) != NULL)
+		check_pixel("low sun ahead", pixel,
+			    voe_math_float3_scale(horizon_gradient(&ahead, &SKY),
+						  0.75f),
+			    TOLERANCE);
+	pixel = centre_of(scene, &low_still);
+	beside = centre_of(scene, &side_still);
+	if (pixel == NULL || beside == NULL)
+		return;
+	printf("low sun ahead %d %d %d, to the side %d %d %d\n", pixel[0],
+	       pixel[1], pixel[2], beside[0], beside[1], beside[2]);
+	for (int i = 0; i < 3; i++)
+		VOE_TEST_CHECK(pixel[i] <= beside[i] + TOLERANCE);
 }
 
 int main(void)
@@ -292,6 +344,7 @@ int main(void)
 						 &scene.see_through, &error));
 
 	check_pictures(&scene);
+	check_low_sun(&scene);
 
 	voe_render_device_destroy(scene.device);
 	voe_base_arena_destroy(scene.arena);

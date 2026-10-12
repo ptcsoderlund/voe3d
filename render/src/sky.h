@@ -17,8 +17,9 @@
 // sun's colour: a glow, its exponent narrowing from GLOW_WIDE to GLOW_NARROW as
 // `sun_glow` falls, and a disc of `sun_size` degrees at DISC_GAIN with a
 // smoothed edge of DISC_EDGE × its radius, both fading out with night. Those
-// two are the only parts brighter than authored. Defaults (ADR-0406 point 1)
-// are the scene's, not here.
+// two are the only parts brighter than authored. The radiance is the gradient
+// plus those two; the gradient alone is the haze's colour (ADR-0409). Defaults
+// (ADR-0406 point 1) are the scene's, not here.
 //
 // THE SUN IS ON unless its light is unshaded, of intensity 0, of colour nought
 // or of no direction; voe_render_sky_sun gives its colour, not times its
@@ -70,8 +71,16 @@
 // The sun's colour for the sky: `light`'s colour when on, else nought.
 voe_math_float3 voe_render_sky_sun(voe_render_light light);
 
+// The evening-shifted, dimmed gradient of `sky` along unit `view`, no glow and
+// no disc: the haze's colour (ADR-0409). Arguments as voe_render_sky_radiance.
+voe_math_float3 voe_render_sky_gradient(const voe_render_sky *sky,
+					voe_math_float3 direction,
+					voe_math_float3 sun,
+					voe_math_float3 view);
+
 // The radiance of `sky` seen along unit `view` under a sun whose light travels
-// along `direction` (the sun at −direction), `sun` from voe_render_sky_sun.
+// along `direction` (the sun at −direction), `sun` from voe_render_sky_sun:
+// voe_render_sky_gradient plus the sun's glow and disc.
 voe_math_float3 voe_render_sky_radiance(const voe_render_sky *sky,
 					voe_math_float3 direction,
 					voe_math_float3 sun,

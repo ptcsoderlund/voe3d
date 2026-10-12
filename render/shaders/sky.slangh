@@ -1,6 +1,7 @@
-// The sky's sun and its radiance along a view, in Slang (ADR-0406 point 2,
-// ADR-0407 points 2 to 5): the twin of voe_render_sky_sun and
-// voe_render_sky_radiance in render/src/sky.h and sky.c, the same curves, the
+// The sky's sun, gradient and radiance along a view, in Slang (ADR-0406 point
+// 2, ADR-0407 points 2 to 5, ADR-0409): the twin of voe_render_sky_sun,
+// voe_render_sky_gradient and voe_render_sky_radiance in render/src/sky.h and
+// sky.c, the same curves, the
 // same constants and the same arithmetic, so the drawn sky and the CPU's agree
 // within 2/255. A change there is made here too; sky.h holds the model's words.
 // A part (ADR-0308): included by lighting.slangh and tone.slangh after
@@ -10,10 +11,12 @@
 //     float3 sun = voe_render_sky_sun(light);
 //     float3 l = voe_render_sky_radiance(voe_render_frame.sky, light.direction,
 //                                        sun, view);
+//     float3 g = voe_render_sky_gradient(voe_render_frame.sky, light.direction,
+//                                        sun, view);
 //
-// An authored gradient from ground through horizon to zenith, shifted towards
-// evening by `sunset` as the sun lowers, plus a glow and a disc in the sun's
-// colour. `direction` is where the sun's light travels (the sun at
+// The gradient: an authored one from ground through horizon to zenith, shifted
+// towards evening by `sunset` as the sun lowers. The radiance: that plus a glow
+// and a disc in the sun's colour. `direction` is where the sun's light travels (the sun at
 // −direction), normalized here and never read when `sun` is nought; `view` a
 // unit direction, both world space, +Y up. A sun of nought, an unshaded or dark
 // light's, is the authored gradient alone, never black.
@@ -42,7 +45,9 @@ float3 voe_render_sky_sun(voe_render_light light)
 	return on ? light.colour : float3(0.0, 0.0, 0.0);
 }
 
-float3 voe_render_sky_radiance(voe_render_sky sky, float3 direction, float3 sun,
+// The evening-shifted, dimmed gradient along `view`, no glow and no disc
+// (ADR-0407 points 3 and 4): the haze's colour (ADR-0409).
+float3 voe_render_sky_gradient(voe_render_sky sky, float3 direction, float3 sun,
 			       float3 view)
 {
 	bool on = any(sun > 0.0);
@@ -73,10 +78,23 @@ float3 voe_render_sky_radiance(voe_render_sky sky, float3 direction, float3 sun,
 	else
 		radiance = lerp(horizon, sky.ground,
 				saturate(-VOE_RENDER_SKY_GROUND_FADE * h));
-	radiance *= (1.0 - VOE_RENDER_SKY_EVENING_DIM * k) *
-		    (1.0 - VOE_RENDER_SKY_NIGHT_DIM * n);
-	if (!on)
+	return radiance * ((1.0 - VOE_RENDER_SKY_EVENING_DIM * k) *
+			   (1.0 - VOE_RENDER_SKY_NIGHT_DIM * n));
+}
+
+// The gradient plus the sun's glow and disc (ADR-0407 point 5).
+float3 voe_render_sky_radiance(voe_render_sky sky, float3 direction, float3 sun,
+			       float3 view)
+{
+	float3 radiance = voe_render_sky_gradient(sky, direction, sun, view);
+
+	if (!any(sun > 0.0))
 		return radiance;
+	float3 s = -normalize(direction);
+	float h = view.y;
+	float toward = dot(view, s);
+	float n = sky.sunset * saturate(-s.y / VOE_RENDER_SKY_NIGHT_DEPTH);
+
 	radiance += sun * sky.sun_glow *
 		    pow(saturate(toward),
 			VOE_RENDER_SKY_GLOW_NARROW -

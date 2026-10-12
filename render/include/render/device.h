@@ -1472,8 +1472,8 @@ typedef struct {
 // (ADR-0405 point 6): every mesh exit, lit, unlit, water and blended (its
 // straight colour, alpha kept), mixes towards the sky's colour at the horizon
 // along its view by 1 − 2^(−distance/haze), before exposure and tone. That
-// colour is the sky's at the horizon whether or not `drawn`. 0 is none; plain
-// draws take none.
+// colour is the sky's gradient at the horizon, without the sun's disc and glow
+// (0409), whether or not `drawn`. 0 is none; plain draws take none.
 //
 // `fill`, at least 0, is the first directional light's fill intensity, set by
 // `3d` (ADR-0406 point 3): with `drawn`, how strongly the sky's diffuse light,

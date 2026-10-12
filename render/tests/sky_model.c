@@ -22,6 +22,10 @@
 // THE SUN: its own direction brighter than any authored channel; sun size 0
 // and glow 0, its direction reads the sky with no sun.
 //
+// THE GRADIENT (ADR-0409): up, the horizon away and the sun's own direction at
+// most the radiance per channel, strictly less towards the sun; sun size and
+// glow 0, the two equal.
+//
 // IRRADIANCE within 5% of a cosine-weighted sum of the radiance over 4096
 // Fibonacci directions without the disc (sun size 0), for up, down and two
 // horizontal normals, on the channels summed.
@@ -184,6 +188,31 @@ static void the_sun_outshines_the_sky(void)
 		     voe_render_sky_radiance(&sky, sun, none, at_sun), EXACT);
 }
 
+static void the_gradient_leaves_the_sun_out(void)
+{
+	voe_render_sky sky = DEFAULTS;
+	const voe_math_float3 sun = sun_at(30.0f);
+	const voe_math_float3 views[3] = { up, toward(0.0f, 180.0f),
+					   voe_math_float3_neg(sun) };
+
+	for (int i = 0; i < 3; i++) {
+		const voe_math_float3 g =
+			voe_render_sky_gradient(&sky, sun, white, views[i]);
+		const voe_math_float3 l =
+			voe_render_sky_radiance(&sky, sun, white, views[i]);
+
+		VOE_TEST_CHECK(g.x <= l.x && g.y <= l.y && g.z <= l.z);
+		if (i == 2)
+			VOE_TEST_CHECK(g.x < l.x && g.y < l.y && g.z < l.z);
+	}
+	sky.sun_size = 0.0f;
+	sky.sun_glow = 0.0f;
+	for (int i = 0; i < 3; i++)
+		check_colour(voe_render_sky_gradient(&sky, sun, white, views[i]),
+			     voe_render_sky_radiance(&sky, sun, white, views[i]),
+			     EXACT);
+}
+
 // The cosine-weighted radiance on `normal` over 4096 directions, the disc left
 // out.
 static voe_math_float3 brute_irradiance(voe_math_float3 direction,
@@ -236,6 +265,7 @@ int main(void)
 	sunset_turns_the_evening();
 	horizon_height_moves_the_band();
 	the_sun_outshines_the_sky();
+	the_gradient_leaves_the_sun_out();
 	irradiance_matches_the_sky();
 	return voe_test_result();
 }

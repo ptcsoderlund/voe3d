@@ -95,10 +95,11 @@ which file to open — what each one owns, and where the seams between them run.
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
   rectangle of its box's corners.
-- `sky.h` — the sky's model and constants (ADR-0406, 0407), twin of `shaders/sky.slangh`: its sun,
-  the radiance along a view, its nine cosine-convolved harmonics, and the irradiance. Pure CPU.
-- `sky.c` — those four calls: an authored gradient shifted by sunset plus a glow and a disc, the
-  disc left out of the projection over 256 Fibonacci directions.
+- `sky.h` — the sky's model and constants (ADR-0406, 0407, 0409), twin of `shaders/sky.slangh`: its
+  sun, the gradient (the haze's colour) and radiance along a view, its nine cosine-convolved
+  harmonics, and the irradiance. Pure CPU.
+- `sky.c` — those five calls: an authored gradient shifted by sunset, the radiance that plus a glow
+  and a disc, the disc left out of the projection over 256 Fibonacci directions.
 - `sky_draw.c` — the sky drawn first in a camera pass whose sky is `drawn`: one full-screen triangle
   through the sky pipeline, timed as the span `sky`.
 - `light_blockers.c` — `voe_render_light_blockers_mask`, declared in `render/device.h`: the boxes

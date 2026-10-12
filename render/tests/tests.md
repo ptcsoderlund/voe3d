@@ -87,9 +87,9 @@ by reading the offscreen colour image back.
   over it, a zeroed sky the clear colour, a dark sun the plain gradient, and `<pass>: sky` in the
   breakdown.
   Headless.
-- `haze.c` — far surfaces fading into the horizon's sky: a black quad at 2000 m three quarters
-  haze, at 50 m under a tenth, haze 0 and a draw after the depth clear black, and a blended one
-  keeping its blend over the sky. Headless.
+- `haze.c` — far surfaces fading into the horizon's gradient: a black quad at 2000 m three quarters
+  haze, at 50 m under a tenth, haze 0 and a draw after the depth clear black, a blended one keeping
+  its blend over the sky, and a low sun ahead adding no disc or glow. Headless.
 - `sky_light.c` — the sky lighting a grey cube: blue above red at noon, less blue at fill 0, redder
   at sunset, a full-sun face the same at every fill; a smooth metal quad the sky along R, a rough
   one nearer E(R)/π; Indoors black; a red light-0 fill replaced by the sky. Headless.
@@ -131,7 +131,8 @@ by reading the offscreen colour image back.
   and slices rising from NEAR to FAR.
 - `sky_model.c` — the gradient and glow, with no card: zenith, horizon and ground as authored, with
   or without a sun; sunset's warm, dim evening and night; horizon height's band; the disc brighter
-  than authored; and the harmonics' irradiance within 5% of a brute-force sum.
+  than authored; the gradient under the radiance; and the harmonics' irradiance within 5% of a
+  brute-force sum.
 - `light_blockers.c` — which boxes hold a point, with no card: a box's centre and face and not
   past it, a turned box's diagonal, two boxes both bits, blocker 31 bit 31, none mask 0, and
   inside the sphere but outside the box 0, the call reached through `render/device.h`.
