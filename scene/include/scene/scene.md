@@ -34,3 +34,7 @@ stays on `scene/scene.md`.
 - `sky_component.h` — the sky: light, haze, exposure and tone, Clip or Soft.
 - `sky_system.h` — the replace intent, the direct call that creates one, and
   the run that drains it.
+- `picture_component.h` — the picture: how the whole drawn image is exposed and
+  toned, exposure in stops and tone, Clip or Soft.
+- `picture_system.h` — the replace intent, the direct call that creates one,
+  and the run that drains it.
