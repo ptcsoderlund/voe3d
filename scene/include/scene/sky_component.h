@@ -1,26 +1,29 @@
-// The sky: how strongly it lights, how thick its haze is, and how the picture
-// is exposed and toned (0405). Read by anyone, const; written only through
-// scene/sky_system.h.
+// The sky: how it looks, and nothing about light (0406). Read by anyone,
+// const; written only through scene/sky_system.h.
 //
 // HAVING THE ROW IS THE SKY ON. A world with no sky row draws the old picture,
 // byte for byte, so every scene saved before the sky existed keeps its look.
 //
-// THE SUN IT FOLLOWS IS THE WORLD'S FIRST DIRECTIONAL LIGHT (scene/light_component.h):
-// its direction places the sky's sun and its colour times intensity lights the
-// air. This row holds no direction and no colour of its own.
+// THE ROW HOLDS NO LIGHT. The sky's light on surfaces is the world's first
+// directional light's fill (scene/light_component.h), and the sky's sun is
+// that light's direction and colour. The sky is as bright as authored; only
+// the sun's disc and glow may be brighter.
 //
 // THE FIRST ROW IN TABLE ORDER IS THE ONE DRAWN. A world holds at most one by
 // the caller's capacity; a second row, if a caller allows one, is ignored.
 //
-// THE FIELDS (0405 point 1):
-//   light    — how strongly the sky lights lit surfaces, a multiplier; 1 is
-//              the honest sky, 0 none. Finite, at least 0.
-//   haze     — metres at which half of a surface's colour is haze; 0 is no
-//              haze. Finite, at least 0.
-//   exposure — stops the picture is brightened (× 2^exposure); 0 is as is.
-//              Finite, from -VOE_SCENE_SKY_EXPOSURE_MAX to +MAX.
-//   tone     — a UINT32 named by voe_scene_sky_tone_names: Clip (as is, the
-//              target clamps) or Soft (Khronos PBR Neutral). At most Soft.
+// THE FIELDS (0406 point 1), every number finite:
+//   zenith, horizon, ground — linear colours, drawn as authored, as base
+//                    colours are. Each channel at least 0.
+//   horizon_height — 0 to 1: how far up from the horizon towards the zenith
+//                    the horizon colour reaches; 0 a hard band.
+//   sun_size       — the disc's angular radius in degrees, 0 (no disc) to
+//                    VOE_SCENE_SKY_SUN_SIZE_MAX.
+//   sun_glow       — 0 to 1: how strong and wide the halo round the sun is.
+//   sunset         — 0 to 1: how much the sky turns to evening as the sun
+//                    lowers; 0 keeps the authored colours at every sun angle.
+//   haze           — metres at which half of a surface's colour is haze; 0 is
+//                    no haze. At least 0.
 //
 // THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a
 // build that asks for descriptions also has voe_scene_sky_description(), and
@@ -34,30 +37,26 @@
 #include <ecs/component.h>
 #include <ecs/world.h>
 
+#include <math/float3.h>
+
 #include <stdint.h>
 
-// The Tone values. A future value is a new constant here, never a reuse.
-#define VOE_SCENE_SKY_TONE_CLIP 0u
-#define VOE_SCENE_SKY_TONE_SOFT 1u
+// The widest sun disc, in degrees of angular radius.
+#define VOE_SCENE_SKY_SUN_SIZE_MAX 10.0f
 
-// The most stops exposure may go either way.
-#define VOE_SCENE_SKY_EXPOSURE_MAX 16.0f
-
-// The name of each Tone value, indexed by the value's own number.
-extern VOE_BASE_IMPORTED const char *const voe_scene_sky_tone_names[2];
-
-// light and haze not negative, exposure within ±VOE_SCENE_SKY_EXPOSURE_MAX,
-// tone at most Soft, all finite — see the header.
+// Colours not negative, horizon_height, sun_glow and sunset 0 to 1, sun_size
+// 0 to VOE_SCENE_SKY_SUN_SIZE_MAX, haze not negative — see the header.
 #define VOE_SCENE_SKY_FIELDS(F, F_READ_ONLY) \
-	F(float, light, FLOAT32)             \
-	F(float, haze, FLOAT32)              \
-	F(float, exposure, FLOAT32)          \
-	F(uint32_t, tone, UINT32)
+	F(voe_math_float3, zenith, COLOUR)   \
+	F(voe_math_float3, horizon, COLOUR)  \
+	F(voe_math_float3, ground, COLOUR)   \
+	F(float, horizon_height, FLOAT32)    \
+	F(float, sun_size, FLOAT32)          \
+	F(float, sun_glow, FLOAT32)          \
+	F(float, sunset, FLOAT32)            \
+	F(float, haze, FLOAT32)
 
-#define VOE_SCENE_SKY_NAMES(N) N(tone, voe_scene_sky_tone_names)
-
-VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_scene_sky, VOE_SCENE_SKY_FIELDS,
-			       VOE_SCENE_SKY_NAMES)
+VOE_BASE_DESCRIBE_STRUCT(voe_scene_sky, VOE_SCENE_SKY_FIELDS)
 
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_sky_key;

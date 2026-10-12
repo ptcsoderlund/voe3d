@@ -24,7 +24,7 @@ module's promises from outside. None of them needs a window or a graphics card.
   names All, Fill, Direct and the former name "kind", a row read back, a
   replace to Direct landing on a run, refused negative, infinite and NaN sizes
   and a Block past Direct, and a dead entity.
-- `sky.c` — the sky's registration with no needed type and its default row, a
-  row read back, a haze replace landing on a run, a refused negative light,
-  infinite haze, NaN exposure, exposure of 17 and tone of 2, a dead entity, and
-  the names Clip and Soft.
+- `sky.c` — the sky's registration, its 0406 default row and fields, a row read
+  back, a horizon replace landing on a run, a refused NaN zenith, negative
+  ground, horizon height 1.5, sun size 11, sunset -0.1 and infinite haze, and a
+  dead entity.

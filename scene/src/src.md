@@ -33,6 +33,6 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `light_blocker_system.c` — registration, creation, and the run that applies a
   whole row or keeps it over a size that is negative or not finite or a Block
   past Direct.
-- `sky_component.c` — the key, the Tone names Clip and Soft, and the reads.
-- `sky_system.c` — registration, creation, and the run that applies a whole sky
-  or keeps it over a number not finite or out of bounds or a tone past Soft.
+- `sky_component.c` — the key and the reads.
+- `sky_system.c` — registration with 0406's default row, creation, and the run
+  that applies a whole sky or keeps it over a number not finite or out of bounds.

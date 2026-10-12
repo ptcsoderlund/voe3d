@@ -2,7 +2,7 @@
 // that applies a whole row or keeps the row over one it refuses.
 //
 // THE DRAIN IS THE WHOLE SYSTEM, as it is for the sun. What the sky looks like
-// and how it lights is the renderer's.
+// is the renderer's; how it lights is the first directional light's fill.
 //
 // AN INTENT FOR AN ENTITY WITH NO SKY IS DROPPED, silently — see the header.
 // A refused row says so once per intent on stderr, naming the entity by its
@@ -33,10 +33,14 @@ void voe_scene_sky_register(voe_ecs_world *world, uint32_t capacity)
 {
 	voe_ecs_type type;
 	voe_ecs_intent intent;
-	const voe_scene_sky row = { .light = 1.0f,
-				    .haze = 1000.0f,
-				    .exposure = 0.0f,
-				    .tone = VOE_SCENE_SKY_TONE_SOFT };
+	const voe_scene_sky row = { .zenith = { 0.15f, 0.35f, 0.80f },
+				    .horizon = { 0.60f, 0.75f, 0.90f },
+				    .ground = { 0.20f, 0.18f, 0.16f },
+				    .horizon_height = 0.25f,
+				    .sun_size = 1.5f,
+				    .sun_glow = 0.5f,
+				    .sunset = 0.5f,
+				    .haze = 1000.0f };
 
 	VOE_BASE_ASSERT(world != NULL, "registering skies in no world");
 
@@ -58,14 +62,27 @@ static bool amount_valid(float value)
 	return isfinite(value) && value >= 0.0f;
 }
 
+// Every channel finite and not negative.
+static bool colour_valid(voe_math_float3 colour)
+{
+	return amount_valid(colour.x) && amount_valid(colour.y) &&
+	       amount_valid(colour.z);
+}
+
+// Within [0, max]. Written so a NaN fails it; an infinity is past max.
+static bool within(float value, float max)
+{
+	return value >= 0.0f && value <= max;
+}
+
 // Every bound of the header at once; written so a NaN fails each comparison.
 static bool sky_valid(voe_scene_sky sky)
 {
-	return amount_valid(sky.light) && amount_valid(sky.haze) &&
-	       isfinite(sky.exposure) &&
-	       sky.exposure >= -VOE_SCENE_SKY_EXPOSURE_MAX &&
-	       sky.exposure <= VOE_SCENE_SKY_EXPOSURE_MAX &&
-	       sky.tone <= VOE_SCENE_SKY_TONE_SOFT;
+	return colour_valid(sky.zenith) && colour_valid(sky.horizon) &&
+	       colour_valid(sky.ground) && within(sky.horizon_height, 1.0f) &&
+	       within(sky.sun_size, VOE_SCENE_SKY_SUN_SIZE_MAX) &&
+	       within(sky.sun_glow, 1.0f) && within(sky.sunset, 1.0f) &&
+	       amount_valid(sky.haze);
 }
 
 bool voe_scene_sky_add(voe_ecs_world *world, voe_ecs_entity entity,
@@ -109,7 +126,7 @@ void voe_scene_sky_system_run(voe_ecs_world *world)
 			continue;
 		if (!sky_valid(intents[i].sky)) {
 			fprintf(stderr,
-				"error: sky %uv%u: light, haze, exposure or tone refused, row kept\n",
+				"error: sky %uv%u: a number out of bounds or not finite refused, row kept\n",
 				entity.index, entity.generation);
 			continue;
 		}

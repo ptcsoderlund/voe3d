@@ -1,12 +1,10 @@
-// The sky component: its key, its Tone names and the reads. Everything that
+// The sky component: its key and the reads. Everything that
 // writes one is in sky_system.c, which is what makes a file including only
 // this header provably a reader.
 #include <base/assert.h>
 #include <scene/sky_component.h>
 
 const struct voe_ecs_key voe_scene_sky_key = { "voe_scene_sky" };
-
-const char *const voe_scene_sky_tone_names[2] = { "Clip", "Soft" };
 
 const voe_scene_sky *voe_scene_sky_get(const voe_ecs_world *world,
 				       voe_ecs_entity entity)

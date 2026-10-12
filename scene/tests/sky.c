@@ -1,8 +1,8 @@
 // The sky: what registration tells a tool (the menu path, no needed type, the
-// default row light 1, haze 1000, exposure 0, tone Soft, the field `tone` and
-// its names Clip and Soft), that a row arrives as given, that a replace
-// changes the haze only when the system runs, that a negative light, an
-// infinite haze, a NaN exposure, an exposure of 17 and a tone of 2 are each
+// default row of 0406 and the eight fields in order, the colours COLOUR), that
+// a row arrives as given, that a replace changes the horizon only when the
+// system runs, that a NaN zenith, a negative ground channel, a horizon height
+// of 1.5, a sun size of 11, a sunset of -0.1 and an infinite haze are each
 // refused and keep the row, and that adding to a dead entity is false.
 //
 // EACH REFUSAL IS ITS OWN INTENT, submitted one at a time with the row checked
@@ -44,10 +44,21 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 // No field the default's, so a default copied in shows as a wrong number.
 static voe_scene_sky known(void)
 {
-	return (voe_scene_sky){ .light = 0.5f,
-				.haze = 250.0f,
-				.exposure = -2.0f,
-				.tone = VOE_SCENE_SKY_TONE_CLIP };
+	return (voe_scene_sky){ .zenith = { 0.1f, 0.2f, 0.3f },
+				.horizon = { 0.4f, 0.5f, 0.6f },
+				.ground = { 0.7f, 0.8f, 0.9f },
+				.horizon_height = 0.75f,
+				.sun_size = 3.0f,
+				.sun_glow = 0.25f,
+				.sunset = 1.0f,
+				.haze = 250.0f };
+}
+
+static void check_colour(voe_math_float3 read, voe_math_float3 expected)
+{
+	VOE_TEST_CHECK_FLOAT(read.x, expected.x, 0.0f);
+	VOE_TEST_CHECK_FLOAT(read.y, expected.y, 0.0f);
+	VOE_TEST_CHECK_FLOAT(read.z, expected.z, 0.0f);
 }
 
 static void check_sky(const voe_scene_sky *read, voe_scene_sky expected)
@@ -55,10 +66,22 @@ static void check_sky(const voe_scene_sky *read, voe_scene_sky expected)
 	VOE_TEST_CHECK(read != NULL);
 	if (read == NULL)
 		return;
-	VOE_TEST_CHECK_FLOAT(read->light, expected.light, 0.0f);
+	check_colour(read->zenith, expected.zenith);
+	check_colour(read->horizon, expected.horizon);
+	check_colour(read->ground, expected.ground);
+	VOE_TEST_CHECK_FLOAT(read->horizon_height, expected.horizon_height,
+			     0.0f);
+	VOE_TEST_CHECK_FLOAT(read->sun_size, expected.sun_size, 0.0f);
+	VOE_TEST_CHECK_FLOAT(read->sun_glow, expected.sun_glow, 0.0f);
+	VOE_TEST_CHECK_FLOAT(read->sunset, expected.sunset, 0.0f);
 	VOE_TEST_CHECK_FLOAT(read->haze, expected.haze, 0.0f);
-	VOE_TEST_CHECK_FLOAT(read->exposure, expected.exposure, 0.0f);
-	VOE_TEST_CHECK_INT(read->tone, expected.tone);
+}
+
+static void check_field(const voe_base_field_description *field,
+			const char *name, voe_base_field_kind kind)
+{
+	VOE_TEST_CHECK(strcmp(field->name, name) == 0);
+	VOE_TEST_CHECK_INT(field->kind, kind);
 }
 
 static void registration_says_what_a_sky_is(voe_base_arena *arena)
@@ -69,34 +92,38 @@ static void registration_says_what_a_sky_is(voe_base_arena *arena)
 	voe_ecs_type needed = { 0 };
 	const voe_base_struct_description *description =
 		voe_scene_sky_description();
-	const voe_base_field_names *names;
 
 	VOE_TEST_CHECK(replace.set);
 	VOE_TEST_CHECK_INT((long long)replace.row_offset,
 			   (long long)offsetof(voe_scene_sky_intent, sky));
 	check_sky(voe_ecs_component_default(world, type),
-		  (voe_scene_sky){ .light = 1.0f,
-				   .haze = 1000.0f,
-				   .exposure = 0.0f,
-				   .tone = VOE_SCENE_SKY_TONE_SOFT });
+		  (voe_scene_sky){ .zenith = { 0.15f, 0.35f, 0.80f },
+				   .horizon = { 0.60f, 0.75f, 0.90f },
+				   .ground = { 0.20f, 0.18f, 0.16f },
+				   .horizon_height = 0.25f,
+				   .sun_size = 1.5f,
+				   .sun_glow = 0.5f,
+				   .sunset = 0.5f,
+				   .haze = 1000.0f });
 	VOE_TEST_CHECK(!voe_ecs_component_needs(world, type, &needed));
 	VOE_TEST_CHECK(strcmp(voe_ecs_component_menu(world, type),
 			      "Rendering / Sky") == 0);
 	VOE_TEST_CHECK(!voe_ecs_component_runtime_only(world, type));
 
-	VOE_TEST_CHECK_INT(description->field_count, 4);
-	VOE_TEST_CHECK(strcmp(description->fields[3].name, "tone") == 0);
-	VOE_TEST_CHECK_INT(description->fields[3].kind, VOE_BASE_FIELD_UINT32);
-
-	names = voe_base_names_find(description, "tone");
-	VOE_TEST_CHECK(names != NULL);
-	if (names == NULL)
+	VOE_TEST_CHECK_INT(description->field_count, 8);
+	if (description->field_count != 8)
 		return;
-	VOE_TEST_CHECK_INT(names->value_count, 2);
-	VOE_TEST_CHECK(strcmp(names->values[VOE_SCENE_SKY_TONE_CLIP], "Clip") ==
-		       0);
-	VOE_TEST_CHECK(strcmp(names->values[VOE_SCENE_SKY_TONE_SOFT], "Soft") ==
-		       0);
+	check_field(&description->fields[0], "zenith", VOE_BASE_FIELD_COLOUR);
+	check_field(&description->fields[1], "horizon", VOE_BASE_FIELD_COLOUR);
+	check_field(&description->fields[2], "ground", VOE_BASE_FIELD_COLOUR);
+	check_field(&description->fields[3], "horizon_height",
+		    VOE_BASE_FIELD_FLOAT32);
+	check_field(&description->fields[4], "sun_size",
+		    VOE_BASE_FIELD_FLOAT32);
+	check_field(&description->fields[5], "sun_glow",
+		    VOE_BASE_FIELD_FLOAT32);
+	check_field(&description->fields[6], "sunset", VOE_BASE_FIELD_FLOAT32);
+	check_field(&description->fields[7], "haze", VOE_BASE_FIELD_FLOAT32);
 }
 
 static void a_sky_arrives_as_given(voe_base_arena *arena)
@@ -120,34 +147,35 @@ static void a_replace_lands_when_the_system_runs(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity settings = { 0 };
-	voe_scene_sky thicker = known();
+	voe_scene_sky dusk = known();
 
-	thicker.haze = 80.0f;
+	dusk.horizon = (voe_math_float3){ 0.9f, 0.5f, 0.3f };
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &settings));
 	VOE_TEST_CHECK(voe_scene_sky_add(world, settings, known()));
 	VOE_TEST_CHECK(voe_scene_sky_submit(
-		world,
-		(voe_scene_sky_intent){ .entity = settings, .sky = thicker }));
+		world, (voe_scene_sky_intent){ .entity = settings, .sky = dusk }));
 	check_sky(voe_scene_sky_get(world, settings), known());
 	voe_scene_sky_system_run(world);
-	check_sky(voe_scene_sky_get(world, settings), thicker);
+	check_sky(voe_scene_sky_get(world, settings), dusk);
 }
 
 static void a_refused_sky_keeps_the_row(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity settings = { 0 };
-	voe_scene_sky bad[5] = { known(), known(), known(), known(), known() };
+	voe_scene_sky bad[6] = { known(), known(), known(),
+				 known(), known(), known() };
 
-	bad[0].light = -1.0f;
-	bad[1].haze = INFINITY;
-	bad[2].exposure = NAN;
-	bad[3].exposure = 17.0f;
-	bad[4].tone = 2u;
+	bad[0].zenith.y = NAN;
+	bad[1].ground.z = -0.1f;
+	bad[2].horizon_height = 1.5f;
+	bad[3].sun_size = 11.0f;
+	bad[4].sunset = -0.1f;
+	bad[5].haze = INFINITY;
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &settings));
 	VOE_TEST_CHECK(voe_scene_sky_add(world, settings, known()));
 
-	for (int i = 0; i < 5; i++) {
+	for (int i = 0; i < 6; i++) {
 		VOE_TEST_CHECK(voe_scene_sky_submit(
 			world, (voe_scene_sky_intent){ .entity = settings,
 						       .sky = bad[i] }));
@@ -167,14 +195,6 @@ static void adding_to_a_dead_entity_is_false(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(voe_scene_sky_count(world), 0);
 }
 
-static void the_tone_names_read_clip_and_soft(void)
-{
-	VOE_TEST_CHECK(strcmp(voe_scene_sky_tone_names[VOE_SCENE_SKY_TONE_CLIP],
-			      "Clip") == 0);
-	VOE_TEST_CHECK(strcmp(voe_scene_sky_tone_names[VOE_SCENE_SKY_TONE_SOFT],
-			      "Soft") == 0);
-}
-
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -184,7 +204,6 @@ int main(void)
 	a_replace_lands_when_the_system_runs(arena);
 	a_refused_sky_keeps_the_row(arena);
 	adding_to_a_dead_entity_is_false(arena);
-	the_tone_names_read_clip_and_soft();
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

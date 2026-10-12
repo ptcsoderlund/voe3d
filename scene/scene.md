@@ -60,10 +60,10 @@ space is.
 - `include/scene/light_blocker_system.h` — the whole-row intent as its replace,
   the direct call that creates one, and the run that drains it. Its header says
   what size and Block are refused and why the replace is queued.
-- `include/scene/sky_component.h` — the sky row: light, haze, exposure and a
-  named tone, Clip or Soft, as a described field list, and the reads. Its header
-  says the row is the sky on, its sun is the first directional light, and each
-  field's unit and bounds.
+- `include/scene/sky_component.h` — the sky's look only: zenith, horizon and
+  ground colours, horizon height, sun size and glow, sunset and haze, as a
+  described field list, and the reads. Its header says the row is the sky on and
+  holds no light, and each field's unit and bounds.
 - `include/scene/sky_system.h` — the whole-row intent as its replace, the direct
   call that creates one, and the run that drains it. Its header says what is
   refused and why the replace is queued.
