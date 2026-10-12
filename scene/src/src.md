@@ -36,3 +36,7 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `sky_component.c` — the key and the reads.
 - `sky_system.c` — registration with 0406's default row, creation, and the run
   that applies a whole sky or keeps it over a number not finite or out of bounds.
+- `picture_component.c` — the key, the tone names Clip and Soft, and the reads.
+- `picture_system.c` — registration with 0406's default row, creation, and the
+  run that applies a whole picture or keeps it over an exposure not finite or
+  past 16 stops or a tone past Soft.
