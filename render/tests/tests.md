@@ -129,10 +129,8 @@ by reading the offscreen colour image back.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
-- `sky_model.c` — the gradient and glow, with no card: zenith, horizon and ground as authored, with
-  or without a sun; sunset's warm, dim evening and night; horizon height's band; the disc brighter
-  than authored; the gradient under the radiance; and the harmonics' irradiance within 5% of a
-  brute-force sum.
+- `sky_model.c` — the gradient, glow and irradiance, with no card: colours as authored, sunset and
+  night, the horizon band, the disc, and the harmonics within 5% of a brute-force sum.
 - `light_blockers.c` — which boxes hold a point, with no card: a box's centre and face and not
   past it, a turned box's diagonal, two boxes both bits, blocker 31 bit 31, none mask 0, and
   inside the sphere but outside the box 0, the call reached through `render/device.h`.
