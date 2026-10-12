@@ -355,7 +355,7 @@ float3 voe_render_sky_light(float3 n, float3 v, float3 diffuse_colour,
 {
 	float strength = voe_render_frame.sky.drawn != 0 ?
 				 voe_render_frame.sky.fill : 0.0;
-	voe_render_light sun = voe_render_frame.light;
+	voe_render_light light = voe_render_frame.light;
 
 	if (!(strength > 0.0))
 		return float3(0.0, 0.0, 0.0);
@@ -363,8 +363,8 @@ float3 voe_render_sky_light(float3 n, float3 v, float3 diffuse_colour,
 	    (mask & ~voe_render_light_blockers[voe_render_frame.region].walls) != 0)
 		return float3(0.0, 0.0, 0.0);
 	float3 r = reflect(-v, n);
-	float3 sky = voe_render_sky_radiance(sun.direction,
-					     sun.colour * sun.intensity, r);
+	float3 sky = voe_render_sky_radiance(voe_render_frame.sky, light.direction,
+					     voe_render_sky_sun(light), r);
 	float3 blurred = voe_render_sky_irradiance(r) / VOE_PI;
 	float3 diffuse = diffuse_colour * voe_render_sky_irradiance(n) / VOE_PI;
 	float3 reflection = lerp(sky, blurred, roughness) *

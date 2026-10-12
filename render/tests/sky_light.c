@@ -1,11 +1,12 @@
 // THE SKY LIGHTS AND SHINES ON LIT SURFACES (ADR-0405 point 5). A target of the
 // test's own seen by a camera at the origin looking along −Z, read back with
-// voe_render_target_read, the sky drawn and exposure 0 at Clip:
+// voe_render_target_read, ADR-0406 point 1's sky drawn but at sunset 1, and
+// exposure 0 at Clip:
 //
 // 1. a grey lit cube 3 m ahead, the sun 50° up behind it so its +Z face, read
 //    at the centre, is turned away: with the sky's fill 1 the face lit, blue
 //    above red; with fill 0 black, as before the sky lit anything;
-// 2. the sun 5° up on the face's side: the face's red over blue above noon's;
+// 2. the sun 2° up on the face's side: the face's red over blue above noon's;
 // 3. a smooth white metal quad tilted 30° up to the camera reads the sRGB of
 //    voe_render_sky_radiance (render/src/sky.h) along the reflected view times
 //    Karis's Fresnel fit, within 6/255; at roughness 1 it reads nearer E(R)/π,
@@ -126,6 +127,18 @@ static voe_render_view the_camera(void)
 	return view;
 }
 
+// ADR-0406 point 1's sky, drawn, but sunset 1; `fill` is each case's.
+static const voe_render_sky SKY = {
+	.zenith = { 0.15f, 0.35f, 0.80f },
+	.horizon_height = 0.25f,
+	.horizon = { 0.60f, 0.75f, 0.90f },
+	.sun_size = 1.5f,
+	.ground = { 0.20f, 0.18f, 0.16f },
+	.sun_glow = 0.5f,
+	.drawn = 1,
+	.sunset = 1.0f,
+};
+
 // A white sun whose light travels along `direction`.
 static voe_render_light the_sun(voe_math_float3 direction)
 {
@@ -147,7 +160,7 @@ static const uint8_t *picture_of(struct scene *scene,
 		.view = the_camera(),
 		.light = light,
 		.blockers = blockers,
-		.sky = { .drawn = 1, .fill = sky_light },
+		.sky = SKY,
 		.exposure = { .tone = VOE_RENDER_TONE_CLIP },
 	};
 	voe_render_object object = {
@@ -160,6 +173,7 @@ static const uint8_t *picture_of(struct scene *scene,
 	voe_base_error error = VOE_BASE_OK;
 	bool drawing = false;
 
+	camera.sky.fill = sky_light;
 	object.world.m[2][3] = z;
 	VOE_TEST_CHECK(voe_render_frame_begin(scene->device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
@@ -289,16 +303,15 @@ static void check_mirror(struct scene *scene, voe_render_light noon)
 	const voe_math_float3 d = centre_direction();
 	const voe_math_float3 r = voe_math_float3_sub(
 		d, voe_math_float3_scale(n, 2.0f * voe_math_float3_dot(d, n)));
-	const voe_math_float3 sunlight =
-		voe_math_float3_scale(noon.colour, noon.intensity);
+	const voe_math_float3 sun = voe_render_sky_sun(noon);
 	const voe_math_float3 sky =
-		voe_render_sky_radiance(noon.direction, sunlight, r);
+		voe_render_sky_radiance(&SKY, noon.direction, sun, r);
 	const float n_dot_v = -voe_math_float3_dot(n, d);
 	voe_math_float4 harmonics[9];
 	voe_math_float3 blurred;
 	const uint8_t *pixel;
 
-	voe_render_sky_harmonics(noon.direction, sunlight, harmonics);
+	voe_render_sky_harmonics(&SKY, noon.direction, sun, harmonics);
 	blurred = voe_math_float3_scale(voe_render_sky_irradiance(harmonics, r),
 					1.0f / PI);
 	pixel = picture_of(scene, scene->quad, scene->smooth, 0.0f, noon, 1.0f,
@@ -372,9 +385,9 @@ int main(void)
 	// 50° up behind the cube, so neither the +Z face nor the quad faces it.
 	const voe_render_light noon =
 		the_sun((voe_math_float3){ 0.0f, -0.76604444f, 0.64278761f });
-	// 5° up in front of the cube, on the +Z face's side.
+	// 2° up in front of the cube, on the +Z face's side.
 	const voe_render_light evening =
-		the_sun((voe_math_float3){ 0.0f, -0.08715574f, -0.9961947f });
+		the_sun((voe_math_float3){ 0.0f, -0.0348995f, -0.9993908f });
 
 	scene.device = voe_render_device_new_headless(scene.arena, size,
 						      CAPACITIES, &error);

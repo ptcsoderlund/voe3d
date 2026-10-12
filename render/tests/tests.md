@@ -85,13 +85,14 @@ by reading the offscreen colour image back.
   after the depth clear as authored, a blended one doubled before its blend, and exposure with no
   sky. Headless.
 - `sky.c` — the sky drawn behind a pass: its pixels the CPU twin's radiance within 2/255, a quad
-  over it, a zeroed sky the clear colour, a dark sun black, and `<pass>: sky` in the breakdown.
+  over it, a zeroed sky the clear colour, a dark sun the plain gradient, and `<pass>: sky` in the
+  breakdown.
   Headless.
 - `haze.c` — far surfaces fading into the horizon's sky: a black quad at 2000 m three quarters
   haze, at 50 m under a tenth, haze 0 and a draw after the depth clear black, and a blended one
   keeping its blend over the sky. Headless.
 - `sky_light.c` — the sky lighting a grey cube: blue above red at noon, black at fill 0, redder at
-  evening; a smooth white metal quad the sky along R within 6/255, a rough one nearer E(R)/π, and
+  a sunset-1 evening; a smooth white metal quad the sky along R within 6/255, a rough one nearer E(R)/π, and
   Indoors black. Headless.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
   red to a black surface whether the sun faces it or not, and a metal-roughness map replacing the
@@ -129,9 +130,9 @@ by reading the offscreen colour image back.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
-- `sky_model.c` — the sky model, with no card: a high sun's zenith bluer than its horizon, an
-  evening horizon red and the sky darker, the disc outshining 5° beside it, no sunlight black,
-  straight down a tenth, and the harmonics' irradiance within 5% of a brute-force sum.
+- `sky_model.c` — the gradient and glow, with no card: zenith, horizon and ground as authored, with
+  or without a sun; sunset's warm, dim evening and night; horizon height's band; the disc brighter
+  than authored; and the harmonics' irradiance within 5% of a brute-force sum.
 - `light_blockers.c` — which boxes hold a point, with no card: a box's centre and face and not
   past it, a turned box's diagonal, two boxes both bits, blocker 31 bit 31, none mask 0, and
   inside the sphere but outside the box 0, the call reached through `render/device.h`.

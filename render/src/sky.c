@@ -1,9 +1,9 @@
-// The sky's three calls: its radiance along a view, its projection onto nine
-// harmonics, and the irradiance read back from them (see sky.h for the model).
+// The sky's four calls: its sun, its radiance along a view, its projection onto
+// nine harmonics, and the irradiance read back from them (see sky.h for the
+// model, ADR-0407 for the curves).
 //
-// The scattered part and the disc are kept apart so the harmonics can take the
-// first alone. The air mass is one number a direction, the extinction one a
-// channel; every call is plain arithmetic, allocates nothing and keeps no state.
+// The disc is a flag of the one radiance function so the harmonics can leave it
+// out; every call is plain arithmetic, allocates nothing and keeps no state.
 //
 // CONSTRAINTS. The projection's 256 directions are worked out on every call
 // rather than kept in a table; a table would lift that if a profile names it.
@@ -21,109 +21,107 @@
 	return fabsf(voe_math_float3_length(v) - 1.0f);
 }
 
-// Kasten–Young's relative air mass at `height`, the sine of the angle above the
-// horizon, clamped at the horizon.
-static float air_mass(float height)
+static float saturate(float x)
 {
-	const float s = fminf(fmaxf(height, 0.0f), 1.0f);
-	const float degrees = asinf(s) * (180.0f / PI);
-	const float m = 1.0f / (s + 0.50572f * powf(degrees + 6.07995f, -1.6364f));
-
-	assert(m >= 1.0f - 1e-3f && m < 40.0f);
-	return m;
+	return fminf(fmaxf(x, 0.0f), 1.0f);
 }
 
-static voe_math_float3 rayleigh_depth(void)
+// Slang's smoothstep: 0 at `low`, 1 at `high`, Hermite between.
+static float smoothstep(float low, float high, float x)
 {
-	return (voe_math_float3){ VOE_RENDER_SKY_RAYLEIGH_R,
-				  VOE_RENDER_SKY_RAYLEIGH_G,
-				  VOE_RENDER_SKY_RAYLEIGH_B };
+	const float t = saturate((x - low) / (high - low));
+
+	assert(high > low);
+	return t * t * (3.0f - 2.0f * t);
 }
 
-static voe_math_float3 extinction(voe_math_float3 depth, float mass)
+static bool lit(voe_math_float3 sun)
 {
-	return (voe_math_float3){ expf(-depth.x * mass), expf(-depth.y * mass),
-				  expf(-depth.z * mass) };
+	return sun.x > 0.0f || sun.y > 0.0f || sun.z > 0.0f;
 }
 
-// The sunlight that reaches the air, after its path through it.
-static voe_math_float3 sunlight_in_air(voe_math_float3 sun,
-				       voe_math_float3 sunlight)
+voe_math_float3 voe_render_sky_sun(voe_render_light light)
 {
-	const voe_math_float3 rayleigh = rayleigh_depth();
-	const voe_math_float3 depth = voe_math_float3_add(
-		rayleigh, (voe_math_float3){ VOE_RENDER_SKY_MIE,
-					     VOE_RENDER_SKY_MIE,
-					     VOE_RENDER_SKY_MIE });
+	const voe_math_float3 nought = { 0.0f, 0.0f, 0.0f };
+	const bool on = light.unshaded == 0 && light.intensity > 0.0f &&
+			lit(light.colour) &&
+			voe_math_float3_dot(light.direction, light.direction) > 0.0f;
 
-	return voe_math_float3_mul(sunlight,
-				   extinction(depth, air_mass(sun.y)));
+	assert(isfinite(light.colour.x) && isfinite(light.colour.y) &&
+	       isfinite(light.colour.z));
+	return on ? light.colour : nought;
 }
 
-// The scattered light along `view` at or above the horizon, sun at `sun`.
-static voe_math_float3 scattered_above(voe_math_float3 sun,
-				       voe_math_float3 sunlight,
-				       voe_math_float3 view)
+// The radiance along `view`, the disc added when `disc` (ADR-0407 points 3 to
+// 5); `sun` nought reads neither `direction` nor the evening.
+static voe_math_float3 radiance(const voe_render_sky *sky,
+				voe_math_float3 direction, voe_math_float3 sun,
+				voe_math_float3 view, bool disc)
 {
-	const float c = voe_math_float3_dot(view, sun);
-	const float g = VOE_RENDER_SKY_MIE_G;
-	const float p_r = 3.0f / (16.0f * PI) * (1.0f + c * c);
-	const float p_m = (1.0f - g * g) /
-			  (4.0f * PI * powf(1.0f + g * g - 2.0f * g * c, 1.5f));
-	const voe_math_float3 rayleigh = rayleigh_depth();
-	const float mie = VOE_RENDER_SKY_MIE;
-	const voe_math_float3 depth = voe_math_float3_add(
-		rayleigh, (voe_math_float3){ mie, mie, mie });
-	const voe_math_float3 through = extinction(depth, air_mass(view.y));
-	const voe_math_float3 gathered = voe_math_float3_div(
-		voe_math_float3_sub((voe_math_float3){ 1, 1, 1 }, through), depth);
-	const voe_math_float3 phase = voe_math_float3_add(
-		voe_math_float3_scale(rayleigh, p_r),
-		(voe_math_float3){ mie * p_m, mie * p_m, mie * p_m });
-	const voe_math_float3 out = voe_math_float3_scale(
-		voe_math_float3_mul(voe_math_float3_mul(gathered, phase),
-				    sunlight_in_air(sun, sunlight)),
-		VOE_RENDER_SKY_GAIN);
+	const bool on = lit(sun);
+	const voe_math_float3 s =
+		on ? voe_math_float3_neg(voe_math_float3_normalize(direction)) :
+		     (voe_math_float3){ 0.0f, 1.0f, 0.0f };
+	const float e = s.y;
+	const float h = view.y;
+	const float toward = voe_math_float3_dot(view, s);
+	const float k = on ? sky->sunset *
+				     saturate((VOE_RENDER_SKY_EVENING_HEIGHT - e) /
+					      VOE_RENDER_SKY_EVENING_HEIGHT) :
+			     0.0f;
+	const float n = on ? sky->sunset * saturate(-e / VOE_RENDER_SKY_NIGHT_DEPTH) :
+			     0.0f;
+	const float side = 0.5f + 0.5f * toward;
+	const float brightest = fmaxf(sky->horizon.x,
+				      fmaxf(sky->horizon.y, sky->horizon.z));
+	const voe_math_float3 warm = { VOE_RENDER_SKY_WARM_R * brightest,
+				       VOE_RENDER_SKY_WARM_G * brightest,
+				       VOE_RENDER_SKY_WARM_B * brightest };
+	const voe_math_float3 horizon =
+		voe_math_float3_lerp(sky->horizon, warm, k * side * side);
+	// 0406's endpoints with one pow: 1/16 a hard band, 4 + 1/16 nearly flat.
+	voe_math_float3 out =
+		h >= 0.0f ?
+			voe_math_float3_lerp(horizon, sky->zenith,
+					     powf(h, 4.0f * sky->horizon_height +
+							     1.0f / 16.0f)) :
+			voe_math_float3_lerp(horizon, sky->ground,
+					     saturate(-VOE_RENDER_SKY_GROUND_FADE * h));
 
-	assert(p_r > 0.0f && p_m > 0.0f);
+	out = voe_math_float3_scale(out, (1.0f - VOE_RENDER_SKY_EVENING_DIM * k) *
+						 (1.0f - VOE_RENDER_SKY_NIGHT_DIM * n));
+	if (!on)
+		return out;
+	const float glow =
+		sky->sun_glow *
+		powf(saturate(toward),
+		     VOE_RENDER_SKY_GLOW_NARROW -
+			     (VOE_RENDER_SKY_GLOW_NARROW - VOE_RENDER_SKY_GLOW_WIDE) *
+				     sky->sun_glow) *
+		(1.0f - n);
+
+	out = voe_math_float3_add(out, voe_math_float3_scale(sun, glow));
+	if (disc && sky->sun_size > 0.0f && h >= 0.0f) {
+		const float r = sky->sun_size * (PI / 180.0f);
+		const float edge = smoothstep(cosf(VOE_RENDER_SKY_DISC_EDGE * r),
+					      cosf(r), toward);
+
+		out = voe_math_float3_add(
+			out, voe_math_float3_scale(sun, VOE_RENDER_SKY_DISC_GAIN *
+								edge * (1.0f - n)));
+	}
 	return out;
 }
 
-// The scattered light along any `view`: below the horizon, the horizon's at
-// the view's azimuth (the sun's, straight down) darkened linearly in −y.
-static voe_math_float3 scattered(voe_math_float3 sun, voe_math_float3 sunlight,
-				 voe_math_float3 view)
-{
-	if (view.y >= 0.0f)
-		return scattered_above(sun, sunlight, view);
-	voe_math_float3 flat = { view.x, 0.0f, view.z };
-
-	if (voe_math_float3_length(flat) < 1e-4f)
-		flat = (voe_math_float3){ sun.x, 0.0f, sun.z };
-	if (voe_math_float3_length(flat) < 1e-4f)
-		flat = (voe_math_float3){ 1.0f, 0.0f, 0.0f };
-	flat = voe_math_float3_normalize(flat);
-	const float darken = 1.0f - (1.0f - VOE_RENDER_SKY_GROUND) * -view.y;
-
-	assert(darken >= VOE_RENDER_SKY_GROUND - 1e-4f && darken <= 1.0f);
-	return voe_math_float3_scale(scattered_above(sun, sunlight, flat),
-				     darken);
-}
-
-voe_math_float3 voe_render_sky_radiance(voe_math_float3 direction,
-					voe_math_float3 sunlight,
+voe_math_float3 voe_render_sky_radiance(const voe_render_sky *sky,
+					voe_math_float3 direction,
+					voe_math_float3 sun,
 					voe_math_float3 view)
 {
-	assert(unit_error(direction) < 1e-3f && unit_error(view) < 1e-3f);
-	assert(sunlight.x >= 0.0f && sunlight.y >= 0.0f && sunlight.z >= 0.0f);
-	const voe_math_float3 sun = voe_math_float3_neg(direction);
-	voe_math_float3 out = scattered(sun, sunlight, view);
-	const float disc = cosf(VOE_RENDER_SKY_DISC_DEGREES * (PI / 180.0f));
+	assert(sky != NULL && unit_error(view) < 1e-3f);
+	assert(sun.x >= 0.0f && sun.y >= 0.0f && sun.z >= 0.0f);
+	const voe_math_float3 out = radiance(sky, direction, sun, view, true);
 
-	if (view.y >= 0.0f && voe_math_float3_dot(view, sun) >= disc)
-		out = voe_math_float3_add(
-			out, voe_math_float3_scale(sunlight_in_air(sun, sunlight),
-						   VOE_RENDER_SKY_DISC_GAIN));
 	assert(isfinite(out.x) && isfinite(out.y) && isfinite(out.z));
 	return out;
 }
@@ -154,11 +152,12 @@ static voe_math_float3 fibonacci(uint32_t i, uint32_t count)
 	return (voe_math_float3){ cosf(phi) * r, y, sinf(phi) * r };
 }
 
-void voe_render_sky_harmonics(voe_math_float3 direction,
-			      voe_math_float3 sunlight, voe_math_float4 out[9])
+void voe_render_sky_harmonics(const voe_render_sky *sky,
+			      voe_math_float3 direction, voe_math_float3 sun,
+			      voe_math_float4 out[9])
 {
-	assert(out != NULL && unit_error(direction) < 1e-3f);
-	const voe_math_float3 sun = voe_math_float3_neg(direction);
+	assert(sky != NULL && out != NULL);
+	assert(sun.x >= 0.0f && sun.y >= 0.0f && sun.z >= 0.0f);
 	const uint32_t count = VOE_RENDER_SKY_DIRECTIONS;
 	// Each sample's solid angle, times the cosine lobe's band: π, 2π/3, π/4.
 	const float weight = 4.0f * PI / (float)count;
@@ -170,7 +169,7 @@ void voe_render_sky_harmonics(voe_math_float3 direction,
 		out[k] = (voe_math_float4){ 0.0f, 0.0f, 0.0f, 0.0f };
 	for (uint32_t i = 0; i < count; i++) {
 		const voe_math_float3 v = fibonacci(i, count);
-		const voe_math_float3 l = scattered(sun, sunlight, v);
+		const voe_math_float3 l = radiance(sky, direction, sun, v, false);
 		float y[9];
 
 		harmonics_at(v, y);

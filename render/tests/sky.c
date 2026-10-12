@@ -3,12 +3,12 @@
 // through its middle, a white sun 30° up straight ahead, read back with
 // voe_render_target_read:
 //
-// 1. with `drawn`, exposure 0 and Clip, the centre pixel and one near the top
-//    are the sRGB of voe_render_sky_radiance (render/src/sky.h, the CPU twin)
-//    along their own directions, within 2/255;
+// 1. with ADR-0406 point 1's defaults `drawn`, exposure 0 and Clip, the centre
+//    pixel and one near the top are the sRGB of voe_render_sky_radiance
+//    (render/src/sky.h, the CPU twin) along their own directions, within 2/255;
 // 2. an unlit red quad drawn in the pass covers the sky at the centre;
 // 3. the sky zeroed reads pass.c's clear colour, the old picture;
-// 4. a sun of intensity 0 is a black sky;
+// 4. a sun of intensity 0 reads the plain gradient, the CPU's with no sun;
 // 5. some frames later, `voe_render_frame_pass_times` lists the target's pass
 //    then `<pass>: sky`. A card that writes no timestamps skips this part.
 //
@@ -44,6 +44,18 @@
 // pass.c's clear colour, linear.
 #define CLEAR_RED 0.00857f
 #define CLEAR_BLUE 0.01033f
+
+// ADR-0406 point 1's defaults, drawn, no haze.
+static const voe_render_sky DRAWN = {
+	.zenith = { 0.15f, 0.35f, 0.80f },
+	.horizon_height = 0.25f,
+	.horizon = { 0.60f, 0.75f, 0.90f },
+	.sun_size = 1.5f,
+	.ground = { 0.20f, 0.18f, 0.16f },
+	.sun_glow = 0.5f,
+	.drawn = 1,
+	.sunset = 0.5f,
+};
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 4,
@@ -181,15 +193,14 @@ static void check_pixel(const uint8_t *pixels, int column, int row,
 	VOE_TEST_CHECK(abs(pixel[2] - srgb_byte(expected.z)) <= tolerance);
 }
 
-static void check_sky(const uint8_t *pixels, voe_render_light sun)
+static void check_sky(const uint8_t *pixels, voe_render_light light)
 {
-	const voe_math_float3 sunlight = voe_math_float3_scale(sun.colour,
-							       sun.intensity);
 	const int rows[2] = { SIDE / 2, TOP_ROW };
 
 	for (int i = 0; i < 2; i++)
 		check_pixel(pixels, SIDE / 2, rows[i],
-			    voe_render_sky_radiance(sun.direction, sunlight,
+			    voe_render_sky_radiance(&DRAWN, light.direction,
+						    voe_render_sky_sun(light),
 						    direction_of(SIDE / 2,
 								 rows[i])),
 			    TOLERANCE);
@@ -197,14 +208,14 @@ static void check_sky(const uint8_t *pixels, voe_render_light sun)
 
 static void check_pictures(struct scene *scene)
 {
-	const voe_render_sky drawn = { .drawn = 1 };
 	const voe_render_light sun = the_sun(1.0f);
+	const voe_render_light dark = the_sun(0.0f);
 	const uint8_t *pixels;
 
-	pixels = picture_of(scene, sun, drawn, false);
+	pixels = picture_of(scene, sun, DRAWN, false);
 	if (pixels != NULL)
 		check_sky(pixels, sun);
-	pixels = picture_of(scene, sun, drawn, true);
+	pixels = picture_of(scene, sun, DRAWN, true);
 	if (pixels != NULL)
 		check_pixel(pixels, SIDE / 2, SIDE / 2,
 			    (voe_math_float3){ 1.0f, 0.0f, 0.0f }, 0);
@@ -214,15 +225,21 @@ static void check_pictures(struct scene *scene)
 			    (voe_math_float3){ CLEAR_RED, CLEAR_RED,
 					       CLEAR_BLUE },
 			    1);
-	pixels = picture_of(scene, the_sun(0.0f), drawn, false);
-	if (pixels != NULL)
+	pixels = picture_of(scene, dark, DRAWN, false);
+	if (pixels != NULL) {
+		const voe_math_float3 nought = { 0.0f, 0.0f, 0.0f };
+
 		check_pixel(pixels, SIDE / 2, SIDE / 2,
-			    (voe_math_float3){ 0.0f, 0.0f, 0.0f }, 0);
+			    voe_render_sky_radiance(&DRAWN, dark.direction,
+						    nought,
+						    direction_of(SIDE / 2,
+								 SIDE / 2)),
+			    TOLERANCE);
+	}
 }
 
 static void check_breakdown(struct scene *scene)
 {
-	const voe_render_sky drawn = { .drawn = 1 };
 	voe_render_pass_time times[4];
 	char pass[VOE_RENDER_PASS_NAME];
 	char span[VOE_RENDER_PASS_NAME + 8];
@@ -230,7 +247,7 @@ static void check_breakdown(struct scene *scene)
 	uint32_t count;
 
 	for (int i = 0; i < FRAMES; i++)
-		draw_frame(scene, the_sun(1.0f), drawn, false);
+		draw_frame(scene, the_sun(1.0f), DRAWN, false);
 	if (!voe_render_frame_gpu_time(scene->device, &seconds)) {
 		printf("skip: this card writes no timestamps, so there is no breakdown\n");
 		return;

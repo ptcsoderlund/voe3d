@@ -1,6 +1,7 @@
 // FAR SURFACES FADE INTO HAZE (ADR-0405 point 6). A target of the test's own
 // seen by a camera at the origin looking along −Z, a white sun 30° up straight
-// ahead, haze 1000 m, exposure 0 and Clip, read back with voe_render_target_read
+// ahead, ADR-0406 point 1's sky colours, haze 1000 m, exposure 0 and Clip, read
+// back with voe_render_target_read
 // at the centre pixel. The quad is an unlit black square filling the view at a
 // distance, scaled by its object matrix:
 //
@@ -100,6 +101,17 @@ static const voe_render_light SUN = {
 	.colour = { 1.0f, 1.0f, 1.0f },
 };
 
+// ADR-0406 point 1's colours and shape; `drawn` and `haze` are each case's.
+static const voe_render_sky SKY = {
+	.zenith = { 0.15f, 0.35f, 0.80f },
+	.horizon_height = 0.25f,
+	.horizon = { 0.60f, 0.75f, 0.90f },
+	.sun_size = 1.5f,
+	.ground = { 0.20f, 0.18f, 0.16f },
+	.sun_glow = 0.5f,
+	.sunset = 0.5f,
+};
+
 // One frame of one case onto the target.
 static void draw_frame(struct scene *scene, const struct haze_case *with)
 {
@@ -107,7 +119,7 @@ static void draw_frame(struct scene *scene, const struct haze_case *with)
 	voe_render_pass_camera camera = {
 		.view = the_camera(),
 		.light = SUN,
-		.sky = { .drawn = with->drawn, .haze = with->haze },
+		.sky = SKY,
 		.exposure = { .tone = VOE_RENDER_TONE_CLIP },
 	};
 	voe_render_object object = {
@@ -119,6 +131,8 @@ static void draw_frame(struct scene *scene, const struct haze_case *with)
 	};
 	bool drawing = false;
 
+	camera.sky.drawn = with->drawn;
+	camera.sky.haze = with->haze;
 	for (int i = 0; i < 3; i++)
 		object.world.m[i][i] = with->distance;
 	VOE_TEST_CHECK(voe_render_frame_begin(scene->device, size, &drawing));
@@ -177,10 +191,8 @@ static voe_math_float3 centre_direction(void)
 
 static voe_math_float3 radiance_along(voe_math_float3 view)
 {
-	return voe_render_sky_radiance(SUN.direction,
-				       voe_math_float3_scale(SUN.colour,
-							     SUN.intensity),
-				       view);
+	return voe_render_sky_radiance(&SKY, SUN.direction,
+				       voe_render_sky_sun(SUN), view);
 }
 
 // The haze's colour at the centre: the sky along it, its height clamped up to

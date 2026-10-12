@@ -13,8 +13,8 @@ shader and never compiled alone.
 - `tone.slangh` — haze, exposure and tone at every mesh exit: mixed towards the sky at the horizon
   by distance, × 2^exposure, then Clip or Soft by PBR Neutral, from the pass's exposure; a `plain` draw
   as authored.
-- `sky.slangh` — the sky's radiance along a view, single scattering through a flat atmosphere, twin
-  of `src/sky.h`.
+- `sky.slangh` — the sky's sun and its radiance along a view, an authored gradient shifted by sunset
+  plus a glow and a disc, twin of `src/sky.h`.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector and the clip position on
   it; draw and lookup share it.
 - `blockers.slangh` — which light blockers hold a point and whether a segment passes them, twin of

@@ -1,21 +1,30 @@
-// The sky model's claims (ADR-0405 points 3 and 5), with no graphics card: the
-// radiance and its harmonics are plain arithmetic over one sun.
+// The sky model's claims (ADR-0406 point 2, ADR-0407 points 2 to 6), with no
+// graphics card: the radiance and its harmonics are plain arithmetic over one
+// sun. Every case is the defaults of ADR-0406 point 1 unless it names a field,
+// under a white sun 30° up unless it names a height.
 //
 // A sun at elevation e has its light travelling along (−cos e, −sin e, 0), so
-// it stands towards +X; a high sun is at 60°, so the zenith is not inside the
-// Mie peak about it, and the evening sun at 5°.
+// it stands towards +X.
 //
-// A HIGH SUN: THE ZENITH'S BLUE OVER RED ABOVE THE HORIZON'S. AN EVENING SUN:
-// THE HORIZON TOWARDS IT REDDER THAN BLUE, THE SKY DARKER OVERALL THAN AT NOON.
-// THE SUN'S OWN DIRECTION OVER TEN TIMES ONE 5° BESIDE IT. SUNLIGHT NOUGHT IS
-// BLACK EVERYWHERE. STRAIGHT DOWN IS A TENTH OF THE HORIZON BELOW THE SUN.
+// THE ENDPOINTS: straight up is `zenith`, the horizon facing away from the sun
+// `horizon`, straight down `ground`, each within 1e-4; with no sun the same,
+// and no direction brighter than the brightest authored channel.
 //
-// IRRADIANCE: up above down at noon, and within 5% of a cosine-weighted sum of
-// the radiance over 4096 Fibonacci directions, for up at noon and under the
-// high sun, and a horizontal normal towards that sun and one away; the sum
-// skips the disc as the harmonics do. The check is on the channels summed:
-// nine harmonics cannot hold the bright horizon band, and up reads red about 5%
-// high under a high sun, more under a low one.
+// SUNSET: at 0 a level view 90° round from the sun reads the same with the sun
+// 2° up as 60° up. At 1 with the sun 2° up, the horizon towards it is r > g > b
+// and no channel above `horizon`'s brightest, glow 0 so the gradient is what
+// is read; the zenith darker than at 30°. At 1 with the sun 15° below, the
+// zenith under a fifth of `zenith`.
+//
+// HORIZON HEIGHT: at 0 a view 3° up within 0.1 of `zenith` in every channel; at
+// 1 a view 30° up nearer `horizon` than `zenith`.
+//
+// THE SUN: its own direction brighter than any authored channel; sun size 0
+// and glow 0, its direction reads the sky with no sun.
+//
+// IRRADIANCE within 5% of a cosine-weighted sum of the radiance over 4096
+// Fibonacci directions without the disc (sun size 0), for up, down and two
+// horizontal normals, on the channels summed.
 #include "../src/sky.h"
 
 #include <testing/test.h>
@@ -25,9 +34,25 @@
 
 #define PI 3.14159265358979f
 #define BRUTE_DIRECTIONS 4096u
+#define EXACT 1e-4f
 
 static const voe_math_float3 white = { 1.0f, 1.0f, 1.0f };
+static const voe_math_float3 none = { 0.0f, 0.0f, 0.0f };
 static const voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
+static const voe_math_float3 down = { 0.0f, -1.0f, 0.0f };
+
+// ADR-0406 point 1's defaults.
+static const voe_render_sky DEFAULTS = {
+	.zenith = { 0.15f, 0.35f, 0.80f },
+	.horizon_height = 0.25f,
+	.horizon = { 0.60f, 0.75f, 0.90f },
+	.sun_size = 1.5f,
+	.ground = { 0.20f, 0.18f, 0.16f },
+	.sun_glow = 0.5f,
+	.drawn = 1,
+	.haze = 1000.0f,
+	.sunset = 0.5f,
+};
 
 static voe_math_float3 sun_at(float degrees)
 {
@@ -50,9 +75,29 @@ static float sum(voe_math_float3 c)
 	return c.x + c.y + c.z;
 }
 
-static voe_math_float3 sky(voe_math_float3 direction, voe_math_float3 view)
+static float brightest(voe_math_float3 c)
 {
-	return voe_render_sky_radiance(direction, white, view);
+	return fmaxf(c.x, fmaxf(c.y, c.z));
+}
+
+static float distance(voe_math_float3 a, voe_math_float3 b)
+{
+	return voe_math_float3_length(voe_math_float3_sub(a, b));
+}
+
+// `sky` along `view` under a white sun `degrees` up.
+static voe_math_float3 seen(const voe_render_sky *sky, float degrees,
+			    voe_math_float3 view)
+{
+	return voe_render_sky_radiance(sky, sun_at(degrees), white, view);
+}
+
+static void check_colour(voe_math_float3 got, voe_math_float3 want,
+			 float tolerance)
+{
+	VOE_TEST_CHECK_FLOAT(got.x, want.x, tolerance);
+	VOE_TEST_CHECK_FLOAT(got.y, want.y, tolerance);
+	VOE_TEST_CHECK_FLOAT(got.z, want.z, tolerance);
 }
 
 static voe_math_float3 fibonacci(uint32_t i)
@@ -64,93 +109,112 @@ static voe_math_float3 fibonacci(uint32_t i)
 	return (voe_math_float3){ cosf(phi) * r, y, sinf(phi) * r };
 }
 
-// The cosine-weighted radiance on `normal` over 4096 directions, the disc left
-// out; without `cosine`, the plain sum: the sky's mean times 4π.
-static voe_math_float3 brute_irradiance(voe_math_float3 direction,
-					voe_math_float3 normal, bool cosine)
+static void the_endpoints_are_authored(void)
 {
-	const float disc = cosf(VOE_RENDER_SKY_DISC_DEGREES * (PI / 180.0f));
-	const voe_math_float3 sun = voe_math_float3_neg(direction);
+	const voe_render_sky *sky = &DEFAULTS;
+	const voe_math_float3 sun = sun_at(30.0f);
+	const voe_math_float3 away = toward(0.0f, 180.0f);
+	const float most = fmaxf(brightest(sky->zenith),
+				 fmaxf(brightest(sky->horizon),
+				       brightest(sky->ground)));
+
+	check_colour(seen(sky, 30.0f, up), sky->zenith, EXACT);
+	check_colour(seen(sky, 30.0f, away), sky->horizon, EXACT);
+	check_colour(seen(sky, 30.0f, down), sky->ground, EXACT);
+	check_colour(voe_render_sky_radiance(sky, sun, none, up), sky->zenith,
+		     EXACT);
+	check_colour(voe_render_sky_radiance(sky, sun, none, away),
+		     sky->horizon, EXACT);
+	check_colour(voe_render_sky_radiance(sky, sun, none, down), sky->ground,
+		     EXACT);
+	for (uint32_t i = 0; i < BRUTE_DIRECTIONS; i++)
+		VOE_TEST_CHECK(brightest(voe_render_sky_radiance(
+				       sky, sun, none, fibonacci(i))) <=
+			       most + EXACT);
+	VOE_TEST_CHECK(brightest(voe_render_sky_radiance(sky, sun, none,
+							   toward(30.0f, 0.0f))) <=
+		       most + EXACT);
+}
+
+static void sunset_turns_the_evening(void)
+{
+	voe_render_sky sky = DEFAULTS;
+	const voe_math_float3 round = toward(0.0f, 90.0f);
+
+	sky.sunset = 0.0f;
+	check_colour(seen(&sky, 2.0f, round), seen(&sky, 60.0f, round), EXACT);
+	sky.sunset = 1.0f;
+	VOE_TEST_CHECK(sum(seen(&sky, 2.0f, up)) < sum(seen(&sky, 30.0f, up)));
+	VOE_TEST_CHECK(sum(seen(&sky, -15.0f, up)) < 0.2f * sum(sky.zenith));
+	VOE_TEST_CHECK(brightest(seen(&sky, -15.0f, up)) <
+		       0.2f * brightest(sky.zenith));
+	sky.sun_glow = 0.0f;
+	const voe_math_float3 evening = seen(&sky, 2.0f, toward(0.0f, 0.0f));
+
+	VOE_TEST_CHECK(evening.x > evening.y && evening.y > evening.z);
+	VOE_TEST_CHECK(brightest(evening) <= brightest(sky.horizon) + EXACT);
+}
+
+static void horizon_height_moves_the_band(void)
+{
+	voe_render_sky sky = DEFAULTS;
+	const voe_math_float3 high = toward(30.0f, 180.0f);
+
+	sky.horizon_height = 0.0f;
+	check_colour(seen(&sky, 30.0f, toward(3.0f, 180.0f)), sky.zenith, 0.1f);
+	sky.horizon_height = 1.0f;
+	VOE_TEST_CHECK(distance(seen(&sky, 30.0f, high), sky.horizon) <
+		       distance(seen(&sky, 30.0f, high), sky.zenith));
+}
+
+static void the_sun_outshines_the_sky(void)
+{
+	voe_render_sky sky = DEFAULTS;
+	const voe_math_float3 sun = sun_at(30.0f);
+	const voe_math_float3 at_sun = voe_math_float3_neg(sun);
+	const float most = fmaxf(brightest(sky.zenith),
+				 fmaxf(brightest(sky.horizon),
+				       brightest(sky.ground)));
+	const voe_math_float3 lit = seen(&sky, 30.0f, at_sun);
+
+	VOE_TEST_CHECK(fminf(lit.x, fminf(lit.y, lit.z)) > most);
+	sky.sun_size = 0.0f;
+	sky.sun_glow = 0.0f;
+	check_colour(seen(&sky, 30.0f, at_sun),
+		     voe_render_sky_radiance(&sky, sun, none, at_sun), EXACT);
+}
+
+// The cosine-weighted radiance on `normal` over 4096 directions, the disc left
+// out.
+static voe_math_float3 brute_irradiance(voe_math_float3 direction,
+					voe_math_float3 normal)
+{
+	voe_render_sky sky = DEFAULTS;
 	const float weight = 4.0f * PI / (float)BRUTE_DIRECTIONS;
 	voe_math_float3 e = { 0.0f, 0.0f, 0.0f };
 
+	sky.sun_size = 0.0f;
 	for (uint32_t i = 0; i < BRUTE_DIRECTIONS; i++) {
 		const voe_math_float3 v = fibonacci(i);
-		const float c = cosine ? voe_math_float3_dot(v, normal) : 1.0f;
+		const float c = voe_math_float3_dot(v, normal);
 
-		if (c <= 0.0f || voe_math_float3_dot(v, sun) >= disc)
+		if (c <= 0.0f)
 			continue;
-		e = voe_math_float3_add(e, voe_math_float3_scale(sky(direction, v),
-								 c * weight));
+		e = voe_math_float3_add(
+			e, voe_math_float3_scale(voe_render_sky_radiance(
+							 &sky, direction, white, v),
+						 c * weight));
 	}
 	return e;
-}
-
-static void a_high_sun_is_bluer_at_the_zenith(void)
-{
-	const voe_math_float3 sun = sun_at(60.0f);
-	const voe_math_float3 zenith = sky(sun, up);
-	const voe_math_float3 horizon = sky(sun, toward(0.0f, 90.0f));
-
-	VOE_TEST_CHECK(zenith.z / zenith.x > horizon.z / horizon.x);
-	VOE_TEST_CHECK(zenith.z > zenith.x);
-}
-
-static void an_evening_sun_is_red_and_low(void)
-{
-	const voe_math_float3 evening = sun_at(5.0f);
-	const voe_math_float3 horizon = sky(evening, toward(0.0f, 0.0f));
-	const voe_math_float3 noon = sun_at(90.0f);
-
-	VOE_TEST_CHECK(horizon.x > horizon.z);
-	VOE_TEST_CHECK(sum(brute_irradiance(evening, up, false)) <
-		       sum(brute_irradiance(noon, up, false)));
-}
-
-static void the_sun_outshines_its_neighbourhood(void)
-{
-	const voe_math_float3 sun = sun_at(40.0f);
-
-	VOE_TEST_CHECK(sum(sky(sun, toward(40.0f, 0.0f))) >
-		       10.0f * sum(sky(sun, toward(45.0f, 0.0f))));
-}
-
-static void no_sunlight_is_black(void)
-{
-	const voe_math_float3 black = { 0.0f, 0.0f, 0.0f };
-	const voe_math_float3 sun = sun_at(30.0f);
-	voe_math_float4 sh[9];
-	bool dark = true;
-
-	for (uint32_t i = 0; i < 64; i++) {
-		const voe_math_float3 v = fibonacci(i * 64u);
-
-		dark = dark && sum(voe_render_sky_radiance(sun, black, v)) == 0.0f;
-	}
-	dark = dark && sum(voe_render_sky_radiance(sun, black, toward(30.0f, 0.0f))) == 0.0f;
-	voe_render_sky_harmonics(sun, black, sh);
-	dark = dark && sum(voe_render_sky_irradiance(sh, up)) == 0.0f;
-	VOE_TEST_CHECK(dark);
-}
-
-static void straight_down_is_a_tenth(void)
-{
-	const voe_math_float3 sun = sun_at(30.0f);
-	const voe_math_float3 down = sky(sun, (voe_math_float3){ 0, -1, 0 });
-	const voe_math_float3 horizon = sky(sun, toward(0.0f, 0.0f));
-
-	VOE_TEST_CHECK_FLOAT(down.x, horizon.x * VOE_RENDER_SKY_GROUND, 1e-5f);
-	VOE_TEST_CHECK_FLOAT(down.z, horizon.z * VOE_RENDER_SKY_GROUND, 1e-5f);
-	VOE_TEST_CHECK(down.x > 0.0f);
 }
 
 static void check_irradiance(voe_math_float3 sun, voe_math_float3 normal)
 {
 	voe_math_float4 sh[9];
 
-	voe_render_sky_harmonics(sun, white, sh);
+	voe_render_sky_harmonics(&DEFAULTS, sun, white, sh);
 	const voe_math_float3 e = voe_render_sky_irradiance(sh, normal);
-	const voe_math_float3 b = brute_irradiance(sun, normal, true);
+	const voe_math_float3 b = brute_irradiance(sun, normal);
 
 	VOE_TEST_CHECK_FLOAT(sum(e), sum(b), 0.05f * sum(b));
 	VOE_TEST_CHECK(e.x > 0.0f && e.y > 0.0f && e.z > 0.0f);
@@ -158,27 +222,20 @@ static void check_irradiance(voe_math_float3 sun, voe_math_float3 normal)
 
 static void irradiance_matches_the_sky(void)
 {
-	const voe_math_float3 noon = sun_at(90.0f);
-	const voe_math_float3 high = sun_at(60.0f);
-	voe_math_float4 sh[9];
+	const voe_math_float3 sun = sun_at(30.0f);
 
-	voe_render_sky_harmonics(noon, white, sh);
-	VOE_TEST_CHECK(sum(voe_render_sky_irradiance(sh, up)) >
-		       sum(voe_render_sky_irradiance(
-			       sh, (voe_math_float3){ 0, -1, 0 })));
-	check_irradiance(noon, up);
-	check_irradiance(high, up);
-	check_irradiance(high, (voe_math_float3){ 1, 0, 0 });
-	check_irradiance(high, (voe_math_float3){ -1, 0, 0 });
+	check_irradiance(sun, up);
+	check_irradiance(sun, down);
+	check_irradiance(sun, (voe_math_float3){ 1, 0, 0 });
+	check_irradiance(sun, (voe_math_float3){ -1, 0, 0 });
 }
 
 int main(void)
 {
-	a_high_sun_is_bluer_at_the_zenith();
-	an_evening_sun_is_red_and_low();
-	the_sun_outshines_its_neighbourhood();
-	no_sunlight_is_black();
-	straight_down_is_a_tenth();
+	the_endpoints_are_authored();
+	sunset_turns_the_evening();
+	horizon_height_moves_the_band();
+	the_sun_outshines_the_sky();
 	irradiance_matches_the_sky();
 	return voe_test_result();
 }

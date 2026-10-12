@@ -1462,15 +1462,16 @@ typedef struct {
 // sky turns to evening as the sun lowers, 0 none.
 //
 // `drawn` non-zero draws the sky first in the pass, behind everything, from
-// the pass's `light` (black for an `unshaded` one or one of intensity 0),
-// exposed and toned by the pass's voe_render_exposure.
+// the pass's `light` (the plain gradient, no disc, glow or evening, for an
+// `unshaded` one or one of intensity 0), exposed and toned by the pass's
+// voe_render_exposure.
 //
 // `haze`, at least 0, is the metres at which half a surface's colour is haze
 // (ADR-0405 point 6): every mesh exit, lit, unlit, water and blended (its
 // straight colour, alpha kept), mixes towards the sky's colour at the horizon
 // along its view by 1 − 2^(−distance/haze), before exposure and tone. That
-// colour is the sky's at the horizon whether or not `drawn`; black under an
-// `unshaded` light. 0 is none; plain draws take none.
+// colour is the sky's at the horizon whether or not `drawn`. 0 is none; plain
+// draws take none.
 //
 // `fill`, at least 0, is the first directional light's fill intensity, set by
 // `3d` (ADR-0406 point 3): with `drawn`, how strongly the sky lights lit
