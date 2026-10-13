@@ -625,19 +625,19 @@ static bool build_block(const voe_text_font *font, voe_render_device *device,
 			// the scene and nothing that fails.
 			vertices[v + 0] = (voe_render_vertex){
 				{ x0, y1, 0.0f }, { 0.0f, 0.0f, 1.0f },
-				{ g->u0, g->v0 }
+				{ g->u0, g->v0 }, { 0 }
 			};
 			vertices[v + 1] = (voe_render_vertex){
 				{ x1, y1, 0.0f }, { 0.0f, 0.0f, 1.0f },
-				{ g->u1, g->v0 }
+				{ g->u1, g->v0 }, { 0 }
 			};
 			vertices[v + 2] = (voe_render_vertex){
 				{ x1, y0, 0.0f }, { 0.0f, 0.0f, 1.0f },
-				{ g->u1, g->v1 }
+				{ g->u1, g->v1 }, { 0 }
 			};
 			vertices[v + 3] = (voe_render_vertex){
 				{ x0, y0, 0.0f }, { 0.0f, 0.0f, 1.0f },
-				{ g->u0, g->v1 }
+				{ g->u0, g->v1 }, { 0 }
 			};
 
 			indices[glyphs * 6u + 0] = v + 3;
