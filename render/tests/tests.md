@@ -86,10 +86,9 @@ by reading the offscreen colour image back.
 - `sky.c` — the sky drawn behind a pass: its pixels the CPU twin's radiance within 2/255, a quad
   over it, a zeroed sky the clear colour, a dark sun the plain gradient, `<pass>: sky` in the
   breakdown, and a red light and a blue one in `more` each drawing its own disc. Headless.
-- `haze.c` — far surfaces fading into haze of the sky's hue at the lights' brightness: wherever the
-  sun, however bright the sky, two horizons, two lights summed, no light black, no sky the lights'
-  colour, haze 0 and after the depth clear black, a blended one over a veiled sky, a haze start.
-  Headless.
+- `haze.c` — far surfaces fading into haze of the sky's hue at the lights' brightness, wherever the
+  sun and whatever the sky: lights summed, no light or haze black, no sky the lights' colour, after
+  the depth clear, over a veiled sky, from a haze start. Headless.
 - `haze_sky.c` — the sky seen through the haze: dense haze the whole sky and the sun's disc, thin
   haze the horizon most, clear above the layer, and without a drawn sky the clear colour veiled.
   Headless.
