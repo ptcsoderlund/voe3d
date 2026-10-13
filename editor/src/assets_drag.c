@@ -335,14 +335,14 @@ static bool material_give(voe_ecs_world *world, voe_ecs_entity entity,
 }
 
 // The open material's shown copy with `path` in map `index`: colour, normal,
-// roughness, as inspector_material.c's rows. Not a scene edit: interface_read.c
-// carries the copy to the table and reloads the material.
+// ORM, emission, as inspector_material.c's rows. Not a scene edit:
+// interface_read.c carries the copy to the table and reloads the material.
 static void map_fill(voe_assets_material_file *material, uint32_t index,
 		     const char *path)
 {
 	char *const maps[VOE_EDITOR_MATERIAL_MAPS] = {
 		material->colormap, material->normalmap,
-		material->ormmap
+		material->ormmap, material->emissionmap
 	};
 
 	VOE_BASE_ASSERT(index < VOE_EDITOR_MATERIAL_MAPS, "no such map");

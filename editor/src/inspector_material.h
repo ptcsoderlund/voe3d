@@ -2,10 +2,12 @@
 // `.material` is open (scene.h's `material_open`, 0399 point 8): the file's
 // name as heading, Lit and Unlit with the chosen one lit, Colour as a swatch
 // inside a button, Roughness and Metal as sliders 0–1, Repeat as a number box
-// clamped 0.01–1000, and the Colormap, Normalmap and ORMmap rows, each the
-// map's file name or "None" with × while set. While ORMmap is set, Roughness
-// and Metal are drawn greyed and cannot move, and nothing reads them, so the
-// file's values stand untouched until the map is emptied (0401, 0402).
+// clamped 0.01–1000, Cutout as a slider 0–1, One side and Both sides with the
+// chosen one lit (0420 point 2), and the Colormap, Normalmap, ORMmap and
+// Emissionmap rows, each the map's file name or "None" with × while set. While
+// ORMmap is set, Roughness and Metal are drawn greyed and cannot move, and
+// nothing reads them, so the file's values stand untouched until the map is
+// emptied (0401, 0402).
 //
 //     voe_editor_inspector_material_dim(&scene->material_controls, palette);
 //     voe_editor_inspector_material_forget(&scene->material_controls);
@@ -40,11 +42,14 @@
 // Lit and Unlit, indexed as voe_assets_material_shader.
 #define VOE_EDITOR_MATERIAL_SHADERS 2
 
-// Roughness and Metal: one slider each.
-#define VOE_EDITOR_MATERIAL_SLIDERS 2
+// Roughness, Metal and Cutout: one slider each.
+#define VOE_EDITOR_MATERIAL_SLIDERS 3
 
-// The Colormap, Normalmap and ORMmap: one row each.
-#define VOE_EDITOR_MATERIAL_MAPS 3
+// One side and Both sides, indexed as `double_sided` false and true.
+#define VOE_EDITOR_MATERIAL_SIDES 2
+
+// The Colormap, Normalmap, ORMmap and Emissionmap: one row each.
+#define VOE_EDITOR_MATERIAL_MAPS 4
 
 // Room for a shown figure.
 #define VOE_EDITOR_MATERIAL_FIGURE 16
@@ -58,6 +63,7 @@ typedef struct {
 	voe_ui_node colour;
 	voe_ui_node sliders[VOE_EDITOR_MATERIAL_SLIDERS];
 	voe_ui_node repeat;
+	voe_ui_node sides[VOE_EDITOR_MATERIAL_SIDES];
 	// Each map's row, for a drop on it, and its × while the map is set.
 	voe_ui_node maps[VOE_EDITOR_MATERIAL_MAPS];
 	voe_ui_node clears[VOE_EDITOR_MATERIAL_MAPS];
@@ -89,8 +95,8 @@ void voe_editor_inspector_material_draw(
 struct voe_editor_scene;
 
 // After voe_ui_frame_end, on `scene->material` through
-// `scene->material_controls`: a fired shader button chooses it, each drawn
-// slider's value taken, Repeat's taken clamped, a fired × empties its map, a
+// `scene->material_controls`: a fired shader or sides button chooses it, each
+// drawn slider's value taken, Repeat's taken clamped, a fired × empties its map, a
 // fired swatch opens the picker on the material; each map row's rectangle kept.
 // A greyed slider is not drawn as one, so nothing is taken from it.
 void voe_editor_inspector_material_read(const voe_ui_context *ui,

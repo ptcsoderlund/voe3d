@@ -3,8 +3,9 @@
 // in the scene and what the read may change.
 //
 // The shader buttons are indexed as voe_assets_material_shader, so a button's
-// index is its shader; the map rows as the file lists them: colour, normal,
-// roughness.
+// index is its shader, a sides button's index is `double_sided`; the sliders
+// roughness, metal, cutout; the map rows as the file lists them: colour,
+// normal, ORM, emission.
 //
 // While ORMmap is set, Roughness and Metal are drawn under `controls->dim` with
 // voe_ui_slider_shown and their nodes left VOE_UI_NODE_NONE, so the read takes
@@ -46,22 +47,28 @@ static const char *const SHADER_NAMES[VOE_EDITOR_MATERIAL_SHADERS] = {
 };
 
 static const char *const SLIDER_NAMES[VOE_EDITOR_MATERIAL_SLIDERS] = {
-	"Roughness", "Metal"
+	"Roughness", "Metal", "Cutout"
+};
+
+static const char *const SIDES_NAMES[VOE_EDITOR_MATERIAL_SIDES] = {
+	"One side", "Both sides"
 };
 
 static const char *const MAP_NAMES[VOE_EDITOR_MATERIAL_MAPS] = {
-	"Colormap", "Normalmap", "ORMmap"
+	"Colormap", "Normalmap", "ORMmap", "Emissionmap"
 };
 
-// The number slider `i` writes: roughness, metal.
+// The number slider `i` writes: roughness, metal, cutout.
 static float *slider_value(voe_assets_material_file *material, uint32_t i)
 {
 	VOE_BASE_ASSERT(material != NULL, "a slider of no material");
 	VOE_BASE_ASSERT(i < VOE_EDITOR_MATERIAL_SLIDERS, "no such slider");
-	return i == 0 ? &material->roughness : &material->metal;
+	return i == 0 ? &material->roughness :
+	       i == 1 ? &material->metal :
+			&material->cutout;
 }
 
-// The path map row `i` holds: colour, normal, roughness.
+// The path map row `i` holds: colour, normal, ORM, emission.
 static const char *map_path(const voe_assets_material_file *material,
 			    uint32_t i)
 {
@@ -69,7 +76,8 @@ static const char *map_path(const voe_assets_material_file *material,
 	VOE_BASE_ASSERT(i < VOE_EDITOR_MATERIAL_MAPS, "no such map");
 	return i == 0 ? material->colormap :
 	       i == 1 ? material->normalmap :
-			material->ormmap;
+	       i == 2 ? material->ormmap :
+			material->emissionmap;
 }
 
 // What follows the last `/` of `path`, `path` itself without one.
@@ -105,6 +113,8 @@ void voe_editor_inspector_material_forget(
 		controls->shaders[i] = VOE_UI_NODE_NONE;
 	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_SLIDERS; i++)
 		controls->sliders[i] = VOE_UI_NODE_NONE;
+	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_SIDES; i++)
+		controls->sides[i] = VOE_UI_NODE_NONE;
 	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_MAPS; i++) {
 		controls->maps[i] = VOE_UI_NODE_NONE;
 		controls->clears[i] = VOE_UI_NODE_NONE;
@@ -127,7 +137,35 @@ static voe_ui_node row_open(voe_ui_context *ui)
 					    .wrap = true });
 }
 
-// The three map rows: name, file name or "None", and × while set.
+// Slider `i`'s row: name, track and figure; greyed, under `controls->dim` and
+// shown only, so its node stays VOE_UI_NODE_NONE.
+static void slider_draw(voe_ui_context *ui,
+			voe_editor_inspector_material *controls, uint32_t i,
+			float value, bool greyed)
+{
+	VOE_BASE_ASSERT(ui != NULL && controls != NULL, "drawing no slider");
+	VOE_BASE_ASSERT(i < VOE_EDITOR_MATERIAL_SLIDERS, "no such slider");
+
+	if (greyed)
+		voe_ui_theme_push(ui, &controls->dim);
+	row_open(ui);
+	voe_ui_label(ui, SLIDER_NAMES[i]);
+	if (greyed)
+		voe_ui_slider_shown(ui, "material slider", i, value, 0.0f, 1.0f,
+				    SLIDER_WIDE);
+	else
+		controls->sliders[i] = voe_ui_slider(ui, "material slider", i,
+						     value, 0.0f, 1.0f,
+						     SLIDER_WIDE);
+	snprintf(controls->figures[i], sizeof controls->figures[i], "%.2f",
+		 (double)value);
+	voe_ui_label(ui, controls->figures[i]);
+	voe_ui_end(ui);
+	if (greyed)
+		voe_ui_theme_pop(ui);
+}
+
+// The map rows: name, file name or "None", and × while set.
 static void maps_draw(voe_ui_context *ui,
 		      voe_editor_inspector_material *controls,
 		      const voe_assets_material_file *material)
@@ -193,28 +231,8 @@ void voe_editor_inspector_material_draw(
 
 	const bool greyed = material->ormmap[0] != '\0';
 
-	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_SLIDERS; i++) {
-		const float value =
-			i == 0 ? material->roughness : material->metal;
-
-		if (greyed)
-			voe_ui_theme_push(ui, &controls->dim);
-		row_open(ui);
-		voe_ui_label(ui, SLIDER_NAMES[i]);
-		if (greyed)
-			voe_ui_slider_shown(ui, "material slider", i, value,
-					    0.0f, 1.0f, SLIDER_WIDE);
-		else
-			controls->sliders[i] = voe_ui_slider(
-				ui, "material slider", i, value, 0.0f, 1.0f,
-				SLIDER_WIDE);
-		snprintf(controls->figures[i], sizeof controls->figures[i],
-			 "%.2f", (double)value);
-		voe_ui_label(ui, controls->figures[i]);
-		voe_ui_end(ui);
-		if (greyed)
-			voe_ui_theme_pop(ui);
-	}
+	slider_draw(ui, controls, 0, material->roughness, greyed);
+	slider_draw(ui, controls, 1, material->metal, greyed);
 
 	row_open(ui);
 	voe_ui_label(ui, "Repeat");
@@ -225,6 +243,17 @@ void voe_editor_inspector_material_draw(
 		 "%.2f", (double)material->repeat);
 	voe_ui_label(ui, controls->repeat_figure);
 	voe_ui_end(ui);
+	voe_ui_end(ui);
+
+	slider_draw(ui, controls, 2, material->cutout, false);
+
+	row_open(ui);
+	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_SIDES; i++) {
+		controls->sides[i] = voe_ui_choice_begin(
+			ui, "sides", i, material->double_sided == (i == 1));
+		voe_ui_label(ui, SIDES_NAMES[i]);
+		voe_ui_end(ui);
+	}
 	voe_ui_end(ui);
 
 	maps_draw(ui, controls, material);
@@ -245,13 +274,18 @@ void voe_editor_inspector_material_read(const voe_ui_context *ui,
 	// Indexed as map_path's.
 	char *const maps[VOE_EDITOR_MATERIAL_MAPS] = {
 		material->colormap, material->normalmap,
-		material->ormmap
+		material->ormmap, material->emissionmap
 	};
 
 	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_SHADERS; i++)
 		if (controls->shaders[i] != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, controls->shaders[i]).fired)
 			material->shader = (voe_assets_material_shader)i;
+
+	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_SIDES; i++)
+		if (controls->sides[i] != VOE_UI_NODE_NONE &&
+		    voe_ui_button_action(ui, controls->sides[i]).fired)
+			material->double_sided = i == 1;
 
 	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_SLIDERS; i++)
 		if (controls->sliders[i] != VOE_UI_NODE_NONE)

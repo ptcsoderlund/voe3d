@@ -102,7 +102,8 @@ static void voe_editor_interface_material_read(const voe_ui_context *ui,
 		return;
 	maps = strcmp(row->values.colormap, shown->colormap) != 0 ||
 	       strcmp(row->values.normalmap, shown->normalmap) != 0 ||
-	       strcmp(row->values.ormmap, shown->ormmap) != 0;
+	       strcmp(row->values.ormmap, shown->ormmap) != 0 ||
+	       strcmp(row->values.emissionmap, shown->emissionmap) != 0;
 	row->values = *shown;
 	voe_editor_models_material_changed(models, scene->material_open, maps);
 	VOE_BASE_ASSERT(memcmp(&row->values, shown, sizeof *shown) == 0,
