@@ -106,8 +106,9 @@ carries it out.
 - `game_tree_landscapes.c` — landscapes.c's text: every `.landscape` read and cooked in a rewound
   scratch with its paint and layer paths, then voe_game_landscapes_cooked naming each by its
   `Assets/` path, size, cells, layers and paint.
-- `game_tree_materials.c` — materials.c's text: every `.material` read and parsed in a rewound
-  scratch, then voe_game_materials_cooked with each one's `Assets/` path and values, floats in hex.
+- `game_tree_materials.c` — materials.c's text: every `.material` and `.parts` read and parsed in a
+  rewound scratch, then voe_game_materials_cooked with each one's `Assets/` path and values, floats
+  in hex, and voe_game_parts_cooked with each `.glb`'s path and its material paths.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
