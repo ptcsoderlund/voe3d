@@ -249,8 +249,20 @@ bool voe_editor_assets_landscape_make(voe_editor_session *session, voe_base_aren
 	return ok;
 }
 
-bool voe_editor_assets_material_make(voe_editor_session *session, voe_editor_models *models,
-				     voe_base_arena *scratch, const char *folder, const char *name)
+// The materials' and parts' tables read again, then the open material
+// refreshed from its row (scene.h).
+static void materials_read(voe_editor_session *session, voe_editor_scene *scene,
+			   voe_editor_models *models, voe_base_arena *scratch)
+{
+	VOE_BASE_ASSERT(session != NULL && scene != NULL, "reading materials for no scene");
+	VOE_BASE_ASSERT(models != NULL && scratch != NULL, "reading materials into no store");
+	voe_editor_models_materials_read(models, session->project->folder, scratch);
+	voe_editor_scene_material_refresh(scene, voe_editor_models_materials(models));
+}
+
+bool voe_editor_assets_material_make(voe_editor_session *session, voe_editor_scene *scene,
+				     voe_editor_models *models, voe_base_arena *scratch,
+				     const char *folder, const char *name)
 {
 	struct voe_base_arena_mark mark;
 	voe_assets_material_file defaults = voe_assets_material_default();
@@ -258,7 +270,8 @@ bool voe_editor_assets_material_make(voe_editor_session *session, voe_editor_mod
 	bool ok;
 
 	VOE_BASE_ASSERT(session != NULL && session->project != NULL, "a material with no project");
-	VOE_BASE_ASSERT(models != NULL && scratch != NULL && folder != NULL && name != NULL,
+	VOE_BASE_ASSERT(scene != NULL && models != NULL && scratch != NULL && folder != NULL &&
+				name != NULL,
 			"making no material");
 	if (!make_allowed(session, name))
 		return false;
@@ -268,7 +281,7 @@ bool voe_editor_assets_material_make(voe_editor_session *session, voe_editor_mod
 		       text.text, text.size);
 	voe_base_arena_rewind(scratch, mark);
 	if (ok)
-		voe_editor_models_materials_read(models, session->project->folder, scratch);
+		materials_read(session, scene, models, scratch);
 	return ok;
 }
 
@@ -385,6 +398,8 @@ bool voe_editor_assets_move(voe_editor_session *session, voe_editor_scene *scene
 	}
 	voe_editor_models_rename(models, project_relative(scratch, from),
 				 project_relative(scratch, to));
+	// Before the read, which would close it at its old path.
+	voe_editor_scene_material_follow(scene, from, to);
 	ok = voe_editor_assets_follow_write(session->project->folder,
 					    project_relative(scratch, from),
 					    project_relative(scratch, to), scratch, &session->notice);
@@ -396,7 +411,7 @@ bool voe_editor_assets_move(voe_editor_session *session, voe_editor_scene *scene
 	}
 	voe_editor_undo_forget(undo);
 	voe_editor_assets_list_due(&scene->assets);
-	voe_editor_models_materials_read(models, session->project->folder, scratch);
+	materials_read(session, scene, models, scratch);
 rewind:
 	voe_base_arena_rewind(scratch, mark);
 	return ok;
@@ -473,7 +488,7 @@ bool voe_editor_assets_duplicate(voe_editor_session *session, voe_editor_scene *
 		goto rewind;
 	}
 	voe_editor_assets_list_due(&scene->assets);
-	voe_editor_models_materials_read(models, session->project->folder, scratch);
+	materials_read(session, scene, models, scratch);
 	ok = true;
 rewind:
 	voe_base_arena_rewind(scratch, mark);
@@ -505,6 +520,6 @@ bool voe_editor_assets_trash(voe_editor_session *session, voe_editor_scene *scen
 		voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
 	voe_base_arena_rewind(scratch, mark);
 	if (ok)
-		voe_editor_models_materials_read(models, session->project->folder, scratch);
+		materials_read(session, scene, models, scratch);
 	return ok;
 }

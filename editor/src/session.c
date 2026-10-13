@@ -9,6 +9,7 @@
 #include "code.h"
 #include "game_tree.h"
 #include "last_project.h"
+#include "models.h"
 
 #include <base/arena.h>
 #include <base/assert.h>
@@ -538,8 +539,31 @@ void voe_editor_session_prefab_open(voe_editor_session *session,
 	session->prefab_opened = true;
 }
 
+// The file at `source` imported into the Assets panel, then the materials and
+// parts read again and the open material refreshed, the import's own writes
+// among them. A failure is the notice.
+static void session_import(voe_editor_session *session, voe_editor_scene *scene,
+			   voe_editor_models *models, const char *source)
+{
+	voe_base_arena *scratch;
+
+	VOE_BASE_ASSERT(session->project->folder != NULL,
+			"importing into a project with no folder");
+	VOE_BASE_ASSERT(models != NULL && source != NULL,
+			"importing with no store or no file");
+	voe_editor_assets_import(&scene->assets, session->project->folder,
+				 source, &session->notice);
+	scratch = voe_base_arena_new(SESSION_SCRATCH);
+	voe_editor_models_materials_read(models, session->project->folder,
+					 scratch);
+	voe_base_arena_destroy(scratch);
+	voe_editor_scene_material_refresh(scene,
+					  voe_editor_models_materials(models));
+}
+
 void voe_editor_session_browser_do(voe_editor_session *session,
 				   voe_editor_scene *scene,
+				   struct voe_editor_models *models,
 				   voe_editor_browser *browser,
 				   voe_editor_browser_result result)
 {
@@ -620,9 +644,7 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 		// Import is only drawn for a project with a folder, but New or
 		// Open may have replaced it while the browser showed.
 		if (session->project->folder != NULL)
-			voe_editor_assets_import(&scene->assets,
-						 session->project->folder,
-						 result.name, &session->notice);
+			session_import(session, scene, models, result.name);
 		voe_editor_browser_hide(browser);
 		return;
 	}

@@ -197,7 +197,8 @@ void voe_editor_session_prefab_open(voe_editor_session *session,
 // are browser.c's own to do, given session->notice to write a failure into;
 // Cancel hides the browser and nothing else. IMPORT_FILE copies the pressed
 // file into the Assets panel's shown folder (voe_editor_assets_import, a
-// failure in the notice) and hides the browser. CONFIRM IS THIS FILE'S OWN IN
+// failure in the notice), reads `models`' materials and parts again, refreshes
+// the open material (scene.h) and hides the browser. CONFIRM IS THIS FILE'S OWN IN
 // BOTH MODES, the same shape session_do's other commands have. In OPEN mode:
 // browser->target copied into `load_folder`, `load_due` set and the browser
 // hidden; voe_editor_session_load opens it next frame. A target too long to
@@ -213,8 +214,11 @@ void voe_editor_session_prefab_open(voe_editor_session *session,
 // VOE_EDITOR_BROWSER_NONE, which is every frame nothing was clicked, does
 // nothing at all, so a listing failure's notice survives the frames in which
 // nothing else happened to it.
+// `models` is a struct pointer and not models.h's name: models.h includes this.
+struct voe_editor_models;
 void voe_editor_session_browser_do(voe_editor_session *session,
 				   voe_editor_scene *scene,
+				   struct voe_editor_models *models,
 				   voe_editor_browser *browser,
 				   voe_editor_browser_result result);
 

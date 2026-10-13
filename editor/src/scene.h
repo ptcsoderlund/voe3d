@@ -56,12 +56,14 @@
 // never saved, never undone, and kept by a new project. `assets`, the Assets
 // panel's state, is here so the dock reaches it (assets_panel.h). AN OPEN
 // MATERIAL (0399 point 8) is `material_open` and its shown copy `material`:
-// a live selection closes it, a move follows it and a trash closes it.
+// a live selection closes it, a move follows it and a trash closes it; a
+// materials read again (an import, an Assets command) refreshes it from its row.
 #pragma once
 
 #include "assets_panel.h"
 #include "inspector.h"
 #include "inspector_material.h"
+#include "materials.h"
 #include "sculpt.h"
 
 #include <ecs/world.h>
@@ -249,6 +251,13 @@ void voe_editor_scene_select(voe_editor_scene *scene, voe_ecs_entity entity);
 // path too long for `material_open`.
 void voe_editor_scene_material_follow(voe_editor_scene *scene,
 				      const char *from, const char *to);
+
+// After `materials` was read again: the open material takes its row's values
+// as both `material` and `material_before`, so a file rewritten under it (a
+// re-import) is not taken for an Inspector edit and written back; closed when
+// its row is gone. Nothing with none open.
+void voe_editor_scene_material_refresh(voe_editor_scene *scene,
+				       voe_editor_materials *materials);
 
 // Whether this is the selected entity. False for a zeroed `entity` and false
 // for one that is not alive, so a caller comparing table rows needs no checks of

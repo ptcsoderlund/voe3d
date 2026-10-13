@@ -2,12 +2,14 @@
 // calls with the naming's field, and the read of its rows, the selection and
 // `keyboard`, the field's request, a fired prefab, landscape or material row's
 // path and Up afterwards,
-// with the rectangles the right button's menu and the drag are read from.
+// with the rectangles the right button's menu and the drag are read from, and
+// Import's copy, a `.glb`'s materials and parts written after it.
 // See the header for the arena, the once a second and what a missing
 // `Assets/` or a failed listing leaves.
 #include "assets_panel.h"
 
 #include "inspector_place.h"
+#include "model_import.h"
 #include "themes.h"
 
 #include <base/arena.h>
@@ -768,6 +770,15 @@ void voe_editor_assets_import(voe_editor_assets *assets,
 		voe_editor_notice_from_report(why, target);
 		goto destroy_scratch;
 	}
+	// A false has said why; the `.glb` itself is in place either way.
+	if (name_ends(source, ".glb"))
+		(void)voe_editor_model_import(
+			project_folder,
+			voe_editor_assets_join(
+				scratch, ASSETS_FOLDER,
+				voe_editor_assets_join(scratch, shown,
+						       voe_platform_path_name(source))),
+			scratch, why);
 	relist(assets, project_folder, shown, NULL, false);
 destroy_scratch:
 	voe_base_arena_destroy(scratch);

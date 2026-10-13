@@ -212,8 +212,9 @@ static void voe_editor_interface_panels_read(
 // frame's own world and this frame's own selection, and before anything
 // downstream reads either.
 static void voe_editor_interface_bar_read(
-	voe_ui_context *ui, voe_editor_scene *scene, voe_editor_session *session,
-	voe_editor_topbar *bar, voe_editor_browser *browser,
+	voe_ui_context *ui, voe_editor_scene *scene, voe_editor_models *models,
+	voe_editor_session *session, voe_editor_topbar *bar,
+	voe_editor_browser *browser,
 	voe_editor_preferences *preferences,
 	voe_editor_project_panel *project_panel,
 	voe_editor_landscape_panel *landscape_panel,
@@ -227,7 +228,7 @@ static void voe_editor_interface_bar_read(
 			"reading the bar with no bar or no browser");
 	if (shown.browsing) {
 		voe_editor_session_browser_do(
-			session, scene, browser,
+			session, scene, models, browser,
 			voe_editor_browser_clicks_read(ui, browser, escape));
 		return;
 	}
@@ -368,7 +369,7 @@ void voe_editor_interface_commands_read(
 	// Whatever the browser or Preferences show: the bar is drawn under
 	// both, and the next frame is laid out at this measure.
 	voe_editor_topbar_measure(ui, bar);
-	voe_editor_interface_bar_read(ui, scene, session, bar, browser,
+	voe_editor_interface_bar_read(ui, scene, models, session, bar, browser,
 				      preferences, project_panel,
 				      landscape_panel, shown, escape);
 	voe_editor_interface_covers_read(ui, arena, models, session,

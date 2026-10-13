@@ -273,7 +273,9 @@ void voe_editor_assets_delete_begin(voe_editor_assets *assets);
 // Copies the file at `source` into the shown folder under its own name, read
 // whole and written atomically over any file of that name, making `Assets/`
 // first when it is missing, then lists again. A failure is said in why,
-// naming the file, and changes nothing else.
+// naming the file, and changes nothing else. A `.glb` copied has its
+// materials and parts written beside it (model_import.h), a failure of
+// theirs said in why too; the caller reads the materials again.
 void voe_editor_assets_import(voe_editor_assets *assets,
 			      const char *project_folder, const char *source,
 			      voe_editor_notice *why);

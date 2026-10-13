@@ -9,7 +9,7 @@
 // Delete asks first: the request opens the session's question (assets_ask.h),
 // drawn over the dock by interface.c and read here — Delete trashes through
 // assets_manage.h, and it or Cancel or a press outside closes it. The open
-// material follows each successful rename and trash.
+// material follows each successful trash; a rename's follow is the move's.
 //
 // THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn by interface.c
 // after the panels list and read here after the panel: Rename, Delete, Folder,
@@ -77,12 +77,12 @@ static void voe_editor_interface_assets_request_do(
 			voe_editor_notice_set(&session->notice,
 					      "%s: a name cannot hold /, \\ or \"",
 					      request->name);
-		// A false move has said why in the notice.
-		else if (voe_editor_assets_move(session, scene, undo, models,
-						arena, request->from,
-						request->to))
-			voe_editor_scene_material_follow(scene, request->from,
-							 request->to);
+		// A false move has said why in the notice; it follows the
+		// open material itself.
+		else
+			(void)voe_editor_assets_move(session, scene, undo, models,
+						     arena, request->from,
+						     request->to);
 	} else if (request->kind == VOE_EDITOR_ASSETS_NAMING_FOLDER) {
 		(void)voe_editor_assets_folder_make(session, scene, undo, arena,
 						    request->folder,
@@ -95,7 +95,7 @@ static void voe_editor_interface_assets_request_do(
 		voe_editor_interface_assets_made_path(made, request->folder,
 						      request->name);
 	} else if (request->kind == VOE_EDITOR_ASSETS_NAMING_MATERIAL &&
-		   voe_editor_assets_material_make(session, models, arena,
+		   voe_editor_assets_material_make(session, scene, models, arena,
 						   request->folder,
 						   request->name)) {
 		voe_editor_assets_list_due(&scene->assets);

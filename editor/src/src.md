@@ -129,7 +129,8 @@ carries it out.
   once over unsaved work, and the `saved` flag a written Save leaves for main.c.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
-  once a frame, what a browser action does to the session, and the load a frame later.
+  once a frame, what a browser action does to the session, an import with the materials read
+  again, and the load a frame later.
 - `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
   Project, Preferences, Panels and its list, the gizmo's mode, the name and unsaved mark, then the
   notice, as tall as its content or as the person made it.
@@ -190,7 +191,12 @@ carries it out.
   landscape or material to open, and Import.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
-  fired prefab's, landscape's or material's path unless dragged, Up and Import afterwards, and the import.
+  fired prefab's, landscape's or material's path unless dragged, Up and Import afterwards, and the
+  import, a `.glb`'s materials and parts written after its copy.
+- `model_import.h` — what Import writes beside a `.glb`: one `<stem>-<name>.material` per glTF
+  material and `<stem>.parts` naming them, both overwritten every import (0403, 0420 point 3).
+- `model_import.c` — the file read and parsed, each name cleaned and made unique, every path
+  checked before the first write, then the materials and the parts written.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
   over a row, Create with its Folder, Landscape and Material submenu over the empty part, anchored
   at the pointer.
@@ -212,7 +218,8 @@ carries it out.
   the match, and the follow with its room check and write.
 - `assets_manage.h` — the Assets panel's file commands: a folder, flat landscape or default material
   made, a rename or move followed on disk, in the open scene and in the model store, a duplicate,
-  the trash, each refused with a notice and nothing changed, the materials read again after.
+  the trash, each refused with a notice and nothing changed, the materials read again after and
+  the open material refreshed, a move following it first.
 - `assets_manage.c` — the shared checks, a made file's name and write, the landscape's flat file,
   the material's defaults, the move's check, move,
   store rename, write and memory with the undo line forgotten, the next free copy name, and the
@@ -327,8 +334,9 @@ carries it out.
   its parts given, and its materials written and loaded again, those a read changed too.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
-  material open in the Inspector with its copy as last written.
-- `scene.c` — the selection closing the open material, its follow of a move, Delete and Duplicate, the gizmo's switch, the colour picker and
+  material open in the Inspector with its copy as last written, refreshed when the materials are
+  read again.
+- `scene.c` — the selection closing the open material, its follow of a move and refresh from its row, Delete and Duplicate, the gizmo's switch, the colour picker and
   dropdown targets, the Scene panel's rows and folds, asked after the frame has ended, and the
   reveal's unfold and scroll.
 - `pick.h` — a left click in a scene view selects what is under the pointer, every placed thing on

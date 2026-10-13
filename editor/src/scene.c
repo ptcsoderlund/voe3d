@@ -1,5 +1,5 @@
 // The selection, the colour picker's and the open dropdown's targets, the
-// gizmo's mode, the open material's close and follow, and the rows the Scene
+// gizmo's mode, the open material's close, follow and refresh, and the rows the Scene
 // panel drew. See the header for why
 // building a project's entities is not this file's job, and why the rows
 // outlive the call that drew them.
@@ -86,6 +86,24 @@ void voe_editor_scene_material_follow(voe_editor_scene *scene,
 		return;
 	}
 	memcpy(scene->material_open, followed, (size_t)written + 1);
+}
+
+void voe_editor_scene_material_refresh(voe_editor_scene *scene,
+				       voe_editor_materials *materials)
+{
+	const voe_game_material *row;
+
+	VOE_BASE_ASSERT(scene != NULL && materials != NULL,
+			"refreshing the open material of no scene or from no table");
+	if (scene->material_open[0] == '\0')
+		return;
+	row = voe_editor_materials_find(materials, scene->material_open);
+	if (row == NULL) {
+		scene->material_open[0] = '\0';
+		return;
+	}
+	scene->material = row->values;
+	scene->material_before = row->values;
 }
 
 bool voe_editor_scene_is_selected(const voe_editor_scene *scene,
