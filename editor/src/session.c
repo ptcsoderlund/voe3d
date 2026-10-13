@@ -1,9 +1,10 @@
 // The refuse-once rule, the eight commands, a prefab opened and left, a refresh
 // started, polled and its library swapped in, Ship started after it and
 // polled, a failed build's Errors panel shown, Open and Save's browser shown
-// beside a folder, what a browser action does to the session, and New's or
-// Open's load a frame after it was asked for. See the header for what each one does and why
-// only CLOSE ever answers true.
+// beside a folder, what a browser action does to the session, an import with
+// the materials read again, and New's or Open's load a frame after it was asked
+// for. See the header for what each one does and why only CLOSE ever answers
+// true.
 #include "session.h"
 
 #include "code.h"
