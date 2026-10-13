@@ -504,11 +504,12 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // light by handing its passes a different light (ADR-0287).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 
-// The world's first sky row as a pass takes it (0406 point 1, 0407 point 1):
-// `drawn` 1, the row's colours, horizon height, sun size, sun glow, sunset and
-// haze, and `fill` the first light row's `fill_intensity` (0 with no light);
-// zeroed with no sky table or no row, which draws the picture from before the
-// sky. Public so a view that builds its own frame, as the editor's do, carries
+// The world's first sky row as a pass takes it (0412 points 1 and 6): `drawn`
+// 1, the row's colours, horizon height, strength and haze; `disc_size[i]` and
+// `glow_size[i]` light row i's for rows 0 to VOE_RENDER_DIRECTIONAL_LIGHTS − 1
+// in table order, as _light and _lights hand them to the pass, 0 past the last
+// row or with no light table. Zeroed with no sky table or no row, which draws
+// the picture from before the sky. Public so a view that builds its own frame, as the editor's do, carries
 // the same sky as _frame.
 voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world);
 

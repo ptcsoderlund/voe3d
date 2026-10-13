@@ -96,30 +96,36 @@ static bool has_table(const voe_ecs_world *world, const struct voe_ecs_key *key)
 	return false;
 }
 
-// The light row is the first, as voe_3d_draw_system_light finds it; its fill
-// intensity is how strongly the sky lights (0406 point 3).
+// Light rows in table order, as voe_3d_draw_system_light and _lights hand them
+// to the pass, so entry i's disc is the pass's light i (0412 point 6).
 voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world)
 {
 	voe_scene_sky row;
+	voe_render_sky sky;
+	uint32_t lights;
 
 	VOE_BASE_ASSERT(world != NULL, "the sky of no world");
 	if (!has_table(world, &voe_scene_sky_key) || voe_scene_sky_count(world) == 0)
 		return (voe_render_sky){ 0 };
 	row = voe_scene_sky_rows(world)[0];
-	return (voe_render_sky){
+	sky = (voe_render_sky){
 		.zenith = row.zenith,
 		.horizon_height = row.horizon_height,
 		.horizon = row.horizon,
-		.sun_size = row.sun_size,
+		.strength = row.strength,
 		.ground = row.ground,
-		.sun_glow = row.sun_glow,
-		.drawn = 1,
-		.fill = voe_scene_light_count(world) == 0 ?
-				0.0f :
-				voe_scene_light_rows(world)[0].fill_intensity,
 		.haze = row.haze,
-		.sunset = row.sunset,
+		.drawn = 1,
 	};
+	lights = has_table(world, &voe_scene_light_key) ?
+			 voe_scene_light_count(world) :
+			 0;
+	for (uint32_t i = 0; i < lights && i < VOE_RENDER_DIRECTIONAL_LIGHTS;
+	     i++) {
+		sky.disc_size[i] = voe_scene_light_rows(world)[i].disc_size;
+		sky.glow_size[i] = voe_scene_light_rows(world)[i].glow_size;
+	}
+	return sky;
 }
 
 voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world)
