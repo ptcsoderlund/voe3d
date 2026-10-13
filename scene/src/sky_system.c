@@ -38,7 +38,8 @@ void voe_scene_sky_register(voe_ecs_world *world, uint32_t capacity)
 				    .ground = { 0.20f, 0.18f, 0.16f },
 				    .horizon_height = 0.25f,
 				    .strength = 1.0f,
-				    .haze = 1000.0f };
+				    .haze = 1000.0f,
+				    .haze_start = 100.0f };
 
 	VOE_BASE_ASSERT(world != NULL, "registering skies in no world");
 
@@ -78,7 +79,8 @@ static bool sky_valid(voe_scene_sky sky)
 {
 	return colour_valid(sky.zenith) && colour_valid(sky.horizon) &&
 	       colour_valid(sky.ground) && within(sky.horizon_height, 1.0f) &&
-	       amount_valid(sky.strength) && amount_valid(sky.haze);
+	       amount_valid(sky.strength) && amount_valid(sky.haze) &&
+	       amount_valid(sky.haze_start);
 }
 
 bool voe_scene_sky_add(voe_ecs_world *world, voe_ecs_entity entity,

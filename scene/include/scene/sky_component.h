@@ -19,8 +19,10 @@
 //                    the horizon colour reaches; 0 a hard band.
 //   strength       — scales the backdrop and so the haze, never a light's
 //                    disc or glow. At least 0.
-//   haze           — metres at which half of a surface's colour is haze; 0 is
-//                    no haze. At least 0.
+//   haze           — metres past haze_start at which half of a surface's
+//                    colour is haze; 0 is no haze. At least 0.
+//   haze_start     — metres within which no surface takes haze (0414); 0 is
+//                    the fade from the eye. At least 0.
 //
 // THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a
 // build that asks for descriptions also has voe_scene_sky_description(), and
@@ -38,15 +40,16 @@
 
 #include <stdint.h>
 
-// Colours not negative, horizon_height 0 to 1, strength and haze not
-// negative — see the header.
+// Colours not negative, horizon_height 0 to 1, strength, haze and haze_start
+// not negative — see the header.
 #define VOE_SCENE_SKY_FIELDS(F, F_READ_ONLY) \
 	F(voe_math_float3, zenith, COLOUR)   \
 	F(voe_math_float3, horizon, COLOUR)  \
 	F(voe_math_float3, ground, COLOUR)   \
 	F(float, horizon_height, FLOAT32)    \
 	F(float, strength, FLOAT32)          \
-	F(float, haze, FLOAT32)
+	F(float, haze, FLOAT32)              \
+	F(float, haze_start, FLOAT32)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_sky, VOE_SCENE_SKY_FIELDS)
 
