@@ -1477,11 +1477,15 @@ typedef struct {
 // surface's colour is haze (ADR-0405 point 6): every mesh exit, lit, unlit,
 // water and blended (its straight colour, alpha kept), mixes towards the haze's
 // colour by 1 − 2^(−max(distance − haze_start, 0)/haze), before exposure and
-// tone. That colour is the sum of the pass's shown directional lights' colour ×
-// intensity / (4π), `light` and each `more` light, the same in every direction,
-// whether or not `drawn` (ADR-0415 point 1): no fill, shadow or view term, and
-// the sky's colours and `strength` not read. With no shown light far surfaces
-// fade towards black. 0 is none; plain draws take none.
+// tone. `haze` and `haze_start` are the scene's Haze row's (ADR-0417 point 1)
+// and haze whether or not `drawn`. Over the pass's shown directional lights,
+// `light` and each `more` light, the same in every direction, no fill, shadow
+// or view term: with `drawn` that colour is the horizon's hue (its largest
+// channel 1, white when black; `strength` and the colours' brightness not
+// read) × the lights' brightness, Σ largest colour channel × intensity / (4π)
+// (ADR-0416 points 2 and 3); without it the lights' colour, Σ colour ×
+// intensity / (4π) (ADR-0415 point 1). With no shown light far surfaces fade
+// towards black. 0 is none; plain draws take none.
 //
 // THE SKY LIGHTS NOTHING (ADR-0411 point 1): lights alone light, the same with
 // a sky or without. With `drawn` the sky's reflection, sharp on a smooth

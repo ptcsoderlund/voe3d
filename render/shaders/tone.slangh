@@ -4,9 +4,11 @@
 // (ADR-0414 point 1); voe_render_expose then multiplies it by 2^exposure from the pass's
 // exposure record and puts it through its curve, Clip (as it is, the 8-bit
 // target clamping) or Soft (Khronos PBR Neutral). HAZE COMES BEFORE EXPOSURE
-// AND TONE: the haze's colour is the shown directional lights' colour ×
-// intensity / (4π), no fill, shadow or view term, the sky's colours and
-// strength not read (ADR-0415), exposed and toned with the surface it covers. A part (ADR-0308): included by draw.slang after
+// AND TONE: with the sky drawn the haze's colour is the sky's horizon hue ×
+// the shown directional lights' brightness, Σ largest channel × intensity /
+// (4π), the sky's strength and colour brightness never reaching it (ADR-0416);
+// without, the lights' colour × intensity / (4π) (ADR-0415); no fill, shadow
+// or view term, exposed and toned with the surface it covers. A part (ADR-0308): included by draw.slang after
 // bindings.slangh, whose frame block and push constant it reads; includes
 // sky.slangh; never compiled alone.
 //
@@ -33,25 +35,43 @@ static const uint VOE_RENDER_TONE_SOFT = 1;
 // intensity: a quarter of a white Lambert surface facing it (ADR-0415 point 1).
 static const float VOE_RENDER_HAZE_GAIN = 1.0 / (4.0 * VOE_RENDER_SKY_PI);
 
-// Σ colour × intensity × HAZE_GAIN over the frame's shown directional lights,
-// 0 to more_count, the same in every direction: no fill, shadow or view term,
-// the sky's colours and strength not read (ADR-0415 points 1 and 2). None
-// shown is 0, so far surfaces fade towards black (point 3).
+// The haze's colour over the frame's shown directional lights, 0 to
+// more_count, the same in every direction: no fill, shadow or view term. With
+// the sky `drawn` it is hue × B (ADR-0416 points 2 and 3, ADR-0417 point 2): B
+// is Σ largest colour channel × intensity × HAZE_GAIN, so a light's colour
+// does not change how bright it is; hue is the sky's gradient along a level
+// view at strength 1 over its largest channel, white when that is not above
+// 0, so neither the sky's strength nor how bright its colours are reaches it.
+// Without `drawn` it is Σ colour × intensity × HAZE_GAIN (ADR-0415 point 1).
+// None shown is 0, so far surfaces fade towards black.
 float3 voe_render_haze_colour()
 {
+	voe_render_sky sky = voe_render_frame.sky;
 	uint count = 1 + min(voe_render_frame.more_count,
 			     VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
 	float3 colour = float3(0.0, 0.0, 0.0);
+	float brightness = 0.0;
 
 	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
 		if (i >= count)
 			break;
 		voe_render_light light = voe_render_sky_light(i);
 
-		if (voe_render_sky_shown(light))
-			colour += light.colour * light.intensity;
+		if (!voe_render_sky_shown(light))
+			continue;
+		colour += light.colour * light.intensity;
+		brightness += max(light.colour.r,
+				  max(light.colour.g, light.colour.b)) *
+			      light.intensity;
 	}
-	return colour * VOE_RENDER_HAZE_GAIN;
+	if (sky.drawn == 0)
+		return colour * VOE_RENDER_HAZE_GAIN;
+	sky.strength = 1.0;
+	float3 horizon = voe_render_sky_gradient(sky, float3(0.0, 0.0, -1.0));
+	float peak = max(horizon.r, max(horizon.g, horizon.b));
+	float3 hue = peak > 0.0 ? horizon / peak : float3(1.0, 1.0, 1.0);
+
+	return hue * brightness * VOE_RENDER_HAZE_GAIN;
 }
 
 // colour × (1 − f) + haze × f, f = 1 − 2^(−(|position| − haze_start)/haze),
