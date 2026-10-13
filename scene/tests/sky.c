@@ -1,9 +1,9 @@
 // The sky: what registration tells a tool (the menu path, no needed type, the
-// default row of 0406 and the eight fields in order, the colours COLOUR), that
-// a row arrives as given, that a replace changes the horizon only when the
-// system runs, that a NaN zenith, a negative ground channel, a horizon height
-// of 1.5, a sun size of 11, a sunset of -0.1 and an infinite haze are each
-// refused and keep the row, and that adding to a dead entity is false.
+// default row with strength 1 and the six fields in order, the colours
+// COLOUR), that a row arrives as given, that a replace changes the horizon only
+// when the system runs, that a NaN zenith, a negative ground channel, a horizon
+// height of 1.5, a strength of -1, an infinite strength and an infinite haze
+// are each refused and keep the row, and that adding to a dead entity is false.
 //
 // EACH REFUSAL IS ITS OWN INTENT, submitted one at a time with the row checked
 // after each, so a refusal that let one through shows as that one.
@@ -48,9 +48,7 @@ static voe_scene_sky known(void)
 				.horizon = { 0.4f, 0.5f, 0.6f },
 				.ground = { 0.7f, 0.8f, 0.9f },
 				.horizon_height = 0.75f,
-				.sun_size = 3.0f,
-				.sun_glow = 0.25f,
-				.sunset = 1.0f,
+				.strength = 2.5f,
 				.haze = 250.0f };
 }
 
@@ -71,9 +69,7 @@ static void check_sky(const voe_scene_sky *read, voe_scene_sky expected)
 	check_colour(read->ground, expected.ground);
 	VOE_TEST_CHECK_FLOAT(read->horizon_height, expected.horizon_height,
 			     0.0f);
-	VOE_TEST_CHECK_FLOAT(read->sun_size, expected.sun_size, 0.0f);
-	VOE_TEST_CHECK_FLOAT(read->sun_glow, expected.sun_glow, 0.0f);
-	VOE_TEST_CHECK_FLOAT(read->sunset, expected.sunset, 0.0f);
+	VOE_TEST_CHECK_FLOAT(read->strength, expected.strength, 0.0f);
 	VOE_TEST_CHECK_FLOAT(read->haze, expected.haze, 0.0f);
 }
 
@@ -101,29 +97,24 @@ static void registration_says_what_a_sky_is(voe_base_arena *arena)
 				   .horizon = { 0.60f, 0.75f, 0.90f },
 				   .ground = { 0.20f, 0.18f, 0.16f },
 				   .horizon_height = 0.25f,
-				   .sun_size = 1.5f,
-				   .sun_glow = 0.5f,
-				   .sunset = 0.5f,
+				   .strength = 1.0f,
 				   .haze = 1000.0f });
 	VOE_TEST_CHECK(!voe_ecs_component_needs(world, type, &needed));
 	VOE_TEST_CHECK(strcmp(voe_ecs_component_menu(world, type),
 			      "Rendering / Sky") == 0);
 	VOE_TEST_CHECK(!voe_ecs_component_runtime_only(world, type));
 
-	VOE_TEST_CHECK_INT(description->field_count, 8);
-	if (description->field_count != 8)
+	VOE_TEST_CHECK_INT(description->field_count, 6);
+	if (description->field_count != 6)
 		return;
 	check_field(&description->fields[0], "zenith", VOE_BASE_FIELD_COLOUR);
 	check_field(&description->fields[1], "horizon", VOE_BASE_FIELD_COLOUR);
 	check_field(&description->fields[2], "ground", VOE_BASE_FIELD_COLOUR);
 	check_field(&description->fields[3], "horizon_height",
 		    VOE_BASE_FIELD_FLOAT32);
-	check_field(&description->fields[4], "sun_size",
+	check_field(&description->fields[4], "strength",
 		    VOE_BASE_FIELD_FLOAT32);
-	check_field(&description->fields[5], "sun_glow",
-		    VOE_BASE_FIELD_FLOAT32);
-	check_field(&description->fields[6], "sunset", VOE_BASE_FIELD_FLOAT32);
-	check_field(&description->fields[7], "haze", VOE_BASE_FIELD_FLOAT32);
+	check_field(&description->fields[5], "haze", VOE_BASE_FIELD_FLOAT32);
 }
 
 static void a_sky_arrives_as_given(voe_base_arena *arena)
@@ -169,8 +160,8 @@ static void a_refused_sky_keeps_the_row(voe_base_arena *arena)
 	bad[0].zenith.y = NAN;
 	bad[1].ground.z = -0.1f;
 	bad[2].horizon_height = 1.5f;
-	bad[3].sun_size = 11.0f;
-	bad[4].sunset = -0.1f;
+	bad[3].strength = -1.0f;
+	bad[4].strength = INFINITY;
 	bad[5].haze = INFINITY;
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &settings));
 	VOE_TEST_CHECK(voe_scene_sky_add(world, settings, known()));

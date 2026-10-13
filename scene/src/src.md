@@ -34,7 +34,7 @@ it. Nothing here names a GPU resource, a file or a graphics API.
   whole row or keeps it over a size that is negative or not finite or a Block
   past Direct.
 - `sky_component.c` — the key and the reads.
-- `sky_system.c` — registration with 0406's default row, creation, and the run
+- `sky_system.c` — registration with a default row of strength 1, creation, and the run
   that applies a whole sky or keeps it over a number not finite or out of bounds.
 - `picture_component.c` — the key, the tone names Clip and Soft, and the reads.
 - `picture_system.c` — registration with 0406's default row, creation, and the

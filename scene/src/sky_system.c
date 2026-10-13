@@ -2,7 +2,7 @@
 // that applies a whole row or keeps the row over one it refuses.
 //
 // THE DRAIN IS THE WHOLE SYSTEM, as it is for the sun. What the sky looks like
-// is the renderer's; how it lights is the first directional light's fill.
+// is the renderer's; it lights nothing.
 //
 // AN INTENT FOR AN ENTITY WITH NO SKY IS DROPPED, silently — see the header.
 // A refused row says so once per intent on stderr, naming the entity by its
@@ -37,9 +37,7 @@ void voe_scene_sky_register(voe_ecs_world *world, uint32_t capacity)
 				    .horizon = { 0.60f, 0.75f, 0.90f },
 				    .ground = { 0.20f, 0.18f, 0.16f },
 				    .horizon_height = 0.25f,
-				    .sun_size = 1.5f,
-				    .sun_glow = 0.5f,
-				    .sunset = 0.5f,
+				    .strength = 1.0f,
 				    .haze = 1000.0f };
 
 	VOE_BASE_ASSERT(world != NULL, "registering skies in no world");
@@ -80,9 +78,7 @@ static bool sky_valid(voe_scene_sky sky)
 {
 	return colour_valid(sky.zenith) && colour_valid(sky.horizon) &&
 	       colour_valid(sky.ground) && within(sky.horizon_height, 1.0f) &&
-	       within(sky.sun_size, VOE_SCENE_SKY_SUN_SIZE_MAX) &&
-	       within(sky.sun_glow, 1.0f) && within(sky.sunset, 1.0f) &&
-	       amount_valid(sky.haze);
+	       amount_valid(sky.strength) && amount_valid(sky.haze);
 }
 
 bool voe_scene_sky_add(voe_ecs_world *world, voe_ecs_entity entity,

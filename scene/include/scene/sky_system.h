@@ -1,11 +1,11 @@
 // The only way a sky changes: an intent, drained by this system. It needs no
-// transform; its sun is the world's first directional light.
+// transform; the discs in it are the lights'.
 //
 //     voe_scene_sky_register(world, 1);                     // once, at startup
 //     voe_scene_sky_add(world, settings, (voe_scene_sky){
 //             .zenith = { 0.15f, 0.35f, 0.80f }, .horizon = { 0.6f, 0.75f, 0.9f },
 //             .ground = { 0.2f, 0.18f, 0.16f }, .horizon_height = 0.25f,
-//             .sun_size = 1.5f, .sun_glow = 0.5f, .sunset = 0.5f, .haze = 1000.0f });
+//             .strength = 1.0f, .haze = 1000.0f });
 //
 //     // from anywhere: the Inspector, game code
 //     voe_scene_sky_submit(world, (voe_scene_sky_intent){
@@ -22,8 +22,8 @@
 // CREATION IS A DIRECT CALL AND NOT AN INTENT, as for every row in this
 // folder: an intent is applied to a component that exists.
 //
-// A NUMBER NOT FINITE, A COLOUR CHANNEL OR HAZE BELOW NOUGHT, A HORIZON HEIGHT,
-// SUN GLOW OR SUNSET OUTSIDE 0 TO 1, OR A SUN SIZE OUTSIDE 0 TO 10 IS REFUSED,
+// A NUMBER NOT FINITE, A COLOUR CHANNEL, STRENGTH OR HAZE BELOW NOUGHT, OR A
+// HORIZON HEIGHT OUTSIDE 0 TO 1 IS REFUSED,
 // not clamped: none has a nearest right answer.
 // `add` asserts on one; the drain keeps the row and says so on stderr, one
 // line per refused intent. An intent naming an entity with no sky, a
@@ -38,10 +38,9 @@
 
 #include <stdint.h>
 
-// Registers the table, the intent queue as its replace and the default row of
-// 0406: zenith (0.15, 0.35, 0.80), horizon (0.60, 0.75, 0.90), ground (0.20,
-// 0.18, 0.16), horizon height 0.25, sun size 1.5, sun glow 0.5, sunset 0.5,
-// haze 1000. No needed type. Call it once per
+// Registers the table, the intent queue as its replace and the default row:
+// zenith (0.15, 0.35, 0.80), horizon (0.60, 0.75, 0.90), ground (0.20,
+// 0.18, 0.16), horizon height 0.25, strength 1, haze 1000. No needed type. Call it once per
 // world, before anything adds a sky. capacity is how many skies the world may
 // hold (the game's is 1) and also how many intents may be waiting at once.
 void voe_scene_sky_register(voe_ecs_world *world, uint32_t capacity);
