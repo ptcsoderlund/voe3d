@@ -64,30 +64,30 @@ static const voe_render_capacities CAPACITIES = {
 // Counter-clockwise from outside, four vertices a face, unshaded.c's cube.
 #define H 0.5f
 static const voe_render_vertex CUBE_VERTICES[24] = {
-	{ { -H, H, H }, { 0, 0, 1 }, { 0, 0 } },
-	{ { H, H, H }, { 0, 0, 1 }, { 0, 0 } },
-	{ { H, -H, H }, { 0, 0, 1 }, { 0, 0 } },
-	{ { -H, -H, H }, { 0, 0, 1 }, { 0, 0 } },
-	{ { H, H, -H }, { 0, 0, -1 }, { 0, 0 } },
-	{ { -H, H, -H }, { 0, 0, -1 }, { 0, 0 } },
-	{ { -H, -H, -H }, { 0, 0, -1 }, { 0, 0 } },
-	{ { H, -H, -H }, { 0, 0, -1 }, { 0, 0 } },
-	{ { H, H, H }, { 1, 0, 0 }, { 0, 0 } },
-	{ { H, H, -H }, { 1, 0, 0 }, { 0, 0 } },
-	{ { H, -H, -H }, { 1, 0, 0 }, { 0, 0 } },
-	{ { H, -H, H }, { 1, 0, 0 }, { 0, 0 } },
-	{ { -H, H, -H }, { -1, 0, 0 }, { 0, 0 } },
-	{ { -H, H, H }, { -1, 0, 0 }, { 0, 0 } },
-	{ { -H, -H, H }, { -1, 0, 0 }, { 0, 0 } },
-	{ { -H, -H, -H }, { -1, 0, 0 }, { 0, 0 } },
-	{ { -H, H, -H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { H, H, -H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { H, H, H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { -H, H, H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { -H, -H, H }, { 0, -1, 0 }, { 0, 0 } },
-	{ { H, -H, H }, { 0, -1, 0 }, { 0, 0 } },
-	{ { H, -H, -H }, { 0, -1, 0 }, { 0, 0 } },
-	{ { -H, -H, -H }, { 0, -1, 0 }, { 0, 0 } },
+	{ { -H, H, H }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { H, H, H }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { H, -H, H }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, H }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { H, H, -H }, { 0, 0, -1 }, { 0, 0 }, { 0 } },
+	{ { -H, H, -H }, { 0, 0, -1 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, -H }, { 0, 0, -1 }, { 0, 0 }, { 0 } },
+	{ { H, -H, -H }, { 0, 0, -1 }, { 0, 0 }, { 0 } },
+	{ { H, H, H }, { 1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { H, H, -H }, { 1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { H, -H, -H }, { 1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { H, -H, H }, { 1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, H, -H }, { -1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, H, H }, { -1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, H }, { -1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, -H }, { -1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, H, -H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { H, H, -H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { H, H, H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, H, H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, H }, { 0, -1, 0 }, { 0, 0 }, { 0 } },
+	{ { H, -H, H }, { 0, -1, 0 }, { 0, 0 }, { 0 } },
+	{ { H, -H, -H }, { 0, -1, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, -H }, { 0, -1, 0 }, { 0, 0 }, { 0 } },
 };
 
 static const uint32_t CUBE_INDICES[36] = {
@@ -99,10 +99,10 @@ static const uint32_t CUBE_INDICES[36] = {
 // A metre square about (0, 0, −2), its normal (0, sin, cos) of the tilt, its
 // edges +X and (0, cos, −sin): counter-clockwise seen along that normal.
 static const voe_render_vertex QUAD_VERTICES[4] = {
-	{ { -H, -H * TILT_COS, QUAD_Z + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
-	{ { H, -H * TILT_COS, QUAD_Z + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
-	{ { H, H * TILT_COS, QUAD_Z - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
-	{ { -H, H * TILT_COS, QUAD_Z - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
+	{ { -H, -H * TILT_COS, QUAD_Z + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 }, { 0 } },
+	{ { H, -H * TILT_COS, QUAD_Z + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 }, { 0 } },
+	{ { H, H * TILT_COS, QUAD_Z - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 }, { 0 } },
+	{ { -H, H * TILT_COS, QUAD_Z - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 }, { 0 } },
 };
 
 static const uint32_t QUAD_INDICES[6] = { 0, 1, 2, 0, 2, 3 };

@@ -78,10 +78,10 @@ static PFN_vkCmdCopyImageToBuffer copy_image_to_buffer;
 // A 20 m square at y = 0 facing up, counter-clockwise seen from above.
 #define H 10.0f
 static const voe_render_vertex GROUND_VERTICES[4] = {
-	{ { -H, 0, H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { H, 0, H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { H, 0, -H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { -H, 0, -H }, { 0, 1, 0 }, { 0, 0 } },
+	{ { -H, 0, H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { H, 0, H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { H, 0, -H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, 0, -H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
 };
 
 static const uint32_t GROUND_INDICES[6] = { 0, 1, 2, 0, 2, 3 };

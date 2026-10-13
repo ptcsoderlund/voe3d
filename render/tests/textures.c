@@ -57,10 +57,10 @@ static bool upload_quad(voe_render_device *device, voe_render_geometry *quad)
 {
 	voe_base_error error = VOE_BASE_OK;
 	const voe_render_vertex vertices[4] = {
-		{ { -1.0f, 1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-		{ { 1.0f, 1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
-		{ { 1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-		{ { -1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+		{ { -1.0f, 1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
+		{ { 1.0f, 1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0 } },
+		{ { 1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0 } },
+		{ { -1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0 } },
 	};
 	const uint32_t indices[6] = { 3, 2, 1, 3, 1, 0 };
 

@@ -75,10 +75,10 @@ static PFN_vkCmdCopyImageToBuffer copy_image_to_buffer;
 
 // Counter-clockwise from +Z; u runs along +x and v down, as glTF's does.
 static const voe_render_vertex QUAD_VERTICES[4] = {
-	{ { -1, 1, 0 }, { 0, 0, 1 }, { 0, 0 } },
-	{ { 1, 1, 0 }, { 0, 0, 1 }, { 1, 0 } },
-	{ { 1, -1, 0 }, { 0, 0, 1 }, { 1, 1 } },
-	{ { -1, -1, 0 }, { 0, 0, 1 }, { 0, 1 } },
+	{ { -1, 1, 0 }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { 1, 1, 0 }, { 0, 0, 1 }, { 1, 0 }, { 0 } },
+	{ { 1, -1, 0 }, { 0, 0, 1 }, { 1, 1 }, { 0 } },
+	{ { -1, -1, 0 }, { 0, 0, 1 }, { 0, 1 }, { 0 } },
 };
 
 static const uint32_t QUAD_INDICES[6] = { 3, 2, 1, 3, 1, 0 };
