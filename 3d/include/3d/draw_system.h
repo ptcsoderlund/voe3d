@@ -433,8 +433,8 @@ typedef struct {
 #define VOE_3D_POINT_SHADOW_TEXELS 256u
 
 
-// The camera, the sun, the sky and the exposure (`sky` from the first sky row
-// and `exposure` from the first picture row, each zeroed with none) out of the
+// The camera, the sun, the sky and the exposure (`sky` from the first sky and
+// Haze rows and `exposure` from the first picture row, each zeroed with none) out of the
 // tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
@@ -504,14 +504,16 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // light by handing its passes a different light (ADR-0287).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 
-// The world's first sky row as a pass takes it (0412 points 1 and 6): `drawn`
-// 1, the row's colours, horizon height, strength, haze and haze_start (0414
-// point 3); `disc_size[i]` and
-// `glow_size[i]` light row i's for rows 0 to VOE_RENDER_DIRECTIONAL_LIGHTS − 1
-// in table order, as _light and _lights hand them to the pass, 0 past the last
-// row or with no light table. Zeroed with no sky table or no row, which draws
-// the picture from before the sky. Public so a view that builds its own frame, as the editor's do, carries
-// the same sky as _frame.
+// The world's first sky row and first Haze row as a pass takes them (0412
+// points 1 and 6, 0417 point 1). From the sky row: `drawn` 1, its colours,
+// horizon height and strength; `disc_size[i]` and `glow_size[i]` light row i's
+// for rows 0 to VOE_RENDER_DIRECTIONAL_LIGHTS − 1 in table order, as _light and
+// _lights hand them to the pass, 0 past the last row or with no light table.
+// From the Haze row: `haze` its `haze` and `haze_start` its `start`. Each part
+// is zeroed with no table or no row, so neither row is the zeroed record that
+// draws the picture from before the sky; a Haze row without a sky row hazes
+// with `drawn` 0. Public so a view that builds its own frame, as the editor's
+// do, carries the same sky as _frame.
 voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world);
 
 // The world's first picture row as a pass takes it (0406 point 4): its

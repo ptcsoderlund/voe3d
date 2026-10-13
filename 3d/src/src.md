@@ -87,7 +87,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   to face it, and a quad as two of them.
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
-- `draw_system.c` — the camera's view, the first light, sky and picture rows, each light's disc
+- `draw_system.c` — the camera's view, the first light, sky, Haze and picture rows, each light's disc
   and glow in the sky, the frame's pass camera, and the run that draws meshes, model parts, landscapes and panels into the open frame.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended, and why one eye chooses the same nodes in every pass; internal.

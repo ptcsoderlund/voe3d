@@ -2,12 +2,16 @@
 // point 1), through voe_3d_draw_system_frame and voe_3d_draw_system_camera.
 //
 // THE RECORDS, NO GRAPHICS CARD: a world with transforms, a camera and a light
-// but no sky table frames a zeroed `sky`; with the table and no row, zeroed
-// too; with a row of values none of them the default, strength 0.5, and two
-// light rows of discs 2 and 0.5 and glows 0.4 and 0, `drawn` is 1, each sky
-// field is the row's, `disc_size` {2, 0.5, 0, 0} and `glow_size`
-// {0.4, 0, 0, 0} (0412 point 6); with the light table empty both are nought. No picture table frames a zeroed `exposure`; a row of exposure -1 and
-// Clip is copied, and the pass camera carries both.
+// but no sky and no haze table frames a zeroed `sky`; with the sky table and no
+// row, zeroed too; with a sky row of values none of them the default, strength
+// 0.5, no haze table, and two light rows of discs 2 and 0.5 and glows 0.4 and
+// 0, `drawn` is 1, each sky field is the row's, `haze` and `haze_start` 0,
+// `disc_size` {2, 0.5, 0, 0} and `glow_size` {0.4, 0, 0, 0} (0412 point 6);
+// with the light table empty both are nought. A Haze row of 500 and 250 and no
+// sky table frames `drawn` 0, the colours 0, `haze` 500 and `haze_start` 250;
+// with both rows every field is the rows' (0417 point 1). No picture table
+// frames a zeroed `exposure`; a row of exposure -1 and Clip is copied, and the
+// pass camera carries both.
 //
 // AND THE PICTURE: a camera 1 m up looking slightly down at a flat red slab
 // under a sun overhead, with the default sky row, drawn through _frame,
@@ -29,6 +33,8 @@
 #include <render/device.h>
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
+#include <scene/haze_component.h>
+#include <scene/haze_system.h>
 #include <scene/light_component.h>
 #include <scene/light_system.h>
 #include <scene/picture_component.h>
@@ -55,8 +61,7 @@ static const voe_scene_sky DEFAULT_SKY = { .zenith = { 0.15f, 0.35f, 0.80f },
 					   .horizon = { 0.60f, 0.75f, 0.90f },
 					   .ground = { 0.20f, 0.18f, 0.16f },
 					   .horizon_height = 0.25f,
-					   .strength = 1.0f,
-					   .haze = 1000.0f };
+					   .strength = 1.0f };
 
 // What a world is built with: which tables beyond the drawing ones, and the
 // rows in them; NULL adds no row.
@@ -65,6 +70,8 @@ struct setup {
 	const voe_scene_sky *sky;
 	bool picture_table;
 	const voe_scene_picture *picture;
+	bool haze_table;
+	const voe_scene_haze *haze;
 	bool no_light;
 	bool discs;
 };
@@ -95,6 +102,8 @@ static voe_ecs_world *a_world(voe_base_arena *arena, struct setup setup)
 		voe_scene_sky_register(world, 1);
 	if (setup.picture_table)
 		voe_scene_picture_register(world, 1);
+	if (setup.haze_table)
+		voe_scene_haze_register(world, 1);
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(
@@ -140,6 +149,10 @@ static voe_ecs_world *a_world(voe_base_arena *arena, struct setup setup)
 		VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 		VOE_TEST_CHECK(voe_scene_picture_add(world, entity, *setup.picture));
 	}
+	if (setup.haze != NULL) {
+		VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+		VOE_TEST_CHECK(voe_scene_haze_add(world, entity, *setup.haze));
+	}
 	return world;
 }
 
@@ -162,7 +175,15 @@ static void check_discs(voe_render_sky sky, const float *disc,
 	}
 }
 
-static void check_zeroed(voe_render_sky sky)
+// The sky's haze against the Haze row's; a zeroed row for none.
+static void check_haze(voe_render_sky sky, voe_scene_haze haze)
+{
+	VOE_TEST_CHECK_FLOAT(sky.haze, haze.haze, 0.0f);
+	VOE_TEST_CHECK_FLOAT(sky.haze_start, haze.start, 0.0f);
+}
+
+// Every field a sky row fills nought, the discs too, and the haze `haze`'s.
+static void check_skyless(voe_render_sky sky, voe_scene_haze haze)
 {
 	VOE_TEST_CHECK_INT(sky.drawn, 0);
 	check_float3(sky.zenith, (voe_math_float3){ 0 });
@@ -170,12 +191,17 @@ static void check_zeroed(voe_render_sky sky)
 	check_float3(sky.ground, (voe_math_float3){ 0 });
 	VOE_TEST_CHECK_FLOAT(sky.horizon_height, 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(sky.strength, 0.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(sky.haze, 0.0f, 0.0f);
-	VOE_TEST_CHECK_FLOAT(sky.haze_start, 0.0f, 0.0f);
+	check_haze(sky, haze);
 	check_discs(sky, NOUGHT, NOUGHT);
 }
 
-static void check_row(voe_render_sky sky, voe_scene_sky row)
+static void check_zeroed(voe_render_sky sky)
+{
+	check_skyless(sky, (voe_scene_haze){ 0 });
+}
+
+// The sky row's fields and the haze `haze`'s.
+static void check_row(voe_render_sky sky, voe_scene_sky row, voe_scene_haze haze)
 {
 	VOE_TEST_CHECK_INT(sky.drawn, 1);
 	check_float3(sky.zenith, row.zenith);
@@ -183,8 +209,7 @@ static void check_row(voe_render_sky sky, voe_scene_sky row)
 	check_float3(sky.ground, row.ground);
 	VOE_TEST_CHECK_FLOAT(sky.horizon_height, row.horizon_height, 0.0f);
 	VOE_TEST_CHECK_FLOAT(sky.strength, row.strength, 0.0f);
-	VOE_TEST_CHECK_FLOAT(sky.haze, row.haze, 0.0f);
-	VOE_TEST_CHECK_FLOAT(sky.haze_start, row.haze_start, 0.0f);
+	check_haze(sky, haze);
 }
 
 static void the_sky_is_the_first_row(voe_base_arena *arena)
@@ -194,9 +219,9 @@ static void the_sky_is_the_first_row(voe_base_arena *arena)
 			      .horizon = { 0.4f, 0.5f, 0.6f },
 			      .ground = { 0.7f, 0.8f, 0.9f },
 			      .horizon_height = 0.6f,
-			      .strength = 0.5f,
-			      .haze = 500.0f,
-			      .haze_start = 250.0f };
+			      .strength = 0.5f };
+	voe_scene_haze haze = { .haze = 500.0f, .start = 250.0f };
+	voe_scene_haze none = { 0 };
 	const float discs[VOE_RENDER_DIRECTIONAL_LIGHTS] = { 2.0f, 0.5f };
 	const float glows[VOE_RENDER_DIRECTIONAL_LIGHTS] = { 0.4f };
 	voe_render_sky lightless;
@@ -217,17 +242,36 @@ static void the_sky_is_the_first_row(voe_base_arena *arena)
 					       .discs = true }),
 		size, 0.0f);
 	camera = voe_3d_draw_system_camera(&frame);
-	check_row(frame.sky, row);
+	check_row(frame.sky, row, none);
 	check_discs(frame.sky, discs, glows);
-	check_row(camera.sky, row);
+	check_row(camera.sky, row, none);
 	check_discs(camera.sky, discs, glows);
 
 	lightless = voe_3d_draw_system_sky(a_world(
 		arena, (struct setup){ .sky_table = true,
 				       .sky = &row,
 				       .no_light = true }));
-	check_row(lightless, row);
+	check_row(lightless, row, none);
 	check_discs(lightless, NOUGHT, NOUGHT);
+
+	check_skyless(voe_3d_draw_system_frame(
+			      a_world(arena, (struct setup){ .haze_table = true,
+							     .haze = &haze }),
+			      size, 0.0f)
+			      .sky,
+		      haze);
+	frame = voe_3d_draw_system_frame(
+		a_world(arena, (struct setup){ .sky_table = true,
+					       .sky = &row,
+					       .haze_table = true,
+					       .haze = &haze,
+					       .discs = true }),
+		size, 0.0f);
+	camera = voe_3d_draw_system_camera(&frame);
+	check_row(frame.sky, row, haze);
+	check_discs(frame.sky, discs, glows);
+	check_row(camera.sky, row, haze);
+	check_discs(camera.sky, discs, glows);
 }
 
 static void the_exposure_is_the_first_picture_row(voe_base_arena *arena)
