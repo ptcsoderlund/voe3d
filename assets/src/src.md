@@ -45,10 +45,18 @@ of them is internal to this folder rather than reachable from outside it.
   states how many values it will hold, and why string spans are raw.
 - `json.c` — the state machine, and nothing tolerated.
 - `model_gltf.h` — the split between the container and the description.
-- `model_gltf.c` — accessors, buffer views, materials, images, meshes and the
-  node tree. Its header says the rule every length read out of a file is checked
-  by, and why the node graph is proven to be a tree here rather than in the
-  importer.
+- `model_gltf_read.h` — what the glTF reader's parts share, internal to this
+  folder: the read's state, the shared helpers and each part's one call. Its
+  header says why the split is by what is read.
+- `model_gltf.c` — the shared helpers, accessors and buffer views, the version
+  and extension checks, and the entry point. Its header says the rule every
+  length read out of a file is checked by, and the one buffer.
+- `model_gltf_materials.c` — texture references, the alpha mode, materials and
+  images. Its header says why a texture resolves to an image.
+- `model_gltf_meshes.c` — attributes, primitives and meshes. Its header says
+  why triangle lists only and why an unindexed primitive is given indices.
+- `model_gltf_nodes.c` — the node matrices and the node tree. Its header says
+  how the tree is proven a tree without recursion.
 - `model_glb.c` — the container: the header and the chunks. Its header
   carries the layout and says why a `.gltf` is refused by name.
 - `jpeg.c` — markers, Huffman tables, the inverse cosine transform, chroma
