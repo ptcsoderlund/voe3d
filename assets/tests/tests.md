@@ -30,6 +30,9 @@ belongs to.
   emission included; a full file round-tripped field for field and written
   again byte for byte; and each bad value, a cutout outside 0–1, a negative
   emission or strength and a bad `double_sided` among them, refused MALFORMED.
+- `parts.c` — three entries with the middle one empty round-tripped and
+  written again byte for byte, an empty section read as count 0, and
+  `material32`, `colour=…` and an over-long path refused MALFORMED.
 - `model.c` — a hand-built `.glb` in and its arrays out, two textures over
   one picture, COLOR_0 in each stored form, material and image names, sides,
   unlit, emission strength and repeat read or defaulted, a long name cut at a

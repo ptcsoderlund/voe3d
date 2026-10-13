@@ -23,6 +23,9 @@ way out: a decoder takes a buffer and an encoder hands one back, since
 - `include/assets/material.h` — a `.material` file's text to a shader, its
   factors, repeat and three map paths, and back. Its header says the defaults
   and why a missing key reads as one.
+- `include/assets/parts.h` — a `.parts` file's text to the `.material` each
+  glTF material of a `.glb` wears, and back. Its header says why the keys are
+  indices.
 - `include/assets/sound.h` — sounds: 16-bit PCM and 32-bit float WAV decoded
   to interleaved float. Its header says what is unsupported, what is malformed,
   and why only WAV.
