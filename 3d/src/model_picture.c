@@ -96,10 +96,10 @@ bool voe_3d_model_picture_quad(voe_render_device *device,
 			       voe_render_geometry *out, voe_base_error *error)
 {
 	static const voe_render_vertex vertices[4] = {
-		{ { -0.5f, -0.5f, 0.0f }, { -LEAN, -LEAN, UP }, { 0.0f, 1.0f } },
-		{ { 0.5f, -0.5f, 0.0f }, { LEAN, -LEAN, UP }, { 1.0f, 1.0f } },
-		{ { 0.5f, 0.5f, 0.0f }, { LEAN, LEAN, UP }, { 1.0f, 0.0f } },
-		{ { -0.5f, 0.5f, 0.0f }, { -LEAN, LEAN, UP }, { 0.0f, 0.0f } },
+		{ { -0.5f, -0.5f, 0.0f }, { -LEAN, -LEAN, UP }, { 0.0f, 1.0f }, { 0 } },
+		{ { 0.5f, -0.5f, 0.0f }, { LEAN, -LEAN, UP }, { 1.0f, 1.0f }, { 0 } },
+		{ { 0.5f, 0.5f, 0.0f }, { LEAN, LEAN, UP }, { 1.0f, 0.0f }, { 0 } },
+		{ { -0.5f, 0.5f, 0.0f }, { -LEAN, LEAN, UP }, { 0.0f, 0.0f }, { 0 } },
 	};
 	// Counter-clockwise seen from +Z.
 	static const uint32_t indices[6] = { 0, 1, 2, 0, 2, 3 };
