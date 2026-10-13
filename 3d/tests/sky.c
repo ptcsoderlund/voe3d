@@ -9,9 +9,12 @@
 // `disc_size` {2, 0.5, 0, 0} and `glow_size` {0.4, 0, 0, 0} (0412 point 6);
 // with the light table empty both are nought. A Haze row of 500 and 250 and no
 // sky table frames `drawn` 0, the colours 0, `haze` 500 and `haze_start` 250;
-// with both rows every field is the rows' (0417 point 1). No picture table
-// frames a zeroed `exposure`; a row of exposure -1 and Clip is copied, and the
-// pass camera carries both.
+// with both rows every field is the rows' (0417 point 1). `haze_top` is the
+// Haze row's height above the eye passed (0419 point 2): a row of height 300
+// and an eye at y 40 give 260, the default row and the origin 1000, no row 0,
+// and through _frame a camera at y 40 under that row frames 260. No picture
+// table frames a zeroed `exposure`; a row of exposure -1 and Clip is copied,
+// and the pass camera carries both.
 //
 // AND THE PICTURE: a camera 1 m up looking slightly down at a flat red slab
 // under a sun overhead, with the default sky row, drawn through _frame,
@@ -74,11 +77,17 @@ struct setup {
 	const voe_scene_haze *haze;
 	bool no_light;
 	bool discs;
+	bool high;
 };
 
-// A camera 1 m up at z = 5 looking at the origin, a sun shining straight down
-// with fill intensity FILL unless `no_light`, and the tables and rows `setup`
-// asks for. With `discs` the sun's disc is 2 and glow 0.4, and a second light
+// 0417 and 0418's default Haze row.
+static const voe_scene_haze DEFAULT_HAZE = { .haze = 1000.0f,
+					     .start = 100.0f,
+					     .height = 1000.0f };
+
+// A camera 1 m up at z = 5 looking at the origin, 40 m up with `high` facing
+// the same way, a sun shining straight down with fill intensity FILL unless
+// `no_light`, and the tables and rows `setup` asks for. With `discs` the sun's disc is 2 and glow 0.4, and a second light
 // row follows of disc 0.5 and glow 0.
 static voe_ecs_world *a_world(voe_base_arena *arena, struct setup setup)
 {
@@ -109,7 +118,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, struct setup setup)
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, entity,
 		(voe_scene_transform){
-			.position = { 0.0, 1.0, 5.0 },
+			.position = { 0.0, setup.high ? 40.0 : 1.0, 5.0 },
 			.rotation = voe_scene_light_facing(
 				(voe_math_float3){ 0.0f, -1.0f, -5.0f }),
 			.scale = { 1.0f, 1.0f, 1.0f } }));
@@ -247,10 +256,11 @@ static void the_sky_is_the_first_row(voe_base_arena *arena)
 	check_row(camera.sky, row, none);
 	check_discs(camera.sky, discs, glows);
 
-	lightless = voe_3d_draw_system_sky(a_world(
-		arena, (struct setup){ .sky_table = true,
-				       .sky = &row,
-				       .no_light = true }));
+	lightless = voe_3d_draw_system_sky(
+		a_world(arena, (struct setup){ .sky_table = true,
+					       .sky = &row,
+					       .no_light = true }),
+		(voe_math_double3){ 0 });
 	check_row(lightless, row, none);
 	check_discs(lightless, NOUGHT, NOUGHT);
 
@@ -272,6 +282,36 @@ static void the_sky_is_the_first_row(voe_base_arena *arena)
 	check_discs(frame.sky, discs, glows);
 	check_row(camera.sky, row, haze);
 	check_discs(camera.sky, discs, glows);
+}
+
+// The haze's top in metres above the eye (0419 point 2), through _sky and
+// through _frame.
+static void the_haze_top_is_above_the_eye(voe_base_arena *arena)
+{
+	voe_platform_size size = { 640, 480 };
+	voe_scene_haze low = { .haze = 500.0f, .start = 250.0f, .height = 300.0f };
+	voe_math_double3 raised = { 0.0, 40.0, 0.0 };
+	voe_render_sky sky;
+
+	sky = voe_3d_draw_system_sky(
+		a_world(arena, (struct setup){ .haze_table = true, .haze = &low }),
+		raised);
+	VOE_TEST_CHECK_FLOAT(sky.haze_top, 260.0f, 0.0f);
+	sky = voe_3d_draw_system_sky(
+		a_world(arena,
+			(struct setup){ .haze_table = true, .haze = &DEFAULT_HAZE }),
+		(voe_math_double3){ 0 });
+	VOE_TEST_CHECK_FLOAT(sky.haze_top, 1000.0f, 0.0f);
+	sky = voe_3d_draw_system_sky(
+		a_world(arena, (struct setup){ .haze_table = true }), raised);
+	VOE_TEST_CHECK_FLOAT(sky.haze_top, 0.0f, 0.0f);
+	sky = voe_3d_draw_system_frame(
+		      a_world(arena, (struct setup){ .haze_table = true,
+						     .haze = &low,
+						     .high = true }),
+		      size, 0.0f)
+		      .sky;
+	VOE_TEST_CHECK_FLOAT(sky.haze_top, 260.0f, 0.0f);
 }
 
 static void the_exposure_is_the_first_picture_row(voe_base_arena *arena)
@@ -425,6 +465,7 @@ int main(void)
 	voe_3d_shapes shapes;
 
 	the_sky_is_the_first_row(arena);
+	the_haze_top_is_above_the_eye(arena);
 	the_exposure_is_the_first_picture_row(arena);
 
 	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);

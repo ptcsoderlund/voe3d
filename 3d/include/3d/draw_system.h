@@ -509,12 +509,15 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 // horizon height and strength; `disc_size[i]` and `glow_size[i]` light row i's
 // for rows 0 to VOE_RENDER_DIRECTIONAL_LIGHTS − 1 in table order, as _light and
 // _lights hand them to the pass, 0 past the last row or with no light table.
-// From the Haze row: `haze` its `haze` and `haze_start` its `start`. Each part
+// From the Haze row: `haze` its `haze`, `haze_start` its `start` and
+// `haze_top` its `height` − `eye.y` in double (0419 point 2), `eye` the
+// camera's world position the frame is about; 0 with no Haze row. Each part
 // is zeroed with no table or no row, so neither row is the zeroed record that
 // draws the picture from before the sky; a Haze row without a sky row hazes
 // with `drawn` 0. Public so a view that builds its own frame, as the editor's
-// do, carries the same sky as _frame.
-voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world);
+// do, carries the same sky as _frame, and passes its own eye.
+voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world,
+				      voe_math_double3 eye);
 
 // The world's first picture row as a pass takes it (0406 point 4): its
 // exposure and tone, the tone's 0 and 1 meaning render's; zeroed, x1 and Clip,

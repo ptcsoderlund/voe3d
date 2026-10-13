@@ -50,6 +50,8 @@
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
+#include <math.h>
+
 // The direction is the light entity's world rotation's -Z, unit length from
 // voe_scene_light_direction, and -Z itself with no transform (ADR-0273); the
 // fill is its colour times its strength. No light is the zeroed light, which
@@ -98,20 +100,26 @@ static bool has_table(const voe_ecs_world *world, const struct voe_ecs_key *key)
 }
 
 // The haze from the first Haze row and the rest from the first sky row, each
-// part zeroed with no row (0417 point 1). Light rows in table order, as
-// voe_3d_draw_system_light and _lights hand them to the pass, so entry i's
-// disc is the pass's light i (0412 point 6).
-voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world)
+// part zeroed with no row (0417 point 1). The haze's top is above `eye`,
+// subtracted in double so a far eye keeps its metres (0419 point 2). Light
+// rows in table order, as voe_3d_draw_system_light and _lights hand them to
+// the pass, so entry i's disc is the pass's light i (0412 point 6).
+voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world,
+				      voe_math_double3 eye)
 {
 	voe_scene_sky row;
 	voe_render_sky sky = { 0 };
 	uint32_t lights;
 
 	VOE_BASE_ASSERT(world != NULL, "the sky of no world");
+	VOE_BASE_ASSERT(isfinite(eye.y), "the sky about an eye at no height");
 	if (has_table(world, &voe_scene_haze_key) &&
 	    voe_scene_haze_count(world) > 0) {
-		sky.haze = voe_scene_haze_rows(world)[0].haze;
-		sky.haze_start = voe_scene_haze_rows(world)[0].start;
+		voe_scene_haze haze = voe_scene_haze_rows(world)[0];
+
+		sky.haze = haze.haze;
+		sky.haze_start = haze.start;
+		sky.haze_top = (float)((double)haze.height - eye.y);
 	}
 	if (!has_table(world, &voe_scene_sky_key) || voe_scene_sky_count(world) == 0)
 		return sky;
@@ -213,8 +221,9 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.points = (voe_render_point_lights){ 0 };
 	// No blocker until voe_3d_draw_system_light_blockers fills them (0347).
 	frame.blockers = (voe_render_light_blockers){ 0 };
-	// The first sky, Haze and picture rows, zeroed with none (0406, 0417).
-	frame.sky = voe_3d_draw_system_sky(world);
+	// The first sky, Haze and picture rows, zeroed with none (0406, 0417);
+	// the haze's top above the eye just set (0419).
+	frame.sky = voe_3d_draw_system_sky(world, frame.eye);
 	frame.exposure = voe_3d_draw_system_picture(world);
 	// No light after the first until voe_3d_draw_system_lights (0357).
 	frame.more_lights = NULL;
