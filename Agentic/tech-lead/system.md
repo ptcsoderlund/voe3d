@@ -10,13 +10,13 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, tables, intent and structural queues; a type's menu, unsaid row, former names.
-- **platform** — the one OS-aware folder: window, input, pads, files, trash, clock, process, sound.
-- **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, blockers.
+- **platform** — the one OS-aware folder: window, input, pads, files, trash, clock, process, env, sound.
+- **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, blockers, sky, haze, picture.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts, landscapes, materials, sectioned text to CPU data; JSON.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text read and written, paths followed; cooked to C.
-- **render** — all of Vulkan: card, resources, mips, heights, timed passes, light, bounce, a cache.
+- **render** — all of Vulkan: card, resources, mips, heights, timed passes, light, bounce, sky, haze, tone, a cache.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
@@ -40,11 +40,10 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0033, 0035, 0250 — +Y up −Z forward, reversed depth; double positions, camera-relative on the GPU.
 - 0015, 0040, 0046 — Vulkan without an SDK; shaders in Slang, compiled at build time and embedded.
 - 0113, 0120, 0130, 0133, 0173 — A change owns what it breaks; Linux verifies; a folder has a `.md`.
-- 0169–0172, 0178 — A key has four levels; a theme is read in `theme`, derived in `ui` in OKLab.
+- 0169–0172, 0178, 0194, 0196, 0231, 0232 — Four-level keys; a theme derived in OKLab; one `hue=`.
 - 0174–0177, 0208–0211 — A new folder registers itself; draws as PNGs; 006, 015 and 016 closed.
 - 0180–0185, 0212, 0269 — Wayland at fractional scale; text scales, dilated when thin, edge ramped.
 - 0186–0188, 0234–0237, 0251–0252, 0258–0262, 0264–0266 — Coin game; shadows; Play; UI; Ship; sound.
-- 0194, 0196, 0231, 0232 — One `hue=`; roles differ in lightness; state and reached borders invert.
 - 0197, 0219, 0220, 0224–0226, 0228, 0229, 0306, 0344 — Text scale; fit; mm panels; PC sizes.
 - 0192, 0193, 0195, 0198–0200, 0202–0207 — Queue; focus; dropdowns; overlays; picks; undo; gizmo.
 - 0189–0191, 0201, 0214–0218, 0221, 0227, 0233, 0300, 0302, 0303 — Fastest card; 4 fps; one camera.
@@ -57,3 +56,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0333–0338, 0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0358, 0359, 0361–0364, 0370, 0371 — Blocks; moon; GPU ms; mips; splash; F.
 - 0374–0381, 0384–0388, 0392, 0395–0401, 0403, 0404 — Loghouse; bindless; hill; 60 fps; CDLOD; materials.
+- 0405, 0406, 0411, 0413–0416, 0418 — Sky, Haze, Picture rows; lights draw in the sky; env via platform.
