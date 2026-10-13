@@ -90,10 +90,9 @@ by reading the offscreen colour image back.
 - `haze.c` — far surfaces fading into the horizon's gradient: a black quad at 2000 m three quarters
   haze, at 50 m under a tenth, haze 0 and a draw after the depth clear black, a blended one keeping
   its blend over the sky, and a low sun ahead adding no disc or glow. Headless.
-- `sky_light.c` — the sky lighting a grey cube: blue above red at noon, less blue at fill 0, redder
-  at sunset, a full-sun face and a low-sun one lifted the same at every fill; a smooth metal quad
-  the sky along R, a rough one nearer E(R)/π; Indoors black; a red light-0 fill replaced by the
-  sky. Headless.
+- `sky_light.c` — the sky lighting nothing: a grey cube's face the same bytes with the sky or
+  without and at any zenith, a non-metal quad unchanged, a smooth metal one the sky along R and a
+  rough one nearer E(R)/π, none inside Indoors. Headless.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
   red to a black surface whether the sun faces it or not, and a metal-roughness map replacing the
   factors. Headless.

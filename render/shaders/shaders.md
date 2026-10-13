@@ -21,9 +21,9 @@ shader and never compiled alone.
   `src/light_blockers.c`.
 - `bounce_read.slangh` — the bounce's one read: E(n) from a probe volume's eight nearest probes,
   weighted and normalised.
-- `lighting.slangh` — the directional lights, their shadows and fills, the bounce, the binned
-  point lights and the sky's light and reflection, each gated by the light blockers; under a drawn
-  sky light 0's reach is lifted and the sky's diffuse stands in for its fill.
+- `lighting.slangh` — the directional lights, their shadows and fills, the bounce and the binned
+  point lights, each gated by the light blockers; the sky lights nothing, and only a metal mirrors
+  it.
 - `terrain.slangh` — a landscape node's vertex: the grid point morphed by distance, its height and
   normal from the height map.
 - `terrain_layers.slangh` — a painted landscape's surface: the paint's weights, up to eight layers

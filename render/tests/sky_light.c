@@ -1,29 +1,21 @@
-// THE SKY LIGHTS AND SHINES ON LIT SURFACES (ADR-0405 point 5). A target of the
-// test's own seen by a camera at the origin looking along −Z, read back with
-// voe_render_target_read, ADR-0406 point 1's sky drawn but at sunset 1, and
-// exposure 0 at Clip:
+// THE SKY LIGHTS NOTHING; ONLY A METAL MIRRORS IT (ADR-0411 point 1, 0412
+// point 5). A target of the test's own seen by a camera at the origin looking
+// along −Z, read back with voe_render_target_read, the sky drawn at the test's
+// values with haze 0, exposure 0 at Clip, light 0's fill nought or a red
+// (0.5, 0, 0):
 //
-// 1. a grey lit cube 3 m ahead, the sun 50° up behind it so its +Z face, read
-//    at the centre, is turned away: with the sky's fill 1 the face lit, blue
-//    above red; with fill 0 not black, the reflection whole (ADR-0408), but at
-//    most fill 1's bytes in each channel and less in blue;
-// 2. the sun 2° up on the face's side: the face's red over blue above noon's;
+// 1. a grey lit cube 3 m ahead, its +Z face read at the centre, the sun 50° up
+//    behind it and then 2° up on its side: byte for byte the same with the sky
+//    drawn and zeroed, at fill nought and at the red fill;
+// 2. that face reads the same bytes whatever the sky's zenith, blue or red;
 // 3. a smooth white metal quad tilted 30° up to the camera reads the sRGB of
 //    voe_render_sky_radiance (render/src/sky.h) along the reflected view times
 //    Karis's Fresnel fit, within 6/255; at roughness 1 it reads nearer E(R)/π,
 //    from voe_render_sky_harmonics, than the sky along R;
-// 4. the cube inside an Indoors blocker: black, and with light 0's fill a red
-//    (0.5, 0, 0) byte for byte what it reads with the sky zeroed;
-// 5. light 0's fill that red (ADR-0406 point 3, 0407 point 7): the sky drawn at
-//    fill 1, the face the sky's blue over red byte for byte, not the red; at
-//    fill 0 case 1's rule; the sky zeroed, the red fill as before;
-// 6. case 2's sun white at intensity π, the face in its full light: byte for
-//    byte the same at fill 0, 0.5 and 1; turned away at fill 1 no brighter,
-//    summed, than in that sun; the sky zeroed, light 0's red fill adds nothing;
-// 7. the editor's low sun (ADR-0410): a pink sun at intensity π, its fill blue,
-//    3° up at N·L sin 5° on the face: at fill 0 at least 0.6 of the bytes it
-//    reads with that sun 3° up behind the camera, and the same bytes at fill
-//    0, 0.562 and 1.
+// 4. that quad as a non-metal, metallic 0 and white, in the low sun: byte for
+//    byte the same with the sky zeroed;
+// 5. the metal quad inside an Indoors blocker: byte for byte as with the sky
+//    zeroed.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO. The skip is a pass and it
 // prints its reason.
@@ -45,7 +37,6 @@
 
 #define SIDE 64
 #define CENTRE (SIDE / 2)
-#define TOLERANCE 3
 #define MIRROR_TOLERANCE 6
 #define PI 3.14159265358979f
 
@@ -53,6 +44,7 @@
 #define NEAR_PLANE 0.1f
 #define FAR_PLANE 100.0f
 #define CUBE_Z -3.0f
+#define QUAD_Z -2.0f
 #define INTENSITY 1.0f
 // The quad's normal, 30° up from facing the eye.
 #define TILT_SIN 0.5f
@@ -64,7 +56,7 @@ static const voe_render_capacities CAPACITIES = {
 	.indices = 36 + 6,
 	.geometries = 2,
 	.objects = 1,
-	.shadings = 3,
+	.shadings = 4,
 	.passes = 1,
 	.targets = 1,
 };
@@ -107,10 +99,10 @@ static const uint32_t CUBE_INDICES[36] = {
 // A metre square about (0, 0, −2), its normal (0, sin, cos) of the tilt, its
 // edges +X and (0, cos, −sin): counter-clockwise seen along that normal.
 static const voe_render_vertex QUAD_VERTICES[4] = {
-	{ { -H, -H * TILT_COS, -2.0f + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
-	{ { H, -H * TILT_COS, -2.0f + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
-	{ { H, H * TILT_COS, -2.0f - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
-	{ { -H, H * TILT_COS, -2.0f - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
+	{ { -H, -H * TILT_COS, QUAD_Z + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
+	{ { H, -H * TILT_COS, QUAD_Z + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
+	{ { H, H * TILT_COS, QUAD_Z - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
+	{ { -H, H * TILT_COS, QUAD_Z - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
 };
 
 static const uint32_t QUAD_INDICES[6] = { 0, 1, 2, 0, 2, 3 };
@@ -124,6 +116,7 @@ struct scene {
 	voe_render_shading grey;
 	voe_render_shading smooth;
 	voe_render_shading rough;
+	voe_render_shading plain;
 };
 
 // The eye at the origin looking along −Z, +Y up, reverse-Z as sky.c's.
@@ -141,7 +134,7 @@ static voe_render_view the_camera(void)
 	return view;
 }
 
-// ADR-0406 point 1's sky, drawn, but sunset 1; `fill` is each case's.
+// ADR-0406 point 1's sky, drawn, at sunset 1 and haze 0.
 static const voe_render_sky SKY = {
 	.zenith = { 0.15f, 0.35f, 0.80f },
 	.horizon_height = 0.25f,
@@ -153,14 +146,8 @@ static const voe_render_sky SKY = {
 	.sunset = 1.0f,
 };
 
-// SKY with the sky's `fill`, light 0's fill intensity, at `fill`.
-static voe_render_sky sky_at(float fill)
-{
-	voe_render_sky sky = SKY;
-
-	sky.fill = fill;
-	return sky;
-}
+static const voe_render_sky ZEROED = { 0 };
+static const voe_render_light_blockers NONE = { 0 };
 
 // A white sun whose light travels along `direction`.
 static voe_render_light the_sun(voe_math_float3 direction)
@@ -170,20 +157,12 @@ static voe_render_light the_sun(voe_math_float3 direction)
 				   .colour = { 1.0f, 1.0f, 1.0f } };
 }
 
-// `light` with its fill the red RED_FILL.
-static voe_render_light red_filled(voe_render_light light)
-{
-	light.fill = RED_FILL;
-	return light;
-}
-
-// One frame of one pass drawing `geometry` in `shading` at z `z`, read back;
-// NULL when the read failed.
-static const uint8_t *picture_of(struct scene *scene,
-				 voe_render_geometry geometry,
-				 voe_render_shading shading, float z,
-				 voe_render_light light, voe_render_sky sky,
-				 voe_render_light_blockers blockers)
+// One frame of one pass drawing `geometry` in `shading` at z `z`, the centre
+// pixel's bytes copied into `out`; false when the read failed.
+static bool picture_of(struct scene *scene, voe_render_geometry geometry,
+		       voe_render_shading shading, float z,
+		       voe_render_light light, voe_render_sky sky,
+		       voe_render_light_blockers blockers, uint8_t out[3])
 {
 	voe_platform_size size = { SIDE, SIDE };
 	voe_render_pass_camera camera = {
@@ -207,7 +186,7 @@ static const uint8_t *picture_of(struct scene *scene,
 	VOE_TEST_CHECK(voe_render_frame_begin(scene->device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
-		return NULL;
+		return false;
 	VOE_TEST_CHECK(voe_render_pass_begin(scene->device, scene->target,
 					     &camera));
 	VOE_TEST_CHECK(voe_render_frame_draw(scene->device, geometry, object));
@@ -217,8 +196,48 @@ static const uint8_t *picture_of(struct scene *scene,
 					      scene->arena, &picture, &error));
 	if (picture.pixels == NULL || picture.width != SIDE ||
 	    picture.height != SIDE)
-		return NULL;
-	return picture.pixels + ((size_t)CENTRE * SIDE + CENTRE) * 4;
+		return false;
+	memcpy(out, picture.pixels + ((size_t)CENTRE * SIDE + CENTRE) * 4, 3);
+	return true;
+}
+
+static void print_pixel(const char *what, const uint8_t *pixel)
+{
+	printf("%s: %d %d %d\n", what, pixel[0], pixel[1], pixel[2]);
+}
+
+// `geometry` in `shading` at `z` reads the same bytes under `sky` as under
+// `other`.
+static void check_same(struct scene *scene, const char *what,
+		       voe_render_geometry geometry, voe_render_shading shading,
+		       float z, voe_render_light light, voe_render_sky sky,
+		       voe_render_sky other, voe_render_light_blockers blockers)
+{
+	uint8_t a[3];
+	uint8_t b[3];
+
+	if (!picture_of(scene, geometry, shading, z, light, sky, blockers, a) ||
+	    !picture_of(scene, geometry, shading, z, light, other, blockers, b))
+		return;
+	print_pixel(what, a);
+	print_pixel("  against", b);
+	VOE_TEST_CHECK(memcmp(a, b, 3) == 0);
+}
+
+// Cases 1 and 2: the grey cube's +Z face under `sun`, at fill nought and red.
+static void check_cube(struct scene *scene, voe_render_light sun)
+{
+	voe_render_sky red_zenith = SKY;
+	voe_render_light red = sun;
+
+	red_zenith.zenith = (voe_math_float3){ 0.80f, 0.10f, 0.10f };
+	red.fill = RED_FILL;
+	check_same(scene, "cube, fill 0, sky drawn", scene->cube, scene->grey,
+		   CUBE_Z, sun, SKY, ZEROED, NONE);
+	check_same(scene, "cube, red fill, sky drawn", scene->cube, scene->grey,
+		   CUBE_Z, red, SKY, ZEROED, NONE);
+	check_same(scene, "cube, red fill, blue zenith", scene->cube,
+		   scene->grey, CUBE_Z, red, SKY, red_zenith, NONE);
 }
 
 // A linear value as the byte an sRGB target stores for it, clamped as it does.
@@ -263,227 +282,9 @@ static int distance_to(const uint8_t *pixel, voe_math_float3 linear,
 	       abs(pixel[2] - srgb_byte(linear.z * scale));
 }
 
-static void print_pixel(const char *what, const uint8_t *pixel)
-{
-	printf("%s: %d %d %d\n", what, pixel[0], pixel[1], pixel[2]);
-}
-
-static void check_black(const uint8_t *pixel)
-{
-	VOE_TEST_CHECK(pixel[0] <= TOLERANCE);
-	VOE_TEST_CHECK(pixel[1] <= TOLERANCE);
-	VOE_TEST_CHECK(pixel[2] <= TOLERANCE);
-}
-
-// A shaded face at the sky's fill 0 (ADR-0408): only the sky's reflection is
-// left, so at most what it reads at fill 1, and less blue.
-static void check_fill_zero(const uint8_t *pixel, const uint8_t *at_fill_one)
-{
-	VOE_TEST_CHECK(pixel[0] <= at_fill_one[0]);
-	VOE_TEST_CHECK(pixel[1] <= at_fill_one[1]);
-	VOE_TEST_CHECK(pixel[2] < at_fill_one[2]);
-}
-
-static int byte_sum(const uint8_t *pixel)
-{
-	return pixel[0] + pixel[1] + pixel[2];
-}
-
-// The +Z face in `full`'s full light (ADR-0408): the same bytes at every fill;
-// turned away at fill 1 no brighter; light 0's red fill adding nothing.
-static void check_full_sun(struct scene *scene, voe_render_light full)
-{
-	const voe_render_light_blockers none = { 0 };
-	const voe_render_sky zeroed = { 0 };
-	const float fills[2] = { 0.0f, 0.5f };
-	voe_render_light away = full;
-	uint8_t at_fill_one[3] = { 0 };
-	const uint8_t *lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z,
-					full, sky_at(1.0f), none);
-
-	if (lit == NULL)
-		return;
-	print_pixel("full sun, sky light 1", lit);
-	memcpy(at_fill_one, lit, sizeof at_fill_one);
-	for (int i = 0; i < 2; i++) {
-		lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, full,
-				 sky_at(fills[i]), none);
-		if (lit != NULL) {
-			print_pixel("full sun, other sky light", lit);
-			VOE_TEST_CHECK(memcmp(lit, at_fill_one,
-					      sizeof at_fill_one) == 0);
-		}
-	}
-	away.direction = voe_math_float3_scale(full.direction, -1.0f);
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, away,
-			 sky_at(1.0f), none);
-	if (lit != NULL) {
-		print_pixel("turned away, sky light 1", lit);
-		VOE_TEST_CHECK(byte_sum(lit) <= byte_sum(at_fill_one));
-	}
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, full, zeroed,
-			 none);
-	if (lit == NULL)
-		return;
-	memcpy(at_fill_one, lit, sizeof at_fill_one);
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z,
-			 red_filled(full), zeroed, none);
-	if (lit != NULL) {
-		print_pixel("full sun, red fill, sky zeroed", lit);
-		VOE_TEST_CHECK(memcmp(lit, at_fill_one, sizeof at_fill_one) == 0);
-	}
-}
-
-// The editor's low sun on the +Z face (ADR-0410): lifted to at least 0.6 of
-// its bytes head-on, and past the fill's fade, so the same at every fill.
-static void check_low_sun(struct scene *scene)
-{
-	const voe_render_light_blockers none = { 0 };
-	const float fills[2] = { 0.562f, 1.0f };
-	// Towards it (√(1 − sin²3° − sin²5°), sin 3°, sin 5°), reversed.
-	voe_render_light low = {
-		.direction = { -0.9948190f, -0.0523360f, -0.0871557f },
-		.intensity = PI,
-		.colour = { 1.0f, 0.75f, 0.8f },
-		.fill = { 0.2f, 0.4f, 1.0f },
-	};
-	voe_render_light behind = low;
-	uint8_t at_fill_zero[3] = { 0 };
-	const uint8_t *lit;
-	int head_on;
-
-	behind.direction = (voe_math_float3){ 0.0f, -0.0523360f, -0.9986295f };
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, behind,
-			 sky_at(0.0f), none);
-	if (lit == NULL)
-		return;
-	print_pixel("low sun behind the camera, sky light 0", lit);
-	head_on = byte_sum(lit);
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, low,
-			 sky_at(0.0f), none);
-	if (lit == NULL)
-		return;
-	print_pixel("low sun at N.L sin 5, sky light 0", lit);
-	VOE_TEST_CHECK((float)byte_sum(lit) >= 0.6f * (float)head_on);
-	memcpy(at_fill_zero, lit, sizeof at_fill_zero);
-	for (int i = 0; i < 2; i++) {
-		lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, low,
-				 sky_at(fills[i]), none);
-		if (lit != NULL) {
-			print_pixel("low sun, other sky light", lit);
-			VOE_TEST_CHECK(memcmp(lit, at_fill_zero,
-					      sizeof at_fill_zero) == 0);
-		}
-	}
-}
-
-static void check_cube(struct scene *scene, voe_render_light noon,
-		       voe_render_light evening)
-{
-	const voe_render_light_blockers none = { 0 };
-	const uint8_t *lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z,
-					noon, sky_at(1.0f), none);
-	uint8_t at_fill_one[3] = { 0 };
-	float noon_ratio = 0.0f;
-
-	if (lit != NULL) {
-		print_pixel("noon, sky light 1", lit);
-		VOE_TEST_CHECK(lit[2] > TOLERANCE * 4);
-		VOE_TEST_CHECK(lit[2] > lit[0]);
-		noon_ratio = (float)lit[0] / (float)lit[2];
-	}
-	if (lit != NULL)
-		memcpy(at_fill_one, lit, sizeof at_fill_one);
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, noon,
-			 sky_at(0.0f), none);
-	if (lit != NULL) {
-		print_pixel("noon, sky light 0", lit);
-		check_fill_zero(lit, at_fill_one);
-	}
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, evening,
-			 sky_at(1.0f), none);
-	if (lit != NULL) {
-		print_pixel("evening, sky light 1", lit);
-		VOE_TEST_CHECK(lit[2] > 0 && lit[0] < 255);
-		VOE_TEST_CHECK((float)lit[0] / (float)lit[2] > noon_ratio);
-	}
-}
-
-static void check_indoors(struct scene *scene, voe_render_light noon)
-{
-	// A 2 m box about the cube, unturned: rows (a_i / h, −a_i·c / h).
-	const voe_render_light_blocker around[1] = { {
-		.rows = { { 1.0f, 0.0f, 0.0f, 0.0f },
-			  { 0.0f, 1.0f, 0.0f, 0.0f },
-			  { 0.0f, 0.0f, 1.0f, -CUBE_Z } },
-		.sphere = { 0.0f, 0.0f, CUBE_Z, 1.7320508f },
-	} };
-	const voe_render_light_blockers indoors = { .blockers = around,
-						    .count = 1,
-						    .indoors = 1 };
-	const voe_render_sky zeroed = { 0 };
-	uint8_t without_sky[3] = { 0 };
-	const uint8_t *lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z,
-					noon, sky_at(1.0f), indoors);
-
-	if (lit != NULL) {
-		print_pixel("indoors, sky light 1", lit);
-		check_black(lit);
-	}
-	// Light 0's red fill inside Indoors: the sky stands in for nothing.
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z,
-			 red_filled(noon), zeroed, indoors);
-	if (lit == NULL)
-		return;
-	print_pixel("indoors, red fill, sky zeroed", lit);
-	memcpy(without_sky, lit, sizeof without_sky);
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z,
-			 red_filled(noon), sky_at(1.0f), indoors);
-	if (lit != NULL) {
-		print_pixel("indoors, red fill, sky drawn", lit);
-		VOE_TEST_CHECK(memcmp(lit, without_sky, sizeof without_sky) == 0);
-	}
-}
-
-// Light 0's fill a red under the sky: the sky in its place, not the red.
-static void check_red_fill(struct scene *scene, voe_render_light noon)
-{
-	const voe_render_light_blockers none = { 0 };
-	const voe_render_sky zeroed = { 0 };
-	uint8_t sky_alone[3] = { 0 };
-	const uint8_t *lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z,
-					noon, sky_at(1.0f), none);
-
-	if (lit == NULL)
-		return;
-	memcpy(sky_alone, lit, sizeof sky_alone);
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z,
-			 red_filled(noon), sky_at(1.0f), none);
-	if (lit != NULL) {
-		print_pixel("red fill, sky light 1", lit);
-		VOE_TEST_CHECK(lit[2] > lit[0]);
-		VOE_TEST_CHECK(memcmp(lit, sky_alone, sizeof sky_alone) == 0);
-	}
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z,
-			 red_filled(noon), sky_at(0.0f), none);
-	if (lit != NULL) {
-		print_pixel("red fill, sky light 0", lit);
-		check_fill_zero(lit, sky_alone);
-	}
-	// Grey 0.5 under a red fill of 0.5: 0.25 of red, nothing else.
-	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z,
-			 red_filled(noon), zeroed, none);
-	if (lit != NULL) {
-		print_pixel("red fill, sky zeroed", lit);
-		VOE_TEST_CHECK(abs(lit[0] - srgb_byte(0.25f)) <= TOLERANCE);
-		VOE_TEST_CHECK(lit[1] <= TOLERANCE);
-		VOE_TEST_CHECK(lit[2] <= TOLERANCE);
-	}
-}
-
+// Case 3: the metal quad mirrors the sky, sharp when smooth, blurred when rough.
 static void check_mirror(struct scene *scene, voe_render_light noon)
 {
-	const voe_render_light_blockers none = { 0 };
 	const voe_math_float3 n = { 0.0f, TILT_SIN, TILT_COS };
 	const voe_math_float3 d = centre_direction();
 	const voe_math_float3 r = voe_math_float3_sub(
@@ -494,14 +295,13 @@ static void check_mirror(struct scene *scene, voe_render_light noon)
 	const float n_dot_v = -voe_math_float3_dot(n, d);
 	voe_math_float4 harmonics[9];
 	voe_math_float3 blurred;
-	const uint8_t *pixel;
+	uint8_t pixel[3];
 
 	voe_render_sky_harmonics(&SKY, noon.direction, sun, harmonics);
 	blurred = voe_math_float3_scale(voe_render_sky_irradiance(harmonics, r),
 					1.0f / PI);
-	pixel = picture_of(scene, scene->quad, scene->smooth, 0.0f, noon,
-			   sky_at(1.0f), none);
-	if (pixel != NULL) {
+	if (picture_of(scene, scene->quad, scene->smooth, 0.0f, noon, SKY, NONE,
+		       pixel)) {
 		const float fresnel = environment_brdf(1.0f, 0.0f, n_dot_v);
 
 		print_pixel("smooth metal", pixel);
@@ -514,9 +314,8 @@ static void check_mirror(struct scene *scene, voe_render_light noon)
 		VOE_TEST_CHECK(abs(pixel[2] - srgb_byte(sky.z * fresnel)) <=
 			       MIRROR_TOLERANCE);
 	}
-	pixel = picture_of(scene, scene->quad, scene->rough, 0.0f, noon,
-			   sky_at(1.0f), none);
-	if (pixel != NULL) {
+	if (picture_of(scene, scene->quad, scene->rough, 0.0f, noon, SKY, NONE,
+		       pixel)) {
 		const float fresnel = environment_brdf(1.0f, 1.0f, n_dot_v);
 		const int to_blurred = distance_to(pixel, blurred, fresnel);
 		const int to_sky = distance_to(pixel, sky, fresnel);
@@ -525,6 +324,24 @@ static void check_mirror(struct scene *scene, voe_render_light noon)
 		printf("from E(R)/pi %d, from the sky %d\n", to_blurred, to_sky);
 		VOE_TEST_CHECK(to_blurred < to_sky);
 	}
+}
+
+// Case 5: the metal quad inside a 2 m Indoors box about it mirrors no sky.
+static void check_indoors(struct scene *scene, voe_render_light noon)
+{
+	// The box unturned: rows (a_i / h, −a_i·c / h).
+	const voe_render_light_blocker around[1] = { {
+		.rows = { { 1.0f, 0.0f, 0.0f, 0.0f },
+			  { 0.0f, 1.0f, 0.0f, 0.0f },
+			  { 0.0f, 0.0f, 1.0f, -QUAD_Z } },
+		.sphere = { 0.0f, 0.0f, QUAD_Z, 1.7320508f },
+	} };
+	const voe_render_light_blockers indoors = { .blockers = around,
+						    .count = 1,
+						    .indoors = 1 };
+
+	check_same(scene, "indoors metal, sky drawn", scene->quad,
+		   scene->smooth, 0.0f, noon, SKY, ZEROED, indoors);
 }
 
 static bool build(struct scene *scene)
@@ -555,6 +372,10 @@ static bool build(struct scene *scene)
 					   &error);
 	built &= voe_render_shading_create(scene->device, metal, &scene->smooth,
 					   &error);
+	metal.metallic = 0.0f;
+	built &= voe_render_shading_create(scene->device, metal, &scene->plain,
+					   &error);
+	metal.metallic = 1.0f;
 	metal.roughness = 1.0f;
 	built &= voe_render_shading_create(scene->device, metal, &scene->rough,
 					   &error);
@@ -573,7 +394,6 @@ int main(void)
 	// 2° up in front of the cube, on the +Z face's side.
 	const voe_render_light evening =
 		the_sun((voe_math_float3){ 0.0f, -0.0348995f, -0.9993908f });
-	voe_render_light full = evening;
 
 	scene.device = voe_render_device_new_headless(scene.arena, size,
 						      CAPACITIES, &error);
@@ -587,13 +407,12 @@ int main(void)
 		return voe_test_result();
 	}
 	if (build(&scene)) {
-		check_cube(&scene, noon, evening);
+		check_cube(&scene, noon);
+		check_cube(&scene, evening);
 		check_mirror(&scene, noon);
+		check_same(&scene, "non-metal quad, sky drawn", scene.quad,
+			   scene.plain, 0.0f, evening, SKY, ZEROED, NONE);
 		check_indoors(&scene, noon);
-		check_red_fill(&scene, noon);
-		full.intensity = PI;
-		check_full_sun(&scene, full);
-		check_low_sun(&scene);
 	}
 	voe_render_device_destroy(scene.device);
 	voe_base_arena_destroy(scene.arena);
