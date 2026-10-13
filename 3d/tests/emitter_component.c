@@ -19,6 +19,7 @@
 
 #include <testing/test.h>
 
+#include <stdio.h>
 #include <string.h>
 
 #define SCRATCH (256 * 1024)
@@ -50,7 +51,8 @@ static void an_added_row_reads_back(voe_base_arena *arena)
 				   .colour_end = { 1, 0.5f, 0 }, .glow = 2.0f };
 	const voe_3d_emitter *row;
 
-	strcpy(emitter.texture, "Assets/smoke.png");
+	snprintf(emitter.texture, sizeof emitter.texture, "%s",
+		 "Assets/smoke.png");
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_3d_emitter_add(world, entity, emitter));
 	row = voe_3d_emitter_get(world, entity);

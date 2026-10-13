@@ -26,6 +26,7 @@
 #include <testing/test.h>
 
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 #define SCRATCH (64 * 1024)
@@ -53,7 +54,7 @@ static voe_ecs_entity modelled(voe_ecs_world *world, const char *path)
 	voe_ecs_entity entity = { 0 };
 	voe_3d_model model = { .cast_shadows = true };
 
-	strcpy(model.path, path);
+	snprintf(model.path, sizeof model.path, "%s", path);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_3d_model_add(world, entity, model));
 	return entity;
@@ -131,7 +132,8 @@ static void a_submitted_path_reads_back(voe_base_arena *arena)
 	voe_ecs_entity entity = modelled(world, "Assets/hull.glb");
 	voe_3d_model_intent intent = { .entity = entity };
 
-	strcpy(intent.model.path, "Assets/deck.glb");
+	snprintf(intent.model.path, sizeof intent.model.path, "%s",
+		 "Assets/deck.glb");
 	VOE_TEST_CHECK(voe_3d_model_submit(world, intent));
 	VOE_TEST_CHECK(strcmp(voe_3d_model_get(world, entity)->path,
 			      "Assets/hull.glb") == 0);
@@ -151,7 +153,8 @@ static void a_dead_entitys_intent_is_dropped(voe_base_arena *arena)
 	voe_3d_model_intent intent = { .entity = dead };
 
 	voe_ecs_entity_destroy(world, dead);
-	strcpy(intent.model.path, "Assets/deck.glb");
+	snprintf(intent.model.path, sizeof intent.model.path, "%s",
+		 "Assets/deck.glb");
 	VOE_TEST_CHECK(voe_3d_model_submit(world, intent));
 	voe_3d_model_system_run(world);
 	VOE_TEST_CHECK(voe_3d_model_get(world, dead) == NULL);

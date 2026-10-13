@@ -108,7 +108,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const char *material)
 			       .colour = VOE_3D_SHAPE_GREY,
 			       .cast_shadows = true };
 
-	strncpy(shape.material, material, sizeof(shape.material) - 1);
+	snprintf(shape.material, sizeof shape.material, "%s", material);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, cube,
@@ -128,7 +128,8 @@ static voe_ecs_world *a_model_world(voe_base_arena *arena, uint32_t part,
 	voe_ecs_entity thing = { 0 };
 	voe_3d_model row = { .path = MODEL, .cast_shadows = true };
 
-	strncpy(row.materials[part], material, sizeof(row.materials[part]) - 1);
+	snprintf(row.materials[part], sizeof row.materials[part], "%s",
+		 material);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, thing,
