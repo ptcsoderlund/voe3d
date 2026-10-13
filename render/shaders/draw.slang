@@ -105,7 +105,8 @@
 // orthogonalised against the interpolated normal, and each channel maps 0..1
 // to −1..1. The interpolated normal still places the shadow lookup. Seams
 // where a frame flips across a UV island are the cost; a tangent attribute is
-// the card that lifts it.
+// the card that lifts it. A mirrored half is right by the determinant's sign,
+// its bump turned over with its picture: render/tests/surface_maps.c says so.
 //
 // EMISSION IS ADDED LAST: the record's emissive times the emissive map, after
 // the sun and the fill, unshadowed and unoccluded. Only on the lit path; an

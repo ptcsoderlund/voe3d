@@ -98,8 +98,8 @@ by reading the offscreen colour image back.
   without and at any zenith, a non-metal quad unchanged, a smooth metal one the sky along R and a
   rough one nearer E(R)/π, none inside Indoors. Headless.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
-  red to a black surface whether the sun faces it or not, and a metal-roughness map replacing the
-  factors. Headless.
+  red to a black surface whether the sun faces it or not, a metal-roughness map replacing the
+  factors, and a mirrored half's bump tilting mirrored along u and along v. Headless.
 - `vertex_colours.c` — a vertex's colour tinting its surface: an unlit white record on red vertices
   red, on zeroed ones white, and a lit quad of half-grey vertices about half as bright in linear
   light as white ones. Headless.
