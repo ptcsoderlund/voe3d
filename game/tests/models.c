@@ -213,7 +213,7 @@ static void wear(voe_ecs_world *world, const char *path)
 {
 	voe_3d_model model = { 0 };
 
-	strcpy(model.path, path);
+	snprintf(model.path, sizeof model.path, "%s", path);
 	VOE_TEST_CHECK(voe_3d_model_add(world, place(world), model));
 }
 
@@ -222,7 +222,7 @@ static void emit(voe_ecs_world *world, const char *path)
 {
 	voe_3d_emitter emitter = { .playing = true };
 
-	strcpy(emitter.texture, path);
+	snprintf(emitter.texture, sizeof emitter.texture, "%s", path);
 	VOE_TEST_CHECK(voe_3d_emitter_add(world, place(world), emitter));
 }
 
@@ -376,7 +376,7 @@ static void shade(voe_ecs_world *world, const char *path)
 			       .colour = VOE_3D_SHAPE_GREY,
 			       .cast_shadows = true };
 
-	strcpy(shape.material, path);
+	snprintf(shape.material, sizeof shape.material, "%s", path);
 	VOE_TEST_CHECK(voe_3d_shape_add(world, place(world), shape));
 }
 

@@ -39,6 +39,7 @@
 
 #include <testing/test.h>
 
+#include <stdio.h>
 #include <string.h>
 
 #define GRAVITY 9.81f
@@ -346,7 +347,7 @@ static void a_sound_plays(voe_ecs_world *world, const voe_3d_shapes *shapes)
 
 	write_hum();
 	mixer = voe_audio_mixer_new(SOUND_FOLDER);
-	strcpy(sound.path, "hum.wav");
+	snprintf(sound.path, sizeof sound.path, "%s", "hum.wav");
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, entity,
