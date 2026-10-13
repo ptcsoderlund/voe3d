@@ -6,10 +6,10 @@ The sky sets its zenith, horizon and ground colours, how high the horizon colour
 The lights drive the sky. Every directional light draws its own disc in its own colour, with a glow that
 tints the sky around it, and sets the disc's and glow's size (0 hides them). Two suns are two lights.
 Lighting is the lights' alone: colour, strength and fill, as before the sky. A dark sky under a bright light
-is fine. Far ground fades into a haze of the sky's horizon colour, so the valley looks far away. Shiny things
+is fine. Far ground fades into a haze lit by the directional lights, so the valley looks far away. Shiny things
 reflect the sky. A scene can also have a Picture with an exposure and a tone curve, so bright light rolls off
 softly instead of clipping to white. A scene saved before this feature keeps its look, so the tank and coin
-games are unchanged (0405, 0406, 0411).
+games are unchanged (0405, 0406, 0411, 0415).
 
 ## Why
 The view from the tower is mostly sky and distance. A sky behind the hill and haze over the valley make it
@@ -30,8 +30,9 @@ look outdoors, while the lights stay the artist's to set freely.
    show in the sky, and both light the hill.
 6. Raise and lower a light's fill: shaded slopes brighten and darken, and the sunlit ground does not change.
    Remove the sky: the hill is lit exactly the same.
-7. Fly to the top of the hill. Far ridges fade into haze of the horizon's colour, nearer ground less so.
-   Darken the sky: the haze darkens with it.
+7. Fly to the top of the hill. Far ridges fade into haze, nearer ground less so, and ground within the
+   haze start not at all. Change the directional light's colour and strength: the haze follows. Change the
+   sky's colours and strength: the haze does not change.
 8. Place a shiny metal sphere. It reflects the sky and the sun's disc.
 9. Add Rendering / Picture. Raise and lower its exposure: the picture brightens and darkens, and with tone
    Soft bright light rolls off softly.
