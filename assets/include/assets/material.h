@@ -10,6 +10,11 @@
 //     colormap="Assets/brick.png"
 //     normalmap=""
 //     ormmap=""
+//     cutout=0.5
+//     double_sided=true
+//     emission=1 0.5 0
+//     emission_strength=2
+//     emissionmap="Assets/glow.png"
 //
 // `shader` is `lit` or `unlit`; `colour` is three linear floats; `repeat`
 // multiplies the texture coordinates before any map is read. Each map is a
@@ -17,8 +22,14 @@
 // red, roughness in green, metal in blue (0400). A file with the keys these
 // replaced (colour, normal and roughness, each `_map`) reads as having no maps.
 //
+// `cutout` is 0 to 1: a pixel whose colour map alpha is below it is not drawn,
+// 0 for none. `double_sided` is `true` or `false`. Emission adds `emission`
+// (three linear floats) × `emission_strength` × `emissionmap`, a colour
+// picture (0420 point 2).
+//
 // A MISSING KEY READS ITS DEFAULT: lit, colour 1 1 1, roughness 0.5, metal 0,
-// repeat 1, no maps. A file written before a key existed still opens, and
+// repeat 1, no maps, cutout 0, double_sided false, emission 0 0 0,
+// emission_strength 1. A file written before a key existed still opens, and
 // Create can write the defaults without this header growing a second writer.
 // A key this reader does not know is passed over for the same reason.
 //
@@ -58,6 +69,13 @@ typedef struct {
 	char colormap[VOE_ASSETS_MATERIAL_PATH];
 	char normalmap[VOE_ASSETS_MATERIAL_PATH];
 	char ormmap[VOE_ASSETS_MATERIAL_PATH];
+	// 0 to 1; 0 draws every pixel.
+	float cutout;
+	bool double_sided;
+	// Linear, each channel 0 or more.
+	float emission[3];
+	float emission_strength;
+	char emissionmap[VOE_ASSETS_MATERIAL_PATH];
 } voe_assets_material_file;
 
 typedef struct {
@@ -70,8 +88,10 @@ voe_assets_material_file voe_assets_material_default(void);
 
 // Reads `size` bytes of text, which need not be NUL-terminated. MALFORMED for
 // text the sectioned reader refuses, no `[Material]` section, a number that
-// does not parse, a shader that is not `lit` or `unlit`, or a path of
-// VOE_ASSETS_MATERIAL_PATH bytes or more. A line on stderr names what. `out`
+// does not parse, a shader that is not `lit` or `unlit`, a `cutout` outside 0
+// to 1, a negative emission channel or `emission_strength`, a `double_sided`
+// that is not `true` or `false`, or a path of VOE_ASSETS_MATERIAL_PATH bytes
+// or more. A line on stderr names what. `out`
 // untouched on failure; `error` may be NULL.
 [[nodiscard]] bool voe_assets_material_read(const char *text, size_t size,
 					    voe_assets_material_file *out,

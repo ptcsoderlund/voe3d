@@ -102,6 +102,39 @@ static bool read_shader(const voe_assets_sectioned *doc, uint32_t section,
 	return true;
 }
 
+static bool read_double_sided(const voe_assets_sectioned *doc,
+			      uint32_t section, bool *double_sided,
+			      voe_base_error *error)
+{
+	const char *word =
+		voe_assets_sectioned_value(doc, section, "double_sided");
+
+	if (word == NULL)
+		return true;
+	if (strcmp(word, "true") == 0)
+		*double_sided = true;
+	else if (strcmp(word, "false") == 0)
+		*double_sided = false;
+	else
+		return refuse(error, "double_sided", "not true or false");
+	return true;
+}
+
+// The ranges a parsed number must also be in; a missing key holds its
+// default, which is in range.
+static bool check_ranges(const voe_assets_material_file *material,
+			 voe_base_error *error)
+{
+	if (!(material->cutout >= 0.0f && material->cutout <= 1.0f))
+		return refuse(error, "cutout", "outside 0 to 1");
+	for (uint32_t i = 0; i < 3; i++)
+		if (material->emission[i] < 0.0f)
+			return refuse(error, "emission", "a negative channel");
+	if (material->emission_strength < 0.0f)
+		return refuse(error, "emission_strength", "negative");
+	return true;
+}
+
 static bool read_section(const voe_assets_sectioned *doc,
 			 voe_assets_material_file *material, voe_base_error *error)
 {
@@ -121,7 +154,18 @@ static bool read_section(const voe_assets_sectioned *doc,
 	       read_path(doc, section, "colormap", material->colormap, error) &&
 	       read_path(doc, section, "normalmap", material->normalmap,
 			 error) &&
-	       read_path(doc, section, "ormmap", material->ormmap, error);
+	       read_path(doc, section, "ormmap", material->ormmap, error) &&
+	       read_numbers(doc, section, "cutout", &material->cutout, 1,
+			    error) &&
+	       read_double_sided(doc, section, &material->double_sided,
+				 error) &&
+	       read_numbers(doc, section, "emission", material->emission, 3,
+			    error) &&
+	       read_numbers(doc, section, "emission_strength",
+			    &material->emission_strength, 1, error) &&
+	       read_path(doc, section, "emissionmap", material->emissionmap,
+			 error) &&
+	       check_ranges(material, error);
 }
 
 voe_assets_material_file voe_assets_material_default(void)
@@ -132,6 +176,10 @@ voe_assets_material_file voe_assets_material_default(void)
 		.roughness = 0.5f,
 		.metal = 0.0f,
 		.repeat = 1.0f,
+		.cutout = 0.0f,
+		.double_sided = false,
+		.emission = { 0.0f, 0.0f, 0.0f },
+		.emission_strength = 1.0f,
 	};
 }
 
@@ -183,6 +231,7 @@ struct quoted_paths {
 	char colormap[QUOTED_PATH];
 	char normalmap[QUOTED_PATH];
 	char ormmap[QUOTED_PATH];
+	char emissionmap[QUOTED_PATH];
 };
 
 // The whole text into `buffer`, or only its length when `buffer` is NULL.
@@ -194,12 +243,19 @@ static size_t print_material(char *buffer, size_t room,
 		buffer, room,
 		"[Material]\nshader=%s\ncolour=%.9g %.9g %.9g\n"
 		"roughness=%.9g\nmetal=%.9g\nrepeat=%.9g\ncolormap=%s\n"
-		"normalmap=%s\normmap=%s\n",
+		"normalmap=%s\normmap=%s\ncutout=%.9g\ndouble_sided=%s\n"
+		"emission=%.9g %.9g %.9g\nemission_strength=%.9g\n"
+		"emissionmap=%s\n",
 		material->shader == VOE_ASSETS_MATERIAL_UNLIT ? "unlit" : "lit",
 		(double)material->colour[0], (double)material->colour[1],
 		(double)material->colour[2], (double)material->roughness,
 		(double)material->metal, (double)material->repeat,
-		paths->colormap, paths->normalmap, paths->ormmap);
+		paths->colormap, paths->normalmap, paths->ormmap,
+		(double)material->cutout,
+		material->double_sided ? "true" : "false",
+		(double)material->emission[0], (double)material->emission[1],
+		(double)material->emission[2],
+		(double)material->emission_strength, paths->emissionmap);
 
 	VOE_BASE_ASSERT(written > 0, "printing a material failed");
 	VOE_BASE_ASSERT(buffer == NULL || (size_t)written < room,
@@ -221,6 +277,7 @@ voe_assets_material_write(const voe_assets_material_file *material,
 	quote(material->colormap, paths.colormap);
 	quote(material->normalmap, paths.normalmap);
 	quote(material->ormmap, paths.ormmap);
+	quote(material->emissionmap, paths.emissionmap);
 	size = print_material(NULL, 0, material, &paths);
 	text = voe_base_arena_push(arena, size + 1);
 	print_material(text, size + 1, material, &paths);

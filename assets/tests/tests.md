@@ -26,8 +26,10 @@ belongs to.
   to the millimetre, a resample keeping a plane and its corners, layers and
   paint round-tripped byte for byte and resampled to sums of 255, and each
   refusal with its category.
-- `material.c` — an empty section read as the defaults, a full file
-  round-tripped field for field, and each bad value refused MALFORMED.
+- `material.c` — an empty section read as the defaults, cut-out, sides and
+  emission included; a full file round-tripped field for field and written
+  again byte for byte; and each bad value, a cutout outside 0–1, a negative
+  emission or strength and a bad `double_sided` among them, refused MALFORMED.
 - `model.c` — a hand-built `.glb` in and its arrays out, two textures over
   one picture, COLOR_0 in each stored form, material and image names, sides,
   unlit, emission strength and repeat read or defaulted, a long name cut at a
