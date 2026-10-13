@@ -129,6 +129,8 @@ again, or to find where a claim that has started failing is written down.
   says, every field named with its kind, and a replace queued. Needs no graphics card.
 - `water_system.c` — a waves row after one run, the clock stepped and wrapped at 60 s, a replace's
   colour, and a removed water's row gone. Needs no graphics card.
+- `model_bake.c` — that a baked primitive's vertex colours become their complements, red as
+  0/65535/65535/0 and grey about 32767, and one without colours stays zeroed. Needs no graphics card.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
   blended twin and none leaked, pictures and the uncounted dot, and a model drawn only with the
   store. Skips without a card.

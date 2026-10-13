@@ -15,6 +15,10 @@
 // A NORMAL IS CARRIED BY THE NORMAL MATRIX AND MADE UNIT LENGTH AGAIN, since a
 // vertex's normal is unit length in `render`; one of nothing stays nothing,
 // which draws unlit (render/device.h).
+//
+// A VERTEX COLOUR IS WRITTEN AS ITS COMPLEMENT, each channel clamped to 0–1 and
+// stored as (1 − c) × 65535 rounded, so a primitive without colours leaves the
+// field zeroed and draws white (ADR-0421 point 1).
 #include "model_bake.h"
 
 #include <3d/import.h>
@@ -23,6 +27,8 @@
 #include <base/report.h>
 #include <math/float3.h>
 #include <math/float4x4.h>
+
+#include <math.h>
 
 // One drawn primitive where the walk put it, and the part it joins.
 struct placement {
@@ -205,6 +211,14 @@ static bool mirrored(const voe_math_float4x4 *m)
 	return determinant < 0.0f;
 }
 
+// One channel's complement; fmaxf first so a NaN reads as nought.
+static uint16_t complement(float channel)
+{
+	float c = fminf(fmaxf(channel, 0.0f), 1.0f);
+
+	return (uint16_t)lroundf((1.0f - c) * 65535.0f);
+}
+
 // One placement's vertices into model space at its part's next vertex, and its
 // indices after them, counted from the part's first vertex.
 static void fill(voe_3d_model_bake *out, const voe_assets_model *model,
@@ -236,6 +250,14 @@ static void fill(voe_3d_model_bake *out, const voe_assets_model *model,
 				      primitive->uvs[v] :
 				      (voe_math_float2){ 0.0f, 0.0f },
 		};
+		if (primitive->colours != NULL) {
+			const voe_math_float4 colour = primitive->colours[v];
+
+			vertices[v].colour_complement[0] = complement(colour.x);
+			vertices[v].colour_complement[1] = complement(colour.y);
+			vertices[v].colour_complement[2] = complement(colour.z);
+			vertices[v].colour_complement[3] = complement(colour.w);
+		}
 	}
 
 	for (uint32_t i = 0; i < primitive->index_count; i++) {
