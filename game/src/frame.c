@@ -6,7 +6,8 @@
 // window pass, its camera voe_3d_draw_system_camera's, with the interface over
 // the world, in the order game/include/game/frame.h gives. A refused pass, shadow or window, still
 // closes the draw, so the frame ends as render expects and the caller is told
-// once. The world step drains in order, the sounds last with no mixer.
+// once. The world step drains in order, the haze's after the sky's, the
+// sounds last with no mixer.
 #include <game/frame.h>
 
 #include <audio/sound_system.h>
@@ -23,6 +24,7 @@
 #include <physics/body_system.h>
 #include <physics/collider_system.h>
 
+#include <scene/haze_system.h>
 #include <scene/identity_system.h>
 #include <scene/light_blocker_system.h>
 #include <scene/light_system.h>
@@ -45,6 +47,7 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes)
 	voe_scene_identity_system_run(world);
 	voe_scene_light_system_run(world);
 	voe_scene_sky_system_run(world);
+	voe_scene_haze_system_run(world);
 	voe_scene_picture_system_run(world);
 	voe_scene_light_blocker_system_run(world);
 	voe_3d_shape_system_run(world, shapes);

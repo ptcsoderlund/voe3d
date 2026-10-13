@@ -36,6 +36,7 @@
 #include <ecs/world.h>
 
 #include <scene/camera_component.h>
+#include <scene/haze_component.h>
 #include <scene/identity_component.h>
 #include <scene/light_blocker_component.h>
 #include <scene/light_component.h>

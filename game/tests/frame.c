@@ -56,6 +56,10 @@
 //
 // THE MODEL CASE: a thing whose model an empty store lacks draws as nothing.
 //
+// THE HAZE CASE: a world with a Haze row of 1000 and no sky, a replace of 500
+// submitted, one world step: voe_3d_draw_system_sky reads haze 500 with
+// `drawn` 0 (0417 point 1). It needs no device and runs without one.
+//
 // Each draw case writes one file into the working directory, checks it and
 // removes it, pass or fail. A machine with no usable Vulkan skips and says so.
 #include <game/frame.h>
@@ -77,6 +81,7 @@
 
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
+#include <scene/haze_system.h>
 #include <scene/light_blocker_system.h>
 #include <scene/light_system.h>
 #include <scene/picture_system.h>
@@ -515,7 +520,6 @@ static sky_read sky_case(voe_app *app, voe_base_arena *arena,
 		.ground = { 0.20f, 0.18f, 0.16f },
 		.horizon_height = 0.25f,
 		.strength = 1.0f,
-		.haze = 1000.0f,
 	};
 	const voe_scene_picture look = { .exposure = 0.0f,
 					 .tone = VOE_SCENE_PICTURE_TONE_SOFT };
@@ -606,6 +610,34 @@ static void model_case(voe_app *app, voe_base_arena *arena,
 	voe_3d_models_destroy(models);
 }
 
+// A world with only a Haze row, a replace of 500 drained by one world step:
+// the sky record carries it with no sky drawn. No shape row, so the zeroed
+// shapes are never read.
+static void haze_case(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(1 << 20);
+	voe_ecs_world *world = voe_game_world_new(arena);
+	const voe_3d_shapes shapes = { 0 };
+	voe_ecs_entity settings;
+	voe_render_sky sky;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &settings));
+	VOE_TEST_CHECK(voe_scene_haze_add(
+		world, settings,
+		(voe_scene_haze){ .haze = 1000.0f, .start = 100.0f }));
+	VOE_TEST_CHECK(voe_scene_haze_submit(
+		world, (voe_scene_haze_intent){
+			       .entity = settings,
+			       .haze = { .haze = 500.0f, .start = 100.0f } }));
+	voe_game_world_step(world, &shapes);
+	sky = voe_3d_draw_system_sky(world);
+	VOE_TEST_CHECK(sky.haze == 500.0f);
+	VOE_TEST_CHECK(sky.haze_start == 100.0f);
+	VOE_TEST_CHECK(sky.drawn == 0);
+
+	voe_base_arena_destroy(arena);
+}
+
 // One label; the run goes on.
 static bool labelled(const voe_game_project_frame *frame)
 {
@@ -651,6 +683,7 @@ int main(void)
 	voe_3d_shapes shapes;
 	voe_app *app;
 
+	haze_case();
 	app = voe_app_new_headless(arena, scratch, settings, &error);
 	if (app == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
