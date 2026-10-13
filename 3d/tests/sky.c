@@ -171,6 +171,7 @@ static void check_zeroed(voe_render_sky sky)
 	VOE_TEST_CHECK_FLOAT(sky.horizon_height, 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(sky.strength, 0.0f, 0.0f);
 	VOE_TEST_CHECK_FLOAT(sky.haze, 0.0f, 0.0f);
+	VOE_TEST_CHECK_FLOAT(sky.haze_start, 0.0f, 0.0f);
 	check_discs(sky, NOUGHT, NOUGHT);
 }
 
@@ -183,6 +184,7 @@ static void check_row(voe_render_sky sky, voe_scene_sky row)
 	VOE_TEST_CHECK_FLOAT(sky.horizon_height, row.horizon_height, 0.0f);
 	VOE_TEST_CHECK_FLOAT(sky.strength, row.strength, 0.0f);
 	VOE_TEST_CHECK_FLOAT(sky.haze, row.haze, 0.0f);
+	VOE_TEST_CHECK_FLOAT(sky.haze_start, row.haze_start, 0.0f);
 }
 
 static void the_sky_is_the_first_row(voe_base_arena *arena)
@@ -193,7 +195,8 @@ static void the_sky_is_the_first_row(voe_base_arena *arena)
 			      .ground = { 0.7f, 0.8f, 0.9f },
 			      .horizon_height = 0.6f,
 			      .strength = 0.5f,
-			      .haze = 500.0f };
+			      .haze = 500.0f,
+			      .haze_start = 250.0f };
 	const float discs[VOE_RENDER_DIRECTIONAL_LIGHTS] = { 2.0f, 0.5f };
 	const float glows[VOE_RENDER_DIRECTIONAL_LIGHTS] = { 0.4f };
 	voe_render_sky lightless;

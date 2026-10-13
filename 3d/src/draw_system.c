@@ -115,6 +115,7 @@ voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world)
 		.strength = row.strength,
 		.ground = row.ground,
 		.haze = row.haze,
+		.haze_start = row.haze_start,
 		.drawn = 1,
 	};
 	lights = has_table(world, &voe_scene_light_key) ?

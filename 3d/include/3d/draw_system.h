@@ -505,7 +505,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 
 // The world's first sky row as a pass takes it (0412 points 1 and 6): `drawn`
-// 1, the row's colours, horizon height, strength and haze; `disc_size[i]` and
+// 1, the row's colours, horizon height, strength, haze and haze_start (0414
+// point 3); `disc_size[i]` and
 // `glow_size[i]` light row i's for rows 0 to VOE_RENDER_DIRECTIONAL_LIGHTS − 1
 // in table order, as _light and _lights hand them to the pass, 0 past the last
 // row or with no light table. Zeroed with no sky table or no row, which draws
