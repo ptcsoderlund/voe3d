@@ -33,10 +33,10 @@
 //   landscape (inspector_layers.h, 0402 point 7): over a layer row, that layer
 //   through voe_editor_models_layer_set; over the add row, a layer added;
 //   unsaved as a stroke is, no undo step. With eight layers there is no add row.
-// - A `.material` over the Inspector showing a thing (0399 point 8): over its
-//   model's Materials n field, `materials[n-1]` through voe_3d_model_submit;
-//   elsewhere, a shape's `material` through voe_3d_shape_submit; one step and
-//   unsaved as the model swap is.
+// - A `.material` over the Inspector showing a thing (0399 point 8): its
+//   shape's `material` through voe_3d_shape_submit, one step and unsaved as
+//   the model swap is. A model's parts wear its `.parts` file's (0404), so
+//   over a model it drops nothing.
 // - Anywhere else, or while `blocked`: nothing.
 // The drag starts past VOE_EDITOR_SCENE_DRAG_START (scene_list.h) from the
 // press, so a click opens a prefab or folder and a release before it does

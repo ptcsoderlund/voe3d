@@ -200,8 +200,8 @@ carries it out.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
-  folder row or Up, a new thing or copy placed in a scene view, a swap, a filled map or a set
-  landscape layer over the Inspector, elsewhere nothing.
+  folder row or Up, a new thing or copy placed in a scene view, a swap, a shape's material, a filled
+  map or a set landscape layer over the Inspector, a material over a model and elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
   the release and the ghost, the move's target, the drop point, the Inspector's rows, and each
   swap with its undo step.
@@ -311,15 +311,19 @@ carries it out.
   light and kept out of the blockers, every place marked and blocker lined, the brush's rings with
   the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
-  emptied on a different project, a broken file in the notice, and the one place its landscapes'
-  heights, paint and layers and the project's materials are edited.
+  emptied on a different project, a broken file in the notice, the one place its landscapes' heights,
+  paint and layers and the project's materials are edited, and its models given their parts.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
   table and the scan.
-- `models.c` — the store made, emptied on a new folder, filled and re-read through game/models.h
-  with a failure's notice, and destroyed; its landscapes stamped, painted and put back, and with
-  its materials written and loaded again as models.h says.
+- `parts.h` — the project's `.parts` files under Assets/ as game/materials.h's parts table, each row
+  named by its `.glb`, read when the materials are.
+- `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
+  on stderr, and the table.
+- `models.c` — the store made, emptied on a new folder, filled, watched and re-read through
+  game/models.h with a failure's notice, and destroyed; its landscapes stamped, painted and put back,
+  its parts given, and its materials written and loaded again, those a read changed too.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector with its copy as last written.

@@ -46,15 +46,19 @@
 // update; one re-read waits at a time, enough for a panel that writes at most
 // one a frame, and a second before the update would replace the first.
 //
-// THE PROJECT'S MATERIALS (0399 point 7) are a materials.h table held here,
-// read on a different folder and through _materials_read after an Assets
-// command; each update loads the materials the rows name from it after the
-// models, and _frame writes their edited records as it writes heights. An
-// Inspector edit (_material_changed) sets factors live, or has a changed map's
-// material loaded again at the next update; one waits at a time, as a resize.
+// THE PROJECT'S MATERIALS AND PARTS (0399 point 7, 0420 point 1) are a
+// materials.h and a parts.h table held here, read on a different folder and
+// through _materials_read after an Assets command. Each update runs the
+// models' update, the watch, then game/models.h's materials call with both
+// tables, so a reloaded model wears its parts before it is drawn; _frame
+// writes edited records as it writes heights. A read has every held material
+// whose row is new or changed loaded again at the next update, so a rewritten
+// `.material` shows at once; an Inspector edit (_material_changed) sets
+// factors live, or waits so for a changed map. Any number may wait.
 #pragma once
 
 #include "materials.h"
+#include "parts.h"
 #include "session.h"
 
 #include <3d/models.h>
@@ -163,9 +167,10 @@ void voe_editor_models_rename(voe_editor_models *models, const char *from,
 // The project's materials' table, to edit a row in place.
 voe_editor_materials *voe_editor_models_materials(voe_editor_models *models);
 
-// The table read again from `<folder>/Assets/`, NULL emptying it, as after an
-// Assets command; the store loads what rows name at the next update.
-// `scratch` is rewound.
+// The materials' and parts' tables read again from `<folder>/Assets/`, NULL
+// emptying them, as after an Assets command; at the next update the store
+// loads what rows name and again every held material the read found new or
+// changed. `scratch` is rewound.
 void voe_editor_models_materials_read(voe_editor_models *models,
 				      const char *folder,
 				      voe_base_arena *scratch);
