@@ -79,8 +79,8 @@ again, or to find where a claim that has started failing is written down.
   that one light frames as itself, its direction its transform's -Z and its fill colour times
   strength. Needs no graphics card.
 - `sky.c` — that a frame's sky and picture are zeroed with no table or row and are the first rows,
-  the haze the Haze row's with or without a sky, its top above the eye passed, each light's disc and glow, carried by the pass
-  camera; a sky blue behind a sunlit red slab, darker at -2. The picture skips without a card.
+  the haze and its top the Haze row's, each light's disc and glow carried, and a sky shows behind
+  a lit slab. The picture skips without a graphics card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
   outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
