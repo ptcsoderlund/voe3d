@@ -2,7 +2,8 @@
 // sun's shadow passes fitted to it (voe_3d_draw_system_shadows, ADR-0258),
 // then a pass onto that view's target with its own camera, the light
 // voe_editor_view_light gives (the world's or the preview), the world's sky
-// (voe_3d_draw_system_sky, 0405), its picture (voe_3d_draw_system_picture,
+// seen from the view's own eye so the haze veils it from there
+// (voe_3d_draw_system_sky, 0405, 0418 point 2), its picture (voe_3d_draw_system_picture,
 // 0406) and those shadows: the world and its models (voe_3d_draw_system_run), the selection's outline,
 // a model's too (ADR-0203), its collider as lines (0253), its move gizmo
 // (ADR-0205), the scene camera's marker (0223), every sun's (0360) and every
