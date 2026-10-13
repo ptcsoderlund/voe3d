@@ -1,12 +1,13 @@
 // The editor's one model store models.h describes: made empty, emptied on a
-// different folder, its materials' table read again then, filled and re-read
-// through game/models.h once a frame, the table's materials loaded after the
-// models, cleared through the device and destroyed, and handed out read-only;
-// its landscapes' heights and paint stamped, put back and their layers set,
-// heights and materials' records written in the frame,
-// landscapes written on Save and read again, and one reshaped, written at once
-// and loaded again at the next update; an edited material set live, or loaded
-// again at the next update when a map changed.
+// different folder, its materials' and parts' tables read again then, filled,
+// watched and re-read through game/models.h once a frame, the tables'
+// materials loaded and parts given after, cleared through the device and
+// destroyed, and handed out read-only; its landscapes' heights and paint
+// stamped, put back and their layers set, heights and materials' records
+// written in the frame, landscapes written on Save and read again, and one
+// reshaped, written at once and loaded again at the next update; an edited
+// material set live, or loaded again at the next update when a map changed,
+// as is every held material a read of the tables found new or changed.
 #include "models.h"
 
 #include <base/assert.h>
@@ -27,8 +28,12 @@
 
 struct voe_editor_models {
 	voe_3d_models *store;
-	// The project's materials, read on a different folder.
+	// The project's materials and parts, read on a different folder.
 	voe_editor_materials *materials;
+	voe_editor_parts *parts;
+	// The materials as the read before the last, to find what it changed;
+	// swapped with `materials` at each read, since a table is never copied.
+	voe_editor_materials *before;
 	// The folder the store was last read against, the store's own copy;
 	// NULL before any and while the project is untitled.
 	char *folder;
@@ -37,9 +42,9 @@ struct voe_editor_models {
 	// A landscape whose size was written, to load again at the next
 	// update, the store's own copy; NULL for none.
 	char *resized;
-	// A material whose map changed, to load again at the next update; ""
-	// for none.
-	char reload[VOE_ASSETS_MATERIAL_PATH];
+	// The materials to load again at the next update, `reloads` of them.
+	char reload[VOE_EDITOR_MATERIALS][VOE_ASSETS_MATERIAL_PATH];
+	uint32_t reloads;
 };
 
 static void reread(voe_3d_models *store, voe_render_device *device,
@@ -54,8 +59,11 @@ voe_editor_models *voe_editor_models_new(void)
 	models->store = voe_3d_models_new();
 	VOE_BASE_ASSERT(models->store != NULL, "made a model store with none");
 	models->materials = calloc(1, sizeof(*models->materials));
-	VOE_BASE_ASSERT(models->materials != NULL,
-			"out of memory making the materials' table");
+	models->before = calloc(1, sizeof(*models->before));
+	models->parts = calloc(1, sizeof(*models->parts));
+	VOE_BASE_ASSERT(models->materials != NULL && models->before != NULL &&
+				models->parts != NULL,
+			"out of memory making the materials' and parts' tables");
 	return models;
 }
 
@@ -68,13 +76,15 @@ void voe_editor_models_destroy(voe_editor_models *models,
 	voe_3d_models_clear(models->store, device);
 	voe_3d_models_destroy(models->store);
 	free(models->materials);
+	free(models->before);
+	free(models->parts);
 	free(models->folder);
 	free(models->resized);
 	free(models);
 }
 
 // Empties the store, keeps a copy of `folder` (NULL for untitled) and reads
-// its materials when it is not the one last read against.
+// its materials and parts when it is not the one last read against.
 static void follow_folder(voe_editor_models *models, const char *folder,
 			  voe_render_device *device, voe_base_arena *scratch)
 {
@@ -88,7 +98,7 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 	models->folder = NULL;
 	free(models->resized);
 	models->resized = NULL;
-	models->reload[0] = '\0';
+	models->reloads = 0;
 	if (folder != NULL) {
 		size_t size = strlen(folder) + 1;
 
@@ -98,6 +108,7 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 		memcpy(models->folder, folder, size);
 	}
 	voe_editor_materials_read(models->materials, models->folder, scratch);
+	voe_editor_parts_read(models->parts, models->folder, scratch);
 	VOE_BASE_ASSERT(voe_3d_models_count(models->store) == 0,
 			"a cleared store still holds models");
 }
@@ -122,32 +133,53 @@ static void say_failure(voe_editor_notice *notice,
 			      category);
 }
 
-// The material waiting in `reload` loaded again from its table row, at stamp
-// 0 as the update loads one; a row gone from the table is let go, a failure
-// said in `notice`.
+// `path` waits to be loaded again at the next update, once however often it
+// is asked; a full wait leaves it out with a line on stderr.
+static void reload_add(voe_editor_models *models, const char *path)
+{
+	VOE_BASE_ASSERT(models != NULL && path != NULL, "waiting on no material");
+	VOE_BASE_ASSERT(models->reloads <= VOE_EDITOR_MATERIALS,
+			"more reloads waiting than their room");
+	for (uint32_t i = 0; i < models->reloads; i++)
+		if (strcmp(models->reload[i], path) == 0)
+			return;
+	if (models->reloads == VOE_EDITOR_MATERIALS) {
+		VOE_BASE_ERROR("editor", "left %s as it was: %u reloads wait",
+			       path, VOE_EDITOR_MATERIALS);
+		return;
+	}
+	snprintf(models->reload[models->reloads], VOE_ASSETS_MATERIAL_PATH,
+		 "%s", path);
+	models->reloads++;
+}
+
+// The materials waiting in `reload` loaded again from their table rows, at
+// stamp 0 as the update loads one; a row gone from the table is let go, a
+// failure said in `notice`.
 static void material_reload(voe_editor_models *models,
 			    voe_render_device *device, voe_base_arena *scratch,
 			    voe_editor_notice *notice)
 {
-	const voe_game_material *row;
-	voe_base_error error = VOE_BASE_OK;
-
 	VOE_BASE_ASSERT(models != NULL && models->folder != NULL,
 			"reloading a material of no project");
 	VOE_BASE_ASSERT(device != NULL && scratch != NULL && notice != NULL,
 			"reloading a material with no device, scratch or notice");
-	if (models->reload[0] == '\0')
-		return;
-	row = voe_editor_materials_find(models->materials, models->reload);
-	models->reload[0] = '\0';
-	if (row == NULL)
-		return;
-	voe_base_report_error_clear();
-	if (!voe_game_models_material_load(models->store, device,
-					   models->folder, row, 0, scratch,
-					   &error))
-		voe_editor_notice_set(notice, "Could not read %s: %s",
-				      row->path, voe_base_error_string(error));
+	for (uint32_t i = 0; i < models->reloads; i++) {
+		const voe_game_material *row = voe_editor_materials_find(
+			models->materials, models->reload[i]);
+		voe_base_error error = VOE_BASE_OK;
+
+		if (row == NULL)
+			continue;
+		voe_base_report_error_clear();
+		if (!voe_game_models_material_load(models->store, device,
+						   models->folder, row, 0,
+						   scratch, &error))
+			voe_editor_notice_set(notice, "Could not read %s: %s",
+					      row->path,
+					      voe_base_error_string(error));
+	}
+	models->reloads = 0;
 }
 
 void voe_editor_models_update(voe_editor_models *models,
@@ -157,6 +189,7 @@ void voe_editor_models_update(voe_editor_models *models,
 			      voe_game_progress *progress)
 {
 	voe_game_materials table;
+	voe_game_parts parts;
 
 	VOE_BASE_ASSERT(models != NULL && session != NULL,
 			"updating no store or no session");
@@ -180,20 +213,24 @@ void voe_editor_models_update(voe_editor_models *models,
 		    voe_game_models_update(session->project->world,
 					   models->store, device,
 					   models->folder, scratch, progress));
+	// The watch before the materials, so a model it reloads is given its
+	// parts before it is drawn.
+	if (now - models->looked >= WATCH_SECONDS) {
+		models->looked = now;
+		voe_base_report_error_clear();
+		say_failure(&session->notice,
+			    voe_game_models_watch(models->store, device,
+						  models->folder, scratch));
+	}
 	table = voe_editor_materials_table(models->materials);
+	parts = voe_editor_parts_table(models->parts);
 	voe_base_report_error_clear();
 	say_failure(&session->notice,
 		    voe_game_models_materials(session->project->world,
 					      models->store, device,
-					      models->folder, &table, scratch));
+					      models->folder, &table, &parts,
+					      scratch));
 	material_reload(models, device, scratch, &session->notice);
-	if (now - models->looked < WATCH_SECONDS)
-		return;
-	models->looked = now;
-	voe_base_report_error_clear();
-	say_failure(&session->notice,
-		    voe_game_models_watch(models->store, device, models->folder,
-					  scratch));
 }
 
 void voe_editor_models_frame(voe_editor_models *models,
@@ -480,10 +517,28 @@ void voe_editor_models_materials_read(voe_editor_models *models,
 				      const char *folder,
 				      voe_base_arena *scratch)
 {
+	voe_editor_materials *swap;
+
 	VOE_BASE_ASSERT(models != NULL && models->materials != NULL,
 			"reading materials into no store");
 	VOE_BASE_ASSERT(scratch != NULL, "reading materials with no scratch");
+	swap = models->before;
+	models->before = models->materials;
+	models->materials = swap;
 	voe_editor_materials_read(models->materials, folder, scratch);
+	voe_editor_parts_read(models->parts, folder, scratch);
+	// A false difference, a padding byte, costs one reload and no more.
+	for (uint32_t i = 0; i < models->materials->count; i++) {
+		const voe_game_material *row = &models->materials->rows[i];
+		const voe_game_material *old =
+			voe_editor_materials_find(models->before, row->path);
+
+		if ((old == NULL ||
+		     memcmp(&old->values, &row->values, sizeof row->values) !=
+			     0) &&
+		    voe_3d_models_find(models->store, row->path) != NULL)
+			reload_add(models, row->path);
+	}
 }
 
 void voe_editor_models_material_changed(voe_editor_models *models,
@@ -501,7 +556,7 @@ void voe_editor_models_material_changed(voe_editor_models *models,
 		voe_3d_models_material_set(models->store, path, &row->values);
 		return;
 	}
-	snprintf(models->reload, sizeof models->reload, "%s", path);
+	reload_add(models, path);
 }
 
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models)

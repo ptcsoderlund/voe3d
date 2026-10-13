@@ -14,6 +14,9 @@
 // texture — and a scale of nothing is not: it reads one texel across the whole
 // surface. So a zero here is read as "the whole texture", which is what every
 // material written before this field existed meant.
+//
+// `double_sided` IS NOT CARRIED AT ALL: the draw reads it off the component and
+// sets the cull mode about the draw (3d/material_component.h).
 #include <3d/material_component.h>
 #include <base/assert.h>
 

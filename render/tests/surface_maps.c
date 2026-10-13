@@ -21,7 +21,13 @@
 // 12. roughness 0.1 and a metal-roughness texel green 255 blue 0: case 11
 //     again, the shiny factor not read (ADR-0401);
 // 13. roughness 1, metallic 1: the metal reference;
-// 14. metallic 0 and a texel green 255 blue 255: case 13 again.
+// 14. metallic 0 and a texel green 255 blue 255: case 13 again;
+// 15. two quads side by side, the right one's u running −x (a mirrored
+//     half), flat-mapped under a sun low from +x: the reference per half;
+// 16. the same wearing the +u tilt: the left half brighter than 15's, the
+//     right darker, the bump turned over with its picture as Blender's is;
+// 17, 18. the same along v: the right quad's v running up, a map tilted to
+//     +green and a sun low from +y, left brighter than flat, right darker.
 // Checked once when written: roughness 0.1 with no map reads 255 where case 11
 // reads 151, and case 13 reads 80, so 12 and 14 would fail under a multiply.
 //
@@ -46,7 +52,7 @@
 
 #define SIDE 64
 #define IMAGE_BYTES ((VkDeviceSize)SIDE * SIDE * 4)
-#define CASES 14
+#define CASES 18
 
 // VK_FORMAT_B8G8R8A8_SRGB, which the headless device takes.
 #define BLUE 0
@@ -58,11 +64,11 @@
 #define TOLERANCE 3
 
 static const voe_render_capacities CAPACITIES = {
-	.vertices = 4,
-	.indices = 6,
-	.geometries = 1,
+	.vertices = 20,
+	.indices = 30,
+	.geometries = 3,
 	.objects = 1,
-	.shadings = 12,
+	.shadings = 13,
 	.passes = 1,
 };
 
@@ -75,17 +81,51 @@ static PFN_vkCmdCopyImageToBuffer copy_image_to_buffer;
 
 // Counter-clockwise from +Z; u runs along +x and v down, as glTF's does.
 static const voe_render_vertex QUAD_VERTICES[4] = {
-	{ { -1, 1, 0 }, { 0, 0, 1 }, { 0, 0 } },
-	{ { 1, 1, 0 }, { 0, 0, 1 }, { 1, 0 } },
-	{ { 1, -1, 0 }, { 0, 0, 1 }, { 1, 1 } },
-	{ { -1, -1, 0 }, { 0, 0, 1 }, { 0, 1 } },
+	{ { -1, 1, 0 }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { 1, 1, 0 }, { 0, 0, 1 }, { 1, 0 }, { 0 } },
+	{ { 1, -1, 0 }, { 0, 0, 1 }, { 1, 1 }, { 0 } },
+	{ { -1, -1, 0 }, { 0, 0, 1 }, { 0, 1 }, { 0 } },
 };
 
 static const uint32_t QUAD_INDICES[6] = { 3, 2, 1, 3, 1, 0 };
 
-// Flat, and sixty degrees towards +u: (sin 60°, 0, cos 60°) as 0..255.
+// Two quads side by side, x −1..0 and 0..1, each wound as QUAD_VERTICES. The
+// left is as QUAD_VERTICES; the right's u runs along −x.
+static const voe_render_vertex MIRRORED_U_VERTICES[8] = {
+	{ { -1, 1, 0 }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { 0, 1, 0 }, { 0, 0, 1 }, { 1, 0 }, { 0 } },
+	{ { 0, -1, 0 }, { 0, 0, 1 }, { 1, 1 }, { 0 } },
+	{ { -1, -1, 0 }, { 0, 0, 1 }, { 0, 1 }, { 0 } },
+	{ { 0, 1, 0 }, { 0, 0, 1 }, { 1, 0 }, { 0 } },
+	{ { 1, 1, 0 }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { 1, -1, 0 }, { 0, 0, 1 }, { 0, 1 }, { 0 } },
+	{ { 0, -1, 0 }, { 0, 0, 1 }, { 1, 1 }, { 0 } },
+};
+
+// The same, the right quad's u along +x again and its v running up.
+static const voe_render_vertex MIRRORED_V_VERTICES[8] = {
+	{ { -1, 1, 0 }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { 0, 1, 0 }, { 0, 0, 1 }, { 1, 0 }, { 0 } },
+	{ { 0, -1, 0 }, { 0, 0, 1 }, { 1, 1 }, { 0 } },
+	{ { -1, -1, 0 }, { 0, 0, 1 }, { 0, 1 }, { 0 } },
+	{ { 0, 1, 0 }, { 0, 0, 1 }, { 0, 1 }, { 0 } },
+	{ { 1, 1, 0 }, { 0, 0, 1 }, { 1, 1 }, { 0 } },
+	{ { 1, -1, 0 }, { 0, 0, 1 }, { 1, 0 }, { 0 } },
+	{ { 0, -1, 0 }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+};
+
+static const uint32_t PAIR_INDICES[12] = { 3, 2, 1, 3, 1, 0, 7, 6, 5, 7, 5, 4 };
+
+// The columns read in the pair's left and right quads, on the centre row:
+// world x of about ∓0.55 on the plane, well inside each.
+#define LEFT_COLUMN (SIDE / 2 - 10)
+#define RIGHT_COLUMN (SIDE / 2 + 10)
+
+// Flat, sixty degrees towards +u: (sin 60°, 0, cos 60°) as 0..255, and the
+// same towards glTF's +green, which is −v.
 static const uint8_t FLAT_TEXEL[4] = { 128, 128, 255, 255 };
 static const uint8_t TILTED_TEXEL[4] = { 238, 128, 191, 255 };
+static const uint8_t TILTED_GREEN_TEXEL[4] = { 128, 238, 191, 255 };
 
 // Occlusion in red: wholly occluded, and not at all.
 static const uint8_t OCCLUDED_TEXEL[4] = { 0, 0, 0, 255 };
@@ -222,6 +262,13 @@ static const unsigned char *centre_of(const unsigned char *pixels, int image)
 	       ((size_t)(SIDE / 2) * SIDE + SIDE / 2) * 4;
 }
 
+static const unsigned char *on_centre_row(const unsigned char *pixels,
+					  int image, int column)
+{
+	return pixels + IMAGE_BYTES * (VkDeviceSize)image +
+	       ((size_t)(SIDE / 2) * SIDE + (size_t)column) * 4;
+}
+
 static void check_same(const unsigned char *a, const unsigned char *b)
 {
 	VOE_TEST_CHECK(abs(a[RED] - b[RED]) <= TOLERANCE);
@@ -274,10 +321,10 @@ static voe_render_texture data_pixel(voe_render_device *device,
 	return texture;
 }
 
-// The twelve shading records: plain, flat map, tilted map, black and glowing,
-// the halves texture repeated four times and with a repeat of 0, plain
-// wholly occluded and not occluded at all, and white matte, white with a rough
-// map, white metal and white with a metal map.
+// The thirteen shading records: plain, flat map, tilted map, black and
+// glowing, the halves texture repeated four times and with a repeat of 0,
+// plain wholly occluded and not occluded at all, white matte, white with a
+// rough map, white metal and white with a metal map, and plain tilted to green.
 static void make_shadings(voe_render_device *device, voe_render_shading *out)
 {
 	voe_base_error error = VOE_BASE_OK;
@@ -351,6 +398,47 @@ static void make_shadings(voe_render_device *device, voe_render_shading *out)
 	white.metallic_roughness_texture = data_pixel(device, METAL_TEXEL).index;
 	VOE_TEST_CHECK(voe_render_shading_create(device, white, &out[11],
 						 &error));
+	plain.occlusion_texture = VOE_RENDER_NO_TEXTURE;
+	plain.normal_texture = data_pixel(device, TILTED_GREEN_TEXEL).index;
+	VOE_TEST_CHECK(voe_render_shading_create(device, plain, &out[12],
+						 &error));
+}
+
+// Cases 15 to 18 into images 14 to 17: each pair flat and then tilted, under
+// a sun low from +x for u and from +y for v, both travelling mostly sideways.
+static void draw_mirrored(voe_render_device *device,
+			  const voe_render_shading *shadings, VkBuffer buffer)
+{
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_geometry along_u = { 0 };
+	voe_render_geometry along_v = { 0 };
+	voe_render_light low = {
+		.direction = { -0.96f, 0.0f, -0.28f },
+		.intensity = 1.0f,
+		.colour = { 1.0f, 1.0f, 1.0f },
+	};
+
+	VOE_TEST_CHECK(voe_render_geometry_create(device, MIRRORED_U_VERTICES,
+						  8, PAIR_INDICES, 12,
+						  &along_u, &error));
+	VOE_TEST_CHECK(voe_render_geometry_create(device, MIRRORED_V_VERTICES,
+						  8, PAIR_INDICES, 12,
+						  &along_v, &error));
+	draw_case(device, along_u, shadings[1], low, buffer, IMAGE_BYTES * 14);
+	draw_case(device, along_u, shadings[2], low, buffer, IMAGE_BYTES * 15);
+	low.direction = (voe_math_float3){ 0.0f, -0.96f, -0.28f };
+	draw_case(device, along_v, shadings[1], low, buffer, IMAGE_BYTES * 16);
+	draw_case(device, along_v, shadings[12], low, buffer, IMAGE_BYTES * 17);
+}
+
+// The tilted pair at `image` against the flat one before it: the unmirrored
+// left quad turned towards the sun, the mirrored right one away from it.
+static void check_mirrored(const unsigned char *pixels, int image)
+{
+	check_darker(on_centre_row(pixels, image - 1, LEFT_COLUMN),
+		     on_centre_row(pixels, image, LEFT_COLUMN));
+	check_darker(on_centre_row(pixels, image, RIGHT_COLUMN),
+		     on_centre_row(pixels, image - 1, RIGHT_COLUMN));
 }
 
 int main(void)
@@ -361,7 +449,7 @@ int main(void)
 	voe_render_device *device;
 	struct voe_render_buffer readback = { 0 };
 	voe_render_geometry quad = { 0 };
-	voe_render_shading shadings[12] = { 0 };
+	voe_render_shading shadings[13] = { 0 };
 	// Travelling down −Z into the face: N·L of one.
 	voe_render_light sun = {
 		.direction = { 0.0f, 0.0f, -1.0f },
@@ -431,6 +519,7 @@ int main(void)
 	for (int i = 8; i < 12; i++)
 		draw_case(device, quad, shadings[i], sun, readback.buffer,
 			  IMAGE_BYTES * (VkDeviceSize)(i + 2));
+	draw_mirrored(device, shadings, readback.buffer);
 
 	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 						    readback.memory, 0,
@@ -447,6 +536,8 @@ int main(void)
 		check_darker(centre_of(mapped, 9), centre_of(mapped, 8));
 		check_same(centre_of(mapped, 11), centre_of(mapped, 10));
 		check_same(centre_of(mapped, 13), centre_of(mapped, 12));
+		check_mirrored(mapped, 15);
+		check_mirrored(mapped, 17);
 		voe_render_vk.unmap_memory(device->device, readback.memory);
 	}
 

@@ -103,16 +103,16 @@ static void quad(float x0, float x1, voe_render_vertex vertices[4],
 {
 	vertices[0] = (voe_render_vertex){ { x0, 1.0f, 0.5f },
 					   { 0.0f, 0.0f, 1.0f },
-					   { 0.0f, 0.0f } };
+					   { 0.0f, 0.0f }, { 0 } };
 	vertices[1] = (voe_render_vertex){ { x1, 1.0f, 0.5f },
 					   { 0.0f, 0.0f, 1.0f },
-					   { 1.0f, 0.0f } };
+					   { 1.0f, 0.0f }, { 0 } };
 	vertices[2] = (voe_render_vertex){ { x1, -1.0f, 0.5f },
 					   { 0.0f, 0.0f, 1.0f },
-					   { 1.0f, 1.0f } };
+					   { 1.0f, 1.0f }, { 0 } };
 	vertices[3] = (voe_render_vertex){ { x0, -1.0f, 0.5f },
 					   { 0.0f, 0.0f, 1.0f },
-					   { 0.0f, 1.0f } };
+					   { 0.0f, 1.0f }, { 0 } };
 	indices[0] = 3;
 	indices[1] = 2;
 	indices[2] = 1;

@@ -2,6 +2,8 @@
 // whole from import.c (3d/src/model_upload.h says why and what the colour spaces
 // are). Pictures first, because a material names texture ids; then one shading
 // record per glTF material, and one for glTF's default when a primitive needs it.
+// A record takes the file's unlit and double-sided and its emission times its
+// strength (0420 point 4).
 //
 // THE DEFAULT IS UPLOADED ONCE AND SHARED by every primitive that names no
 // material, as a glTF material is shared by the primitives naming it: it is one
@@ -125,9 +127,14 @@ static bool upload_materials(voe_render_device *device,
 			.base_colour = from->base_colour,
 			.metallic = from->metallic,
 			.roughness = from->roughness,
-			.emissive = from->emissive,
+			// KHR_materials_emissive_strength scales the
+			// factor; 1 without it.
+			.emissive = voe_math_float3_scale(
+				from->emissive, from->emissive_strength),
 			.alpha_mode = alpha_mode_of(from->alpha_mode),
 			.alpha_cutoff = from->alpha_cutoff,
+			.unlit = from->unlit,
+			.double_sided = from->double_sided,
 			.base_colour_texture = texture_at(
 				model, colours, from->base_colour_image),
 			.metallic_roughness_texture = texture_at(

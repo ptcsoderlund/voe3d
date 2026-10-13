@@ -27,8 +27,15 @@
 // Create -> Material's calls material_make so too, `.material` appended and
 // voe_assets_material_default()'s text written (0399 point 1); its caller lists.
 //
-// THE MATERIALS' TABLE IS READ AGAIN (models.h) after every successful
-// material make, move, duplicate and trash (0399 point 7).
+// THE MATERIALS' AND PARTS' TABLES ARE READ AGAIN (models.h) after every
+// successful material make, move, duplicate and trash (0399 point 7), and the
+// open material refreshed from its row (scene.h); a move follows it first, so
+// its row is found at its new path, and a trash of it closes it.
+//
+// A `.glb` TAKES ITS `<stem>.parts` ALONG (0420 point 1) when one is beside it:
+// a move gives it the new stem, refused before anything moves when that name is
+// taken, and moves it last; a duplicate copies it under the copy's stem,
+// refused when that is taken; a trash sends it after the `.glb`.
 //
 // A MOVE GOES CHECK, MOVE, WRITE, MEMORY. The project's texts are followed in
 // scratch and the open scene's text too, nothing written; then the move, and
@@ -72,12 +79,14 @@
 
 // Makes `<folder>/<name>.material` holding the defaults; the panel is not marked.
 [[nodiscard]] bool voe_editor_assets_material_make(voe_editor_session *session,
+						   voe_editor_scene *scene,
 						   voe_editor_models *models,
 						   voe_base_arena *scratch,
 						   const char *folder, const char *name);
 
 // Renames or moves `from` to `to`, following every path that names it on disk,
-// in the open scene and in `models`, then forgets the undo line. `from` equal
+// in the open scene, in `models` and in the open material, then forgets the
+// undo line. `from` equal
 // to `to` does nothing and answers true.
 [[nodiscard]] bool voe_editor_assets_move(voe_editor_session *session,
 					  voe_editor_scene *scene, voe_editor_undo *undo,

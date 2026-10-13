@@ -70,16 +70,16 @@ static void quad(voe_render_vertex vertices[4], uint32_t indices[6])
 {
 	vertices[0] = (voe_render_vertex){ { -1.0f, 1.0f, 0.5f },
 					   { 0.0f, 0.0f, 1.0f },
-					   { 0.0f, 0.0f } };
+					   { 0.0f, 0.0f }, { 0 } };
 	vertices[1] = (voe_render_vertex){ { 0.0f, 1.0f, 0.5f },
 					   { 0.0f, 0.0f, 1.0f },
-					   { 1.0f, 0.0f } };
+					   { 1.0f, 0.0f }, { 0 } };
 	vertices[2] = (voe_render_vertex){ { 0.0f, 0.0f, 0.5f },
 					   { 0.0f, 0.0f, 1.0f },
-					   { 1.0f, 1.0f } };
+					   { 1.0f, 1.0f }, { 0 } };
 	vertices[3] = (voe_render_vertex){ { -1.0f, 0.0f, 0.5f },
 					   { 0.0f, 0.0f, 1.0f },
-					   { 0.0f, 1.0f } };
+					   { 0.0f, 1.0f }, { 0 } };
 	indices[0] = 3;
 	indices[1] = 2;
 	indices[2] = 1;

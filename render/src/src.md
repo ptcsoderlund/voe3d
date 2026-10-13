@@ -128,15 +128,15 @@ which file to open — what each one owns, and where the seams between them run.
   volume, point lights, light blockers and further lights, the clear colour, the
   first-clears-later-load rule, the one Y flip, and each pass's name, timed by `pass_timing.c`.
 - `pass_sky.c` — a camera pass's sky and exposure placed into its block, checked, and the nine
-  harmonics of its backdrop when its sky is drawn.
+  harmonics of its backdrop at strength 1 when its sky is drawn.
 - `pass_timing.c` — every pass timed and labelled by its name: a timestamp pair per pass in the
   slot's pool, read after the fence into the breakdown `voe_render_frame_pass_times` copies out.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written
   into the pass's block.
-- `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, and in
-  the point-shadow pass one instance per cube face reached, the depth clear between them after
-  which draws push `plain`, and the rebinds only when pipeline or pool pair changes.
+- `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, one
+  instance per cube face reached in the point-shadow pass, and the sides a draw shows as a dynamic
+  cull mode.
 - `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is
   the one write into a swapchain image.
 - `probe.c` — the pipeline that reads a matrix and reports what it saw, built

@@ -629,10 +629,10 @@ static bool build_scene(struct scene *scene)
 	// The whole window at a depth anything passes, corner for corner the
 	// front face tests/passes.c draws, with (0, 0) at the top-left.
 	voe_render_vertex vertices[4] = {
-		{ { -1.0f, 1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-		{ { 1.0f, 1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
-		{ { 1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-		{ { -1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+		{ { -1.0f, 1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
+		{ { 1.0f, 1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0 } },
+		{ { 1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0 } },
+		{ { -1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0 } },
 	};
 	uint32_t indices[6] = { 3, 2, 1, 3, 1, 0 };
 	voe_render_shading_values shows = {

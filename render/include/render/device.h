@@ -201,7 +201,8 @@ typedef struct {
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's
-// because the shader has to agree with it.
+// because the shader has to agree with it. Four attributes: position, normal, uv
+// and the colour's complement.
 //
 // (0,0) IS THE TOP-LEFT OF THE TEXTURE, which is what Vulkan and glTF both mean
 // by it — see assets/include/assets/image.h for why nothing turns a picture over
@@ -215,6 +216,15 @@ typedef struct {
 	// shaders/draw.slang, which is where that decision is written down.
 	voe_math_float3 normal;
 	voe_math_float2 uv;
+	// The vertex's colour, stored as its complement: each channel reads as
+	// 1 − value/65535, rgba, linear (ADR-0421 point 1). It multiplies the
+	// shading record's base colour, alpha included, in every mesh exit and in
+	// the bounce capture.
+	//
+	// THE COMPLEMENT AND NOT THE COLOUR, SO A ZEROED VERTEX IS OPAQUE WHITE.
+	// Every builder that never heard of this field leaves it nought and draws
+	// exactly as before; only a file's vertex colours write it.
+	uint16_t colour_complement[4];
 } voe_render_vertex;
 
 // A range in the shared pools: some vertices and the indices that walk them.
@@ -1853,6 +1863,15 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 [[nodiscard]] bool voe_render_frame_draw(voe_render_device *device,
 					 voe_render_geometry geometry,
 					 voe_render_object object);
+
+// Whether the mesh draws after this, in this pass, draw back faces too (true)
+// or cull them (false), solid and blended alike (ADR-0421 point 2). A back face
+// is shaded with its normal turned round, so it is lit from its own side. Every
+// pass opens culling them, whatever an earlier pass chose. In a shadow, bounce
+// shadow, point-shadow or capture pass it changes nothing: they cull nothing.
+//
+// Calling this with no pass open is the caller's bug and asserts.
+void voe_render_frame_two_sided(voe_render_device *device, bool two_sided);
 
 // The same draw through the blended pipeline: the depth test still runs, so
 // something behind an opaque object is still hidden, but nothing is written to

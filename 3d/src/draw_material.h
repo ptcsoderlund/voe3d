@@ -1,4 +1,4 @@
-// The material a shape's `material` or a model row's `materials[i]` path names
+// The material a shape's `material` or a model part's `wears` path names
 // in the frame's model store (0399 point 6), for the record a drawn shape or
 // model part is built with. Internal to this folder: draw_group.c asks it once
 // per drawn shaped entity or worn model part per pass.

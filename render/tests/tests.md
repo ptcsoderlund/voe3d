@@ -77,6 +77,8 @@ by reading the offscreen colour image back.
 - `mips.c` — a SMOOTH texture's chain: a 4×4 checker filling the picture reads hard black and
   white texels, a 256×256 one seen 16 pixels across reads a grey blend, and the far half of a plane
   seen at a low angle reads the same blend. Headless.
+- `cutout_far.c` — a cut-out of one-texel alpha stripes, cutoff 0.5: filling the picture about half
+  its pixels drawn, and seen 16 pixels across, at level 4, at least a third still drawn. Headless.
 - `unshaded.c` — that `unshaded` draws a lit cube in its base colour and black without it, that a
   fill lifts a face the sun misses, and that a face the sun meets head-on or at N·L 0.5 reads the
   same with fill and without. Headless.
@@ -92,12 +94,18 @@ by reading the offscreen colour image back.
 - `haze_sky.c` — the sky seen through the haze: dense haze the whole sky and the sun's disc, thin
   haze the horizon most, clear above the layer, and without a drawn sky the clear colour veiled.
   Headless.
-- `sky_light.c` — the sky lighting nothing: a grey cube's face the same bytes with the sky or
-  without and at any zenith, a non-metal quad unchanged, a smooth metal one the sky along R and a
-  rough one nearer E(R)/π, none inside Indoors. Headless.
+- `sky_light.c` — the sky lighting nothing: a cube's face the same with the sky or without, a
+  non-metal quad unchanged, a metal one the sky along R times the light on it, none indoors or
+  unlit, no brighter than the sky head-on, the same at sky strength 0 and 1. Headless.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
-  red to a black surface whether the sun faces it or not, and a metal-roughness map replacing the
-  factors. Headless.
+  red to a black surface whether the sun faces it or not, a metal-roughness map replacing the
+  factors, and a mirrored half's bump tilting mirrored along u and along v. Headless.
+- `vertex_colours.c` — a vertex's colour tinting its surface: an unlit white record on red vertices
+  red, on zeroed ones white, and a lit quad of half-grey vertices about half as bright in linear
+  light as white ones. Headless.
+- `two_sided.c` — a lit quad facing away from the camera: one-sided the clear colour, after
+  `voe_render_frame_two_sided(true)` drawn and lit from the camera's side, brighter than with the
+  sun behind, and a following pass one-sided again. Headless.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.

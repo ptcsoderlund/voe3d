@@ -33,24 +33,22 @@
 // sparse accessor, a buffer or an image that names an external file, a texture
 // coordinate set other than the first, a component type an attribute may not
 // have, an alpha mode that is not one of glTF's three, or more JSON than the
-// reader will hold.
+// reader will hold. Three extensions are read and so accepted even when
+// required: KHR_materials_unlit, KHR_materials_emissive_strength and
+// KHR_texture_transform.
 //
 // ANIMATION AND SKINNING ARE IGNORED RATHER THAN REFUSED. A file with them in it
 // loads, and what it draws is the bind pose. Refusing would turn most models
 // people have into an error message; pretending to animate them would be worse.
 // The card that reads them is a later card, and the principal's decision.
 //
-// SO IS A MATERIAL'S `doubleSided`, AND IT IS WORTH KNOWING ABOUT. Blender
-// writes `doubleSided: true` unless someone ticks its backface-culling box, and
-// this engine culls back faces whatever a material says — which is invisible on
-// closed geometry and takes half the faces off a flat one, a leaf or a sheet of
-// cloth. It is a property this reader could carry and nothing downstream could
-// yet act on, so it is not carried: a field that is read and ignored reads as a
-// feature. The card that culls differently is the card that adds it.
-//
-// THE ALPHA MODE WAS THE SAME GAP AND IS NOT ONE ANY MORE. It used to be left
-// out for the reason above; card 021a gave the engine a blended pass, so the
-// mode and its cutoff are carried now and voe_assets_material has both.
+// A MATERIAL CARRIES WHAT IMPORT WRITES INTO A `.material` (decision 0420):
+// its name, `doubleSided`, unlit, emission strength and the colour texture's
+// repeat. Blender writes `doubleSided: true` unless its backface-culling box is
+// ticked, and a leaf or a sheet of cloth loses half its faces without it, so the
+// material file keeps it. Of KHR_texture_transform only the scale is read;
+// offset, rotation and its own `texCoord` are not carried. Names are the raw
+// JSON span, escapes not expanded (json.h), cut to fit at a whole character.
 #pragma once
 
 #include <assets/image.h>
@@ -67,6 +65,15 @@
 // What every "which one" field below holds when the answer is "none". A material
 // with no texture, a primitive with no material, a node that draws nothing.
 #define VOE_ASSETS_MODEL_NONE UINT32_MAX
+
+// The room a glTF `name` gets, its NUL included.
+#define VOE_ASSETS_MODEL_NAME 64
+
+// A glTF `name`, NUL-terminated, "" when the file gives none. A longer one is
+// cut at a whole UTF-8 character (0247), so it never ends in half of one.
+typedef struct {
+	char text[VOE_ASSETS_MODEL_NAME];
+} voe_assets_model_name;
 
 // What a material's alpha means, which is glTF's `alphaMode` under the engine's
 // own spelling. The three words are the whole vocabulary and text and UI
@@ -101,10 +108,16 @@ typedef enum {
 // indices are always there: a primitive without positions is malformed, and one
 // without indices is expanded on the way in so that everything downstream has
 // exactly one shape to handle.
+//
+// colours IS glTF's COLOR_0, ONE PER VERTEX, LINEAR, AND NULL WITHOUT ONE. It
+// multiplies the material's base colour, alpha included, as glTF says. It is
+// float4 whatever the file stored — floats, or normalized unsigned bytes or
+// shorts — so downstream reads one shape, and a three-channel one has alpha 1.
 typedef struct {
 	const voe_math_float3 *positions;
 	const voe_math_float3 *normals;
 	const voe_math_float2 *uvs;
+	const voe_math_float4 *colours;
 	uint32_t vertex_count;
 
 	const uint32_t *indices;
@@ -159,6 +172,16 @@ typedef struct {
 	voe_assets_alpha_mode alpha_mode;
 	float alpha_cutoff;
 
+	voe_assets_model_name name;
+	bool double_sided;
+	// KHR_materials_unlit is present.
+	bool unlit;
+	// KHR_materials_emissive_strength, 1 without it.
+	float emissive_strength;
+	// KHR_texture_transform's `scale` on the base colour texture, 1 1
+	// without it.
+	voe_math_float2 colour_scale;
+
 	uint32_t base_colour_image;
 	uint32_t metallic_roughness_image;
 	uint32_t normal_image;
@@ -203,6 +226,8 @@ typedef struct {
 	// right way up on the way in.
 	const voe_assets_image *images;
 	uint32_t image_count;
+	// Each image's glTF `name`, image_count long.
+	const voe_assets_model_name *image_names;
 
 	const voe_assets_node *nodes;
 	uint32_t node_count;

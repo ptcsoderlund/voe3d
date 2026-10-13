@@ -27,11 +27,19 @@ belongs to.
   paint round-tripped byte for byte and resampled to sums of 255, and each
   refusal with its category.
 - `material.c` — an empty section read as the defaults, a full file
-  round-tripped field for field, and each bad value refused MALFORMED.
-- `model.c` — a hand-built `.glb` in and its arrays out, the two textures
-  over one picture that the deduplication depends on, and one byte of a working
-  file changed at a time. Its header says why the files are built rather than
-  exported.
+  round-tripped field for field and written again byte for byte, and each bad
+  value refused MALFORMED.
+- `parts.c` — three entries with the middle one empty round-tripped and
+  written again byte for byte, an empty section read as count 0, and
+  `material32`, `colour=…` and an over-long path refused MALFORMED.
+- `model.c` — a hand-built `.glb` in and its arrays out, two textures over
+  one picture, COLOR_0 in each stored form, material and image names, sides,
+  unlit, emission strength and repeat read or defaulted, a long name cut at a
+  character, and one byte of a working file changed at a time.
+- `model_material.c` — built glTF materials, no file, to their `.material`
+  values: opaque, MASK, BLEND, unlit, double-sided, emission and repeat; and
+  the ORM picture from metal-roughness alone, with a larger occlusion picture,
+  from occlusion alone, and from neither.
 - `model_data.inc` — those files, as bytes.
 - `jpeg.c` — greyscale, 4:4:4 and 4:2:0 round-tripped against the pixels
   that went in, plus the same three failures and the progressive refusal. Its

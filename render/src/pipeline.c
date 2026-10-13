@@ -33,24 +33,24 @@
 // THERE ARE SIX OF THEM FROM ONE DESCRIPTION. The solid one writes depth and
 // does not blend; the blended one tests depth the same way, writes none, and
 // blends premultiplied. The shadow one (ADR-0258) drops the fragment stage and
-// the colour attachment, culls nothing, and biases the depth it writes away from
-// the sun. The point-shadow one (ADR-0325)
-// is the shadow one with its own vertex stage, which writes the layer; it is
-// built only on a device with shaderOutputLayer, as is the capture one (ADR-0326):
-// its own vertex stage writing the layer, its own fragment writing albedo (RGBA8
-// sRGB) and normal with distance (RGBA16F), nothing culled, unbiased, unblended.
-// The sky one (ADR-0405 point 4) has its own two stages, no vertex input, no
-// depth test or write, no blend and nothing culled: one full-screen triangle.
-// The shader module, the vertex input, the layout are shared, which is
-// what keeps them from drifting apart: create_pipeline's `kind` is the whole of
-// the difference.
+// the colour attachment, culls nothing, and biases its depth away from the sun.
+// The point-shadow one (ADR-0325) is the shadow one with its own vertex stage,
+// which writes the layer; it is built only with shaderOutputLayer, as is the
+// capture one (ADR-0326): its own vertex stage writing the layer, its own
+// fragment writing albedo (RGBA8 sRGB) and normal with distance (RGBA16F),
+// nothing culled, unbiased, unblended. The sky one (ADR-0405 point 4) has its
+// own two stages, no vertex input, no depth test or write, no blend and nothing
+// culled: one full-screen triangle. The shader module, the vertex input and the
+// layout are shared, which keeps them from drifting apart: create_pipeline's
+// `kind` is the whole of the difference.
 //
-// A THIRD PIPELINE IS NOT BUILT HERE AND IT IS NOT A VARIANT OF THESE TWO.
-// element.c builds it: no vertex input at all, a triangle strip, nothing culled
-// and its own shader, which is four differences and nothing left of the shared
-// description. What it does share is the layout below, which is why
-// voe_render_element_startup runs after the layout in open_device and why this file's
-// push constant range is a matrix wide rather than a word.
+// DYNAMIC: viewport and scissor in all six, and the cull mode in the solid and
+// blended ones (ADR-0421 point 2), BACK their static default; draw.c sets it.
+//
+// THE ELEMENT PIPELINE IS element.c's, not a variant of these: no vertex input,
+// a triangle strip, nothing culled, its own shader. It shares the layout below,
+// which is why voe_render_element_startup runs after it in open_device and why
+// the push constant range is a matrix wide rather than a word.
 //
 // DEPTH IS SET UP HERE AND IT RUNS BACKWARDS. GREATER, not LESS, because the
 // near plane is at 1.0 and the far plane at 0.0. The clear that goes with it is
@@ -140,12 +140,12 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		.stride = sizeof(voe_render_vertex),
 		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
 	};
-	// THESE THREE LOCATIONS AND draw.slang's THREE vk::location NUMBERS ARE ONE
+	// THESE FOUR LOCATIONS AND draw.slang's FOUR vk::location NUMBERS ARE ONE
 	// FACT IN TWO PLACES. Both are stated rather than counted, and both
 	// offsets come from offsetof rather than from adding up sizes — which is
 	// what makes reordering the struct's fields harmless and renaming one of
 	// them a compile error instead of a wrong picture.
-	VkVertexInputAttributeDescription attributes[3] = {
+	VkVertexInputAttributeDescription attributes[4] = {
 		{
 			.location = 0,
 			.binding = 0,
@@ -165,6 +165,14 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 			.format = VK_FORMAT_R32G32_SFLOAT,
 			.offset = offsetof(voe_render_vertex, uv),
 		},
+		{
+			.location = 3,
+			.binding = 0,
+			// The colour's complement, four 16-bit channels read
+			// as 0..1; the shader takes it from one.
+			.format = VK_FORMAT_R16G16B16A16_UNORM,
+			.offset = offsetof(voe_render_vertex, colour_complement),
+		},
 	};
 	VkPipelineVertexInputStateCreateInfo vertex_input = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -174,7 +182,7 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		// Position alone for the point-shadow stage, which reads no other.
 		.vertexAttributeDescriptionCount = sky	    ? 0 :
 						   point_shadow ? 1 :
-								  3,
+								  4,
 		.pVertexAttributeDescriptions = attributes,
 	};
 	VkPipelineInputAssemblyStateCreateInfo assembly = {
@@ -304,13 +312,17 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	// else. A pipeline baked at one size would have to be built again on
 	// every resize, which is a lot of driver work to say a number that
 	// changed.
-	VkDynamicState dynamic_states[2] = {
+	// The cull mode too in the solid and blended ones, so a draw picks its
+	// sides with no second pipeline (ADR-0421 point 2); `raster`'s BACK is
+	// the default every pass opens with (draw.c).
+	VkDynamicState dynamic_states[3] = {
 		VK_DYNAMIC_STATE_VIEWPORT,
 		VK_DYNAMIC_STATE_SCISSOR,
+		VK_DYNAMIC_STATE_CULL_MODE,
 	};
 	VkPipelineDynamicStateCreateInfo dynamic = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-		.dynamicStateCount = 2,
+		.dynamicStateCount = kind == MESH_SOLID || blended ? 3 : 2,
 		.pDynamicStates = dynamic_states,
 	};
 	// Dynamic rendering has no render pass, so the pipeline is told the

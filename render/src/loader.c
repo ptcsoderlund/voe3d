@@ -258,6 +258,8 @@ void voe_render_loader_device(VkDevice device, bool swapchain)
 	DEVICE_FUNCTION(cmd_bind_pipeline, vkCmdBindPipeline);
 	DEVICE_FUNCTION(cmd_set_viewport, vkCmdSetViewport);
 	DEVICE_FUNCTION(cmd_set_scissor, vkCmdSetScissor);
+	// Core in 1.3: a draw's sides (ADR-0421 point 2).
+	DEVICE_FUNCTION(cmd_set_cull_mode, vkCmdSetCullMode);
 	DEVICE_FUNCTION(cmd_draw, vkCmdDraw);
 
 	// Buffers and the memory under them, and the copy that fills a

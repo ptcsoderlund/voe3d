@@ -24,6 +24,8 @@
 // more is not drawn, and one between 0 and 1 is held blended (0336 point 3).
 // A landscape row is draw_terrain.c's nodes, its solid draws inside the pass's
 // "terrain" span, at most VOE_3D_LANDSCAPES_DRAWN a frame (0396, 0388).
+// A mesh or model part whose worn material is double-sided is drawn two-sided,
+// solid or held, through draw_group.c's mesh draw (0421 point 2).
 #include "draw_group.h"
 #include "draw_marks.h"
 #include "draw_particles.h"
@@ -369,6 +371,7 @@ static struct voe_3d_deferred model_part_entry(const voe_3d_model_part *piece,
 	entry.mesh.geometry = piece->geometry;
 	entry.mesh.object = voe_3d_draw_group_object_of(drawn, &material, NULL, NULL,
 							eye);
+	entry.mesh.two_sided = material.double_sided;
 	if (fading)
 		entry.mesh.object.colour.w = 1.0f - fade;
 	VOE_BASE_ASSERT(entry.mesh.object.colour.w > 0.0f,
@@ -409,9 +412,9 @@ static bool draw_models(voe_ecs_world *world, voe_render_device *device,
 			continue;
 		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
 		for (uint32_t part = 0; part < model->part_count; part++) {
-			// Its own record, or the one its row's materials name.
+			// Its own record, or the one its parts file names.
 			voe_3d_model_part piece = voe_3d_draw_group_part_worn(
-				frame->models, &rows[row], model, part);
+				frame->models, model, part);
 			struct voe_3d_deferred entry = model_part_entry(
 				&piece, &drawn, fading, fade, frame->eye);
 
@@ -420,8 +423,8 @@ static bool draw_models(voe_ecs_world *world, voe_render_device *device,
 				voe_3d_draw_group_hold(world_blended, entry,
 						       entry.mesh.object.world,
 						       frame->view.view);
-			else if (!voe_render_frame_draw(device, entry.mesh.geometry,
-							entry.mesh.object))
+			else if (!voe_3d_draw_group_mesh_draw(device, &entry,
+							      false))
 				return false;
 		}
 	}
@@ -627,17 +630,13 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		// Where it was `lag` of a step ago (0254).
 		drawn = voe_scene_transform_between(world, owners[row], frame.lag);
 
-		entry = (struct voe_3d_deferred){
-			.panel = false,
-			.mesh = { .geometry = meshes[row].geometry,
-				  .object = voe_3d_draw_group_object_of(
-					  &drawn, material,
-					  has_shapes ? voe_ecs_component_get(
-							       world, shapes,
-							       owners[row]) :
-						       NULL,
-					  frame.models, frame.eye) },
-		};
+		// Two-sided when the material it wears is (0421 point 2).
+		entry = voe_3d_draw_group_mesh_of(
+			meshes[row].geometry, &drawn, material,
+			has_shapes ? voe_ecs_component_get(world, shapes,
+							   owners[row]) :
+				     NULL,
+			frame.models, frame.eye);
 		// Cutout is not blended and belongs with the solid ones — it
 		// writes depth and needs no order.
 		blended = material->alpha_mode == VOE_RENDER_ALPHA_BLENDED;
@@ -659,8 +658,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			continue;
 		}
 
-		if (!voe_render_frame_draw(device, entry.mesh.geometry,
-					   entry.mesh.object))
+		if (!voe_3d_draw_group_mesh_draw(device, &entry, false))
 			break;
 	}
 

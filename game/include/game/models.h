@@ -30,26 +30,26 @@
 // dot is made in code and not watched, nor a landscape (0379 point 2), nor a
 // material: its path is no model file, and the editor reloads one itself.
 //
-// MATERIALS come from a table too (game/materials.h, 0399 point 7): each shape
-// and model row's material path the store lacks, then each loaded landscape's
-// layer paths (0402 point 8), is loaded from its entry at stamp 0, maps read
-// from the folder as files are, or kept failed when the table has none; each
-// failure counted as an update's, so it is tried once.
+// MATERIALS come from tables too (game/materials.h, 0399 point 7, 0420): each
+// loaded model entry first takes its parts from the parts table, none for a
+// path it lacks; then each shape's material, model part's `wears` and loaded
+// landscape's layer (0402 point 8) the store lacks is loaded from the material
+// table at stamp 0, its four maps read as files are, or kept failed when the
+// table has none, each failure counted once. Call it after a watch too: a
+// reloaded model wears its parts again before it is drawn.
 //
 // LANDSCAPES come from a table, never a file (game/landscapes.h, 0236): each
-// one's millimetres turned into metres in scratch, its layer paths and paint
-// carried, and loaded at stamp 0, a
-// failure counted as an update counts one. The game loads its cooked table so
-// before its first update, so a scene's landscape rows find their entries.
+// one's millimetres made metres in scratch, its layers and paint carried, and
+// loaded at stamp 0, a failure counted as an update's. The game loads its
+// cooked table before its first update, so landscape rows find their entries.
 //
 // BOTH RETURN how many paths failed in the call and the first one's path, the
 // store's own copy, valid until that entry is loaded again or the store is
 // cleared; NULL when none failed. A struct, not a `const char **` (rule 6).
 // Each failure is one line on stderr naming the path and the category.
 //
-// A STAMP AND NOT A WATCHER API (0277 point 5): modification time and size,
-// asked once a second by the editor, is enough for a person exporting from
-// Blender, and needs no per-platform notification code or thread.
+// A STAMP AND NOT A WATCHER API (0277 point 5): time and size, asked once a
+// second, suits a person exporting from Blender with no per-platform thread.
 //
 // THE FOLDER is the project's in the editor and the program's in the game
 // (0266 point 3); a row's `/`-separated path is joined onto it as it is.
@@ -105,14 +105,14 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 	const voe_game_material *material, uint64_t stamp,
 	voe_base_arena *scratch, voe_base_error *error);
 
-// Loads every shape's and model row's material path, and every loaded
-// landscape's layer path, the store lacks from `table`, failing one it has
-// not. See the header.
+// Gives every loaded model its parts from `parts`, then loads every shape's
+// material path, model part's `wears` and loaded landscape's layer path the
+// store lacks from `table`, failing one it has not. See the header.
 voe_game_models_failures
 voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 			  voe_render_device *device, const char *folder,
 			  const voe_game_materials *table,
-			  voe_base_arena *scratch);
+			  const voe_game_parts *parts, voe_base_arena *scratch);
 
 // Reads and loads again every entry whose file's stamp changed, landscapes
 // and materials aside. See the header.

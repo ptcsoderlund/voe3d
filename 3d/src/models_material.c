@@ -1,7 +1,8 @@
 // The model store's materials (3d/models.h; 0399 points 2, 4 and 5): a
-// `.material`'s values and its three maps uploaded as one part with no
+// `.material`'s values and its four maps uploaded as one part with no
 // geometry, its record and its blended twin; a set taking new values and
 // marking the entry; the frame rewriting every marked entry's two records.
+// The values' cutout, emission and double_sided are 0420 point 2's.
 //
 // Used by the editor and the game: the load when a `.material` is read or a
 // map of it changes, the set while a field is dragged, the frame once a frame
@@ -12,7 +13,8 @@
 // MALFORMED. The ORM map (0400) is uploaded once, as DATA, and its one texture
 // set in both the metal-roughness slot (green, blue) and the occlusion slot
 // (red): one picture, one fetch, so it is held and freed once. An empty ORM
-// map leaves both slots none. Each material uploads its own maps; a map shared by two materials
+// map leaves both slots none. The emission map goes up COLOUR into the emissive
+// slot. Each material uploads its own maps; a map shared by two materials
 // costs two textures, which a store of pictures by path would lift. The set
 // and the frame walk every entry.
 #include "model_picture.h"
@@ -29,10 +31,11 @@
 #include <string.h>
 
 // A material's maps a load uploads at most.
-#define MAPS 3
+#define MAPS 4
 #define SCRATCH_BLOCK (1024 * 1024)
 
-// `from`'s values on a zeroed material: opaque, the whole texture, no maps.
+// `from`'s values on a material, the maps aside: a cutout above 0 is CUTOUT at
+// that cutoff, else OPAQUE; emission is the colour times its strength.
 static void take_values(const voe_assets_material_file *from, voe_3d_material *to)
 {
 	to->base_colour = (voe_math_float4){ from->colour[0], from->colour[1],
@@ -41,14 +44,21 @@ static void take_values(const voe_assets_material_file *from, voe_3d_material *t
 	to->roughness = from->roughness;
 	to->uv_repeat = from->repeat;
 	to->unlit = from->shader == VOE_ASSETS_MATERIAL_UNLIT;
+	to->alpha_mode = from->cutout > 0.0f ? VOE_RENDER_ALPHA_CUTOUT :
+					       VOE_RENDER_ALPHA_OPAQUE;
+	to->alpha_cutoff = from->cutout;
+	to->emissive = (voe_math_float3){
+		from->emission[0] * from->emission_strength,
+		from->emission[1] * from->emission_strength,
+		from->emission[2] * from->emission_strength
+	};
+	to->double_sided = from->double_sided;
 }
 
 static voe_3d_material material_of(const voe_assets_material_file *from)
 {
 	const voe_render_texture none = { .index = VOE_RENDER_NO_TEXTURE };
 	voe_3d_material material = {
-		.alpha_mode = VOE_RENDER_ALPHA_OPAQUE,
-		.alpha_cutoff = 0.5f,
 		.base_colour_uv_scale = { 1.0f, 1.0f },
 		.base_colour_texture = none,
 		.metallic_roughness_texture = none,
@@ -102,7 +112,8 @@ static bool upload_material(voe_render_device *device, voe_base_arena *scratch,
 			    voe_3d_material_maps maps, voe_3d_model_entry *entry,
 			    entry_held *held, voe_base_error *error)
 {
-	voe_3d_model_part part = { .material = material_of(values) };
+	voe_3d_model_part part = { .material = material_of(values),
+				   .source = VOE_ASSETS_MODEL_NONE };
 	voe_3d_material *material = &part.material;
 	maps_made made = { 0 };
 	bool record = false;
@@ -116,7 +127,10 @@ static bool upload_material(voe_render_device *device, voe_base_arena *scratch,
 			   &material->normal_texture, error) &&
 		upload_map(device, scratch, values->ormmap, maps.orm,
 			   VOE_RENDER_TEXTURE_DATA, &made,
-			   &material->metallic_roughness_texture, error);
+			   &material->metallic_roughness_texture, error) &&
+		upload_map(device, scratch, values->emissionmap, maps.emission,
+			   VOE_RENDER_TEXTURE_COLOUR, &made,
+			   &material->emissive_texture, error);
 
 	material->occlusion_texture = material->metallic_roughness_texture;
 	uploaded = uploaded &&

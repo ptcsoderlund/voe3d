@@ -1,7 +1,8 @@
 // A read model flattened into one set of arrays: every node's world matrix baked
-// into its vertices, its normal matrix into its normals, and the primitives
-// merged into one part per material. Internal to 3d: the model store's first
-// step after `assets` has read the file.
+// into its vertices, its normal matrix into its normals, the file's vertex
+// colours carried as each vertex's colour complement (white without them), and
+// the primitives merged into one part per material. Internal to 3d: the model
+// store's first step after `assets` has read the file.
 //
 //     voe_3d_model_bake bake;
 //

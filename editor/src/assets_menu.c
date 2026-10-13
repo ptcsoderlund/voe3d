@@ -18,11 +18,11 @@
 #define MENU_PAD (1.0f * VOE_EDITOR_SPACING)
 
 static const char *const ROW_NAMES[VOE_EDITOR_ASSETS_MENU_ROWS] = {
-	"Rename", "Duplicate", "Delete"
+	"Rename", "Duplicate", "Delete", "Import textures"
 };
 static const voe_editor_assets_menu_item ROW_ITEMS[VOE_EDITOR_ASSETS_MENU_ROWS] = {
 	VOE_EDITOR_ASSETS_MENU_RENAME, VOE_EDITOR_ASSETS_MENU_DUPLICATE,
-	VOE_EDITOR_ASSETS_MENU_DELETE
+	VOE_EDITOR_ASSETS_MENU_DELETE, VOE_EDITOR_ASSETS_MENU_IMPORT_TEXTURES
 };
 // Create's kinds, in the order the submenu lists them; a later kind adds its
 // name and item here (0377 point 2).
@@ -36,14 +36,21 @@ static const voe_editor_assets_menu_item KIND_ITEMS[VOE_EDITOR_ASSETS_MENU_KINDS
 static const char *const CREATE_NAME[1] = { "Create" };
 
 void voe_editor_assets_menu_open(voe_editor_assets_menu *menu,
-				 voe_math_float2 at, bool on_row)
+				 voe_math_float2 at, bool on_row, bool glb)
 {
 	VOE_BASE_ASSERT(menu != NULL, "opening no Assets menu");
 	*menu = (voe_editor_assets_menu){ .open = true, .on_row = on_row,
+					  .glb = on_row && glb,
 					  .at = at, .place = at,
 					  .panel = VOE_UI_NODE_NONE,
 					  .kinds_panel = VOE_UI_NODE_NONE };
 	VOE_BASE_ASSERT(!menu->create_open, "a menu opened with Create's list up");
+}
+
+// A row's menu's rows: Import textures, the last, only over a `.glb`.
+static uint32_t row_count(const voe_editor_assets_menu *menu)
+{
+	return menu->glb ? VOE_EDITOR_ASSETS_MENU_ROWS : VOE_EDITOR_ASSETS_MENU_ROWS - 1;
 }
 
 void voe_editor_assets_menu_close(voe_editor_assets_menu *menu)
@@ -111,8 +118,8 @@ void voe_editor_assets_menu_draw(voe_ui_context *ui, voe_editor_assets_menu *men
 	if (menu->on_row)
 		menu->panel = list_draw(ui, "assets menu", "assets menu row",
 					menu->place, menu->rows_wide, ROW_NAMES,
-					VOE_EDITOR_ASSETS_MENU_ROWS, false,
-					menu->rows, menu->names);
+					row_count(menu), false, menu->rows,
+					menu->names);
 	else
 		menu->panel = list_draw(ui, "assets menu", "assets menu row",
 					menu->place, menu->rows_wide,
@@ -214,7 +221,7 @@ voe_editor_assets_menu_read(const voe_ui_context *ui,
 	VOE_BASE_ASSERT(ui != NULL, "reading the Assets menu of no interface");
 	VOE_BASE_ASSERT(menu != NULL && menu->open,
 			"reading an Assets menu that is not open");
-	count = menu->on_row ? VOE_EDITOR_ASSETS_MENU_ROWS : 1;
+	count = menu->on_row ? row_count(menu) : 1;
 	over = list_over(ui, menu->panel, at) ||
 	       list_over(ui, menu->kinds_panel, at);
 	row = list_fired(ui, menu->rows, count);
@@ -243,7 +250,7 @@ voe_editor_assets_menu_read(const voe_ui_context *ui,
 		menu->create_open = !menu->create_open;
 	if (fired != VOE_EDITOR_ASSETS_MENU_NONE || (down && !over))
 		voe_editor_assets_menu_close(menu);
-	VOE_BASE_ASSERT(fired <= VOE_EDITOR_ASSETS_MENU_MATERIAL,
+	VOE_BASE_ASSERT(fired <= VOE_EDITOR_ASSETS_MENU_IMPORT_TEXTURES,
 			"an Assets menu row past the items");
 	return fired;
 }

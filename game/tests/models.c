@@ -34,6 +34,11 @@
 // layers name table materials loads both, holds both paths and its painted
 // point's bytes as cooked; a layer naming no table material is one failure.
 //
+// THE PARTS, on an eighth world and store: a parts table naming a table
+// material for the `.glb`'s material 0 makes its part wear it and loads it; a
+// table without the `.glb` leaves `wears` empty; a material with an emission
+// map loads it into the emissive slot.
+//
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include <game/models.h>
@@ -77,6 +82,7 @@
 #define MATERIAL "Assets/m.material"
 #define NO_MATERIAL "Assets/none.material"
 #define GREY_MATERIAL "Assets/grey.material"
+#define GLOW_MATERIAL "Assets/glow.material"
 #define LAYERED_LANDSCAPE "layered.landscape"
 #define ASSETS_ON_DISK FOLDER "/Assets"
 #define MATERIAL_ON_DISK FOLDER "/" MATERIAL
@@ -110,8 +116,8 @@ static const voe_game_landscapes HILLS = {
 	1
 };
 
-// A lit, white material with the PNG as its colour map, and a grey one with
-// no maps.
+// A lit, white material with the PNG as its colour map, a grey one with no
+// maps, and a glowing one with the PNG as its emission map.
 static const voe_game_materials MATERIALS = {
 	(const voe_game_material[]){ { MATERIAL,
 				       { .colour = { 1.0f, 1.0f, 1.0f },
@@ -121,8 +127,23 @@ static const voe_game_materials MATERIALS = {
 				     { GREY_MATERIAL,
 				       { .colour = { 0.5f, 0.5f, 0.5f },
 					 .roughness = 0.5f,
-					 .repeat = 1.0f } } },
-	2
+					 .repeat = 1.0f } },
+				     { GLOW_MATERIAL,
+				       { .colour = { 1.0f, 1.0f, 1.0f },
+					 .roughness = 0.5f,
+					 .repeat = 1.0f,
+					 .emission = { 1.0f, 1.0f, 1.0f },
+					 .emission_strength = 1.0f,
+					 .emissionmap = PICTURE } } },
+	3
+};
+
+// No model's parts; the `.glb`'s material 0 wearing MATERIAL.
+static const voe_game_parts NO_PARTS = { NULL, 0 };
+static const voe_game_parts PARTS = {
+	(const voe_game_model_parts[]){
+		{ GOOD, { .count = 1, .materials = { MATERIAL } } } },
+	1
 };
 
 // One plane of a 4-cell landscape's paint: all layer 0 but the middle point,
@@ -156,7 +177,9 @@ static const uint8_t PNG[] = {
 
 static const char JSON[] =
 	"{\"asset\":{\"version\":\"2.0\"},\"nodes\":[{\"mesh\":0}],"
-	"\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
+	"\"materials\":[{}],"
+	"\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},"
+	"\"material\":0}]}],"
 	"\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,"
 	"\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[1,1,0]}],"
 	"\"bufferViews\":[{\"buffer\":0,\"byteLength\":36}],"
@@ -396,19 +419,19 @@ static void check_materials(voe_ecs_world *world, voe_render_device *device,
 	// ---- a shape naming a table material: loaded, a material
 	shade(world, MATERIAL);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	VOE_TEST_CHECK(material_loaded(models));
 
 	// ---- a path not in the table: one failure, named, then none
 	shade(world, NO_MATERIAL);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch);
 	VOE_TEST_CHECK_INT(failures.count, 1);
 	VOE_TEST_CHECK(failures.first != NULL &&
 		       strcmp(failures.first, NO_MATERIAL) == 0);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 
 	// ---- the material on disk as text: a watch leaves it alone
@@ -469,7 +492,7 @@ static void check_layers(voe_ecs_world *world, voe_render_device *device,
 	failures = voe_game_models_landscapes(models, device, &LAYERED, scratch);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	VOE_TEST_CHECK(holds_material(models, MATERIAL));
 	VOE_TEST_CHECK(holds_material(models, GREY_MATERIAL));
@@ -481,10 +504,58 @@ static void check_layers(voe_ecs_world *world, voe_render_device *device,
 					      scratch);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch);
 	VOE_TEST_CHECK_INT(failures.count, 1);
 	VOE_TEST_CHECK(failures.first != NULL &&
 		       strcmp(failures.first, NO_MATERIAL) == 0);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
+// The `.glb`'s part 0 wearing `path`.
+static bool wears(const voe_3d_models *models, const char *path)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, GOOD);
+
+	return entry != NULL && entry->loaded && entry->part_count == 1 &&
+	       strcmp(entry->parts[0].wears, path) == 0;
+}
+
+static void check_parts(voe_ecs_world *world, voe_render_device *device,
+			voe_base_arena *scratch)
+{
+	voe_3d_models *models = voe_3d_models_new();
+	const voe_3d_model_entry *glow;
+	voe_game_models_failures failures;
+
+	// ---- a parts table naming a material for material 0: worn, loaded
+	wear(world, GOOD);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	failures = voe_game_models_materials(world, models, device, FOLDER,
+					     &MATERIALS, &PARTS, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(wears(models, MATERIAL));
+	VOE_TEST_CHECK(material_loaded(models));
+
+	// ---- a table without the `.glb`: nothing worn
+	failures = voe_game_models_materials(world, models, device, FOLDER,
+					     &MATERIALS, &NO_PARTS, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(wears(models, ""));
+
+	// ---- a material with an emission map: in the emissive slot
+	shade(world, GLOW_MATERIAL);
+	failures = voe_game_models_materials(world, models, device, FOLDER,
+					     &MATERIALS, &NO_PARTS, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	glow = voe_3d_models_find(models, GLOW_MATERIAL);
+	VOE_TEST_CHECK(glow != NULL && glow->loaded && glow->material);
+	if (glow != NULL && glow->loaded)
+		VOE_TEST_CHECK(glow->parts[0].material.emissive_texture.index !=
+			       VOE_RENDER_NO_TEXTURE);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
@@ -579,6 +650,7 @@ int main(void)
 	voe_3d_models_destroy(landscapes);
 	check_materials(voe_game_world_new(arena), device, scratch);
 	check_layers(voe_game_world_new(arena), device, scratch);
+	check_parts(voe_game_world_new(arena), device, scratch);
 	remove(GOOD_ON_DISK);
 	remove(PICTURE_ON_DISK);
 	remove(LANDSCAPE_ON_DISK);

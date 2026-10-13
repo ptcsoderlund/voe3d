@@ -50,9 +50,9 @@ static int upload_and_free(void *context)
 {
 	struct worker *worker = context;
 	const voe_render_vertex vertices[3] = {
-		{ { -1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-		{ { 1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
-		{ { 0.0f, 1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.5f, 1.0f } },
+		{ { -1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
+		{ { 1.0f, -1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0 } },
+		{ { 0.0f, 1.0f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.5f, 1.0f }, { 0 } },
 	};
 	const uint32_t indices[3] = { 0, 1, 2 };
 	voe_base_error error = VOE_BASE_OK;

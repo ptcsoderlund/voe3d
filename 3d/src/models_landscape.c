@@ -151,7 +151,8 @@ static bool upload_landscape(voe_3d_models *models, voe_render_device *device,
 			     voe_base_error *error)
 {
 	const uint32_t n = entry->landscape->cells + 1;
-	voe_3d_model_part part = { .material = ground() };
+	voe_3d_model_part part = { .material = ground(),
+				   .source = VOE_ASSETS_MODEL_NONE };
 	const bool material = grid_ready(models, device, error) &&
 			      voe_3d_material_upload(device, &part.material,
 						     error);

@@ -1,11 +1,14 @@
 // The Inspector's material section, drawn in place of the entity's while a
 // `.material` is open (scene.h's `material_open`, 0399 point 8): the file's
-// name as heading, Lit and Unlit with the chosen one lit, Colour as a swatch
-// inside a button, Roughness and Metal as sliders 0–1, Repeat as a number box
-// clamped 0.01–1000, and the Colormap, Normalmap and ORMmap rows, each the
-// map's file name or "None" with × while set. While ORMmap is set, Roughness
-// and Metal are drawn greyed and cannot move, and nothing reads them, so the
-// file's values stand untouched until the map is emptied (0401, 0402).
+// name as heading, Lit and Unlit with the chosen one lit, Colour and Emission
+// as swatches inside buttons, Strength (the emission's) as a number box clamped
+// 0–1000, Roughness and Metal as sliders 0–1, Repeat as a number box
+// clamped 0.01–1000, Cutout as a slider 0–1, One side and Both sides with the
+// chosen one lit (0420 point 2), and the Colormap, Normalmap, ORMmap and
+// Emissionmap rows, each the map's file name or "None" with × while set. While
+// ORMmap is set, Roughness and Metal are drawn greyed and cannot move, and
+// nothing reads them, so the file's values stand untouched until the map is
+// emptied (0401, 0402).
 //
 //     voe_editor_inspector_material_dim(&scene->material_controls, palette);
 //     voe_editor_inspector_material_forget(&scene->material_controls);
@@ -21,8 +24,9 @@
 //
 // THE READ CHANGES THE SHOWN COPY ONLY, and opens the picker. Whether the copy
 // now differs from the table's row, and what the store does about it, is
-// interface_read.c's. A fired Colour swatch opens scene.h's picker with
-// `material` set, anchored at the section's left as the Inspector's swatch is
+// interface_read.c's. A fired Colour or Emission swatch opens scene.h's picker
+// with `material` set and `offset` at its field, anchored at the section's
+// left as the Inspector's swatch is
 // at its column's; each map row's rectangle is kept for a picture dropped on
 // it, which assets_drag.h reads before the next frame forgets the nodes.
 //
@@ -40,11 +44,14 @@
 // Lit and Unlit, indexed as voe_assets_material_shader.
 #define VOE_EDITOR_MATERIAL_SHADERS 2
 
-// Roughness and Metal: one slider each.
-#define VOE_EDITOR_MATERIAL_SLIDERS 2
+// Roughness, Metal and Cutout: one slider each.
+#define VOE_EDITOR_MATERIAL_SLIDERS 3
 
-// The Colormap, Normalmap and ORMmap: one row each.
-#define VOE_EDITOR_MATERIAL_MAPS 3
+// One side and Both sides, indexed as `double_sided` false and true.
+#define VOE_EDITOR_MATERIAL_SIDES 2
+
+// The Colormap, Normalmap, ORMmap and Emissionmap: one row each.
+#define VOE_EDITOR_MATERIAL_MAPS 4
 
 // Room for a shown figure.
 #define VOE_EDITOR_MATERIAL_FIGURE 16
@@ -56,8 +63,11 @@ typedef struct {
 	voe_ui_node section;
 	voe_ui_node shaders[VOE_EDITOR_MATERIAL_SHADERS];
 	voe_ui_node colour;
+	voe_ui_node emission;
+	voe_ui_node strength;
 	voe_ui_node sliders[VOE_EDITOR_MATERIAL_SLIDERS];
 	voe_ui_node repeat;
+	voe_ui_node sides[VOE_EDITOR_MATERIAL_SIDES];
 	// Each map's row, for a drop on it, and its × while the map is set.
 	voe_ui_node maps[VOE_EDITOR_MATERIAL_MAPS];
 	voe_ui_node clears[VOE_EDITOR_MATERIAL_MAPS];
@@ -66,6 +76,7 @@ typedef struct {
 	voe_ui_rect maps_seen[VOE_EDITOR_MATERIAL_MAPS];
 	char figures[VOE_EDITOR_MATERIAL_SLIDERS][VOE_EDITOR_MATERIAL_FIGURE];
 	char repeat_figure[VOE_EDITOR_MATERIAL_FIGURE];
+	char strength_figure[VOE_EDITOR_MATERIAL_FIGURE];
 	// The theme the greyed Roughness and Metal rows are pushed under; here
 	// because a pushed theme must outlive the frame.
 	voe_ui_theme dim;
@@ -89,9 +100,10 @@ void voe_editor_inspector_material_draw(
 struct voe_editor_scene;
 
 // After voe_ui_frame_end, on `scene->material` through
-// `scene->material_controls`: a fired shader button chooses it, each drawn
-// slider's value taken, Repeat's taken clamped, a fired × empties its map, a
-// fired swatch opens the picker on the material; each map row's rectangle kept.
+// `scene->material_controls`: a fired shader or sides button chooses it, each
+// drawn slider's value taken, Repeat's and Strength's taken clamped, a fired ×
+// empties its map, a fired swatch opens the picker on its field of the
+// material; each map row's rectangle kept.
 // A greyed slider is not drawn as one, so nothing is taken from it.
 void voe_editor_inspector_material_read(const voe_ui_context *ui,
 					struct voe_editor_scene *scene);

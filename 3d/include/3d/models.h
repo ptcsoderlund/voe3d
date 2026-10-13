@@ -15,21 +15,21 @@
 // NODES ARE BAKED AND PARTS MERGED: each node's matrices applied to its vertices
 // and normals, every primitive of one material joined into one part, at most
 // VOE_3D_MODEL_PARTS, so a model is a handful of draws. The file's tree is lost.
+// A PART WEARS what its model's parts file names for its glTF `source` once
+// _parts_set gives it (0404, 0420); a load leaves `wears` empty, the file's own.
 //
 // A FAILED ENTRY IS KEPT at the stamp it failed at, `loaded` false and no parts,
 // so a caller asking each frame for a broken file does not parse it each frame.
 //
-// THE MEMORY IS THE STORE'S (rule 11's long-lived exception), given back by
-// _destroy, which frees nothing on the card: a program keeping its device calls
-// _clear first.
+// THE MEMORY IS THE STORE'S (rule 11's exception), given back by _destroy,
+// which frees nothing on the card: a program keeping its device calls _clear.
 //
 // A PATH LOADED AGAIN REPLACES ITSELF (ADR-0277 point 5): success swaps in new
 // parts and frees the old; failure keeps the old at the new stamp. A part's ids
 // change with each load.
 //
 // THE STORE IS CHANGED ONLY BETWEEN FRAMES: every upload and free waits for the
-// card to go idle. _landscape_frame alone runs inside one, and only writes
-// into textures already made.
+// card to go idle; the _frame calls alone run inside one, writing what exists.
 //
 // PICTURES SHARE THE STORE (ADR-0298 point 5): a `.png`, `.jpg` or `.jpeg` path
 // has two BLENDED parts on the store's one quad, 0 lit and 1 unlit, the glow,
@@ -66,6 +66,8 @@
 
 #include <assets/landscape.h>
 #include <assets/material.h>
+#include <assets/model.h>
+#include <assets/parts.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <render/device.h>
@@ -106,6 +108,11 @@ typedef struct {
 	voe_3d_material material;
 	// The record the part is drawn with while its row fades.
 	voe_render_shading faded;
+	// The glTF material the part was merged from; VOE_ASSETS_MODEL_NONE
+	// for glTF's default and for a picture's, landscape's or material's.
+	uint32_t source;
+	// The `.material` path it wears, "" for the file's own.
+	char wears[VOE_ASSETS_MATERIAL_PATH];
 } voe_3d_model_part;
 
 // One file: loaded with its parts, or failed with none.
@@ -135,11 +142,12 @@ typedef struct {
 	size_t size;
 } voe_3d_material_map;
 
-// A material's three maps, as its file names them.
+// A material's four maps, as its file names them.
 typedef struct {
 	voe_3d_material_map colour;
 	voe_3d_material_map normal;
 	voe_3d_material_map orm;
+	voe_3d_material_map emission;
 } voe_3d_material_maps;
 
 typedef struct voe_3d_models voe_3d_models;
@@ -177,22 +185,31 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 	voe_base_error *error);
 
 // `material` as `path`'s entry: each map with bytes decoded as a picture by its
-// path's extension and uploaded mipped, colour as COLOUR, normal and ORM as
-// DATA, the ORM map's one texture in the metal-roughness and the occlusion
-// slots both (0400); colour, metal,
-// roughness, repeat and shader from the values; one part with no geometry and
-// its blended twin. Replaces and fails as _load does; MALFORMED when a map will
-// not decode, REFUSED when the device or the store has no room.
+// path's extension and uploaded mipped, colour and emission as COLOUR, normal
+// and ORM as DATA, the ORM map's one texture in the metal-roughness and the
+// occlusion slots both (0400), the emission map in the emissive slot; colour,
+// metal, roughness, repeat and shader from the values, `cutout` > 0 as CUTOUT
+// at that cutoff else OPAQUE, `emission` × `emission_strength` as emissive, and
+// `double_sided` (0420 point 2); one part with no geometry and its blended
+// twin. Replaces and fails as _load does; MALFORMED when a map will not decode,
+// REFUSED when the device or the store has no room.
 [[nodiscard]] bool voe_3d_models_load_material(
 	voe_3d_models *models, voe_render_device *device, const char *path,
 	uint64_t stamp, const voe_assets_material_file *material,
 	voe_3d_material_maps maps, voe_base_error *error);
 
-// `material`'s colour, metal, roughness, repeat and shader taken into `path`'s
-// part and its two records marked to write; its maps ignored, a new map being
+// `material`'s colour, metal, roughness, repeat, shader, cutout, emission ×
+// strength and double_sided taken into `path`'s part as _load_material takes
+// them, and its two records marked to write; its maps ignored, a new map being
 // a load. Nothing for a path that is no loaded material.
 void voe_3d_models_material_set(voe_3d_models *models, const char *path,
 				const voe_assets_material_file *material);
+
+// Each part of `path`'s loaded model takes `parts->materials[source]` into
+// `wears`, "" for a `source` of NONE or at or past `parts->count`; NULL
+// `parts` empties every `wears`. Nothing for a path that is no loaded model.
+void voe_3d_models_parts_set(voe_3d_models *models, const char *path,
+			     const voe_assets_parts *parts);
 
 // Inside a frame, before its first pass: every marked material's record and
 // twin rewritten (voe_render_shading_write), the marks cleared.

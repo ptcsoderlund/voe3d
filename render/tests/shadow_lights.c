@@ -117,9 +117,9 @@ static bool none_without_shadow_size(voe_base_arena *arena)
 static void the_array_grows(voe_base_arena *arena)
 {
 	static const voe_render_vertex vertices[3] = {
-		{ { -0.5f, -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-		{ { 0.5f, -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-		{ { 0.0f, 0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
+		{ { -0.5f, -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
+		{ { 0.5f, -0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
+		{ { 0.0f, 0.5f, 0.5f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
 	};
 	static const uint32_t indices[3] = { 0, 1, 2 };
 	voe_platform_size size = { SIDE, SIDE };

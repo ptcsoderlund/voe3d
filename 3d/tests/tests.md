@@ -28,9 +28,8 @@ again, or to find where a claim that has started failing is written down.
 - `model_data.inc` — that hand-built `.glb`, as bytes.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
   frames blind, the eye lags the last step and a red shape reads red. Skips without a graphics card.
-- `draw_material.c` — that a cube wearing a loaded unlit red material reads red, and one with an
-  empty or unheld path its own grey; a model's green part wearing it red, and green with none or
-  with only its other part wearing it. Skips without a graphics card.
+- `draw_material.c` — that a cube wears an unlit material's colour, a model's part wears what its
+  parts set names, and a double-sided material draws both sides. Skips without a graphics card.
 - `draw_gizmo.c` — that a gizmo's arrows and rings show through the cube it stands in. Skips
   without a graphics card.
 - `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
@@ -120,7 +119,7 @@ again, or to find where a claim that has started failing is written down.
   geometry, the changes table and the upload's material records. The table and geometry half needs
   no graphics card; the upload half skips without one.
 - `model_component.c` — the model component's fields, its default and intents read back after a
-  run, a dead entity's intent dropped and a long path or material cut. Needs no graphics card.
+  run, a dead entity's intent dropped and a long path cut. Needs no graphics card.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,
@@ -129,14 +128,17 @@ again, or to find where a claim that has started failing is written down.
   says, every field named with its kind, and a replace queued. Needs no graphics card.
 - `water_system.c` — a waves row after one run, the clock stepped and wrapped at 60 s, a replace's
   colour, and a removed water's row gone. Needs no graphics card.
+- `model_bake.c` — that a baked primitive's vertex colours become their complements, red as
+  0/65535/65535/0 and grey about 32767, and one without colours stays zeroed. Needs no graphics card.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
-  blended twin and none leaked, pictures and the uncounted dot, and a model drawn only with the
-  store. Skips without a card.
+  blended twin and none leaked, its glTF source and the `wears` a parts set fills and a reload
+  empties, pictures and the uncounted dot, and a model drawn only with the store. Skips without a
+  card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget. Skips without a card.
-- `models_material.c` — a `.material` with three maps loaded as one part with a live record and
-  twin, a set written by a frame, a map that is no picture failing MALFORMED, and a rename. Skips
-  without a card.
+- `models_material.c` — a `.material` with four maps loaded as one part with a live record and
+  twin, its cutout, emission and sides, a set changing them written by a frame, a map that is no
+  picture failing MALFORMED, and a rename. Skips without a card.
 - `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, and
   painting a layer: the sum kept, the radius held and a light stroke stopping at its strength.
   Needs no graphics card.

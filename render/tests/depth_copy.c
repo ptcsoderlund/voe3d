@@ -77,10 +77,10 @@ static bool upload(struct scene *scene, float x0, float x1, float z,
 		   voe_render_geometry *out)
 {
 	const voe_render_vertex vertices[4] = {
-		{ { x0, 1.0f, z }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-		{ { x1, 1.0f, z }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
-		{ { x1, -1.0f, z }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-		{ { x0, -1.0f, z }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+		{ { x0, 1.0f, z }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
+		{ { x1, 1.0f, z }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0 } },
+		{ { x1, -1.0f, z }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0 } },
+		{ { x0, -1.0f, z }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0 } },
 	};
 	const uint32_t indices[6] = { 3, 2, 1, 3, 1, 0 };
 	voe_base_error error = VOE_BASE_OK;

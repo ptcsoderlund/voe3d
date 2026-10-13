@@ -8,15 +8,19 @@
 // and voe_render_frame it reads, once by its #pragma once; never compiled alone.
 //
 //     float3 l = voe_render_sky_radiance(view);
+//     float3 m = voe_render_sky_radiance_of(mirrored, view);
 //     float3 g = voe_render_sky_gradient(voe_render_frame.sky, view);
 //
 // The backdrop: `strength` times an authored gradient from ground through
 // horizon to zenith, following no light. The radiance: that,
 // every shown light's glow in its colour, then each one's disc laid over, a
-// lerp to twice its colour. The lights are the frame's: `light` is entry 0 of
-// the sky's sizes, more[i − 1] entry i for i up to `more_count`. A light's
-// direction is where its light travels (it stands at −direction); `view` a
-// unit direction, world space, +Y up. A sky with no shown light is its backdrop.
+// lerp to twice its colour. voe_render_sky_radiance_of takes the sky record,
+// as the CPU twin does, so a caller may hand it a copy (ADR-0424 point 4);
+// voe_render_sky_radiance is it of the frame block's. The lights are the
+// frame's: `light` is entry 0 of the sky's sizes, more[i − 1] entry i for i
+// up to `more_count`. A light's direction is where its light travels (it
+// stands at −direction); `view` a unit direction, world space, +Y up. A sky
+// with no shown light is its backdrop.
 #pragma once
 
 static const float VOE_RENDER_SKY_PI = 3.14159265358979;
@@ -57,11 +61,10 @@ voe_render_light voe_render_sky_light(uint i)
 	return voe_render_frame.more[i - 1].light;
 }
 
-// The backdrop, every shown light's glow, then their discs laid over in light
-// order (ADR-0412 point 3).
-float3 voe_render_sky_radiance(float3 view)
+// The backdrop of `sky`, every shown light's glow, then their discs laid over
+// in light order (ADR-0412 point 3).
+float3 voe_render_sky_radiance_of(voe_render_sky sky, float3 view)
 {
-	voe_render_sky sky = voe_render_frame.sky;
 	uint count = 1 + min(voe_render_frame.more_count,
 			     VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
 	float3 radiance = voe_render_sky_gradient(sky, view);
@@ -93,4 +96,10 @@ float3 voe_render_sky_radiance(float3 view)
 					   dot(view, -normalize(light.direction))));
 	}
 	return radiance;
+}
+
+// The frame block's sky along `view`: what the sky pass draws.
+float3 voe_render_sky_radiance(float3 view)
+{
+	return voe_render_sky_radiance_of(voe_render_frame.sky, view);
 }

@@ -10,7 +10,8 @@
 // pass, leaves both zeroed: as authored. A camera pass whose sky is `drawn` has
 // it drawn by sky_draw.c as soon as its block is written, before anything else.
 // A `drawn` sky fills the block's nine harmonics by voe_render_sky_harmonics
-// from its backdrop alone, whatever its lights (ADR-0412 point 4).
+// from its backdrop alone, whatever its lights (ADR-0412 point 4), at strength
+// 1 whatever the row's (ADR-0424 point 4).
 #include "device_internal.h"
 #include "sky.h"
 
@@ -64,16 +65,19 @@ void voe_render_pass_place_sky(const voe_render_pass_camera *camera,
 }
 
 // The nine harmonics a rough metal reflects into `block->sky_harmonics`: of
-// `camera`'s backdrop when it is `drawn`, no light's glow or disc in them;
-// left zero otherwise.
+// `camera`'s backdrop at strength 1 when it is `drawn`, so the row's strength
+// changes no surface, no light's glow or disc in them; left zero otherwise.
 void voe_render_pass_place_sky_light(const voe_render_pass_camera *camera,
 				     struct voe_render_frame_block *block)
 {
+	voe_render_sky mirrored = camera->sky;
+
 	VOE_BASE_DEBUG_ASSERT(block->sky_harmonics[0].x == 0.0f,
 			      "placing the sky's light into a block that already has it");
-	if (camera->sky.drawn == 0)
+	if (mirrored.drawn == 0)
 		return;
-	voe_render_sky_harmonics(&camera->sky, block->sky_harmonics);
+	mirrored.strength = 1.0f;
+	voe_render_sky_harmonics(&mirrored, block->sky_harmonics);
 	VOE_BASE_DEBUG_ASSERT(isfinite(block->sky_harmonics[0].x),
 			      "the sky's harmonics are not finite");
 }

@@ -116,6 +116,10 @@
 // 0.0f that means "nothing here yet", and one of those is load-bearing.
 #define VOE_RENDER_DEPTH_CLEAR 0.0f
 
+// `cull_recorded` when no cull mode the recording set still holds: no
+// VkCullModeFlags value has every bit set.
+#define VOE_RENDER_CULL_UNSET ((VkCullModeFlags)~0u)
+
 #include "device_parts.h"
 
 // The new validation messages the device keeps to name again at close
@@ -417,6 +421,16 @@ struct voe_render_device {
 	// the rendering opens and every time a draw needs the other one;
 	// meaningless while `recording` is false.
 	VkPipeline bound;
+
+	// The cull mode the open pass's mesh draws want: BACK as every pass opens,
+	// NONE after voe_render_frame_two_sided(true) (ADR-0421 point 2). And the
+	// one the recording last set, VOE_RENDER_CULL_UNSET as a pass opens and
+	// once a pipeline whose cull mode is static has been bound. draw.c sets
+	// `cull_wanted` after binding the solid or blended pipeline, the two whose
+	// cull mode is dynamic, and records it only when it differs from
+	// `cull_recorded`. Meaningless while `pass_open` is false.
+	VkCullModeFlags cull_wanted;
+	VkCullModeFlags cull_recorded;
 
 	// Whether the open pass has bound a pool pair yet: false as a pass opens,
 	// set by its first mesh draw (draw.c), so a pass of elements alone binds

@@ -58,9 +58,9 @@ static const voe_render_capacities CAPACITIES = {
 // A triangle: three vertices and three indices, which is the unit everything
 // below is counted in.
 static const voe_render_vertex TRIANGLE[3] = {
-	{ { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-	{ { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
-	{ { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+	{ { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
+	{ { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0 } },
+	{ { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0 } },
 };
 static const uint32_t TRIANGLE_INDICES[3] = { 0, 1, 2 };
 
@@ -276,9 +276,9 @@ static void neighbouring_ranges_merge(voe_base_arena *arena)
 static void a_mesh_hands_back_its_box(voe_base_arena *arena)
 {
 	static const voe_render_vertex SPREAD[3] = {
-		{ { -1.0f, 0.0f, 2.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-		{ { 3.0f, 1.0f, -2.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
-		{ { 0.0f, 5.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+		{ { -1.0f, 0.0f, 2.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
+		{ { 3.0f, 1.0f, -2.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0 } },
+		{ { 0.0f, 5.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0 } },
 	};
 	voe_platform_size size = { SIDE, SIDE };
 	voe_render_device *device;

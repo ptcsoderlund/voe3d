@@ -23,6 +23,12 @@ way out: a decoder takes a buffer and an encoder hands one back, since
 - `include/assets/material.h` — a `.material` file's text to a shader, its
   factors, repeat and three map paths, and back. Its header says the defaults
   and why a missing key reads as one.
+- `include/assets/parts.h` — a `.parts` file's text to the `.material` each
+  glTF material of a `.glb` wears, and back. Its header says why the keys are
+  indices.
+- `include/assets/model_material.h` — a glTF material as a `.material`
+  file's values, and the ORM picture Import textures writes for it. Its header
+  says why BLEND becomes a cut-out and only a uniform scale becomes repeat.
 - `include/assets/sound.h` — sounds: 16-bit PCM and 32-bit float WAV decoded
   to interleaved float. Its header says what is unsupported, what is malformed,
   and why only WAV.

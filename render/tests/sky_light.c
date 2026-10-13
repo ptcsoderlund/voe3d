@@ -8,14 +8,21 @@
 //    behind it: byte for byte the same with the sky drawn and zeroed, at fill
 //    nought and at the red fill;
 // 2. that face reads the same bytes whatever the sky's zenith, blue or red;
-// 3. a smooth white metal quad tilted 30° up to the camera reads the sRGB of
-//    voe_render_sky_radiance (render/src/sky.h) along the reflected view times
-//    Karis's Fresnel fit, within 6/255; at roughness 1 it reads nearer E(R)/π,
-//    from voe_render_sky_harmonics, than the sky along R;
+// 3. a smooth white metal quad tilted 30° up to the camera, under a sun
+//    overhead, reads the sRGB of voe_render_sky_radiance (render/src/sky.h)
+//    along the reflected view times Karis's Fresnel fit times k, the light on
+//    the quad over F (ADR-0424), within 6/255; at roughness 1 it reads nearer
+//    E(R)/π, from voe_render_sky_harmonics, than the sky along R;
 // 4. that quad as a non-metal, metallic 0 and white, in the low sun: byte for
 //    byte the same with the sky zeroed;
 // 5. the metal quad inside an Indoors blocker: byte for byte as with the sky
-//    zeroed.
+//    zeroed;
+// 6. the smooth metal quad of 3 and the cube's face of 1, under the noon sun:
+//    byte for byte the same at sky strength 0 and 1 (ADR-0424 point 4);
+// 7. the smooth metal quad under the noon sun, whose light travels away from
+//    its face, fill nought: byte for byte as with the sky zeroed;
+// 8. that quad with the sun head-on to its normal: no channel brighter than
+//    the sky along R plus 6/255.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO. The skip is a pass and it
 // prints its reason.
@@ -64,30 +71,30 @@ static const voe_render_capacities CAPACITIES = {
 // Counter-clockwise from outside, four vertices a face, unshaded.c's cube.
 #define H 0.5f
 static const voe_render_vertex CUBE_VERTICES[24] = {
-	{ { -H, H, H }, { 0, 0, 1 }, { 0, 0 } },
-	{ { H, H, H }, { 0, 0, 1 }, { 0, 0 } },
-	{ { H, -H, H }, { 0, 0, 1 }, { 0, 0 } },
-	{ { -H, -H, H }, { 0, 0, 1 }, { 0, 0 } },
-	{ { H, H, -H }, { 0, 0, -1 }, { 0, 0 } },
-	{ { -H, H, -H }, { 0, 0, -1 }, { 0, 0 } },
-	{ { -H, -H, -H }, { 0, 0, -1 }, { 0, 0 } },
-	{ { H, -H, -H }, { 0, 0, -1 }, { 0, 0 } },
-	{ { H, H, H }, { 1, 0, 0 }, { 0, 0 } },
-	{ { H, H, -H }, { 1, 0, 0 }, { 0, 0 } },
-	{ { H, -H, -H }, { 1, 0, 0 }, { 0, 0 } },
-	{ { H, -H, H }, { 1, 0, 0 }, { 0, 0 } },
-	{ { -H, H, -H }, { -1, 0, 0 }, { 0, 0 } },
-	{ { -H, H, H }, { -1, 0, 0 }, { 0, 0 } },
-	{ { -H, -H, H }, { -1, 0, 0 }, { 0, 0 } },
-	{ { -H, -H, -H }, { -1, 0, 0 }, { 0, 0 } },
-	{ { -H, H, -H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { H, H, -H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { H, H, H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { -H, H, H }, { 0, 1, 0 }, { 0, 0 } },
-	{ { -H, -H, H }, { 0, -1, 0 }, { 0, 0 } },
-	{ { H, -H, H }, { 0, -1, 0 }, { 0, 0 } },
-	{ { H, -H, -H }, { 0, -1, 0 }, { 0, 0 } },
-	{ { -H, -H, -H }, { 0, -1, 0 }, { 0, 0 } },
+	{ { -H, H, H }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { H, H, H }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { H, -H, H }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, H }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { H, H, -H }, { 0, 0, -1 }, { 0, 0 }, { 0 } },
+	{ { -H, H, -H }, { 0, 0, -1 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, -H }, { 0, 0, -1 }, { 0, 0 }, { 0 } },
+	{ { H, -H, -H }, { 0, 0, -1 }, { 0, 0 }, { 0 } },
+	{ { H, H, H }, { 1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { H, H, -H }, { 1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { H, -H, -H }, { 1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { H, -H, H }, { 1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, H, -H }, { -1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, H, H }, { -1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, H }, { -1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, -H }, { -1, 0, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, H, -H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { H, H, -H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { H, H, H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, H, H }, { 0, 1, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, H }, { 0, -1, 0 }, { 0, 0 }, { 0 } },
+	{ { H, -H, H }, { 0, -1, 0 }, { 0, 0 }, { 0 } },
+	{ { H, -H, -H }, { 0, -1, 0 }, { 0, 0 }, { 0 } },
+	{ { -H, -H, -H }, { 0, -1, 0 }, { 0, 0 }, { 0 } },
 };
 
 static const uint32_t CUBE_INDICES[36] = {
@@ -99,10 +106,10 @@ static const uint32_t CUBE_INDICES[36] = {
 // A metre square about (0, 0, −2), its normal (0, sin, cos) of the tilt, its
 // edges +X and (0, cos, −sin): counter-clockwise seen along that normal.
 static const voe_render_vertex QUAD_VERTICES[4] = {
-	{ { -H, -H * TILT_COS, QUAD_Z + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
-	{ { H, -H * TILT_COS, QUAD_Z + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
-	{ { H, H * TILT_COS, QUAD_Z - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
-	{ { -H, H * TILT_COS, QUAD_Z - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 } },
+	{ { -H, -H * TILT_COS, QUAD_Z + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 }, { 0 } },
+	{ { H, -H * TILT_COS, QUAD_Z + H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 }, { 0 } },
+	{ { H, H * TILT_COS, QUAD_Z - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 }, { 0 } },
+	{ { -H, H * TILT_COS, QUAD_Z - H * TILT_SIN }, { 0, TILT_SIN, TILT_COS }, { 0, 0 }, { 0 } },
 };
 
 static const uint32_t QUAD_INDICES[6] = { 0, 1, 2, 0, 2, 3 };
@@ -282,25 +289,52 @@ static int distance_to(const uint8_t *pixel, voe_math_float3 linear,
 	       abs(pixel[2] - srgb_byte(linear.z * scale));
 }
 
-// Case 3: the metal quad mirrors the sky, sharp when smooth, blurred when rough.
-static void check_mirror(struct scene *scene, voe_render_light noon)
+// The quad's normal.
+static const voe_math_float3 QUAD_NORMAL = { 0.0f, TILT_SIN, TILT_COS };
+
+// The view reflected off the quad at the centre pixel.
+static voe_math_float3 reflected_view(void)
 {
-	const voe_math_float3 n = { 0.0f, TILT_SIN, TILT_COS };
 	const voe_math_float3 d = centre_direction();
-	const voe_math_float3 r = voe_math_float3_sub(
-		d, voe_math_float3_scale(n, 2.0f * voe_math_float3_dot(d, n)));
-	const voe_math_float3 sky = voe_render_sky_radiance(&SKY, &noon, 1, r);
-	const float n_dot_v = -voe_math_float3_dot(n, d);
+
+	return voe_math_float3_sub(
+		d, voe_math_float3_scale(QUAD_NORMAL,
+					 2.0f * voe_math_float3_dot(d, QUAD_NORMAL)));
+}
+
+// k on the quad lit by `sun` alone, unshadowed, no fill, no bounce: the max
+// channel of colour × intensity × N·L over F, the max channel of colour ×
+// intensity and at least 1, saturated (ADR-0424 points 1 to 3).
+static float reflection_light(voe_render_light sun)
+{
+	const float n_dot_l =
+		fmaxf(-voe_math_float3_dot(QUAD_NORMAL, sun.direction), 0.0f);
+	const voe_math_float3 full = voe_math_float3_scale(sun.colour,
+							   sun.intensity);
+	const float peak = fmaxf(full.x, fmaxf(full.y, full.z));
+
+	return fminf(peak * n_dot_l / fmaxf(peak, 1.0f), 1.0f);
+}
+
+// Case 3: the metal quad mirrors the sky times k, sharp when smooth, blurred
+// when rough.
+static void check_mirror(struct scene *scene, voe_render_light sun)
+{
+	const voe_math_float3 r = reflected_view();
+	const voe_math_float3 sky = voe_render_sky_radiance(&SKY, &sun, 1, r);
+	const float n_dot_v = -voe_math_float3_dot(QUAD_NORMAL, centre_direction());
+	const float k = reflection_light(sun);
 	voe_math_float4 harmonics[9];
 	voe_math_float3 blurred;
 	uint8_t pixel[3];
 
+	printf("k %.3f\n", (double)k);
 	voe_render_sky_harmonics(&SKY, harmonics);
 	blurred = voe_math_float3_scale(voe_render_sky_irradiance(harmonics, r),
 					1.0f / PI);
-	if (picture_of(scene, scene->quad, scene->smooth, 0.0f, noon, SKY, NONE,
+	if (picture_of(scene, scene->quad, scene->smooth, 0.0f, sun, SKY, NONE,
 		       pixel)) {
-		const float fresnel = environment_brdf(1.0f, 0.0f, n_dot_v);
+		const float fresnel = environment_brdf(1.0f, 0.0f, n_dot_v) * k;
 
 		print_pixel("smooth metal", pixel);
 		printf("want %d %d %d\n", srgb_byte(sky.x * fresnel),
@@ -312,9 +346,9 @@ static void check_mirror(struct scene *scene, voe_render_light noon)
 		VOE_TEST_CHECK(abs(pixel[2] - srgb_byte(sky.z * fresnel)) <=
 			       MIRROR_TOLERANCE);
 	}
-	if (picture_of(scene, scene->quad, scene->rough, 0.0f, noon, SKY, NONE,
+	if (picture_of(scene, scene->quad, scene->rough, 0.0f, sun, SKY, NONE,
 		       pixel)) {
-		const float fresnel = environment_brdf(1.0f, 1.0f, n_dot_v);
+		const float fresnel = environment_brdf(1.0f, 1.0f, n_dot_v) * k;
 		const int to_blurred = distance_to(pixel, blurred, fresnel);
 		const int to_sky = distance_to(pixel, sky, fresnel);
 
@@ -340,6 +374,39 @@ static void check_indoors(struct scene *scene, voe_render_light noon)
 
 	check_same(scene, "indoors metal, sky drawn", scene->quad,
 		   scene->smooth, 0.0f, noon, SKY, ZEROED, indoors);
+}
+
+// Case 6: the sky's strength changes neither the smooth metal nor the face.
+static void check_strength(struct scene *scene, voe_render_light noon)
+{
+	voe_render_sky dark = SKY;
+
+	dark.strength = 0.0f;
+	check_same(scene, "smooth metal, strength 0", scene->quad,
+		   scene->smooth, 0.0f, noon, dark, SKY, NONE);
+	check_same(scene, "cube, strength 0", scene->cube, scene->grey, CUBE_Z,
+		   noon, dark, SKY, NONE);
+}
+
+// Case 8: the smooth metal quad in full light, the sun head-on to its normal,
+// mirrors the sky no brighter than the sky along R.
+static void check_bounded(struct scene *scene)
+{
+	const voe_render_light head_on =
+		the_sun(voe_math_float3_scale(QUAD_NORMAL, -1.0f));
+	const voe_math_float3 sky =
+		voe_render_sky_radiance(&SKY, &head_on, 1, reflected_view());
+	uint8_t pixel[3];
+
+	if (!picture_of(scene, scene->quad, scene->smooth, 0.0f, head_on, SKY,
+			NONE, pixel))
+		return;
+	print_pixel("smooth metal, sun head-on", pixel);
+	printf("sky along R %d %d %d\n", srgb_byte(sky.x), srgb_byte(sky.y),
+	       srgb_byte(sky.z));
+	VOE_TEST_CHECK(pixel[0] <= srgb_byte(sky.x) + MIRROR_TOLERANCE);
+	VOE_TEST_CHECK(pixel[1] <= srgb_byte(sky.y) + MIRROR_TOLERANCE);
+	VOE_TEST_CHECK(pixel[2] <= srgb_byte(sky.z) + MIRROR_TOLERANCE);
 }
 
 static bool build(struct scene *scene)
@@ -392,6 +459,9 @@ int main(void)
 	// 2° up in front of the cube, on the +Z face's side.
 	const voe_render_light low =
 		the_sun((voe_math_float3){ 0.0f, -0.0348995f, -0.9993908f });
+	// Straight down: N·L on the quad is its tilt's sine, a half.
+	const voe_render_light overhead =
+		the_sun((voe_math_float3){ 0.0f, -1.0f, 0.0f });
 
 	scene.device = voe_render_device_new_headless(scene.arena, size,
 						      CAPACITIES, &error);
@@ -406,10 +476,14 @@ int main(void)
 	}
 	if (build(&scene)) {
 		check_cube(&scene, noon);
-		check_mirror(&scene, noon);
+		check_mirror(&scene, overhead);
 		check_same(&scene, "non-metal quad, sky drawn", scene.quad,
 			   scene.plain, 0.0f, low, SKY, ZEROED, NONE);
 		check_indoors(&scene, noon);
+		check_strength(&scene, noon);
+		check_same(&scene, "metal quad, sun behind, sky drawn", scene.quad,
+			   scene.smooth, 0.0f, noon, SKY, ZEROED, NONE);
+		check_bounded(&scene);
 	}
 	voe_render_device_destroy(scene.device);
 	voe_base_arena_destroy(scene.arena);

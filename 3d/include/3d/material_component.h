@@ -47,11 +47,15 @@
 // same is true one level down: two materials referencing one picture hold the
 // same texture id, which is the whole of how a file's textures are deduplicated.
 //
-// NO SYSTEM AND NO INTENT YET, for the same reason mesh has none: nothing
-// changes a material after it is built. A card that fades or tints something is
-// the card that gives this module a system — and it will want to think about the
-// GPU record, which is written once today but for a `.material` file's, which
-// the model store rewrites in a frame (3d/models.h).
+// DOUBLE-SIDED IS THE DRAW'S AND NOT THE RECORD'S (0421 point 2). Which faces
+// are culled is per-draw state the draw system sets about a mesh draw through
+// voe_render_frame_two_sided; the record has no word free for it and no shader
+// asks. So `double_sided` is read off the worn material by 3d's draw and never
+// reaches voe_3d_material_values.
+//
+// NO SYSTEM AND NO INTENT YET: nothing changes a material after it is built but
+// a `.material` file's record, which the model store rewrites in a frame
+// (3d/models.h).
 #pragma once
 
 #include <base/error.h>
@@ -82,10 +86,13 @@ typedef struct {
 	// Not lit: the base colour, times its texture, and no sun. Text is what
 	// asked for it and a user interface will want the same thing. It is
 	// independent of the alpha mode — an unlit surface may be opaque,
-	// cutout or blended — and it is not set by the importer, because
-	// nothing in `assets` reads glTF's unlit extension yet; a material that
-	// wants it is one a call site built.
+	// cutout or blended. The importer sets it from KHR_materials_unlit and a
+	// `.material` from its shader.
 	bool unlit;
+
+	// Back faces drawn too, turned to face the eye; false culls them. The
+	// draw's and not the record's — see the header.
+	bool double_sided;
 
 	voe_render_texture base_colour_texture;
 	// The base colour texture is not a picture: it holds three signed

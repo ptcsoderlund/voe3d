@@ -47,6 +47,7 @@
 #include <base/report.h>
 
 #include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -264,6 +265,7 @@ static bool upload_parts(voe_render_device *device,
 		entry->parts[p].material =
 			voe_3d_model_upload_material(upload, part->material);
 		entry->parts[p].faded = entry->parts[p].material.shading;
+		entry->parts[p].source = part->material;
 		*made = p + 1;
 		if (!voe_3d_models_twin(device, &entry->parts[p], error))
 			return false;
@@ -371,6 +373,7 @@ static bool upload_picture(voe_3d_models *models, voe_render_device *device,
 			.geometry = models->quad,
 			.material = upload.materials[p],
 			.faded = upload.materials[p].shading,
+			.source = VOE_ASSETS_MODEL_NONE,
 		};
 	hold_upload(&upload, held);
 	entry->part_count = 2;
@@ -525,7 +528,8 @@ bool voe_3d_models_load_water(voe_3d_models *models, voe_render_device *device,
 	}
 	models->water = (voe_3d_model_part){ .geometry = models->quad,
 					     .material = material,
-					     .faded = material.shading };
+					     .faded = material.shading,
+					     .source = VOE_ASSETS_MODEL_NONE };
 	models->has_water = true;
 	return true;
 }
@@ -550,6 +554,31 @@ void voe_3d_models_fail(voe_3d_models *models, const char *path,
 	// device for it.
 	voe_3d_models_entry_new(path, stamp, &entry, &held);
 	(void)voe_3d_models_keep(models, NULL, &entry, &held);
+}
+
+void voe_3d_models_parts_set(voe_3d_models *models, const char *path,
+			     const voe_assets_parts *parts)
+{
+	uint32_t index;
+	voe_3d_model_entry *entry;
+
+	VOE_BASE_ASSERT(models != NULL, "setting parts in no store");
+	VOE_BASE_ASSERT(path != NULL, "setting parts with no path");
+
+	index = voe_3d_models_index(models, path);
+	if (index == VOE_3D_MODELS || !models->entries[index].loaded)
+		return;
+	entry = &models->entries[index];
+	for (uint32_t p = 0; p < entry->part_count; p++) {
+		voe_3d_model_part *part = &entry->parts[p];
+		const bool named = parts != NULL && part->source < parts->count;
+
+		VOE_BASE_ASSERT(!named || memchr(parts->materials[part->source],
+						 '\0', VOE_ASSETS_MATERIAL_PATH),
+				"a parts file's path with no end");
+		snprintf(part->wears, sizeof(part->wears), "%s",
+			 named ? parts->materials[part->source] : "");
+	}
 }
 
 const voe_3d_model_entry *voe_3d_models_find(const voe_3d_models *models,

@@ -1,7 +1,9 @@
-// The model store's materials: a `.material` with three 2 × 2 PNG maps loaded
-// as one part with no geometry and a live record and twin, the ORM map in the
-// metal-roughness and occlusion slots both; a set then a frame writing both
-// records; a colour map alone leaving those two slots none; a map that is no
+// The model store's materials: a `.material` with four 2 × 2 PNG maps, cutout
+// 0.4, emission 1 0.5 0 at strength 2 and double-sided, loaded as one part with
+// no geometry and a live record and twin, those values in its material, the ORM
+// map in the metal-roughness and occlusion slots both and the emission map a
+// fourth texture; a set changing cutout and emission, then a frame writing both
+// records; a colour map alone leaving the ORM slots none; a map that is no
 // picture failing MALFORMED as a failed entry; and a rename finding the
 // material at its new path.
 //
@@ -36,8 +38,9 @@ static const voe_render_capacities CAPACITIES = {
 
 static const uint8_t NOT_A_PICTURE[] = "this is not a picture";
 
-// A material naming three `.png` maps, colour 0.2 0.4 0.6, repeat 4.
-static voe_assets_material_file three_maps(void)
+// A material naming four `.png` maps, colour 0.2 0.4 0.6, repeat 4, cutout
+// 0.4, emission 1 0.5 0 at strength 2, double-sided.
+static voe_assets_material_file four_maps(void)
 {
 	voe_assets_material_file material = voe_assets_material_default();
 
@@ -45,6 +48,14 @@ static voe_assets_material_file three_maps(void)
 	material.colour[1] = 0.4f;
 	material.colour[2] = 0.6f;
 	material.repeat = 4.0f;
+	material.cutout = 0.4f;
+	material.emission[0] = 1.0f;
+	material.emission[1] = 0.5f;
+	material.emission[2] = 0.0f;
+	material.emission_strength = 2.0f;
+	material.double_sided = true;
+	snprintf(material.emissionmap, sizeof material.emissionmap, "%s",
+		 "Assets/brick_glow.png");
 	snprintf(material.colormap, sizeof material.colormap, "%s",
 		 "Assets/brick.png");
 	snprintf(material.normalmap, sizeof material.normalmap, "%s",
@@ -54,8 +65,9 @@ static voe_assets_material_file three_maps(void)
 	return material;
 }
 
-// The loaded entry: a material of one part, no shape, three maps in their
-// slots and its record and twin live and apart.
+// The loaded entry: a material of one part, no shape, four maps in their
+// slots, its cutout, emission and sides, and its record and twin live and
+// apart.
 static void check_loaded(const voe_3d_model_entry *entry)
 {
 	const voe_3d_material *material = &entry->parts[0].material;
@@ -73,6 +85,21 @@ static void check_loaded(const voe_3d_model_entry *entry)
 	VOE_TEST_CHECK_INT(material->occlusion_texture.index,
 			   material->metallic_roughness_texture.index);
 	VOE_TEST_CHECK(entry->parts[0].faded.index != material->shading.index);
+
+	// ---- cutout, emission × strength, double-sided and a fourth texture
+	VOE_TEST_CHECK_INT(material->alpha_mode, VOE_RENDER_ALPHA_CUTOUT);
+	VOE_TEST_CHECK_FLOAT(material->alpha_cutoff, 0.4f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(material->emissive.x, 2.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(material->emissive.y, 1.0f, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(material->emissive.z, 0.0f, TOLERANCE);
+	VOE_TEST_CHECK(material->double_sided);
+	VOE_TEST_CHECK(material->emissive_texture.index != VOE_RENDER_NO_TEXTURE);
+	VOE_TEST_CHECK(material->emissive_texture.index !=
+		       material->base_colour_texture.index);
+	VOE_TEST_CHECK(material->emissive_texture.index !=
+		       material->normal_texture.index);
+	VOE_TEST_CHECK(material->emissive_texture.index !=
+		       material->metallic_roughness_texture.index);
 }
 
 // A set takes the values, and a frame writing the marked records passes.
@@ -85,6 +112,8 @@ static void check_set(voe_3d_models *models, voe_render_device *device,
 
 	material.roughness = 0.25f;
 	material.shader = VOE_ASSETS_MATERIAL_UNLIT;
+	material.cutout = 0.7f;
+	material.emission_strength = 1.0f;
 	voe_3d_models_material_set(models, "Assets/brick.material", &material);
 	entry = voe_3d_models_find(models, "Assets/brick.material");
 	VOE_TEST_CHECK(entry != NULL);
@@ -93,6 +122,17 @@ static void check_set(voe_3d_models *models, voe_render_device *device,
 	VOE_TEST_CHECK_FLOAT(entry->parts[0].material.roughness, 0.25f,
 			     TOLERANCE);
 	VOE_TEST_CHECK(entry->parts[0].material.unlit);
+	// ---- cutout and emission live, the emission map kept
+	VOE_TEST_CHECK_INT(entry->parts[0].material.alpha_mode,
+			   VOE_RENDER_ALPHA_CUTOUT);
+	VOE_TEST_CHECK_FLOAT(entry->parts[0].material.alpha_cutoff, 0.7f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(entry->parts[0].material.emissive.x, 1.0f,
+			     TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(entry->parts[0].material.emissive.y, 0.5f,
+			     TOLERANCE);
+	VOE_TEST_CHECK(entry->parts[0].material.emissive_texture.index !=
+		       VOE_RENDER_NO_TEXTURE);
 
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	if (!drawing)
@@ -113,7 +153,7 @@ int main(void)
 				      0, 0, 255, 255, 255, 255, 255, 255 };
 	voe_assets_image image = { .width = 2, .height = 2, .pixels = pixels };
 	voe_platform_size size = { SIDE, SIDE };
-	voe_assets_material_file material = three_maps();
+	voe_assets_material_file material = four_maps();
 	voe_base_error error = VOE_BASE_OK;
 	const voe_3d_model_entry *entry;
 	voe_assets_bytes png = { 0 };
@@ -135,10 +175,10 @@ int main(void)
 	VOE_TEST_CHECK(voe_assets_png_encode(arena, image, &png, &error));
 	map = (voe_3d_material_map){ .bytes = png.bytes, .size = png.count };
 
-	// ---- three maps load as one live part
+	// ---- four maps load as one live part
 	VOE_TEST_CHECK(voe_3d_models_load_material(
 		models, device, "Assets/brick.material", 1, &material,
-		(voe_3d_material_maps){ map, map, map }, &error));
+		(voe_3d_material_maps){ map, map, map, map }, &error));
 	entry = voe_3d_models_find(models, "Assets/brick.material");
 	VOE_TEST_CHECK(entry != NULL);
 	if (entry != NULL)

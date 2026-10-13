@@ -45,10 +45,10 @@ static const voe_render_capacities CAPACITIES = {
 
 // Two metres ahead, facing the eye, counter-clockwise seen from +z.
 static const voe_render_vertex QUAD_VERTICES[4] = {
-	{ { -1.0f, -1.0f, -2.0f }, { 0, 0, 1 }, { 0, 0 } },
-	{ { 1.0f, -1.0f, -2.0f }, { 0, 0, 1 }, { 0, 0 } },
-	{ { 1.0f, 1.0f, -2.0f }, { 0, 0, 1 }, { 0, 0 } },
-	{ { -1.0f, 1.0f, -2.0f }, { 0, 0, 1 }, { 0, 0 } },
+	{ { -1.0f, -1.0f, -2.0f }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { 1.0f, -1.0f, -2.0f }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { 1.0f, 1.0f, -2.0f }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
+	{ { -1.0f, 1.0f, -2.0f }, { 0, 0, 1 }, { 0, 0 }, { 0 } },
 };
 
 static const uint32_t QUAD_INDICES[6] = { 0, 1, 2, 0, 2, 3 };

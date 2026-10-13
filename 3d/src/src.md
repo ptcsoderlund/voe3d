@@ -115,8 +115,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   nodes, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
-  or in table order, and the record a mesh is drawn with.
-- `draw_material.h` — the loaded material a shape's or model part's path names in the frame's
+  or in table order, the record a mesh is drawn with, and a double-sided mesh drawn between two
+  two-sided calls.
+- `draw_material.h` — the loaded material a shape's or model part's worn path names in the frame's
   store, for its record; internal.
 - `draw_material.c` — the empty path refused, then the store's linear find.
 - `draw_particles.h` — every live particle as one blended world draw, counted for the group's room
@@ -139,13 +140,13 @@ here is included from outside the folder — `include/3d/` is the whole public s
   one default shared by the primitives naming none.
 - `import.c` — the model's upload, its geometry and the tree walk that turns a read model
   into one entity per drawn primitive.
-- `model_bake.h` — a read model's nodes baked into its vertices and its primitives merged
-  into one part per material; internal.
+- `model_bake.h` — a read model's nodes baked into its vertices, its vertex colours carried, and
+  its primitives merged into one part per material; internal.
 - `model_bake.c` — the walk into a list of placed primitives, each part's room counted
-  from it, the fill, and the mirrored node's turned triangles.
+  from it, the fill with each colour's complement, and the mirrored node's turned triangles.
 - `models.c` — the store's table of entries with an arena each, and the load that reads, bakes,
-  uploads with each part's blended twin and gives back what a failure made; pictures on the quad,
-  the dot and the water apart.
+  uploads with each part's blended twin and glTF source and gives back what a failure made; the
+  parts set; pictures on the quad, the dot and the water apart.
 - `models_store.h` — the store's table, the shared landscape grid, each entry's held ids, a
   landscape's heights and paint textures, pyramid and two dirts among them, a material's write
   mark, the terrain lookup the draw files ask, and the helpers models.c lends the other store
@@ -153,8 +154,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models_landscape.c` — a landscape's grid copied with its layers and paint, uploaded as heights,
   paint and a pyramid on the shared grid; brushes and puts growing its dirt, which the frame
   writes a budget at a time.
-- `models_material.c` — a `.material`'s maps decoded and uploaded mipped with its record and
-  twin as one part with no geometry, the set marking it and the frame rewriting both records.
+- `models_material.c` — a `.material`'s four maps decoded and uploaded mipped with its record,
+  cutout, emission and sides and its twin as one part with no geometry, the set marking it and the
+  frame rewriting both records.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow

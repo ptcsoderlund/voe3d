@@ -56,12 +56,14 @@
 // never saved, never undone, and kept by a new project. `assets`, the Assets
 // panel's state, is here so the dock reaches it (assets_panel.h). AN OPEN
 // MATERIAL (0399 point 8) is `material_open` and its shown copy `material`:
-// a live selection closes it, a move follows it and a trash closes it.
+// a live selection closes it, a move follows it and a trash closes it; a
+// materials read again (an import, an Assets command) refreshes it from its row.
 #pragma once
 
 #include "assets_panel.h"
 #include "inspector.h"
 #include "inspector_material.h"
+#include "materials.h"
 #include "sculpt.h"
 
 #include <ecs/world.h>
@@ -81,14 +83,16 @@
 #define VOE_EDITOR_SCENE_ROWS VOE_GAME_WORLD_AUTHORED
 
 // What the colour picker edits while it is open. Zeroed is a closed picker.
-// `material` set, it edits the open material's `material.colour` and the
-// entity, type and offset are unused.
+// `material` set, it edits the open material's three floats `offset` bytes
+// from the start of voe_assets_material_file (`colour` or `emission`), and
+// the entity and type are unused.
 typedef struct {
 	bool open;
 	bool material;
 	voe_ecs_entity entity;
 	voe_ecs_type type;
-	// Bytes from the start of the row to the colour's three floats.
+	// Bytes from the start of the row, or of the material file, to the
+	// colour's three floats.
 	size_t offset;
 	// Where the Inspector column's content began on the surface when the
 	// swatch fired, in millimetres from the left: the picker is anchored to
@@ -177,8 +181,8 @@ typedef struct voe_editor_scene {
 	// outlives the frame the Inspector's swatch fired in and the
 	// Inspector's own struct forgets its controls every frame. It names an
 	// entity, a component type and the colour's offset in the row, never a
-	// component — or, with `material` set, the open material's colour,
-	// opened by its section's swatch (inspector_material.h). It is opened by
+	// component — or, with `material` set, the open material's colour or
+	// emission, opened by its section's swatch (inspector_material.h). It is opened by
 	// the Inspector (inspector.h) and closed by interface.c on a press
 	// outside the picker, by main.c on Escape, and here, on the next ask,
 	// when its entity is gone, no longer selected or without the row, or,
@@ -249,6 +253,13 @@ void voe_editor_scene_select(voe_editor_scene *scene, voe_ecs_entity entity);
 // path too long for `material_open`.
 void voe_editor_scene_material_follow(voe_editor_scene *scene,
 				      const char *from, const char *to);
+
+// After `materials` was read again: the open material takes its row's values
+// as both `material` and `material_before`, so a file rewritten under it (a
+// re-import) is not taken for an Inspector edit and written back; closed when
+// its row is gone. Nothing with none open.
+void voe_editor_scene_material_refresh(voe_editor_scene *scene,
+				       voe_editor_materials *materials);
 
 // Whether this is the selected entity. False for a zeroed `entity` and false
 // for one that is not alive, so a caller comparing table rows needs no checks of

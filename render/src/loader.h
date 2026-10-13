@@ -165,6 +165,7 @@ typedef struct {
 	PFN_vkCmdBindPipeline cmd_bind_pipeline;
 	PFN_vkCmdSetViewport cmd_set_viewport;
 	PFN_vkCmdSetScissor cmd_set_scissor;
+	PFN_vkCmdSetCullMode cmd_set_cull_mode;
 	PFN_vkCmdDraw cmd_draw;
 	PFN_vkCreateSemaphore create_semaphore;
 	PFN_vkDestroySemaphore destroy_semaphore;

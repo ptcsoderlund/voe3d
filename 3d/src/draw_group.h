@@ -15,6 +15,11 @@
 // why the blended ones are sorted furthest first, is draw_system.h's — its
 // TWO PASSES and TWO LAYERS paragraphs — and is not repeated here.
 //
+// A DOUBLE-SIDED MESH IS DRAWN BETWEEN TWO CALLS (0421 point 2):
+// voe_render_frame_two_sided true before it and false after, so every other
+// draw stays one-sided. An entry carries the flag from its worn material, and
+// _mesh_draw is the one place either draw of a mesh is issued.
+//
 // A group's arrays are the caller's arena's, pushed once by _new and given back
 // by the caller's rewind; nothing here frees.
 #pragma once
@@ -51,6 +56,8 @@ struct voe_3d_deferred {
 		struct {
 			voe_render_geometry geometry;
 			voe_render_object object;
+			// Its worn material's `double_sided`.
+			bool two_sided;
 		} mesh;
 		struct {
 			// Element millimetres all the way to clip space:
@@ -91,6 +98,14 @@ void voe_3d_draw_group_hold(struct voe_3d_draw_group *group,
 			    voe_math_float4x4 world, voe_math_float4x4 view);
 bool voe_3d_draw_group_draw(voe_render_device *device,
 			    const struct voe_3d_draw_group *group);
+bool voe_3d_draw_group_mesh_draw(voe_render_device *device,
+				 const struct voe_3d_deferred *entry,
+				 bool blended);
+
+struct voe_3d_deferred voe_3d_draw_group_mesh_of(
+	voe_render_geometry geometry, const voe_scene_transform *transform,
+	const voe_3d_material *material, const voe_3d_shape *shape,
+	const voe_3d_models *models, voe_math_double3 eye);
 
 voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transform,
 					      const voe_3d_material *material,
@@ -98,7 +113,6 @@ voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transfo
 					      const voe_3d_models *models,
 					      voe_math_double3 eye);
 voe_3d_model_part voe_3d_draw_group_part_worn(const voe_3d_models *models,
-					      const voe_3d_model *row,
 					      const voe_3d_model_entry *model,
 					      uint32_t part);
 bool voe_3d_draw_group_shape_type(const voe_ecs_world *world,

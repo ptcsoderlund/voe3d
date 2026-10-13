@@ -1,16 +1,17 @@
-// The material loader of game/include/game/models.h: a table entry's maps
-// joined onto the folder, read into scratch and handed to the store with the
-// values; every material path a shape or model row names, then every layer of
-// a loaded landscape entry, that the store lacks looked up in the table,
-// loaded or kept failed, each failure one line on stderr and counted. Scratch
-// is rewound after each material.
+// The material loader of game/include/game/models.h: every loaded model entry
+// given its parts from the parts table; a table entry's four maps joined onto
+// the folder, read into scratch and handed to the store with the values; every
+// material path a shape names, then every model part's `wears` and loaded
+// landscape's layer, that the store lacks looked up in the table, loaded or
+// kept failed, each failure one line on stderr and counted. Scratch is rewound
+// after each material.
 //
-// Constraints: a path is found in the table by comparing it with every entry,
-// a scan per unread path, once each since a failure is kept; a sorted table
-// would lift it.
+// Constraints: a path is found in a table by comparing it with every entry: a
+// scan per unread material path, once each since a failure is kept, and a scan
+// of the parts table per model entry per call, each frame in the game. Sorted
+// tables would lift it.
 #include <game/models.h>
 
-#include <3d/model_component.h>
 #include <3d/shape_component.h>
 
 #include <base/assert.h>
@@ -61,7 +62,9 @@ bool voe_game_models_material_load(voe_3d_models *models,
 			  error) &&
 		 read_map(folder, values->normalmap, scratch, &maps.normal,
 			  error) &&
-		 read_map(folder, values->ormmap, scratch, &maps.orm, error);
+		 read_map(folder, values->ormmap, scratch, &maps.orm, error) &&
+		 read_map(folder, values->emissionmap, scratch, &maps.emission,
+			  error);
 	if (!loaded)
 		voe_3d_models_fail(models, material->path, stamp);
 	else
@@ -72,17 +75,51 @@ bool voe_game_models_material_load(voe_3d_models *models,
 	return loaded;
 }
 
-// The world's `index`th material path: the shapes', then each model row's
-// VOE_3D_MODEL_MATERIALS in turn.
-static const char *path_at(const voe_ecs_world *world, uint32_t index)
+// How many material paths `entry` names: its parts' `wears`, then a loaded
+// landscape's layers; none when it failed.
+static uint32_t entry_paths(const voe_3d_model_entry *entry)
 {
-	uint32_t shapes = voe_3d_shape_count(world);
+	VOE_BASE_ASSERT(entry != NULL, "no entry");
+	if (!entry->loaded)
+		return 0;
+	return entry->part_count +
+	       (entry->landscape != NULL ? entry->landscape->layer_count : 0);
+}
 
-	if (index < shapes)
-		return voe_3d_shape_rows(world)[index].material;
-	index -= shapes;
-	return voe_3d_model_rows(world)[index / VOE_3D_MODEL_MATERIALS]
-		.materials[index % VOE_3D_MODEL_MATERIALS];
+// `entry`'s `index`th material path, below entry_paths.
+static const char *entry_path_at(const voe_3d_model_entry *entry,
+				 uint32_t index)
+{
+	VOE_BASE_ASSERT(index < entry_paths(entry), "a path past the entry's");
+	if (index < entry->part_count)
+		return entry->parts[index].wears;
+	return entry->landscape->layers[index - entry->part_count];
+}
+
+// `path`'s parts in `parts`, NULL when it has none.
+static const voe_assets_parts *find_parts(const voe_game_parts *parts,
+					  const char *path)
+{
+	VOE_BASE_ASSERT(parts != NULL && path != NULL, "no parts or path");
+	for (uint32_t i = 0; i < parts->count; i++)
+		if (strcmp(parts->models[i].path, path) == 0)
+			return &parts->models[i].parts;
+	return NULL;
+}
+
+// Every loaded model entry, no picture, landscape or material, takes its
+// parts from `parts`, none when the table lacks its path.
+static void parts_give(voe_3d_models *models, const voe_game_parts *parts)
+{
+	VOE_BASE_ASSERT(models != NULL && parts != NULL, "no store or parts");
+	for (uint32_t i = 0; i < voe_3d_models_count(models); i++) {
+		const voe_3d_model_entry *entry = voe_3d_models_at(models, i);
+
+		if (entry->loaded && !entry->picture && !entry->material &&
+		    entry->landscape == NULL)
+			voe_3d_models_parts_set(models, entry->path,
+						find_parts(parts, entry->path));
+	}
 }
 
 // `path`'s entry in `table`, NULL when it has none.
@@ -140,30 +177,30 @@ voe_game_models_failures
 voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 			  voe_render_device *device, const char *folder,
 			  const voe_game_materials *table,
-			  voe_base_arena *scratch)
+			  const voe_game_parts *parts, voe_base_arena *scratch)
 {
-	uint32_t paths = voe_3d_shape_count(world) +
-			 voe_3d_model_count(world) * VOE_3D_MODEL_MATERIALS;
+	uint32_t shapes = voe_3d_shape_count(world);
 	voe_game_models_failures failures = { 0 };
 	bool room = true;
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
-	VOE_BASE_ASSERT(folder != NULL && table != NULL && scratch != NULL,
-			"no folder, table or scratch");
-	for (uint32_t i = 0; room && i < paths; i++)
+	VOE_BASE_ASSERT(folder != NULL && table != NULL && parts != NULL &&
+				scratch != NULL,
+			"no folder, table, parts or scratch");
+	parts_give(models, parts);
+	for (uint32_t i = 0; room && i < shapes; i++)
 		room = load_missing(models, device, folder, table,
-				    path_at(world, i), scratch, &failures);
-	// The landscapes' layers; an entry's index is stable as the store grows.
+				    voe_3d_shape_rows(world)[i].material,
+				    scratch, &failures);
+	// The parts' and landscapes' paths; an entry's index is stable as the
+	// store grows, and only a new material entry, naming none, is added.
 	for (uint32_t i = 0; room && i < voe_3d_models_count(models); i++) {
-		const voe_3d_model_entry *entry = voe_3d_models_at(models, i);
-		uint32_t layers = entry->loaded && entry->landscape != NULL ?
-					  entry->landscape->layer_count :
-					  0;
+		uint32_t named = entry_paths(voe_3d_models_at(models, i));
 
-		for (uint32_t k = 0; room && k < layers; k++)
+		for (uint32_t k = 0; room && k < named; k++)
 			room = load_missing(
 				models, device, folder, table,
-				voe_3d_models_at(models, i)->landscape->layers[k],
+				entry_path_at(voe_3d_models_at(models, i), k),
 				scratch, &failures);
 	}
 	return failures;

@@ -1,8 +1,9 @@
 // The model store: the hand-built `.glb` of model_data.inc loaded by path, bytes
 // that are no model kept as a failed entry, a file that could not be read kept
 // the same way, a path never asked for not there, a path loaded again replacing
-// itself, a clear, each part's blended twin, pictures, the soft dot and the
-// water, and a model drawn.
+// itself, a clear, each part's blended twin, each part's glTF `source` and the
+// `wears` _parts_set fills, empties and a reload clears, pictures, the soft dot
+// and the water, and a model drawn.
 //
 // THE DEVICE HOLDS THREE COPIES OF THE MODEL: 6 vertices, 6 indices, 2
 // geometries and 4 shading records each, two parts' own and their two blended
@@ -48,6 +49,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "model_data.inc"
 
@@ -281,6 +283,80 @@ static void check_baked(voe_base_arena *arena, const voe_3d_model_entry *entry)
 	VOE_TEST_CHECK(entry->shape.edge_count > 0);
 }
 
+// Whether some part of `entry` was merged from glTF material `material`.
+static bool has_source(const voe_3d_model_entry *entry, uint32_t material)
+{
+	for (uint32_t p = 0; p < entry->part_count; p++)
+		if (entry->parts[p].source == material)
+			return true;
+	return false;
+}
+
+// Each part's `source` is a glTF material a primitive names, each one some
+// part's, no two parts alike; every `wears` is empty after a load.
+static void check_sources(voe_base_arena *arena,
+			  const voe_3d_model_entry *entry)
+{
+	voe_base_error error = VOE_BASE_OK;
+	voe_assets_model model;
+
+	VOE_TEST_CHECK(voe_assets_model_read_glb(TWO_PRIMITIVES_GLB,
+						 sizeof(TWO_PRIMITIVES_GLB),
+						 arena, &model, &error));
+	for (uint32_t p = 0; p < model.primitive_count; p++)
+		VOE_TEST_CHECK(has_source(entry, model.primitives[p].material));
+	for (uint32_t p = 0; p < entry->part_count; p++) {
+		VOE_TEST_CHECK(entry->parts[p].source < model.material_count);
+		VOE_TEST_CHECK(entry->parts[p].wears[0] == '\0');
+		for (uint32_t q = 0; q < p; q++)
+			VOE_TEST_CHECK(entry->parts[q].source !=
+				       entry->parts[p].source);
+	}
+}
+
+// _parts_set gives each part its glTF material's path, "" past `count`; NULL
+// empties every one; a path that is no loaded model is left alone; and a
+// reload of the model empties them again.
+static void check_parts_set(voe_3d_models *models, voe_render_device *device,
+			    const char *path)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, path);
+	voe_assets_parts parts = { .count = 1 };
+
+	VOE_TEST_CHECK(entry != NULL && entry->part_count == 2);
+	if (entry == NULL || entry->part_count != 2)
+		return;
+	snprintf(parts.materials[0], sizeof parts.materials[0], "%s",
+		 "Assets/zero.material");
+	snprintf(parts.materials[1], sizeof parts.materials[1], "%s",
+		 "Assets/one.material");
+	voe_3d_models_parts_set(models, path, &parts);
+	for (uint32_t p = 0; p < 2; p++)
+		VOE_TEST_CHECK(strcmp(entry->parts[p].wears,
+				      entry->parts[p].source == 0 ?
+					      "Assets/zero.material" :
+					      "") == 0);
+
+	parts.count = 2;
+	voe_3d_models_parts_set(models, path, &parts);
+	for (uint32_t p = 0; p < 2; p++)
+		VOE_TEST_CHECK(strcmp(entry->parts[p].wears,
+				      parts.materials[entry->parts[p].source]) ==
+			       0);
+
+	voe_3d_models_parts_set(models, "Assets/never.glb", &parts);
+	VOE_TEST_CHECK(voe_3d_models_find(models, "Assets/never.glb") == NULL);
+
+	voe_3d_models_parts_set(models, path, NULL);
+	for (uint32_t p = 0; p < 2; p++)
+		VOE_TEST_CHECK(entry->parts[p].wears[0] == '\0');
+
+	voe_3d_models_parts_set(models, path, &parts);
+	VOE_TEST_CHECK(load(models, device, path, entry->stamp, true));
+	for (uint32_t p = 0; p < entry->part_count; p++)
+		VOE_TEST_CHECK(entry->parts[p].wears[0] == '\0');
+}
+
 // A camera at the origin and one thing wearing `path`, set in the header.
 static voe_ecs_world *a_world(voe_base_arena *arena, const char *path,
 			      voe_ecs_entity *thing)
@@ -419,6 +495,8 @@ int main(void)
 		VOE_TEST_CHECK_INT(entry->stamp, 7);
 		check_baked(arena, entry);
 		check_twins(entry);
+		check_sources(arena, entry);
+		check_parts_set(models, device, "Assets/two.glb");
 	}
 
 	// ---- bytes that are no model: false, MALFORMED, a failed entry

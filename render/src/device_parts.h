@@ -73,9 +73,9 @@
 // of sixteen.
 //
 // `sky_harmonics` ARE THE BACKDROP ONLY (ADR-0412 point 4): sky.h's nine
-// cosine-convolved harmonics of the sky's backdrop, no glow and no disc, filled
-// by pass_sky.c when the sky is `drawn`, zero otherwise; only a rough metal's
-// reflection reads them.
+// cosine-convolved harmonics of the sky's backdrop at strength 1 (ADR-0424
+// point 4), no glow and no disc, filled by pass_sky.c when the sky is `drawn`,
+// zero otherwise; only a rough metal's reflection reads them.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;
