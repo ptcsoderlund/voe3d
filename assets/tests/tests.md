@@ -28,10 +28,10 @@ belongs to.
   refusal with its category.
 - `material.c` — an empty section read as the defaults, a full file
   round-tripped field for field, and each bad value refused MALFORMED.
-- `model.c` — a hand-built `.glb` in and its arrays out, the two textures
-  over one picture that the deduplication depends on, COLOR_0 as normalized
-  bytes, as three floats with alpha 1, absent as NULL and as signed bytes
-  refused, and one byte of a working file changed at a time.
+- `model.c` — a hand-built `.glb` in and its arrays out, two textures over
+  one picture, COLOR_0 in each stored form, material and image names, sides,
+  unlit, emission strength and repeat read or defaulted, a long name cut at a
+  character, and one byte of a working file changed at a time.
 - `model_data.inc` — those files, as bytes.
 - `jpeg.c` — greyscale, 4:4:4 and 4:2:0 round-tripped against the pixels
   that went in, plus the same three failures and the progressive refusal. Its

@@ -449,17 +449,17 @@ static bool check_version(struct gltf *gltf)
 // An extension the file says it cannot be read without. Ignoring one produces a
 // model that is quietly wrong — a compressed mesh read as though it were not, a
 // texture that is not where it says — so it is refused, and the message names
-// which one so that the answer is "this file needs X" rather than "no".
+// which one so that the answer is "this file needs X" rather than "no". The
+// three model_gltf_materials.c reads pass.
 static bool check_extensions(struct gltf *gltf)
 {
 	uint32_t required;
 	uint32_t count;
+	bool refused = false;
 
 	if (!voe_assets_gltf_array_member(gltf, 0, "extensionsRequired",
 					  &required, &count))
 		return false;
-	if (count == 0)
-		return true;
 
 	for (uint32_t i = 0; i < count; i++) {
 		uint32_t name = voe_assets_json_element(gltf->json, required, i);
@@ -470,16 +470,24 @@ static bool check_extensions(struct gltf *gltf)
 			    VOE_ASSETS_JSON_STRING)
 			return voe_assets_gltf_malformed(
 				gltf, "a required extension that is not a string");
+		if (voe_assets_json_is(gltf->json, name, "KHR_materials_unlit") ||
+		    voe_assets_json_is(gltf->json, name,
+				       "KHR_materials_emissive_strength") ||
+		    voe_assets_json_is(gltf->json, name,
+				       "KHR_texture_transform"))
+			continue;
 
 		token = &gltf->json->tokens[name];
 		VOE_BASE_ERROR("assets",
 			       "glTF: this file requires the extension %.*s, which this reader does not implement",
 			       (int)(token->end - token->start),
 			       gltf->json->text + token->start);
+		refused = true;
 	}
 
-	gltf->error = VOE_BASE_ERROR_UNSUPPORTED;
-	return false;
+	if (refused)
+		gltf->error = VOE_BASE_ERROR_UNSUPPORTED;
+	return !refused;
 }
 
 bool voe_assets_model_from_gltf(const voe_assets_json *json,

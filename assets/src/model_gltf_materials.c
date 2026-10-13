@@ -1,6 +1,8 @@
 // glTF's materials and images, read into the arrays in assets/model.h: texture
-// references, the alpha mode, the materials, then the images decoded. Called by
-// model_gltf.c through model_gltf_read.h; its header's rules hold here.
+// references, the alpha mode, names, the three material extensions read (unlit,
+// emissive strength, the colour texture's transform scale), the materials, then
+// the images named and decoded. Called by model_gltf.c through
+// model_gltf_read.h; its header's rules hold here.
 //
 // TEXTURES RESOLVE TO IMAGES HERE, WHICH IS WHERE DEDUPLICATION COMES FROM. glTF
 // puts a sampler and an image behind a texture and a material points at the
@@ -94,6 +96,129 @@ static bool read_texture_reference(struct gltf *gltf, uint32_t object,
 	return true;
 }
 
+// A glTF `name` into `out`: "" when absent, the raw span otherwise. One that does
+// not fit is cut back past any continuation byte, so it ends on a whole UTF-8
+// character (0247); the walk back is at most three bytes on valid text and at
+// most the name's length on anything else.
+static bool read_name(struct gltf *gltf, uint32_t object,
+		      voe_assets_model_name *out)
+{
+	uint32_t token = voe_assets_json_member(gltf->json, object, "name");
+	const voe_assets_json_token *text;
+	size_t length;
+
+	out->text[0] = '\0';
+	if (token == VOE_ASSETS_JSON_NONE)
+		return true;
+	if (voe_assets_json_kind_of(gltf->json, token) != VOE_ASSETS_JSON_STRING)
+		return voe_assets_gltf_malformed(gltf,
+						 "a name that is not a string");
+
+	text = &gltf->json->tokens[token];
+	length = text->end - text->start;
+	if (length >= VOE_ASSETS_MODEL_NAME) {
+		length = VOE_ASSETS_MODEL_NAME - 1;
+		while (length > 0 &&
+		       ((uint8_t)gltf->json->text[text->start + length] &
+			0xc0) == 0x80)
+			length--;
+	}
+	memcpy(out->text, gltf->json->text + text->start, length);
+	out->text[length] = '\0';
+	return true;
+}
+
+// glTF's `doubleSided`, false when absent.
+static bool read_double_sided(struct gltf *gltf, uint32_t material, bool *out)
+{
+	uint32_t token = voe_assets_json_member(gltf->json, material,
+						"doubleSided");
+	uint32_t kind;
+
+	*out = false;
+	if (token == VOE_ASSETS_JSON_NONE)
+		return true;
+	kind = voe_assets_json_kind_of(gltf->json, token);
+	if (kind != VOE_ASSETS_JSON_TRUE && kind != VOE_ASSETS_JSON_FALSE)
+		return voe_assets_gltf_malformed(
+			gltf, "a doubleSided that is neither true nor false");
+	*out = kind == VOE_ASSETS_JSON_TRUE;
+	return true;
+}
+
+// The object `name` under `object`'s `extensions` into `out`, or
+// VOE_ASSETS_JSON_NONE when either is absent. Either one present and not an
+// object is malformed.
+static bool read_extension(struct gltf *gltf, uint32_t object,
+			   const char *name, uint32_t *out)
+{
+	uint32_t extensions = voe_assets_json_member(gltf->json, object,
+						     "extensions");
+
+	*out = VOE_ASSETS_JSON_NONE;
+	if (extensions == VOE_ASSETS_JSON_NONE)
+		return true;
+	if (voe_assets_json_kind_of(gltf->json, extensions) !=
+	    VOE_ASSETS_JSON_OBJECT)
+		return voe_assets_gltf_malformed(
+			gltf, "an extensions property that is not an object");
+
+	*out = voe_assets_json_member(gltf->json, extensions, name);
+	if (*out != VOE_ASSETS_JSON_NONE &&
+	    voe_assets_json_kind_of(gltf->json, *out) != VOE_ASSETS_JSON_OBJECT) {
+		*out = VOE_ASSETS_JSON_NONE;
+		return voe_assets_gltf_malformed(
+			gltf, "an extension that is not an object");
+	}
+	return true;
+}
+
+// KHR_materials_unlit, which is its presence, and
+// KHR_materials_emissive_strength's `emissiveStrength`, 1 without it.
+static bool read_material_extensions(struct gltf *gltf, uint32_t material,
+				     voe_assets_material *out)
+{
+	uint32_t unlit;
+	uint32_t strength;
+
+	if (!read_extension(gltf, material, "KHR_materials_unlit", &unlit) ||
+	    !read_extension(gltf, material, "KHR_materials_emissive_strength",
+			    &strength))
+		return false;
+	out->unlit = unlit != VOE_ASSETS_JSON_NONE;
+	out->emissive_strength = 1.0f;
+	if (strength == VOE_ASSETS_JSON_NONE)
+		return true;
+	return voe_assets_gltf_float_member(gltf, strength, "emissiveStrength",
+					    1.0f, &out->emissive_strength);
+}
+
+// KHR_texture_transform's `scale` on the base colour texture, 1 1 without it.
+// Called after read_texture_reference has checked the reference is an object.
+static bool read_colour_scale(struct gltf *gltf, uint32_t pbr,
+			      voe_math_float2 *out)
+{
+	uint32_t texture = voe_assets_json_member(gltf->json, pbr,
+						  "baseColorTexture");
+	uint32_t transform;
+	float scale[2] = { 1.0f, 1.0f };
+	bool found;
+
+	*out = (voe_math_float2){ 1.0f, 1.0f };
+	if (texture == VOE_ASSETS_JSON_NONE)
+		return true;
+	if (!read_extension(gltf, texture, "KHR_texture_transform",
+			    &transform))
+		return false;
+	if (transform == VOE_ASSETS_JSON_NONE)
+		return true;
+	if (!voe_assets_gltf_floats_member(gltf, transform, "scale", 2, scale,
+					   &found))
+		return false;
+	*out = (voe_math_float2){ scale[0], scale[1] };
+	return true;
+}
+
 // glTF's `alphaMode`, which is a string and not a number, into the engine's
 // enum. Absent is OPAQUE, which is what the specification says a material that
 // omits it means.
@@ -176,6 +301,8 @@ bool voe_assets_gltf_read_materials(struct gltf *gltf, voe_assets_model *model)
 			.roughness = 1.0f,
 			.alpha_mode = VOE_ASSETS_ALPHA_OPAQUE,
 			.alpha_cutoff = 0.5f,
+			.emissive_strength = 1.0f,
+			.colour_scale = { 1.0f, 1.0f },
 			.base_colour_image = VOE_ASSETS_MODEL_NONE,
 			.metallic_roughness_image = VOE_ASSETS_MODEL_NONE,
 			.normal_image = VOE_ASSETS_MODEL_NONE,
@@ -205,7 +332,9 @@ bool voe_assets_gltf_read_materials(struct gltf *gltf, voe_assets_model *model)
 						    &materials[i].base_colour_image) ||
 			    !read_texture_reference(gltf, pbr,
 						    "metallicRoughnessTexture",
-						    &materials[i].metallic_roughness_image))
+						    &materials[i].metallic_roughness_image) ||
+			    !read_colour_scale(gltf, pbr,
+					       &materials[i].colour_scale))
 				return false;
 			materials[i].base_colour = (voe_math_float4){
 				base[0], base[1], base[2], base[3]
@@ -224,7 +353,11 @@ bool voe_assets_gltf_read_materials(struct gltf *gltf, voe_assets_model *model)
 		    !read_texture_reference(gltf, material, "occlusionTexture",
 					    &materials[i].occlusion_image) ||
 		    !read_texture_reference(gltf, material, "emissiveTexture",
-					    &materials[i].emissive_image))
+					    &materials[i].emissive_image) ||
+		    !read_name(gltf, material, &materials[i].name) ||
+		    !read_double_sided(gltf, material,
+				       &materials[i].double_sided) ||
+		    !read_material_extensions(gltf, material, &materials[i]))
 			return false;
 		materials[i].emissive = (voe_math_float3){ emissive[0],
 							   emissive[1],
@@ -256,17 +389,21 @@ static bool looks_like_jpeg(const uint8_t *bytes, size_t size)
 bool voe_assets_gltf_read_images(struct gltf *gltf, voe_assets_model *model)
 {
 	voe_assets_image *images;
+	voe_assets_model_name *names;
 	uint32_t count = gltf->images == VOE_ASSETS_JSON_NONE ?
 				 0 :
 				 voe_assets_json_count(gltf->json, gltf->images);
 
 	model->images = NULL;
+	model->image_names = NULL;
 	model->image_count = 0;
 	if (count == 0)
 		return true;
 
 	images = voe_base_arena_push(gltf->arena,
 				     (size_t)count * sizeof(*images));
+	names = voe_base_arena_push(gltf->arena,
+				    (size_t)count * sizeof(*names));
 
 	for (uint32_t i = 0; i < count; i++) {
 		uint32_t image = voe_assets_gltf_object_at(gltf, gltf->images, i);
@@ -284,6 +421,8 @@ bool voe_assets_gltf_read_images(struct gltf *gltf, voe_assets_model *model)
 		if (image == VOE_ASSETS_JSON_NONE)
 			return voe_assets_gltf_malformed(
 				gltf, "an image that is not an object");
+		if (!read_name(gltf, image, &names[i]))
+			return false;
 
 		// The same refusal a buffer with a URI gets, and the same
 		// reason: nothing here opens a file or decodes base64.
@@ -346,6 +485,7 @@ bool voe_assets_gltf_read_images(struct gltf *gltf, voe_assets_model *model)
 	}
 
 	model->images = images;
+	model->image_names = names;
 	model->image_count = count;
 	return true;
 }
