@@ -54,6 +54,7 @@ void voe_render_pass_place_sky(const voe_render_pass_camera *camera,
 				within(sky.haze, 0.0f, INFINITY) &&
 				within(sky.haze_start, 0.0f, INFINITY),
 			"a pass whose sky strength, haze or haze_start is not finite or below nought");
+	VOE_BASE_ASSERT(isfinite(sky.haze_top), "a pass whose sky haze_top is not finite");
 	VOE_BASE_ASSERT(within(exposure.exposure, -16.0f, 16.0f),
 			"a pass whose exposure is not finite or past ±16 stops");
 	VOE_BASE_ASSERT(exposure.tone <= VOE_RENDER_TONE_SOFT,

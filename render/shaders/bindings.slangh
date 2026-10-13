@@ -95,7 +95,8 @@ struct voe_render_frame_light {
 // (ADR-0412 point 1), the backdrop then each light's disc and glow size, light
 // i's at component i. C's `float disc_size[4]` and `glow_size[4]` are float4s
 // here, because a uniform block gives every element of a scalar array sixteen
-// bytes. sky.slangh reads it, haze and haze_start tone.slangh.
+// bytes. sky.slangh reads it, haze and haze_start tone.slangh; haze_top is
+// the haze layer's top in metres above the eye.
 struct voe_render_sky {
 	float3 zenith;
 	float horizon_height;
@@ -105,7 +106,7 @@ struct voe_render_sky {
 	float haze;
 	uint drawn;
 	float haze_start;
-	uint reserved1;
+	float haze_top;
 	uint reserved2;
 	float4 disc_size;
 	float4 glow_size;

@@ -1487,6 +1487,10 @@ typedef struct {
 // intensity / (4π) (ADR-0415 point 1). With no shown light far surfaces fade
 // towards black. 0 is none; plain draws take none.
 //
+// `haze_top`, any finite, is the haze layer's top in metres above the eye: the
+// Haze row's height − the eye's world y (ADR-0419 point 1), above the eye
+// because the GPU is eye-relative. With `haze` 0 none of it is read.
+//
 // THE SKY LIGHTS NOTHING (ADR-0411 point 1): lights alone light, the same with
 // a sky or without. With `drawn` the sky's reflection, sharp on a smooth
 // surface and the backdrop's irradiance on a rough one, occluded, shows on
@@ -1502,7 +1506,8 @@ typedef struct {
 	float haze;
 	uint32_t drawn;
 	float haze_start;
-	uint32_t reserved[2];
+	float haze_top;
+	uint32_t reserved[1];
 	float disc_size[VOE_RENDER_DIRECTIONAL_LIGHTS];
 	float glow_size[VOE_RENDER_DIRECTIONAL_LIGHTS];
 } voe_render_sky;
@@ -1582,8 +1587,8 @@ typedef struct {
 // and asserts. So is a camera whose `sky` or `exposure` holds a number not
 // finite or a sky field outside its range (voe_render_sky above): a colour,
 // `strength`, `haze` or `haze_start` below 0, a `horizon_height` or `glow_size` past 0 to 1,
-// a `disc_size` past 0 to 10 degrees; an `exposure` past ±16, or a `tone` past
-// VOE_RENDER_TONE_SOFT.
+// a `disc_size` past 0 to 10 degrees, a `haze_top` not finite; an `exposure`
+// past ±16, or a `tone` past VOE_RENDER_TONE_SOFT.
 //
 // THE CAMERA MAY BE NULL, BECAUSE NOT EVERY PASS LOOKS AT A WORLD. A pass that
 // draws only elements — an interface filling the window — has no eye and no sun,
