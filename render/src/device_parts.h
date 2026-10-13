@@ -69,13 +69,13 @@
 //
 // `sky` AND `exposure` ARE THE CAMERA'S voe_render_sky AND voe_render_exposure
 // (ADR-0407 point 1); zeroed in a pass with no camera and in the shadow,
-// point-shadow and capture passes. Their 64 and 16 bytes are already multiples
+// point-shadow and capture passes. Their 96 and 16 bytes are already multiples
 // of sixteen.
 //
-// `sky_harmonics` ARE THE SKY'S LIGHT (ADR-0405 point 5): sky.h's nine
-// cosine-convolved harmonics of the pass's sun, filled by pass_sky.c when the
-// sky is `drawn`, its `fill` above nought and the sun not `unshaded`, zero
-// otherwise.
+// `sky_harmonics` ARE THE BACKDROP ONLY (ADR-0412 point 4): sky.h's nine
+// cosine-convolved harmonics of the sky's backdrop, no glow and no disc, filled
+// by pass_sky.c when the sky is `drawn`, zero otherwise; only a rough metal's
+// reflection reads them.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;

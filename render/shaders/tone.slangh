@@ -3,8 +3,8 @@
 // distance; voe_render_expose then multiplies it by 2^exposure from the pass's
 // exposure record and puts it through its curve, Clip (as it is, the 8-bit
 // target clamping) or Soft (Khronos PBR Neutral). HAZE COMES BEFORE EXPOSURE
-// AND TONE: the haze is the sky's gradient at the horizon, no disc and no glow
-// (ADR-0409), exposed and toned with the surface it covers. A part (ADR-0308): included by draw.slang after
+// AND TONE: the haze is the sky's backdrop × strength at the horizon, no disc
+// and no glow (ADR-0412 point 2), exposed and toned with the surface it covers. A part (ADR-0308): included by draw.slang after
 // bindings.slangh, whose frame block and push constant it reads; includes
 // sky.slangh; never compiled alone.
 //
@@ -28,20 +28,17 @@ static const uint VOE_RENDER_TONE_CLIP = 0;
 static const uint VOE_RENDER_TONE_SOFT = 1;
 
 // The sky's gradient along `position`'s direction with its height clamped up
-// to the horizon, under the frame's light: its evening tint, no disc and no
-// glow (ADR-0409); the plain gradient for an `unshaded` or dark light. A view
-// straight down has no azimuth and takes +X's horizon.
+// to the horizon: the backdrop × strength, no disc and no glow, following no
+// light (ADR-0412 point 2). A view straight down has no azimuth and takes +X's
+// horizon.
 float3 voe_render_haze_colour(float3 position)
 {
-	voe_render_light light = voe_render_frame.light;
 	float3 view = position;
 
 	view.y = max(view.y, 0.0);
 	if (dot(view, view) < VOE_LEAST)
 		view = float3(1.0, 0.0, 0.0);
-	return voe_render_sky_gradient(voe_render_frame.sky, light.direction,
-				       voe_render_sky_sun(light),
-				       normalize(view));
+	return voe_render_sky_gradient(voe_render_frame.sky, normalize(view));
 }
 
 // colour × (1 − f) + sky × f, f = 1 − 2^(−|position|/haze), `position` the

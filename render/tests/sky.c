@@ -8,7 +8,7 @@
 //    (render/src/sky.h, the CPU twin) along their own directions, within 2/255;
 // 2. an unlit red quad drawn in the pass covers the sky at the centre;
 // 3. the sky zeroed reads pass.c's clear colour, the old picture;
-// 4. a sun of intensity 0 reads the plain gradient, the CPU's with no sun;
+// 4. a sun of intensity 0 reads the plain backdrop, the CPU's gradient;
 // 5. some frames later, `voe_render_frame_pass_times` lists the target's pass
 //    then `<pass>: sky`. A card that writes no timestamps skips this part.
 //
@@ -50,11 +50,11 @@ static const voe_render_sky DRAWN = {
 	.zenith = { 0.15f, 0.35f, 0.80f },
 	.horizon_height = 0.25f,
 	.horizon = { 0.60f, 0.75f, 0.90f },
-	.sun_size = 1.5f,
+	.strength = 1.0f,
 	.ground = { 0.20f, 0.18f, 0.16f },
-	.sun_glow = 0.5f,
 	.drawn = 1,
-	.sunset = 0.5f,
+	.disc_size = { 1.5f },
+	.glow_size = { 0.5f },
 };
 
 static const voe_render_capacities CAPACITIES = {
@@ -199,8 +199,7 @@ static void check_sky(const uint8_t *pixels, voe_render_light light)
 
 	for (int i = 0; i < 2; i++)
 		check_pixel(pixels, SIDE / 2, rows[i],
-			    voe_render_sky_radiance(&DRAWN, light.direction,
-						    voe_render_sky_sun(light),
+			    voe_render_sky_radiance(&DRAWN, &light, 1,
 						    direction_of(SIDE / 2,
 								 rows[i])),
 			    TOLERANCE);
@@ -226,16 +225,12 @@ static void check_pictures(struct scene *scene)
 					       CLEAR_BLUE },
 			    1);
 	pixels = picture_of(scene, dark, DRAWN, false);
-	if (pixels != NULL) {
-		const voe_math_float3 nought = { 0.0f, 0.0f, 0.0f };
-
+	if (pixels != NULL)
 		check_pixel(pixels, SIDE / 2, SIDE / 2,
-			    voe_render_sky_radiance(&DRAWN, dark.direction,
-						    nought,
+			    voe_render_sky_gradient(&DRAWN,
 						    direction_of(SIDE / 2,
 								 SIDE / 2)),
 			    TOLERANCE);
-	}
 }
 
 static void check_breakdown(struct scene *scene)

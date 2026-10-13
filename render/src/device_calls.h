@@ -199,7 +199,7 @@ voe_render_target_at(voe_render_device *device, voe_render_target target);
 VkViewport voe_render_frame_viewport(VkExtent2D extent);
 
 // pass_sky.c. A camera pass's sky into its block, checked, then the nine
-// harmonics of its sun's light when its sky lights; voe_render_pass_begin calls
+// harmonics of its backdrop when its sky is drawn; voe_render_pass_begin calls
 // both, in that order, after the block's lights.
 void voe_render_pass_place_sky(const voe_render_pass_camera *camera,
 			       struct voe_render_frame_block *block);

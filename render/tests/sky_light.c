@@ -5,8 +5,8 @@
 // (0.5, 0, 0):
 //
 // 1. a grey lit cube 3 m ahead, its +Z face read at the centre, the sun 50° up
-//    behind it and then 2° up on its side: byte for byte the same with the sky
-//    drawn and zeroed, at fill nought and at the red fill;
+//    behind it: byte for byte the same with the sky drawn and zeroed, at fill
+//    nought and at the red fill;
 // 2. that face reads the same bytes whatever the sky's zenith, blue or red;
 // 3. a smooth white metal quad tilted 30° up to the camera reads the sRGB of
 //    voe_render_sky_radiance (render/src/sky.h) along the reflected view times
@@ -134,16 +134,16 @@ static voe_render_view the_camera(void)
 	return view;
 }
 
-// ADR-0406 point 1's sky, drawn, at sunset 1 and haze 0.
+// ADR-0406 point 1's sky, drawn, at haze 0.
 static const voe_render_sky SKY = {
 	.zenith = { 0.15f, 0.35f, 0.80f },
 	.horizon_height = 0.25f,
 	.horizon = { 0.60f, 0.75f, 0.90f },
-	.sun_size = 1.5f,
+	.strength = 1.0f,
 	.ground = { 0.20f, 0.18f, 0.16f },
-	.sun_glow = 0.5f,
 	.drawn = 1,
-	.sunset = 1.0f,
+	.disc_size = { 1.5f },
+	.glow_size = { 0.5f },
 };
 
 static const voe_render_sky ZEROED = { 0 };
@@ -289,15 +289,13 @@ static void check_mirror(struct scene *scene, voe_render_light noon)
 	const voe_math_float3 d = centre_direction();
 	const voe_math_float3 r = voe_math_float3_sub(
 		d, voe_math_float3_scale(n, 2.0f * voe_math_float3_dot(d, n)));
-	const voe_math_float3 sun = voe_render_sky_sun(noon);
-	const voe_math_float3 sky =
-		voe_render_sky_radiance(&SKY, noon.direction, sun, r);
+	const voe_math_float3 sky = voe_render_sky_radiance(&SKY, &noon, 1, r);
 	const float n_dot_v = -voe_math_float3_dot(n, d);
 	voe_math_float4 harmonics[9];
 	voe_math_float3 blurred;
 	uint8_t pixel[3];
 
-	voe_render_sky_harmonics(&SKY, noon.direction, sun, harmonics);
+	voe_render_sky_harmonics(&SKY, harmonics);
 	blurred = voe_math_float3_scale(voe_render_sky_irradiance(harmonics, r),
 					1.0f / PI);
 	if (picture_of(scene, scene->quad, scene->smooth, 0.0f, noon, SKY, NONE,
@@ -392,7 +390,7 @@ int main(void)
 	const voe_render_light noon =
 		the_sun((voe_math_float3){ 0.0f, -0.76604444f, 0.64278761f });
 	// 2° up in front of the cube, on the +Z face's side.
-	const voe_render_light evening =
+	const voe_render_light low =
 		the_sun((voe_math_float3){ 0.0f, -0.0348995f, -0.9993908f });
 
 	scene.device = voe_render_device_new_headless(scene.arena, size,
@@ -408,10 +406,9 @@ int main(void)
 	}
 	if (build(&scene)) {
 		check_cube(&scene, noon);
-		check_cube(&scene, evening);
 		check_mirror(&scene, noon);
 		check_same(&scene, "non-metal quad, sky drawn", scene.quad,
-			   scene.plain, 0.0f, evening, SKY, ZEROED, NONE);
+			   scene.plain, 0.0f, low, SKY, ZEROED, NONE);
 		check_indoors(&scene, noon);
 	}
 	voe_render_device_destroy(scene.device);

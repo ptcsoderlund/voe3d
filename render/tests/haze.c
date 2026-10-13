@@ -13,7 +13,7 @@
 // 5. a blended black quad of alpha 0.5 at 2000 m over the drawn sky: half its
 //    hazed colour plus half the sky along the pixel, within 3/255;
 // 6. the sun 0.5° up ahead, its disc reaching the horizon, at 2000 m: as case
-//    1 under it, no disc and no glow (ADR-0409); at sunset 0 no channel above
+//    1 under it, no disc and no glow (ADR-0412 point 2); no channel above
 //    the same quad's with the sun 90° round to the side, plus 3/255.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO. The skip is a pass and it
@@ -112,10 +112,10 @@ static const voe_render_sky SKY = {
 	.zenith = { 0.15f, 0.35f, 0.80f },
 	.horizon_height = 0.25f,
 	.horizon = { 0.60f, 0.75f, 0.90f },
-	.sun_size = 1.5f,
+	.strength = 1.0f,
 	.ground = { 0.20f, 0.18f, 0.16f },
-	.sun_glow = 0.5f,
-	.sunset = 0.5f,
+	.disc_size = { 1.5f },
+	.glow_size = { 0.5f },
 };
 
 // One frame of one case onto the target.
@@ -197,22 +197,17 @@ static voe_math_float3 centre_direction(void)
 
 static voe_math_float3 radiance_along(voe_math_float3 view)
 {
-	return voe_render_sky_radiance(&SKY, SUN.direction,
-				       voe_render_sky_sun(SUN), view);
+	return voe_render_sky_radiance(&SKY, &SUN, 1, view);
 }
 
-// The haze's colour at the centre under `light` and `sky`: the sky's gradient
-// along it, its height clamped up to the horizon, as tone.slangh's
-// voe_render_haze_colour.
-static voe_math_float3 horizon_gradient(const voe_render_light *light,
-					const voe_render_sky *sky)
+// The haze's colour at the centre under `sky`: its backdrop along it, its
+// height clamped up to the horizon, as tone.slangh's voe_render_haze_colour.
+static voe_math_float3 horizon_gradient(const voe_render_sky *sky)
 {
 	voe_math_float3 view = centre_direction();
 
 	view.y = fmaxf(view.y, 0.0f);
-	return voe_render_sky_gradient(sky, light->direction,
-				       voe_render_sky_sun(*light),
-				       voe_math_float3_normalize(view));
+	return voe_render_sky_gradient(sky, voe_math_float3_normalize(view));
 }
 
 static void check_pixel(const char *name, const uint8_t *pixel,
@@ -238,7 +233,7 @@ static void check_pictures(struct scene *scene)
 					 NULL, NULL };
 	const struct haze_case blended = { FAR_QUAD, HAZE, true, true, false,
 					   NULL, NULL };
-	const voe_math_float3 horizon = horizon_gradient(&SUN, &SKY);
+	const voe_math_float3 horizon = horizon_gradient(&SKY);
 	const voe_math_float3 hazed = voe_math_float3_scale(horizon, 0.75f);
 	const voe_math_float3 black = { 0.0f, 0.0f, 0.0f };
 	const uint8_t *pixel;
@@ -270,8 +265,7 @@ static void check_pictures(struct scene *scene)
 }
 
 // The sun 0.5° up ahead, its disc reaching the horizon: the far quad takes the
-// gradient alone. Sunset 0 for the side-by-side, so the evening's warmer
-// horizon on the sun's side is not read as the sun.
+// gradient alone, and no brighter than with the sun to the side.
 static void check_low_sun(struct scene *scene)
 {
 	const float e = 0.5f * (3.14159265f / 180.0f);
@@ -279,25 +273,21 @@ static void check_low_sun(struct scene *scene)
 					 .intensity = 1.0f,
 					 .colour = { 1.0f, 1.0f, 1.0f } };
 	voe_render_light side = ahead;
-	voe_render_sky still = SKY;
 	const struct haze_case low = { FAR_QUAD, HAZE, false, false, false,
 				       &ahead, NULL };
-	const struct haze_case low_still = { FAR_QUAD, HAZE, false, false, false,
-					     &ahead, &still };
-	const struct haze_case side_still = { FAR_QUAD, HAZE, false, false,
-					      false, &side, &still };
+	const struct haze_case to_side = { FAR_QUAD, HAZE, false, false, false,
+					   &side, NULL };
 	const uint8_t *pixel;
 	const uint8_t *beside;
 
 	side.direction = (voe_math_float3){ -cosf(e), -sinf(e), 0.0f };
-	still.sunset = 0.0f;
 	if ((pixel = centre_of(scene, &low)) != NULL)
 		check_pixel("low sun ahead", pixel,
-			    voe_math_float3_scale(horizon_gradient(&ahead, &SKY),
+			    voe_math_float3_scale(horizon_gradient(&SKY),
 						  0.75f),
 			    TOLERANCE);
-	pixel = centre_of(scene, &low_still);
-	beside = centre_of(scene, &side_still);
+	pixel = centre_of(scene, &low);
+	beside = centre_of(scene, &to_side);
 	if (pixel == NULL || beside == NULL)
 		return;
 	printf("low sun ahead %d %d %d, to the side %d %d %d\n", pixel[0],

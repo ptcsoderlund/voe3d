@@ -686,20 +686,16 @@ voe_render_sky_out voe_render_sky_vertex(uint index : SV_VertexID)
 	return out;
 }
 
-// THE SKY'S FRAGMENT: the radiance along the direction under the pass's sun,
-// exposed and tone mapped as every mesh exit is; the plain gradient for an
-// `unshaded` or dark light. Opaque: everything later draws over it.
+// THE SKY'S FRAGMENT: the radiance along the direction, the backdrop with the
+// pass's shown lights' glows and discs, exposed and tone mapped as every mesh
+// exit is. Opaque: everything later draws over it.
 [shader("fragment")]
 float4 voe_render_sky_fragment(voe_render_sky_out vertex) : SV_Target
 {
-	voe_render_light light = voe_render_frame.light;
 	float3 view = vertex.direction;
 
 	if (dot(view, view) < VOE_LEAST)
 		view = float3(0.0, 1.0, 0.0);
-	float3 radiance = voe_render_sky_radiance(voe_render_frame.sky,
-						  light.direction,
-						  voe_render_sky_sun(light),
-						  normalize(view));
+	float3 radiance = voe_render_sky_radiance(normalize(view));
 	return voe_render_premultiplied(voe_render_expose(radiance), 1.0);
 }

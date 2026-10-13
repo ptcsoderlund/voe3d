@@ -368,15 +368,12 @@ bool voe_render_sky_reaches(uint mask)
 float3 voe_render_sky_reflection(float3 n, float3 v, float3 f0, float roughness,
 				 float metallic, uint mask)
 {
-	voe_render_light light = voe_render_frame.light;
-
 	if (voe_render_frame.sky.drawn == 0)
 		return float3(0.0, 0.0, 0.0);
 	if (!voe_render_sky_reaches(mask))
 		return float3(0.0, 0.0, 0.0);
 	float3 r = reflect(-v, n);
-	float3 sky = voe_render_sky_radiance(voe_render_frame.sky, light.direction,
-					     voe_render_sky_sun(light), r);
+	float3 sky = voe_render_sky_radiance(r);
 	float3 blurred = voe_render_sky_irradiance(r) / VOE_PI;
 
 	return lerp(sky, blurred, roughness) *

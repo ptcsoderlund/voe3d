@@ -91,19 +91,24 @@ struct voe_render_frame_light {
 	uint reserved2;
 };
 
-// The pass's sky: voe_render_sky in render/device.h, 64 bytes, four float4s
-// (ADR-0407 point 1). fill is lighting.slangh's, haze tone.slangh's.
+// The pass's sky: voe_render_sky in render/device.h, 96 bytes, six float4s
+// (ADR-0412 point 1), the backdrop then each light's disc and glow size, light
+// i's at component i. C's `float disc_size[4]` and `glow_size[4]` are float4s
+// here, because a uniform block gives every element of a scalar array sixteen
+// bytes. sky.slangh reads it, haze tone.slangh.
 struct voe_render_sky {
 	float3 zenith;
 	float horizon_height;
 	float3 horizon;
-	float sun_size;
+	float strength;
 	float3 ground;
-	float sun_glow;
-	uint drawn;
-	float fill;
 	float haze;
-	float sunset;
+	uint drawn;
+	uint reserved0;
+	uint reserved1;
+	uint reserved2;
+	float4 disc_size;
+	float4 glow_size;
 };
 
 // The pass's picture: voe_render_exposure in render/device.h, 16 bytes,
@@ -132,7 +137,7 @@ struct voe_render_frame_block {
 	voe_render_frame_light more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
 	voe_render_sky sky;
 	voe_render_exposure exposure;
-	// The sky's nine harmonics, sky.h's order, zero for no sky light.
+	// The backdrop's nine harmonics, sky.h's order, zero unless drawn.
 	float4 sky_harmonics[9];
 };
 

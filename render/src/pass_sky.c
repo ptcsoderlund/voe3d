@@ -10,9 +10,7 @@
 // pass, leaves both zeroed: as authored. A camera pass whose sky is `drawn` has
 // it drawn by sky_draw.c as soon as its block is written, before anything else.
 // A `drawn` sky fills the block's nine harmonics by voe_render_sky_harmonics
-// from its light's direction and voe_render_sky_sun, at any `fill`, since its
-// reflection does not follow `fill` (ADR-0408); an unshaded or dark light
-// projects the plain gradient.
+// from its backdrop alone, whatever its lights (ADR-0412 point 4).
 #include "device_internal.h"
 #include "sky.h"
 
@@ -44,15 +42,17 @@ void voe_render_pass_place_sky(const voe_render_pass_camera *camera,
 	VOE_BASE_ASSERT(colour_valid(sky.zenith) && colour_valid(sky.horizon) &&
 				colour_valid(sky.ground),
 			"a pass whose sky colour is not finite or below nought");
-	VOE_BASE_ASSERT(within(sky.horizon_height, 0.0f, 1.0f) &&
-				within(sky.sun_glow, 0.0f, 1.0f) &&
-				within(sky.sunset, 0.0f, 1.0f),
-			"a pass whose sky horizon height, glow or sunset is past 0 to 1");
-	VOE_BASE_ASSERT(within(sky.sun_size, 0.0f, 10.0f),
-			"a pass whose sky sun size is past 0 to 10 degrees");
-	VOE_BASE_ASSERT(within(sky.haze, 0.0f, INFINITY) &&
-				within(sky.fill, 0.0f, INFINITY),
-			"a pass whose sky haze or fill is not finite or below nought");
+	VOE_BASE_ASSERT(within(sky.horizon_height, 0.0f, 1.0f),
+			"a pass whose sky horizon height is past 0 to 1");
+	for (uint32_t i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
+		VOE_BASE_ASSERT(within(sky.disc_size[i], 0.0f, 10.0f),
+				"a pass whose sky disc size is past 0 to 10 degrees");
+		VOE_BASE_ASSERT(within(sky.glow_size[i], 0.0f, 1.0f),
+				"a pass whose sky glow size is past 0 to 1");
+	}
+	VOE_BASE_ASSERT(within(sky.strength, 0.0f, INFINITY) &&
+				within(sky.haze, 0.0f, INFINITY),
+			"a pass whose sky strength or haze is not finite or below nought");
 	VOE_BASE_ASSERT(within(exposure.exposure, -16.0f, 16.0f),
 			"a pass whose exposure is not finite or past ±16 stops");
 	VOE_BASE_ASSERT(exposure.tone <= VOE_RENDER_TONE_SOFT,
@@ -61,22 +61,17 @@ void voe_render_pass_place_sky(const voe_render_pass_camera *camera,
 	block->exposure = exposure;
 }
 
-// The sky's light into `block->sky_harmonics` (ADR-0405 point 5): the nine of
-// `camera`'s sky when it is `drawn`, whatever its `fill`, under its sun or,
-// for an unshaded or dark light whose direction may be nothing, without one;
+// The nine harmonics a rough metal reflects into `block->sky_harmonics`: of
+// `camera`'s backdrop when it is `drawn`, no light's glow or disc in them;
 // left zero otherwise.
 void voe_render_pass_place_sky_light(const voe_render_pass_camera *camera,
 				     struct voe_render_frame_block *block)
 {
-	const voe_render_light light = camera->light;
-
 	VOE_BASE_DEBUG_ASSERT(block->sky_harmonics[0].x == 0.0f,
 			      "placing the sky's light into a block that already has it");
 	if (camera->sky.drawn == 0)
 		return;
-	voe_render_sky_harmonics(&camera->sky, light.direction,
-				 voe_render_sky_sun(light),
-				 block->sky_harmonics);
+	voe_render_sky_harmonics(&camera->sky, block->sky_harmonics);
 	VOE_BASE_DEBUG_ASSERT(isfinite(block->sky_harmonics[0].x),
 			      "the sky's harmonics are not finite");
 }
