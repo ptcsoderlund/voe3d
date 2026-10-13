@@ -19,7 +19,13 @@
 // before voe_render_premultiplied, so a blended draw keeps its alpha. A draw
 // pushed `plain` (after the pass's first depth clear, ADR-0405 point 8) is
 // returned as it came by both. A zeroed sky is no haze and a zeroed exposure
-// record ×1 and Clip: the old picture, byte for byte. Elements and the sky's own fragment never haze.
+// record ×1 and Clip: the old picture, byte for byte. Elements never haze.
+//
+// THE SKY IS VEILED, NOT HAZED (ADR-0418 point 2, 0419 points 3 and 4): the
+// sky's fragment fades towards the haze's colour by voe_render_haze_veil, the
+// path along its view through the layer below haze_top; never a mesh exit,
+// which hazes by distance only as before. VOE_RENDER_CLEAR is the backdrop a
+// sky not drawn fades from.
 //
 // THERE IS NO HDR TARGET. The curve runs per fragment before an 8-bit sRGB
 // target, so blending happens after it; only see-through draws differ from a
@@ -34,6 +40,9 @@ static const uint VOE_RENDER_TONE_SOFT = 1;
 // What an isotropic haze deep in reads per unit of a light's colour ×
 // intensity: a quarter of a white Lambert surface facing it (ADR-0415 point 1).
 static const float VOE_RENDER_HAZE_GAIN = 1.0 / (4.0 * VOE_RENDER_SKY_PI);
+
+// pass.c's clear colour (its CLEAR_*), linear, which this must equal.
+static const float3 VOE_RENDER_CLEAR = float3(0.00857, 0.00857, 0.01033);
 
 // The haze's colour over the frame's shown directional lights, 0 to
 // more_count, the same in every direction: no fill, shadow or view term. With
@@ -87,6 +96,27 @@ float3 voe_render_haze(float3 colour, float3 position)
 	float f = 1.0 - exp2(-past / haze);
 
 	return lerp(colour, voe_render_haze_colour(), f);
+}
+
+// How much of the sky along unit world `view` is veiled by the haze layer
+// (ADR-0419 point 3), T the sky's haze_top: T > 0 looking level or down, or
+// T <= 0 looking down, is an endless path, 1; T > 0 looking up is the path
+// L = T / view.y, faded as a surface is, f = 1 − 2^(−max(L − haze_start, 0)/
+// haze); T <= 0 looking level or up is no path, 0. Haze 0 is 0. Only the sky's
+// fragment calls it; a mesh exit never does.
+float voe_render_haze_veil(float3 view)
+{
+	voe_render_sky sky = voe_render_frame.sky;
+
+	if (sky.haze <= 0.0)
+		return 0.0;
+	if (sky.haze_top > 0.0 ? view.y <= 0.0 : view.y < 0.0)
+		return 1.0;
+	if (sky.haze_top <= 0.0)
+		return 0.0;
+	float past = sky.haze_top / view.y - sky.haze_start;
+
+	return past <= 0.0 ? 0.0 : 1.0 - exp2(-past / sky.haze);
 }
 
 // Khronos PBR Neutral: colours below about 0.8 stay as authored, brighter ones

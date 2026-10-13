@@ -1469,7 +1469,8 @@ typedef struct {
 // the light's intensity. A light not shown is not in the sky.
 //
 // `drawn` non-zero draws the sky first in the pass, behind everything, exposed
-// and toned by the pass's voe_render_exposure.
+// and toned by the pass's voe_render_exposure. The sky's stage runs with
+// `drawn` or with `haze` above 0.
 //
 // `haze_start`, at least 0, is the metres nearer than which a surface takes no
 // haze at all, byte for byte as with `haze` 0 (ADR-0414 point 1); 0 fades from
@@ -1489,7 +1490,13 @@ typedef struct {
 //
 // `haze_top`, any finite, is the haze layer's top in metres above the eye: the
 // Haze row's height − the eye's world y (ADR-0419 point 1), above the eye
-// because the GPU is eye-relative. With `haze` 0 none of it is read.
+// because the GPU is eye-relative. With `haze` 0 none of it is read. THE SKY
+// IS VEILED BY THE HAZE IT IS SEEN THROUGH (ADR-0418 point 2): the sky, its
+// discs and glows, or without `drawn` the clear backdrop, fade towards the
+// haze's colour by the fade above over the path along the view through the
+// layer below `haze_top`, endless looking level or down from inside it or
+// down from above it, none looking up from above it. The sky's reflection is
+// never veiled (point 5); `haze` 0 is still the old picture, byte for byte.
 //
 // THE SKY LIGHTS NOTHING (ADR-0411 point 1): lights alone light, the same with
 // a sky or without. With `drawn` the sky's reflection, sharp on a smooth
@@ -1602,9 +1609,11 @@ typedef struct {
 // passes onto one target a sequence and not two separate pictures. A frame that
 // opens no pass onto the window still presents the clear colour.
 //
-// A CAMERA WHOSE `sky` IS `drawn` HAS THE SKY DRAWN FIRST, before anything the
-// caller records, so every draw lands over it; it is timed as the span
-// `<pass>: sky`. Shadow, point-shadow and capture passes never draw it.
+// A CAMERA WHOSE `sky` IS `drawn` OR HAS `haze` HAS THE SKY DRAWN FIRST,
+// before anything the caller records, so every draw lands over it: the sky
+// veiled by the haze, or without `drawn` the clear colour veiled by it. It is
+// timed as the span `<pass>: sky`. Shadow, point-shadow and capture passes
+// never draw it.
 //
 // PASSES DO NOT NEST. One is open at a time: a _pass_begin with one open asserts,
 // and so does a _frame_end.

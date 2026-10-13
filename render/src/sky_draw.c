@@ -1,9 +1,11 @@
 // The sky drawn behind everything (ADR-0405 point 4): voe_render_sky_draw,
 // declared in device_calls.h, records one full-screen triangle through the sky
-// pipeline (pipeline.c) as a camera pass opens. pass.c calls it right after
-// the pass's block is written and before anything else is recorded, so every
-// later draw, the blended ones included, lands over it. The shader is
-// draw.slang's voe_render_sky_vertex and voe_render_sky_fragment.
+// pipeline (pipeline.c) as a camera pass opens whose sky is `drawn` or whose
+// `haze` is above 0 (ADR-0419 point 4): without `drawn` it shows the clear
+// colour veiled by the haze. pass.c calls it right after the pass's block is
+// written and before anything else is recorded, so every later draw, the
+// blended ones included, lands over it. The shader is draw.slang's
+// voe_render_sky_vertex and voe_render_sky_fragment.
 //
 // IT IS THE SPAN `sky`, so the breakdown lists `<pass>: sky` after the pass.
 //
@@ -15,8 +17,9 @@
 // first mesh draw binds its own (draw.c). It is not counted in
 // voe_render_frame_draw_count, which counts the caller's draws.
 //
-// Constraints: `drawn` is read back from the pass's block in the mapped uniform
-// buffer, four bytes from host-visible memory that may be uncached; the block
+// Constraints: `drawn` and `haze` are read back from the pass's block in the
+// mapped uniform buffer, eight bytes from host-visible memory that may be
+// uncached; the block
 // is the one record of the pass's camera this side keeps.
 #include "device_internal.h"
 
@@ -43,7 +46,7 @@ void voe_render_sky_draw(voe_render_device *device)
 								frame->uniforms_mapped +
 							(device->pass_count - 1) *
 								device->pass_stride);
-	if (block->sky.drawn == 0)
+	if (block->sky.drawn == 0 && !(block->sky.haze > 0.0f))
 		return;
 	VOE_BASE_DEBUG_ASSERT(device->pipeline_sky != VK_NULL_HANDLE,
 			      "drawing the sky on a device not prepared");

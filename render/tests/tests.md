@@ -88,7 +88,11 @@ by reading the offscreen colour image back.
   breakdown, and a red light and a blue one in `more` each drawing its own disc. Headless.
 - `haze.c` — far surfaces fading into haze of the sky's hue at the lights' brightness: wherever the
   sun, however bright the sky, two horizons, two lights summed, no light black, no sky the lights'
-  colour, haze 0 and after the depth clear black, a blended one, a haze start. Headless.
+  colour, haze 0 and after the depth clear black, a blended one over a veiled sky, a haze start.
+  Headless.
+- `haze_sky.c` — the sky seen through the haze: dense haze the whole sky and the sun's disc, thin
+  haze the horizon most, clear above the layer, and without a drawn sky the clear colour veiled.
+  Headless.
 - `sky_light.c` — the sky lighting nothing: a grey cube's face the same bytes with the sky or
   without and at any zenith, a non-metal quad unchanged, a smooth metal one the sky along R and a
   rough one nearer E(R)/π, none inside Indoors. Headless.

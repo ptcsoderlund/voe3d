@@ -13,9 +13,9 @@
 // 2. at 50 m: darker than a tenth of hue × B;
 // 3. haze 0 at 2000 m: black, byte for byte;
 // 4. drawn after the pass's depth clear at 2000 m: black, as authored;
-// 5. a blended black quad of alpha 0.5 at 2000 m: half its hazed colour,
-//    (1 − 2^−2) × hue × B, plus half the sky along the pixel, from
-//    voe_render_sky_radiance, within 3/255;
+// 5. a blended black quad of alpha 0.5 at 2000 m, haze_top 1000 so the sky
+//    behind it, looking just below level, is fully veiled: half its hazed
+//    colour, (1 − 2^−2) × hue × B, plus half of hue × B, within 3/255;
 // 6. the sun 0.5° up ahead, and 90° round to the side, at 2000 m: each within
 //    3/255 of case 1, no view term (0415 point 2);
 // 7. the sky's strength 0.25 and its zenith, horizon and ground each × 0.1, at
@@ -213,22 +213,6 @@ static int srgb_byte(float linear)
 	return (int)lroundf(encoded * 255.0f);
 }
 
-// The world direction through the centre pixel, (SIDE/2, SIDE/2)'s centre.
-static voe_math_float3 centre_direction(void)
-{
-	float focal = 1.0f / tanf(FIELD_OF_VIEW * 0.5f);
-	float x = 2.0f * ((float)(SIDE / 2) + 0.5f) / SIDE - 1.0f;
-	float y = 1.0f - 2.0f * ((float)(SIDE / 2) + 0.5f) / SIDE;
-
-	return voe_math_float3_normalize(
-		(voe_math_float3){ x / focal, y / focal, -1.0f });
-}
-
-static voe_math_float3 radiance_along(voe_math_float3 view)
-{
-	return voe_render_sky_radiance(&SKY, &SUN, 1, view);
-}
-
 // The haze's colour one shown light gives without a drawn sky: colour ×
 // intensity / (4π), as tone.slangh's voe_render_haze_colour adds it.
 static voe_math_float3 haze_of(const voe_render_light *light)
@@ -275,6 +259,7 @@ static void check_pixel(const char *name, const uint8_t *pixel,
 
 static void check_pictures(struct scene *scene)
 {
+	voe_render_sky topped = SKY;
 	const struct haze_case far = { FAR_QUAD, HAZE, true, false, false,
 				       NULL, NULL, NULL, false };
 	const struct haze_case near = { NEAR_QUAD, HAZE, true, false, false,
@@ -284,12 +269,13 @@ static void check_pictures(struct scene *scene)
 	const struct haze_case plain = { FAR_QUAD, HAZE, true, false, true,
 					 NULL, NULL, NULL, false };
 	const struct haze_case blended = { FAR_QUAD, HAZE, true, true, false,
-					   NULL, NULL, NULL, false };
+					   NULL, &topped, NULL, false };
 	const voe_math_float3 lit = sky_haze_of(&SKY, brightness_of(&SUN));
 	const voe_math_float3 hazed = voe_math_float3_scale(lit, 0.75f);
 	const voe_math_float3 black = { 0.0f, 0.0f, 0.0f };
 	const uint8_t *pixel;
 
+	topped.haze_top = 1000.0f;
 	if ((pixel = centre_of(scene, &far)) != NULL)
 		check_pixel("2000 m", pixel, hazed, TOLERANCE);
 	if ((pixel = centre_of(scene, &near)) != NULL) {
@@ -310,9 +296,7 @@ static void check_pictures(struct scene *scene)
 		check_pixel("blended", pixel,
 			    voe_math_float3_add(
 				    voe_math_float3_scale(hazed, 0.5f),
-				    voe_math_float3_scale(
-					    radiance_along(centre_direction()),
-					    0.5f)),
+				    voe_math_float3_scale(lit, 0.5f)),
 			    TOLERANCE);
 }
 

@@ -9,10 +9,11 @@ shader and never compiled alone.
   the object record carries a landscape's paint and layers.
 - `draw.slang` — the mesh pipelines' seven entry points: placing, maps at the record's repeat, a
   painted landscape's layers, alpha, the lit and unlit exits, hazed, exposed and tone mapped, the
-  point-shadow vertex stage, the capture pass's two and the sky's full-screen two.
+  point-shadow vertex stage, the capture pass's two and the sky's full-screen two, the sky or the
+  clear colour veiled by the haze.
 - `tone.slangh` — haze, exposure and tone at every mesh exit: mixed by distance past the haze start
-  towards the drawn sky's horizon hue at the shown lights' brightness, or without it their colour,
-  × 2^exposure, then Clip or Soft by PBR Neutral; a `plain` draw as authored.
+  towards the drawn sky's horizon hue at the lights' brightness, or else their colour, × 2^exposure,
+  Clip or Soft; a `plain` draw as authored; the sky's veil along a view below the haze's top.
 - `sky.slangh` — whether a light is shown, the sky's backdrop and its radiance along a view, that
   backdrop plus each of the frame's shown lights' glow then disc, twin of `src/sky.h`.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector and the clip position on

@@ -100,8 +100,8 @@ which file to open — what each one owns, and where the seams between them run.
   cosine-convolved harmonics, and the irradiance. Pure CPU.
 - `sky.c` — those five calls: a backdrop of strength × an authored gradient, the radiance that plus
   each shown light's glow then disc, the backdrop alone projected over 256 Fibonacci directions.
-- `sky_draw.c` — the sky drawn first in a camera pass whose sky is `drawn`: one full-screen triangle
-  through the sky pipeline, timed as the span `sky`.
+- `sky_draw.c` — the sky drawn first in a camera pass whose sky is `drawn` or has haze: one
+  full-screen triangle through the sky pipeline, timed as the span `sky`.
 - `light_blockers.c` — `voe_render_light_blockers_mask`, declared in `render/device.h`: the boxes
   holding a point, bit i for blocker i, a sphere compare, then three rows, inclusive at the face.
 - `point_shadow_faces.h` — a caster's bounding sphere from its vertices, moved under a world

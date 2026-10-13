@@ -80,6 +80,9 @@
 // the range the tests above measure against, where the background is assumed to
 // be something no geometry wears, and render/tests/offscreen.c counts pixels per
 // channel against exactly that assumption.
+//
+// render/shaders/tone.slangh's VOE_RENDER_CLEAR is the twin of these three,
+// the backdrop a sky not drawn fades from in haze; a change here is made there.
 #define CLEAR_RED 0.00857f
 #define CLEAR_GREEN 0.00857f
 #define CLEAR_BLUE 0.01033f
