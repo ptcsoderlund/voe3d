@@ -1471,10 +1471,13 @@ typedef struct {
 // `drawn` non-zero draws the sky first in the pass, behind everything, exposed
 // and toned by the pass's voe_render_exposure.
 //
-// `haze`, at least 0, is the metres at which half a surface's colour is haze
-// (ADR-0405 point 6): every mesh exit, lit, unlit, water and blended (its
-// straight colour, alpha kept), mixes towards the sky's colour at the horizon
-// along its view by 1 − 2^(−distance/haze), before exposure and tone. That
+// `haze_start`, at least 0, is the metres nearer than which a surface takes no
+// haze at all, byte for byte as with `haze` 0 (ADR-0414 point 1); 0 fades from
+// the eye. `haze`, at least 0, is the metres past that start at which half a
+// surface's colour is haze (ADR-0405 point 6): every mesh exit, lit, unlit,
+// water and blended (its straight colour, alpha kept), mixes towards the sky's
+// colour at the horizon along its view by
+// 1 − 2^(−max(distance − haze_start, 0)/haze), before exposure and tone. That
 // colour is the backdrop at the horizon, times `strength`, without discs or
 // glows (0411 point 4), whether or not `drawn`. 0 is none; plain draws take
 // none.
@@ -1493,7 +1496,8 @@ typedef struct {
 	voe_math_float3 ground;
 	float haze;
 	uint32_t drawn;
-	uint32_t reserved[3];
+	float haze_start;
+	uint32_t reserved[2];
 	float disc_size[VOE_RENDER_DIRECTIONAL_LIGHTS];
 	float glow_size[VOE_RENDER_DIRECTIONAL_LIGHTS];
 } voe_render_sky;
@@ -1572,7 +1576,7 @@ typedef struct {
 // already open, or with a target id that names no target, is the caller's bug
 // and asserts. So is a camera whose `sky` or `exposure` holds a number not
 // finite or a sky field outside its range (voe_render_sky above): a colour,
-// `strength` or `haze` below 0, a `horizon_height` or `glow_size` past 0 to 1,
+// `strength`, `haze` or `haze_start` below 0, a `horizon_height` or `glow_size` past 0 to 1,
 // a `disc_size` past 0 to 10 degrees; an `exposure` past ±16, or a `tone` past
 // VOE_RENDER_TONE_SOFT.
 //

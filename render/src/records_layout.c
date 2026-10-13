@@ -48,9 +48,10 @@ static_assert(offsetof(voe_render_sky, horizon) == 16 &&
 		      offsetof(voe_render_sky, ground) == 32 &&
 		      offsetof(voe_render_sky, haze) == 44 &&
 		      offsetof(voe_render_sky, drawn) == 48 &&
+		      offsetof(voe_render_sky, haze_start) == 52 &&
 		      offsetof(voe_render_sky, disc_size) == 64 &&
 		      offsetof(voe_render_sky, glow_size) == 80,
-	      "the sky record's float4s moved; bindings.slangh has them at 0, 16, 32, 48, 64 and 80");
+	      "the sky record's float4s or haze_start moved; bindings.slangh has them at 0, 16, 32, 48, 64 and 80, haze_start at 52");
 static_assert(offsetof(voe_render_exposure, exposure) == 0 &&
 		      offsetof(voe_render_exposure, tone) == 4,
 	      "the exposure record's fields moved; tone.slangh reads them at 0 and 4");

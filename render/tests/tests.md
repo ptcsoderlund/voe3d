@@ -88,7 +88,8 @@ by reading the offscreen colour image back.
   breakdown, and a red light and a blue one in `more` each drawing its own disc. Headless.
 - `haze.c` — far surfaces fading into the horizon's gradient: a black quad at 2000 m three quarters
   haze, at 50 m under a tenth, haze 0 and a draw after the depth clear black, a blended one keeping
-  its blend, a low sun adding no disc or glow, and strength 0.25 dimming it. Headless.
+  its blend, a low sun adding no disc or glow, strength 0.25 dimming it, and a haze start leaving
+  nearer surfaces black and counting from it. Headless.
 - `sky_light.c` — the sky lighting nothing: a grey cube's face the same bytes with the sky or
   without and at any zenith, a non-metal quad unchanged, a smooth metal one the sky along R and a
   rough one nearer E(R)/π, none inside Indoors. Headless.

@@ -51,8 +51,9 @@ void voe_render_pass_place_sky(const voe_render_pass_camera *camera,
 				"a pass whose sky glow size is past 0 to 1");
 	}
 	VOE_BASE_ASSERT(within(sky.strength, 0.0f, INFINITY) &&
-				within(sky.haze, 0.0f, INFINITY),
-			"a pass whose sky strength or haze is not finite or below nought");
+				within(sky.haze, 0.0f, INFINITY) &&
+				within(sky.haze_start, 0.0f, INFINITY),
+			"a pass whose sky strength, haze or haze_start is not finite or below nought");
 	VOE_BASE_ASSERT(within(exposure.exposure, -16.0f, 16.0f),
 			"a pass whose exposure is not finite or past ±16 stops");
 	VOE_BASE_ASSERT(exposure.tone <= VOE_RENDER_TONE_SOFT,

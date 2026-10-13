@@ -1,6 +1,7 @@
 // Haze, exposure and tone at every mesh exit (ADR-0405 points 6 and 7).
 // voe_render_haze mixes a linear colour towards the sky at the horizon by
-// distance; voe_render_expose then multiplies it by 2^exposure from the pass's
+// distance past the sky's haze_start, a surface no farther than it untouched
+// (ADR-0414 point 1); voe_render_expose then multiplies it by 2^exposure from the pass's
 // exposure record and puts it through its curve, Clip (as it is, the 8-bit
 // target clamping) or Soft (Khronos PBR Neutral). HAZE COMES BEFORE EXPOSURE
 // AND TONE: the haze is the sky's backdrop × strength at the horizon, no disc
@@ -41,15 +42,17 @@ float3 voe_render_haze_colour(float3 position)
 	return voe_render_sky_gradient(voe_render_frame.sky, normalize(view));
 }
 
-// colour × (1 − f) + sky × f, f = 1 − 2^(−|position|/haze), `position` the
-// surface about the eye.
+// colour × (1 − f) + sky × f, f = 1 − 2^(−(|position| − haze_start)/haze),
+// `position` the surface about the eye; at or nearer haze_start, `colour` as it
+// came (ADR-0414 point 1).
 float3 voe_render_haze(float3 colour, float3 position)
 {
 	float haze = voe_render_frame.sky.haze;
+	float past = length(position) - voe_render_frame.sky.haze_start;
 
-	if (haze <= 0.0 || voe_render_draw_current.plain != 0)
+	if (haze <= 0.0 || past <= 0.0 || voe_render_draw_current.plain != 0)
 		return colour;
-	float f = 1.0 - exp2(-length(position) / haze);
+	float f = 1.0 - exp2(-past / haze);
 
 	return lerp(colour, voe_render_haze_colour(position), f);
 }

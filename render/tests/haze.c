@@ -16,7 +16,11 @@
 //    1 under it, no disc and no glow (ADR-0412 point 2); no channel above
 //    the same quad's with the sun 90° round to the side, plus 3/255;
 // 7. the sky's strength 0.25 at 2000 m: within 3/255 of (1 − 2^−2) × the
-//    backdrop at strength 0.25 along the pixel (ADR-0411 point 4).
+//    backdrop at strength 0.25 along the pixel (ADR-0411 point 4);
+// 8. haze_start 100 m at 50 m: black, byte for byte as with haze 0;
+// 9. haze_start 1000 m at 2000 m: within 3/255 of (1 − 2^−1) × the gradient
+//    along the pixel, as case 1 reads it (ADR-0414 point 1).
+// Cases 1 to 7 keep haze_start 0.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO. The skip is a pass and it
 // prints its reason.
@@ -313,6 +317,29 @@ static void check_dim_sky(struct scene *scene)
 			    TOLERANCE);
 }
 
+// A haze that starts at a distance: nearer surfaces untouched, farther ones
+// hazed by their distance past the start.
+static void check_haze_start(struct scene *scene)
+{
+	voe_render_sky near_start = SKY;
+	voe_render_sky far_start = SKY;
+	const struct haze_case inside = { NEAR_QUAD, HAZE, false, false, false,
+					  NULL, &near_start };
+	const struct haze_case past = { FAR_QUAD, HAZE, false, false, false,
+					NULL, &far_start };
+	const voe_math_float3 black = { 0.0f, 0.0f, 0.0f };
+	const uint8_t *pixel;
+
+	near_start.haze_start = 100.0f;
+	far_start.haze_start = 1000.0f;
+	if ((pixel = centre_of(scene, &inside)) != NULL)
+		check_pixel("haze_start 100 m at 50 m", pixel, black, 0);
+	if ((pixel = centre_of(scene, &past)) != NULL)
+		check_pixel("haze_start 1000 m at 2000 m", pixel,
+			    voe_math_float3_scale(horizon_gradient(&SKY), 0.5f),
+			    TOLERANCE);
+}
+
 int main(void)
 {
 	voe_platform_size size = { SIDE, SIDE };
@@ -353,6 +380,7 @@ int main(void)
 	check_pictures(&scene);
 	check_low_sun(&scene);
 	check_dim_sky(&scene);
+	check_haze_start(&scene);
 
 	voe_render_device_destroy(scene.device);
 	voe_base_arena_destroy(scene.arena);
