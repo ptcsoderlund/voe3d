@@ -115,7 +115,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   nodes, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
-  or in table order, and the record a mesh is drawn with.
+  or in table order, the record a mesh is drawn with, and a double-sided mesh drawn between two
+  two-sided calls.
 - `draw_material.h` — the loaded material a shape's or model part's worn path names in the frame's
   store, for its record; internal.
 - `draw_material.c` — the empty path refused, then the store's linear find.
@@ -153,8 +154,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models_landscape.c` — a landscape's grid copied with its layers and paint, uploaded as heights,
   paint and a pyramid on the shared grid; brushes and puts growing its dirt, which the frame
   writes a budget at a time.
-- `models_material.c` — a `.material`'s maps decoded and uploaded mipped with its record and
-  twin as one part with no geometry, the set marking it and the frame rewriting both records.
+- `models_material.c` — a `.material`'s four maps decoded and uploaded mipped with its record,
+  cutout, emission and sides and its twin as one part with no geometry, the set marking it and the
+  frame rewriting both records.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow

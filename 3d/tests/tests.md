@@ -30,7 +30,8 @@ again, or to find where a claim that has started failing is written down.
   frames blind, the eye lags the last step and a red shape reads red. Skips without a graphics card.
 - `draw_material.c` — that a cube wearing a loaded unlit red material reads red, and one with an
   empty or unheld path its own grey; a model's green part red when its parts set names it, and
-  green with none or with only its other part's naming it. Skips without a graphics card.
+  green with none or with only its other part's naming it; a cube about the eye red inside when
+  double-sided, the clear colour when not. Skips without a graphics card.
 - `draw_gizmo.c` — that a gizmo's arrows and rings show through the cube it stands in. Skips
   without a graphics card.
 - `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
@@ -137,9 +138,9 @@ again, or to find where a claim that has started failing is written down.
   card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget. Skips without a card.
-- `models_material.c` — a `.material` with three maps loaded as one part with a live record and
-  twin, a set written by a frame, a map that is no picture failing MALFORMED, and a rename. Skips
-  without a card.
+- `models_material.c` — a `.material` with four maps loaded as one part with a live record and
+  twin, its cutout, emission and sides, a set changing them written by a frame, a map that is no
+  picture failing MALFORMED, and a rename. Skips without a card.
 - `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, and
   painting a layer: the sum kept, the radius held and a light stroke stopping at its strength.
   Needs no graphics card.

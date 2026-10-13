@@ -142,11 +142,12 @@ typedef struct {
 	size_t size;
 } voe_3d_material_map;
 
-// A material's three maps, as its file names them.
+// A material's four maps, as its file names them.
 typedef struct {
 	voe_3d_material_map colour;
 	voe_3d_material_map normal;
 	voe_3d_material_map orm;
+	voe_3d_material_map emission;
 } voe_3d_material_maps;
 
 typedef struct voe_3d_models voe_3d_models;
@@ -184,19 +185,22 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 	voe_base_error *error);
 
 // `material` as `path`'s entry: each map with bytes decoded as a picture by its
-// path's extension and uploaded mipped, colour as COLOUR, normal and ORM as
-// DATA, the ORM map's one texture in the metal-roughness and the occlusion
-// slots both (0400); colour, metal,
-// roughness, repeat and shader from the values; one part with no geometry and
-// its blended twin. Replaces and fails as _load does; MALFORMED when a map will
-// not decode, REFUSED when the device or the store has no room.
+// path's extension and uploaded mipped, colour and emission as COLOUR, normal
+// and ORM as DATA, the ORM map's one texture in the metal-roughness and the
+// occlusion slots both (0400), the emission map in the emissive slot; colour,
+// metal, roughness, repeat and shader from the values, `cutout` > 0 as CUTOUT
+// at that cutoff else OPAQUE, `emission` × `emission_strength` as emissive, and
+// `double_sided` (0420 point 2); one part with no geometry and its blended
+// twin. Replaces and fails as _load does; MALFORMED when a map will not decode,
+// REFUSED when the device or the store has no room.
 [[nodiscard]] bool voe_3d_models_load_material(
 	voe_3d_models *models, voe_render_device *device, const char *path,
 	uint64_t stamp, const voe_assets_material_file *material,
 	voe_3d_material_maps maps, voe_base_error *error);
 
-// `material`'s colour, metal, roughness, repeat and shader taken into `path`'s
-// part and its two records marked to write; its maps ignored, a new map being
+// `material`'s colour, metal, roughness, repeat, shader, cutout, emission ×
+// strength and double_sided taken into `path`'s part as _load_material takes
+// them, and its two records marked to write; its maps ignored, a new map being
 // a load. Nothing for a path that is no loaded material.
 void voe_3d_models_material_set(voe_3d_models *models, const char *path,
 				const voe_assets_material_file *material);

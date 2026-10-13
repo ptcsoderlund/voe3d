@@ -1,6 +1,7 @@
 // The held-back groups: room for one in the arena, an entity set aside in it
-// with its sort key, and its draws issued sorted or in the order it was filled;
-// with the three lookups the walk that fills them needs. See draw_group.h.
+// with its sort key, and its draws issued sorted or in the order it was filled,
+// a double-sided mesh's between two two-sided calls; with the lookups the walk
+// that fills them needs. See draw_group.h.
 //
 // Nothing here walks a table or clears depth: which group a drawable lands in,
 // and when each group is drawn, is voe_3d_draw_system_run's.
@@ -95,6 +96,56 @@ voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transfo
 				(voe_math_float4){ 1.0f, 1.0f, 1.0f, 1.0f };
 
 	return object;
+}
+
+// A shaped or bare mesh's entry, its material looked up once: the record as
+// _object_of builds it, and two-sided when the material it wears — the one
+// `shape` names in `models`, else its own — is double-sided (0421 point 2).
+struct voe_3d_deferred voe_3d_draw_group_mesh_of(
+	voe_render_geometry geometry, const voe_scene_transform *transform,
+	const voe_3d_material *material, const voe_3d_shape *shape,
+	const voe_3d_models *models, voe_math_double3 eye)
+{
+	const voe_3d_model_part *worn =
+		shape != NULL ? voe_3d_draw_material_named(models, shape->material) :
+				NULL;
+
+	VOE_BASE_ASSERT(transform != NULL && material != NULL,
+			"a mesh entry with no transform or material");
+	if (worn != NULL) {
+		material = &worn->material;
+		shape = NULL;
+	}
+	return (struct voe_3d_deferred){
+		.panel = false,
+		.mesh = { .geometry = geometry,
+			  .object = voe_3d_draw_group_object_of(
+				  transform, material, shape, NULL, eye),
+			  .two_sided = material->double_sided },
+	};
+}
+
+// One mesh entry's draw, solid or blended, between the two two-sided calls
+// when it is double-sided. False when the draw was refused; the cull mode is
+// put back either way.
+bool voe_3d_draw_group_mesh_draw(voe_render_device *device,
+				 const struct voe_3d_deferred *entry,
+				 bool blended)
+{
+	bool drawn;
+
+	VOE_BASE_ASSERT(entry != NULL && !entry->panel,
+			"a mesh draw of no mesh entry");
+	if (entry->mesh.two_sided)
+		voe_render_frame_two_sided(device, true);
+	drawn = blended ? voe_render_frame_draw_blended(device,
+							entry->mesh.geometry,
+							entry->mesh.object) :
+			  voe_render_frame_draw(device, entry->mesh.geometry,
+						entry->mesh.object);
+	if (entry->mesh.two_sided)
+		voe_render_frame_two_sided(device, false);
+	return drawn;
 }
 
 // Part `part` of `model` as the model wears it (0404): the model's geometry,
@@ -218,14 +269,9 @@ bool voe_3d_draw_group_draw(voe_render_device *device,
 			drawn_ok = voe_render_frame_draw_elements(
 				device, drawn->elements.transform,
 				drawn->elements.first, drawn->elements.count);
-		else if (sorted)
-			drawn_ok = voe_render_frame_draw_blended(
-				device, drawn->mesh.geometry,
-				drawn->mesh.object);
 		else
-			drawn_ok = voe_render_frame_draw(device,
-							 drawn->mesh.geometry,
-							 drawn->mesh.object);
+			drawn_ok = voe_3d_draw_group_mesh_draw(device, drawn,
+							       sorted);
 
 		if (!drawn_ok)
 			return false;

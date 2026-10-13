@@ -13,8 +13,12 @@
 // UNLIT RED, SO THE CENTRE IS RED WHATEVER THE SUN DOES: a lit grey cube reads
 // its three channels alike, and red with nought green and blue is no grey.
 //
+// AND BOTH SIDES (0421 point 2): a cube about the eye wearing a double-sided
+// unlit red material reads red from inside; wearing the one-sided red, its
+// back faces are culled and the centre reads the clear colour.
+//
 // THE DEVICE HOLDS THE BUILT-IN SHAPES, the model's two parts and their twins,
-// and two records more, the material's own and its blended twin.
+// and two records more for each of the two materials, its own and its twin.
 //
 // IT SKIPS WITHOUT A GRAPHICS CARD, for the reason 3d/tests/import.c gives.
 #include <3d/draw_system.h>
@@ -49,6 +53,7 @@
 #define SCRATCH (256 * 1024)
 #define SIDE 16
 #define RED_MATERIAL "Assets/red.material"
+#define BOTH_MATERIAL "Assets/both.material"
 #define MODEL "Assets/two.glb"
 
 // A world with a camera at the origin looking down −Z and a sun from above and
@@ -101,8 +106,10 @@ static voe_ecs_world *a_lit_world(voe_base_arena *arena)
 	return world;
 }
 
-// The lit world and one cube three metres ahead wearing `material`.
-static voe_ecs_world *a_world(voe_base_arena *arena, const char *material)
+// The lit world and one cube wearing `material`: three metres ahead, or with
+// `around` four metres on a side about the eye, so the eye sees its inside.
+static voe_ecs_world *a_world(voe_base_arena *arena, const char *material,
+			      bool around)
 {
 	voe_ecs_world *world = a_lit_world(arena);
 	voe_ecs_entity cube = { 0 };
@@ -114,9 +121,11 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const char *material)
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &cube));
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, cube,
-		(voe_scene_transform){ .position = { 0.0, 0.0, -3.0 },
-				       .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-				       .scale = { 1.0f, 1.0f, 1.0f } }));
+		(voe_scene_transform){
+			.position = { 0.0, 0.0, around ? 0.0 : -3.0 },
+			.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+			.scale = around ? (voe_math_float3){ 4.0f, 4.0f, 4.0f } :
+					  (voe_math_float3){ 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_3d_shape_add(world, cube, shape));
 	return world;
 }
@@ -183,7 +192,7 @@ static void the_cube_reads(voe_render_device *device, voe_base_arena *arena,
 			   const voe_3d_models *models, const char *material,
 			   bool red)
 {
-	voe_ecs_world *world = a_world(arena, material);
+	voe_ecs_world *world = a_world(arena, material, false);
 	uint8_t centre[4] = { 0 };
 
 	voe_3d_shape_system_run(world, shapes);
@@ -199,6 +208,30 @@ static void the_cube_reads(voe_render_device *device, voe_base_arena *arena,
 		VOE_TEST_CHECK(abs((int)centre[0] - (int)centre[1]) < 16);
 		VOE_TEST_CHECK(abs((int)centre[0] - (int)centre[2]) < 16);
 	}
+}
+
+// The cube about the eye wearing `material` drawn once; whether its inside
+// reads red, else the clear colour (#17171A, render/src/pass.c) through its
+// culled back faces.
+static void the_inside_reads(voe_render_device *device, voe_base_arena *arena,
+			     const voe_3d_shapes *shapes,
+			     const voe_3d_models *models, const char *material,
+			     bool red)
+{
+	voe_ecs_world *world = a_world(arena, material, true);
+	uint8_t centre[4] = { 0 };
+
+	voe_3d_shape_system_run(world, shapes);
+	if (!centre_of_a_frame(world, device, arena, models, centre))
+		return;
+	if (red) {
+		VOE_TEST_CHECK(centre[0] > 128);
+		VOE_TEST_CHECK(centre[1] < 32);
+	} else {
+		VOE_TEST_CHECK(centre[0] < 32);
+		VOE_TEST_CHECK(abs((int)centre[0] - (int)centre[1]) < 8);
+	}
+	VOE_TEST_CHECK(centre[2] < 40);
 }
 
 // The model whose parts file names `material` for part `part`'s glTF material
@@ -243,7 +276,7 @@ int main(void)
 		.indices = VOE_3D_SHAPES_INDICES + 6,
 		.geometries = VOE_3D_SHAPES_GEOMETRIES + 2,
 		.objects = 2,
-		.shadings = VOE_3D_SHAPES_SHADINGS + 4 + 2,
+		.shadings = VOE_3D_SHAPES_SHADINGS + 4 + 2 + 2,
 		.passes = 1,
 	};
 	voe_render_device *device =
@@ -269,8 +302,13 @@ int main(void)
 	models = voe_3d_models_new();
 	VOE_TEST_CHECK(voe_3d_models_load_material(models, device, RED_MATERIAL,
 						   1, &red, no_maps, &error));
+	red.double_sided = true;
+	VOE_TEST_CHECK(voe_3d_models_load_material(models, device, BOTH_MATERIAL,
+						   1, &red, no_maps, &error));
 
 	the_cube_reads(device, arena, &shapes, models, RED_MATERIAL, true);
+	the_inside_reads(device, arena, &shapes, models, BOTH_MATERIAL, true);
+	the_inside_reads(device, arena, &shapes, models, RED_MATERIAL, false);
 	the_cube_reads(device, arena, &shapes, models, "", false);
 	the_cube_reads(device, arena, &shapes, models, "Assets/none.material",
 		       false);
