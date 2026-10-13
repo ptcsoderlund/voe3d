@@ -6,6 +6,9 @@ Only light should light up."
 
 With haze above 0, the scene gets brighter: surfaces read as lit by the haze, not only by the lights.
 
+Asked whether this is 0411 point 4's far fade, the sponsor answered: "It's not the far fade, the whole scene
+brightens." Near surfaces brighten too, so this is a bug, not the design.
+
 ## Expected
 Only lights light the world (0411 point 1: "Lights are responsible for all lighting, and the sky only for the
 haze"). Haze must not make the world brighter as if it were a light.
