@@ -1,6 +1,6 @@
-# 08 — A draw can show both sides
+# 27 — A draw can show both sides
 folder: render
-after: 07
+after: 22
 decisions: 0168, 0421
 
 ## Change

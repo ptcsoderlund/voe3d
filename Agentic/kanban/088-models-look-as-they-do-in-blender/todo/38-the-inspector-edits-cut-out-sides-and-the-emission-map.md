@@ -1,10 +1,10 @@
-# 19 — The Inspector edits cut-out, sides and the emission map
+# 38 — The Inspector edits cut-out, sides and the emission map
 folder: editor
-after: 18
+after: 37
 decisions: 0168, 0399, 0420
 
 ## Change
-The open material's section shows card 04's keys but emission's colour and strength (card 20). Read
+The open material's section shows card 04's keys but emission's colour and strength (card 39). Read
 the header of `editor/src/inspector_material.h` first.
 
 - `editor/src/inspector_material.h`, `editor/src/inspector_material.c`: under Repeat, a Cutout slider

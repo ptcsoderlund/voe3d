@@ -1,11 +1,11 @@
-# 15 — The editor hands the loader its parts and reloads changed materials
+# 34 — The editor hands the loader its parts and reloads changed materials
 folder: editor
-after: 14
+after: 33
 decisions: 0168, 0399, 0404, 0420
 
 ## Change
-Mends the editor after cards 12 and 14, and makes a rewritten `.material` show at once (0403's
-re-import and Import textures, cards 17 and 21, rewrite them). Read `editor/src/materials.h` and
+Mends the editor after cards 31 and 33, and makes a rewritten `.material` show at once (0403's
+re-import and Import textures, cards 36 and 40, rewrite them). Read `editor/src/materials.h` and
 `editor/src/materials.c` as the pattern for the new table.
 
 - `editor/src/parts.h`, `editor/src/parts.c` (new, header comments): the project's `.parts` files as

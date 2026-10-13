@@ -1,6 +1,6 @@
-# 20 — The Inspector edits emission colour and strength
+# 39 — The Inspector edits emission colour and strength
 folder: editor
-after: 19
+after: 38
 decisions: 0168, 0399, 0420
 
 ## Change

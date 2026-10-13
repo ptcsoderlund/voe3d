@@ -1,6 +1,6 @@
-# 10 — A mirrored normal map tilts mirrored
+# 29 — A mirrored normal map tilts mirrored
 folder: render
-after: 09
+after: 28
 decisions: 0168, 0278, 0421
 
 ## Change

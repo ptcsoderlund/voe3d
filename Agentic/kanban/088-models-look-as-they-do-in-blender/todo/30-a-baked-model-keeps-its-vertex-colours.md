@@ -1,6 +1,6 @@
-# 11 — A baked model keeps its vertex colours
+# 30 — A baked model keeps its vertex colours
 folder: 3d
-after: 06, 10
+after: 06, 24, 29
 decisions: 0168, 0421
 
 ## Change

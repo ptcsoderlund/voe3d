@@ -1,10 +1,10 @@
-# 16 — Play and Ship cook the new material keys and the parts
+# 35 — Play and Ship cook the new material keys and the parts
 folder: editor
-after: 15
+after: 34
 decisions: 0168, 0236, 0420
 
 ## Change
-The game tree's `materials.c` carries card 04's keys and defines `voe_game_parts_cooked` (card 14), so
+The game tree's `materials.c` carries card 04's keys and defines `voe_game_parts_cooked` (card 33), so
 Play and Ship look like the editor (How to test 8).
 
 - `editor/src/game_tree_materials.c`: each material's initializer also writes `.cutout`,

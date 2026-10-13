@@ -1,6 +1,6 @@
-# 09 — A far cut-out stays solid
+# 28 — A far cut-out stays solid
 folder: render
-after: 08
+after: 27
 decisions: 0168, 0359, 0421
 
 ## Change

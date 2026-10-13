@@ -1,10 +1,10 @@
-# 13 — A worn material cuts out, glows and shows both sides
+# 32 — A worn material cuts out, glows and shows both sides
 folder: 3d
-after: 12
+after: 31
 decisions: 0168, 0399, 0420, 0421
 
 ## Change
-Card 04's material keys reach the store's records and the draw; card 08's call is made per draw.
+Card 04's material keys reach the store's records and the draw; card 27's call is made per draw.
 
 - `3d/include/3d/material_component.h`, `3d/src/material_component.c`: `voe_3d_material` gains `bool
   double_sided` (not in the record; the draw reads it). Header paragraph: why it is the draw's and

@@ -1,16 +1,16 @@
-# 14 — The game loads each model's parts and their materials
+# 33 — The game loads each model's parts and their materials
 folder: game
-after: 13
+after: 23, 32
 decisions: 0168, 0236, 0399, 0420
 
 ## Change
 The loader the game and the editor share takes 0420 point 1's parts table; model rows lost `materials`
-in card 12, and this card makes `game` build again. The editor's call breaks; card 15 mends it.
+in card 31, and this card makes `game` build again. The editor's call breaks; card 34 mends it.
 
 - `game/include/game/materials.h`: `typedef struct { const char *path; voe_assets_parts parts; }
   voe_game_model_parts` (the `.glb`'s project-relative path and its `.parts` values) and `typedef struct
   { const voe_game_model_parts *models; uint32_t count; } voe_game_parts`; `extern const voe_game_parts
-  voe_game_parts_cooked`, defined by the cooked `materials.c` beside the materials (card 16). The
+  voe_game_parts_cooked`, defined by the cooked `materials.c` beside the materials (card 35). The
   header's example and its COOKED paragraph name both tables.
 - `game/include/game/models.h`, `game/src/models_materials.c`: `voe_game_models_materials` gains `const
   voe_game_parts *parts` after `table`. It first gives every loaded model entry its parts

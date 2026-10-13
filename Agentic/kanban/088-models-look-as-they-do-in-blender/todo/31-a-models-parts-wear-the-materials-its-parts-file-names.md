@@ -1,11 +1,11 @@
-# 12 — A model's parts wear the materials its parts file names
+# 31 — A model's parts wear the materials its parts file names
 folder: 3d
-after: 11
+after: 30
 decisions: 0168, 0404, 0420
 
 ## Change
 0404 and 0420 point 1 in the store and the draw: part materials leave the model row for the store's
-entry. The game and the editor stop building until cards 14 and 15; do not touch them.
+entry. The game and the editor stop building until cards 33 and 34; do not touch them.
 
 - `3d/include/3d/model_component.h`, `3d/src/model_component.c`: the `materials` field and
   `VOE_3D_MODEL_MATERIALS` go; the drain corrects only `path`. Header: the MATERIALS[I] paragraph is

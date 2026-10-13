@@ -1,12 +1,12 @@
-# 21 — Import textures dresses a glb's materials
+# 40 — Import textures dresses a glb's materials
 folder: editor
-after: 20
+after: 39
 read: feature.md
 decisions: 0168, 0403, 0404, 0420
 
 ## Change
 0403's and 0404's right-click Import textures, 0420 point 3's second half; the feature's last card.
-Read the headers of `editor/src/assets_menu.h` and `editor/src/model_import.h` (card 17) first.
+Read the headers of `editor/src/assets_menu.h` and `editor/src/model_import.h` (card 36) first.
 
 - `editor/src/model_import.h`, `editor/src/model_import.c`: `[[nodiscard]] bool
   voe_editor_model_import_textures(const char *project_folder, const char *glb, voe_base_arena
@@ -22,7 +22,7 @@ Read the headers of `editor/src/assets_menu.h` and `editor/src/model_import.h` (
   `.glb`. Header: the rows.
 - `editor/src/assets_panel.c` (the menu's opening) and `editor/src/interface_assets.c` (a fired row
   carried out): Import textures calls it on the selected row, then the tables are read again and the
-  open material refreshed as after an import (card 17), and the panel lists again.
+  open material refreshed as after an import (card 36), and the panel lists again.
 - `editor/src/src.md`: entries follow (each at most 300 characters).
 
 ## Done when

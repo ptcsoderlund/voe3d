@@ -1,6 +1,6 @@
-# 18 — A parts file follows renames and travels with its glb
+# 37 — A parts file follows renames and travels with its glb
 folder: editor
-after: 17
+after: 36
 decisions: 0168, 0378, 0420
 
 ## Change

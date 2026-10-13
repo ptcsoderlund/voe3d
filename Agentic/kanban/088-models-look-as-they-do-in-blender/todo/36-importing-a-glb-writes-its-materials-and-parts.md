@@ -1,6 +1,6 @@
-# 17 — Importing a glb writes its materials and parts
+# 36 — Importing a glb writes its materials and parts
 folder: editor
-after: 16
+after: 35
 decisions: 0168, 0403, 0404, 0420
 
 ## Change
@@ -24,7 +24,7 @@ glTF material and its `.parts`, written again on every import (How to test 1 and
   is gone, so a re-import is not taken for an Inspector edit and written back.
 - `editor/src/session.c` (the browser's IMPORT_FILE case) and `editor/src/assets_manage.c` (each
   `voe_editor_models_materials_read`): after an import, the tables are read again
-  (`voe_editor_models_materials_read`, card 15) and the open material refreshed; after each read in
+  (`voe_editor_models_materials_read`, card 34) and the open material refreshed; after each read in
   `assets_manage.c`, the refresh too. Give the session's call the models if it has none.
 - `editor/src/src.md`: entries for the new files and the changed ones (each at most 300 characters).
 
