@@ -15,7 +15,9 @@
 // 4. that quad as a non-metal, metallic 0 and white, in the low sun: byte for
 //    byte the same with the sky zeroed;
 // 5. the metal quad inside an Indoors blocker: byte for byte as with the sky
-//    zeroed.
+//    zeroed;
+// 6. the smooth metal quad of 3 and the cube's face of 1, under the noon sun:
+//    byte for byte the same at sky strength 0 and 1 (ADR-0424 point 4).
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO. The skip is a pass and it
 // prints its reason.
@@ -342,6 +344,18 @@ static void check_indoors(struct scene *scene, voe_render_light noon)
 		   scene->smooth, 0.0f, noon, SKY, ZEROED, indoors);
 }
 
+// Case 6: the sky's strength changes neither the smooth metal nor the face.
+static void check_strength(struct scene *scene, voe_render_light noon)
+{
+	voe_render_sky dark = SKY;
+
+	dark.strength = 0.0f;
+	check_same(scene, "smooth metal, strength 0", scene->quad,
+		   scene->smooth, 0.0f, noon, dark, SKY, NONE);
+	check_same(scene, "cube, strength 0", scene->cube, scene->grey, CUBE_Z,
+		   noon, dark, SKY, NONE);
+}
+
 static bool build(struct scene *scene)
 {
 	voe_render_texture shown = { 0 };
@@ -410,6 +424,7 @@ int main(void)
 		check_same(&scene, "non-metal quad, sky drawn", scene.quad,
 			   scene.plain, 0.0f, low, SKY, ZEROED, NONE);
 		check_indoors(&scene, noon);
+		check_strength(&scene, noon);
 	}
 	voe_render_device_destroy(scene.device);
 	voe_base_arena_destroy(scene.arena);

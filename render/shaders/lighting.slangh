@@ -47,7 +47,8 @@
 // world with a sky is lit as one without. voe_render_sky_reflection is
 // lerp(sky(R), E(R)/π, roughness) × Karis's EnvBRDFApprox × metalness; E from
 // the nine harmonics, R the reflected view, draw.slang occluding it. Nought
-// unless `drawn` and where voe_render_sky_reaches fails.
+// unless `drawn` and where voe_render_sky_reaches fails. sky(R) and the
+// harmonics are at strength 1 whatever the row's (0423 point 3, 0424 point 4).
 //
 // THE ARITHMETIC IS glTF'S METALNESS-ROUGHNESS BRDF, WRITTEN OUT: GGX, Smith's
 // height-correlated visibility with the denominator folded in, Schlick's
@@ -363,8 +364,9 @@ bool voe_render_sky_reaches(uint mask)
 }
 
 // The sky a lit surface facing `n`, seen along `v`, of mask `mask` mirrors,
-// unoccluded: its reflection times `metallic`, so a non-metal mirrors none.
-// Nought unless `drawn` and where voe_render_sky_reaches fails. See the header.
+// unoccluded: its reflection times `metallic`, so a non-metal mirrors none;
+// the frame's sky at strength 1. Nought unless `drawn` and where
+// voe_render_sky_reaches fails. See the header.
 float3 voe_render_sky_reflection(float3 n, float3 v, float3 f0, float roughness,
 				 float metallic, uint mask)
 {
@@ -372,8 +374,10 @@ float3 voe_render_sky_reflection(float3 n, float3 v, float3 f0, float roughness,
 		return float3(0.0, 0.0, 0.0);
 	if (!voe_render_sky_reaches(mask))
 		return float3(0.0, 0.0, 0.0);
+	voe_render_sky mirrored = voe_render_frame.sky;
+	mirrored.strength = 1.0;
 	float3 r = reflect(-v, n);
-	float3 sky = voe_render_sky_radiance(r);
+	float3 sky = voe_render_sky_radiance_of(mirrored, r);
 	float3 blurred = voe_render_sky_irradiance(r) / VOE_PI;
 
 	return lerp(sky, blurred, roughness) *
