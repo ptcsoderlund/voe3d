@@ -14,7 +14,9 @@
 //    hazed colour plus half the sky along the pixel, within 3/255;
 // 6. the sun 0.5° up ahead, its disc reaching the horizon, at 2000 m: as case
 //    1 under it, no disc and no glow (ADR-0412 point 2); no channel above
-//    the same quad's with the sun 90° round to the side, plus 3/255.
+//    the same quad's with the sun 90° round to the side, plus 3/255;
+// 7. the sky's strength 0.25 at 2000 m: within 3/255 of (1 − 2^−2) × the
+//    backdrop at strength 0.25 along the pixel (ADR-0411 point 4).
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO. The skip is a pass and it
 // prints its reason.
@@ -296,6 +298,21 @@ static void check_low_sun(struct scene *scene)
 		VOE_TEST_CHECK(pixel[i] <= beside[i] + TOLERANCE);
 }
 
+// A sky of strength 0.25: the far quad hazes towards its dimmer backdrop.
+static void check_dim_sky(struct scene *scene)
+{
+	voe_render_sky dim = SKY;
+	const struct haze_case far = { FAR_QUAD, HAZE, false, false, false,
+				       NULL, &dim };
+	const uint8_t *pixel;
+
+	dim.strength = 0.25f;
+	if ((pixel = centre_of(scene, &far)) != NULL)
+		check_pixel("strength 0.25", pixel,
+			    voe_math_float3_scale(horizon_gradient(&dim), 0.75f),
+			    TOLERANCE);
+}
+
 int main(void)
 {
 	voe_platform_size size = { SIDE, SIDE };
@@ -335,6 +352,7 @@ int main(void)
 
 	check_pictures(&scene);
 	check_low_sun(&scene);
+	check_dim_sky(&scene);
 
 	voe_render_device_destroy(scene.device);
 	voe_base_arena_destroy(scene.arena);

@@ -84,12 +84,11 @@ by reading the offscreen colour image back.
   Clip, Soft as PBR Neutral, a lit quad's sun clipped or rolled off, a draw after the depth clear
   as authored, a blended one doubled, and no sky. Headless.
 - `sky.c` — the sky drawn behind a pass: its pixels the CPU twin's radiance within 2/255, a quad
-  over it, a zeroed sky the clear colour, a dark sun the plain gradient, and `<pass>: sky` in the
-  breakdown.
-  Headless.
+  over it, a zeroed sky the clear colour, a dark sun the plain gradient, `<pass>: sky` in the
+  breakdown, and a red light and a blue one in `more` each drawing its own disc. Headless.
 - `haze.c` — far surfaces fading into the horizon's gradient: a black quad at 2000 m three quarters
   haze, at 50 m under a tenth, haze 0 and a draw after the depth clear black, a blended one keeping
-  its blend over the sky, and a low sun ahead adding no disc or glow. Headless.
+  its blend, a low sun adding no disc or glow, and strength 0.25 dimming it. Headless.
 - `sky_light.c` — the sky lighting nothing: a grey cube's face the same bytes with the sky or
   without and at any zenith, a non-metal quad unchanged, a smooth metal one the sky along R and a
   rough one nearer E(R)/π, none inside Indoors. Headless.
@@ -130,7 +129,8 @@ by reading the offscreen colour image back.
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
 - `sky_model.c` — the backdrop, glow and irradiance, with no card: colours as authored, the
-  horizon band, the disc, and the harmonics within 5% of a brute-force sum.
+  horizon band, strength scaling the backdrop, each light's disc at 2c, a light not shown leaving
+  the backdrop, glow in a black sky, and the harmonics within 5% of a brute-force sum.
 - `light_blockers.c` — which boxes hold a point, with no card: a box's centre and face and not
   past it, a turned box's diagonal, two boxes both bits, blocker 31 bit 31, none mask 0, and
   inside the sphere but outside the box 0, the call reached through `render/device.h`.

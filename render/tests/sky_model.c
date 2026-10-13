@@ -22,13 +22,29 @@
 //
 // IRRADIANCE within 5% of a cosine-weighted sum of the backdrop over 4096
 // Fibonacci directions, for up, down and two horizontal normals, on the
-// channels summed.
+// channels summed; the sky's disc and glow sizes at nought the same harmonics
+// byte for byte, the lights present making no difference.
+//
+// EVERY LIGHT'S DISC (ADR-0412 points 2 and 3), lights of disc 1.5 and glow 0.3,
+// each within 1e-4 unless named:
+// - strength 0.5 reads half of strength 1's straight up, at the horizon and
+//   straight down, under an orange light; strength 0 reads nought there;
+// - an orange light (1, 0.5, 0) 30° up reads (2, 1, 0) along its own direction
+//   at strength 1 and 0, at intensity 1 and 50;
+// - that light unshaded, of intensity 0, or of disc and glow 0: the radiance
+//   along 4096 directions is the backdrop;
+// - red 30° up to the north (−Z) and blue 20° up to the east (+X): each one's
+//   own direction reads its own 2c, a view between them at least the backdrop;
+// - the orange light's glow 10° from it is above the backdrop in red and
+//   green at strength 1 and 0;
+// - with no light the gradient is the radiance along 4096 directions.
 #include "../src/sky.h"
 
 #include <testing/test.h>
 
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
 
 #define PI 3.14159265358979f
 #define BRUTE_DIRECTIONS 4096u
@@ -232,10 +248,161 @@ static void check_irradiance(voe_math_float3 normal)
 
 static void irradiance_matches_the_sky(void)
 {
+	voe_render_sky bare = DEFAULTS;
+	voe_math_float4 with[9];
+	voe_math_float4 without[9];
+
 	check_irradiance(up);
 	check_irradiance(down);
 	check_irradiance((voe_math_float3){ 1, 0, 0 });
 	check_irradiance((voe_math_float3){ -1, 0, 0 });
+	memset(bare.disc_size, 0, sizeof(bare.disc_size));
+	memset(bare.glow_size, 0, sizeof(bare.glow_size));
+	voe_render_sky_harmonics(&DEFAULTS, with);
+	voe_render_sky_harmonics(&bare, without);
+	VOE_TEST_CHECK(memcmp(with, without, sizeof(with)) == 0);
+}
+
+static const voe_math_float3 ORANGE = { 1.0f, 0.5f, 0.0f };
+static const voe_math_float3 RED = { 1.0f, 0.0f, 0.0f };
+static const voe_math_float3 BLUE = { 0.0f, 0.0f, 1.0f };
+static const voe_math_float3 NOUGHT = { 0.0f, 0.0f, 0.0f };
+
+// The defaults at `strength`, lights 0 and 1 of disc 1.5 and glow 0.3.
+static voe_render_sky lit_sky(float strength)
+{
+	voe_render_sky sky = DEFAULTS;
+
+	sky.strength = strength;
+	for (int i = 0; i < 2; i++) {
+		sky.disc_size[i] = 1.5f;
+		sky.glow_size[i] = 0.3f;
+	}
+	return sky;
+}
+
+// A light of `colour` standing `degrees` up at `azimuth` from +X.
+static voe_render_light light_toward(voe_math_float3 colour, float degrees,
+				     float azimuth)
+{
+	return (voe_render_light){
+		.direction = voe_math_float3_neg(toward(degrees, azimuth)),
+		.intensity = 1.0f,
+		.colour = colour,
+	};
+}
+
+static void strength_scales_the_backdrop(void)
+{
+	const voe_render_sky full = lit_sky(1.0f);
+	const voe_render_sky half = lit_sky(0.5f);
+	const voe_render_sky none = lit_sky(0.0f);
+	const voe_render_light orange = light_toward(ORANGE, 30.0f, 0.0f);
+	const voe_math_float3 views[3] = { up, toward(0.0f, 180.0f), down };
+
+	for (int i = 0; i < 3; i++) {
+		const voe_math_float3 f =
+			voe_render_sky_radiance(&full, &orange, 1, views[i]);
+
+		check_colour(voe_render_sky_radiance(&half, &orange, 1, views[i]),
+			     voe_math_float3_scale(f, 0.5f), EXACT);
+		check_colour(voe_render_sky_radiance(&none, &orange, 1, views[i]),
+			     NOUGHT, EXACT);
+	}
+}
+
+static void a_disc_is_twice_its_colour(void)
+{
+	const voe_math_float3 at = toward(30.0f, 0.0f);
+	const voe_math_float3 twice =
+		voe_math_float3_scale(ORANGE, VOE_RENDER_SKY_DISC_GAIN);
+	const float strengths[2] = { 1.0f, 0.0f };
+	const float intensities[2] = { 1.0f, 50.0f };
+
+	for (int s = 0; s < 2; s++) {
+		const voe_render_sky sky = lit_sky(strengths[s]);
+
+		for (int i = 0; i < 2; i++) {
+			voe_render_light orange = light_toward(ORANGE, 30.0f, 0.0f);
+
+			orange.intensity = intensities[i];
+			check_colour(voe_render_sky_radiance(&sky, &orange, 1, at),
+				     twice, EXACT);
+		}
+	}
+}
+
+static void a_light_not_shown_leaves_the_backdrop(void)
+{
+	const voe_render_sky sky = lit_sky(1.0f);
+	const voe_render_light orange = light_toward(ORANGE, 30.0f, 0.0f);
+	voe_render_sky bare = sky;
+	voe_render_light unshaded = orange;
+	voe_render_light dim = orange;
+
+	bare.disc_size[0] = 0.0f;
+	bare.glow_size[0] = 0.0f;
+	unshaded.unshaded = 1;
+	dim.intensity = 0.0f;
+	for (uint32_t i = 0; i < BRUTE_DIRECTIONS; i++) {
+		const voe_math_float3 v = fibonacci(i);
+		const voe_math_float3 b = voe_render_sky_gradient(&sky, v);
+
+		check_colour(voe_render_sky_radiance(&sky, &unshaded, 1, v), b,
+			     EXACT);
+		check_colour(voe_render_sky_radiance(&sky, &dim, 1, v), b, EXACT);
+		check_colour(voe_render_sky_radiance(&bare, &orange, 1, v), b,
+			     EXACT);
+	}
+}
+
+static void each_light_draws_its_own_disc(void)
+{
+	const voe_render_sky sky = lit_sky(1.0f);
+	const voe_render_light lights[2] = {
+		light_toward(RED, 30.0f, -90.0f),
+		light_toward(BLUE, 20.0f, 0.0f),
+	};
+	const voe_math_float3 between = voe_math_float3_normalize(
+		voe_math_float3_add(toward(30.0f, -90.0f), toward(20.0f, 0.0f)));
+	const voe_math_float3 l =
+		voe_render_sky_radiance(&sky, lights, 2, between);
+	const voe_math_float3 b = voe_render_sky_gradient(&sky, between);
+
+	for (int i = 0; i < 2; i++)
+		check_colour(voe_render_sky_radiance(
+				     &sky, lights, 2,
+				     voe_math_float3_neg(lights[i].direction)),
+			     voe_math_float3_scale(lights[i].colour,
+						   VOE_RENDER_SKY_DISC_GAIN),
+			     EXACT);
+	VOE_TEST_CHECK(l.x >= b.x && l.y >= b.y && l.z >= b.z);
+}
+
+static void a_glow_shows_in_a_black_sky(void)
+{
+	const voe_render_light orange = light_toward(ORANGE, 30.0f, 0.0f);
+	const voe_math_float3 aside = toward(40.0f, 0.0f);
+	const float strengths[2] = { 1.0f, 0.0f };
+
+	for (int s = 0; s < 2; s++) {
+		const voe_render_sky sky = lit_sky(strengths[s]);
+		const voe_math_float3 l =
+			voe_render_sky_radiance(&sky, &orange, 1, aside);
+		const voe_math_float3 b = voe_render_sky_gradient(&sky, aside);
+
+		VOE_TEST_CHECK(l.x > b.x && l.y > b.y);
+	}
+}
+
+static void no_light_is_the_gradient(void)
+{
+	const voe_render_sky sky = lit_sky(1.0f);
+
+	for (uint32_t i = 0; i < BRUTE_DIRECTIONS; i++)
+		check_colour(voe_render_sky_gradient(&sky, fibonacci(i)),
+			     voe_render_sky_radiance(&sky, NULL, 0, fibonacci(i)),
+			     EXACT);
 }
 
 int main(void)
@@ -245,5 +412,11 @@ int main(void)
 	the_sun_outshines_the_sky();
 	the_gradient_leaves_the_sun_out();
 	irradiance_matches_the_sky();
+	strength_scales_the_backdrop();
+	a_disc_is_twice_its_colour();
+	a_light_not_shown_leaves_the_backdrop();
+	each_light_draws_its_own_disc();
+	a_glow_shows_in_a_black_sky();
+	no_light_is_the_gradient();
 	return voe_test_result();
 }

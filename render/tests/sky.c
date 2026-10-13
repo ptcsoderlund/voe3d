@@ -10,7 +10,12 @@
 // 3. the sky zeroed reads pass.c's clear colour, the old picture;
 // 4. a sun of intensity 0 reads the plain backdrop, the CPU's gradient;
 // 5. some frames later, `voe_render_frame_pass_times` lists the target's pass
-//    then `<pass>: sky`. A card that writes no timestamps skips this part.
+//    then `<pass>: sky`. A card that writes no timestamps skips this part;
+// 6. a red light 30° up to the north and a blue one 20° up to the east, the
+//    second in `more`, disc 3 and glow 0.3 each, seen through a 120° view
+//    looking north-east (north 45° left of −Z, east 45° right): the pixel
+//    nearest each one's direction is the CPU twin's radiance there within
+//    2/255, red over blue at the first, blue over red at the second.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO. The skip is a pass and it
 // prints its reason.
@@ -38,6 +43,8 @@
 #define FRAMES 4
 
 #define FIELD_OF_VIEW 1.0471976f
+// Case 6's view, wide enough for two lights 80° apart.
+#define WIDE_FIELD 2.0943951f
 #define NEAR_PLANE 0.1f
 #define FAR_PLANE 100.0f
 
@@ -85,11 +92,12 @@ struct scene {
 	voe_render_shading red;
 };
 
-// The eye at the origin looking along −Z, +Y up, reverse-Z as exposure.c's.
-static voe_render_view the_camera(void)
+// The eye at the origin looking along −Z, +Y up, reverse-Z as exposure.c's,
+// `field` radians across.
+static voe_render_view the_camera(float field)
 {
 	voe_render_view view = { .view = voe_math_float4x4_identity() };
-	float focal = 1.0f / tanf(FIELD_OF_VIEW * 0.5f);
+	float focal = 1.0f / tanf(field * 0.5f);
 	float span = FAR_PLANE - NEAR_PLANE;
 
 	view.projection.m[0][0] = focal;
@@ -110,17 +118,12 @@ static voe_render_light the_sun(float intensity)
 	};
 }
 
-// One frame of one pass onto the target, the quad drawn when `quad`.
-static void draw_frame(struct scene *scene, voe_render_light light,
-		       voe_render_sky sky, bool quad)
+// One frame of one pass with `camera` onto the target, the quad drawn when
+// `quad`.
+static void draw_camera(struct scene *scene,
+			const voe_render_pass_camera *camera, bool quad)
 {
 	voe_platform_size size = { SIDE, SIDE };
-	voe_render_pass_camera camera = {
-		.view = the_camera(),
-		.light = light,
-		.sky = sky,
-		.exposure = { .tone = VOE_RENDER_TONE_CLIP },
-	};
 	voe_render_object object = {
 		.world = voe_math_float4x4_identity(),
 		.normal = voe_math_float4x4_identity(),
@@ -134,7 +137,7 @@ static void draw_frame(struct scene *scene, voe_render_light light,
 	if (!drawing)
 		return;
 	VOE_TEST_CHECK(voe_render_pass_begin(scene->device, scene->target,
-					     &camera));
+					     camera));
 	if (quad)
 		VOE_TEST_CHECK(voe_render_frame_draw(scene->device, scene->quad,
 						     object));
@@ -142,14 +145,26 @@ static void draw_frame(struct scene *scene, voe_render_light light,
 	VOE_TEST_CHECK(voe_render_frame_end(scene->device));
 }
 
-// One frame drawn and the target read back; NULL when the read failed.
-static const uint8_t *picture_of(struct scene *scene, voe_render_light light,
-				 voe_render_sky sky, bool quad)
+// One frame of one pass under `light` and `sky`, the 60° view, Clip.
+static void draw_frame(struct scene *scene, voe_render_light light,
+		       voe_render_sky sky, bool quad)
+{
+	const voe_render_pass_camera camera = {
+		.view = the_camera(FIELD_OF_VIEW),
+		.light = light,
+		.sky = sky,
+		.exposure = { .tone = VOE_RENDER_TONE_CLIP },
+	};
+
+	draw_camera(scene, &camera, quad);
+}
+
+// The target read back; NULL when the read failed.
+static const uint8_t *read_back(struct scene *scene)
 {
 	voe_render_picture picture = { 0 };
 	voe_base_error error = VOE_BASE_OK;
 
-	draw_frame(scene, light, sky, quad);
 	VOE_TEST_CHECK(voe_render_target_read(scene->device, scene->target,
 					      scene->arena, &picture, &error));
 	VOE_TEST_CHECK_INT(picture.width, SIDE);
@@ -157,6 +172,14 @@ static const uint8_t *picture_of(struct scene *scene, voe_render_light light,
 	    picture.height != SIDE)
 		return NULL;
 	return picture.pixels;
+}
+
+// One frame drawn and the target read back; NULL when the read failed.
+static const uint8_t *picture_of(struct scene *scene, voe_render_light light,
+				 voe_render_sky sky, bool quad)
+{
+	draw_frame(scene, light, sky, quad);
+	return read_back(scene);
 }
 
 // A linear value as the byte an sRGB target stores for it, clamped as it does.
@@ -169,10 +192,11 @@ static int srgb_byte(float linear)
 	return (int)lroundf(encoded * 255.0f);
 }
 
-// The world direction through pixel (column, row)'s centre, row 0 the top.
-static voe_math_float3 direction_of(int column, int row)
+// The world direction through pixel (column, row)'s centre, row 0 the top, in
+// a view `field` radians across.
+static voe_math_float3 direction_of(int column, int row, float field)
 {
-	float focal = 1.0f / tanf(FIELD_OF_VIEW * 0.5f);
+	float focal = 1.0f / tanf(field * 0.5f);
 	float x = 2.0f * ((float)column + 0.5f) / SIDE - 1.0f;
 	float y = 1.0f - 2.0f * ((float)row + 0.5f) / SIDE;
 
@@ -201,7 +225,8 @@ static void check_sky(const uint8_t *pixels, voe_render_light light)
 		check_pixel(pixels, SIDE / 2, rows[i],
 			    voe_render_sky_radiance(&DRAWN, &light, 1,
 						    direction_of(SIDE / 2,
-								 rows[i])),
+								 rows[i],
+								 FIELD_OF_VIEW)),
 			    TOLERANCE);
 }
 
@@ -229,8 +254,66 @@ static void check_pictures(struct scene *scene)
 		check_pixel(pixels, SIDE / 2, SIDE / 2,
 			    voe_render_sky_gradient(&DRAWN,
 						    direction_of(SIDE / 2,
-								 SIDE / 2)),
+								 SIDE / 2,
+								 FIELD_OF_VIEW)),
 			    TOLERANCE);
+}
+
+// Where a light `degrees` up stands, `azimuth` degrees right of −Z.
+static voe_math_float3 standing(float degrees, float azimuth)
+{
+	const float e = degrees * (3.14159265f / 180.0f);
+	const float a = azimuth * (3.14159265f / 180.0f);
+
+	return (voe_math_float3){ cosf(e) * sinf(a), sinf(e),
+				  -cosf(e) * cosf(a) };
+}
+
+// Case 6: a red light to the north, a blue one in `more` to the east.
+static void check_two_lights(struct scene *scene)
+{
+	const voe_math_float3 at[2] = { standing(30.0f, -45.0f),
+					standing(20.0f, 45.0f) };
+	const voe_render_light lights[2] = {
+		{ .direction = voe_math_float3_neg(at[0]),
+		  .intensity = 1.0f,
+		  .colour = { 1.0f, 0.0f, 0.0f } },
+		{ .direction = voe_math_float3_neg(at[1]),
+		  .intensity = 1.0f,
+		  .colour = { 0.0f, 0.0f, 1.0f } },
+	};
+	const voe_render_directional_light more = { .light = lights[1] };
+	const float focal = 1.0f / tanf(WIDE_FIELD * 0.5f);
+	voe_render_pass_camera camera = {
+		.view = the_camera(WIDE_FIELD),
+		.light = lights[0],
+		.more = { &more, 1 },
+		.sky = DRAWN,
+		.exposure = { .tone = VOE_RENDER_TONE_CLIP },
+	};
+	const uint8_t *pixels;
+
+	for (int i = 0; i < 2; i++) {
+		camera.sky.disc_size[i] = 3.0f;
+		camera.sky.glow_size[i] = 0.3f;
+	}
+	draw_camera(scene, &camera, false);
+	if ((pixels = read_back(scene)) == NULL)
+		return;
+	for (int i = 0; i < 2; i++) {
+		const int column = (int)floorf(
+			(focal * at[i].x / -at[i].z + 1.0f) * 0.5f * SIDE);
+		const int row = (int)floorf(
+			(1.0f - focal * at[i].y / -at[i].z) * 0.5f * SIDE);
+		const uint8_t *pixel = pixels + ((size_t)row * SIDE + column) * 4;
+
+		check_pixel(pixels, column, row,
+			    voe_render_sky_radiance(
+				    &camera.sky, lights, 2,
+				    direction_of(column, row, WIDE_FIELD)),
+			    TOLERANCE);
+		VOE_TEST_CHECK(i == 0 ? pixel[0] > pixel[2] : pixel[2] > pixel[0]);
+	}
 }
 
 static void check_breakdown(struct scene *scene)
@@ -293,6 +376,7 @@ int main(void)
 
 	check_pictures(&scene);
 	check_breakdown(&scene);
+	check_two_lights(&scene);
 
 	voe_render_device_destroy(scene.device);
 	voe_base_arena_destroy(scene.arena);
