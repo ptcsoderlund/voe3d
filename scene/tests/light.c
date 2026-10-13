@@ -2,8 +2,10 @@
 // system runs and a refused one keeps the row, and that a rotation and the
 // direction it shines convert both ways. Bounces lands up to its maximum, 3, and
 // is named "0" to "3"; bounce strength is 1 in the default and unsaid rows,
-// listed last, and refused negative.
+// and refused negative.
 // Cast shadows is off by default, on in the unsaid row, and lands either way.
+// Disc size 1.5 and glow size 0.3 are in both rows; disc 11 or -1, glow 1.5 or
+// NaN are refused, and a disc and glow of 0 land.
 //
 // THE CONVERSIONS ARE THE CLAIM WORTH MOST. Everything that draws the sun reads
 // its direction through voe_scene_light_direction, and a sign wrong there lights
@@ -83,6 +85,8 @@ static voe_scene_light known(void)
 		.bounces = 2,
 		.cast_shadows = true,
 		.bounce_strength = 0.75f,
+		.disc_size = 4.0f,
+		.glow_size = 0.6f,
 	};
 }
 
@@ -100,6 +104,8 @@ static void check_light(const voe_scene_light *read, voe_scene_light expected)
 	VOE_TEST_CHECK(read->cast_shadows == expected.cast_shadows);
 	VOE_TEST_CHECK_FLOAT(read->bounce_strength, expected.bounce_strength,
 			     0.0f);
+	VOE_TEST_CHECK_FLOAT(read->disc_size, expected.disc_size, 0.0f);
+	VOE_TEST_CHECK_FLOAT(read->glow_size, expected.glow_size, 0.0f);
 }
 
 static void a_light_arrives_as_given(voe_base_arena *arena)
@@ -154,9 +160,9 @@ static void a_refused_intent_keeps_the_row(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
 	voe_ecs_entity sun = { 0 };
-	voe_scene_light bad[10];
+	voe_scene_light bad[14];
 
-	for (int i = 0; i < 10; i++)
+	for (int i = 0; i < 14; i++)
 		bad[i] = known();
 	bad[0].colour.x = 1.5f;
 	bad[1].colour.y = -0.1f;
@@ -168,11 +174,15 @@ static void a_refused_intent_keeps_the_row(voe_base_arena *arena)
 	bad[7].bounces = VOE_SCENE_LIGHT_BOUNCES_MAX + 1;
 	bad[8].bounce_strength = -1.0f;
 	bad[9].bounce_strength = NAN;
+	bad[10].disc_size = 11.0f;
+	bad[11].disc_size = -1.0f;
+	bad[12].glow_size = 1.5f;
+	bad[13].glow_size = NAN;
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
 	VOE_TEST_CHECK(voe_scene_light_add(world, sun, known()));
 
-	for (int i = 0; i < 10; i++) {
+	for (int i = 0; i < 14; i++) {
 		VOE_TEST_CHECK(voe_scene_light_submit(
 			world, (voe_scene_light_intent){ .entity = sun,
 							 .light = bad[i] }));
@@ -231,6 +241,24 @@ static void cast_shadows_lands_either_way(voe_base_arena *arena)
 	check_light(voe_scene_light_get(world, sun), off);
 }
 
+// A disc and a glow of nought are a light not seen in the sky, and land.
+static void no_disc_and_no_glow_land(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity sun = { 0 };
+	voe_scene_light unseen = known();
+
+	unseen.disc_size = 0.0f;
+	unseen.glow_size = 0.0f;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &sun));
+	VOE_TEST_CHECK(voe_scene_light_add(world, sun, known()));
+
+	VOE_TEST_CHECK(voe_scene_light_submit(
+		world, (voe_scene_light_intent){ .entity = sun, .light = unseen }));
+	voe_scene_light_system_run(world);
+	check_light(voe_scene_light_get(world, sun), unseen);
+}
+
 // An entity that dies between the submit and the drain takes its intent with
 // it, and that is ordinary rather than an error.
 static void an_intent_for_a_destroyed_entity_is_dropped(voe_base_arena *arena)
@@ -287,7 +315,7 @@ static void check_bounces_names(const voe_base_struct_description *description)
 		VOE_TEST_CHECK(strcmp(names->values[i], expected[i]) == 0);
 }
 
-// Seven fields, in the order they are declared, each kinded as declared and
+// Nine fields, in the order they are declared, each kinded as declared and
 // each at the offset and size the compiler gave it. None is read-only.
 static void check_description(const voe_base_struct_description *description)
 {
@@ -295,8 +323,8 @@ static void check_description(const voe_base_struct_description *description)
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_scene_light") == 0);
 	check_bounces_names(description);
-	VOE_TEST_CHECK_INT(description->field_count, 7);
-	if (description->field_count != 7)
+	VOE_TEST_CHECK_INT(description->field_count, 9);
+	if (description->field_count != 9)
 		return;
 
 	check_field(&fields[0], "colour", VOE_BASE_FIELD_COLOUR,
@@ -314,11 +342,15 @@ static void check_description(const voe_base_struct_description *description)
 		    offsetof(voe_scene_light, cast_shadows), sizeof(bool));
 	check_field(&fields[6], "bounce_strength", VOE_BASE_FIELD_FLOAT32,
 		    offsetof(voe_scene_light, bounce_strength), sizeof(float));
+	check_field(&fields[7], "disc_size", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_light, disc_size), sizeof(float));
+	check_field(&fields[8], "glow_size", VOE_BASE_FIELD_FLOAT32,
+		    offsetof(voe_scene_light, glow_size), sizeof(float));
 }
 
 // What a tool sees: the replace, the default row (0190: white of strength one,
-// a white fill of nought, no bounces at a bounce strength of one, no shadows),
-// the unsaid row (0324: the
+// a white fill of nought, no bounces at a bounce strength of one, no shadows,
+// a disc of 1.5 and a glow of 0.3), the unsaid row (0324: the
 // default casting), the transform it needs, the menu path and the field list,
 // which in a describing build is scene/src's own copy and so is checked field
 // by field and never by address.
@@ -335,7 +367,9 @@ static void registration_says_what_a_light_is(voe_base_arena *arena)
 				     .fill_intensity = 0.0f,
 				     .bounces = 0,
 				     .cast_shadows = false,
-				     .bounce_strength = 1.0f };
+				     .bounce_strength = 1.0f,
+				     .disc_size = 1.5f,
+				     .glow_size = 0.3f };
 	voe_ecs_type needed = { 0 };
 	const voe_base_struct_description *found =
 		voe_ecs_component_description(world, type);
@@ -423,6 +457,7 @@ int main(void)
 	a_refused_intent_keeps_the_row(arena);
 	bounces_lands_up_to_the_maximum(arena);
 	cast_shadows_lands_either_way(arena);
+	no_disc_and_no_glow_land(arena);
 	an_intent_for_a_destroyed_entity_is_dropped(arena);
 	a_rotation_becomes_the_direction_it_shines();
 	a_direction_becomes_a_rotation_and_back();

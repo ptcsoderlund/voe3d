@@ -20,9 +20,9 @@ stays on `scene/scene.md`.
 - `identity_system.h` — the intent that renames one, and the direct call that
   creates one.
 - `light_component.h` — the sun: which way its light travels, its colour and its
-  strength.
-- `light_system.h` — the intent that turns it, and the direct call that creates
-  one.
+  strength, and the disc and glow it draws under a sky.
+- `light_system.h` — the intent that turns it, the direct call that creates
+  one, and its default disc of 1.5 degrees and glow of 0.3.
 - `point_light_component.h` — a lamp: its colour, intensity, range and flash,
   and the strength it shines with now.
 - `point_light_system.h` — the replace and flash intents, the direct call that

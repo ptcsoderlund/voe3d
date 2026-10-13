@@ -35,9 +35,16 @@
 // field existed reads true, so an old scene keeps its sun's shadows. Which
 // things cast is their own flag, on 3d's shape and model.
 //
-// INTENSITY IS A MULTIPLIER AND NOT A PHYSICAL UNIT. There is no exposure or
-// tone mapping yet, so a number here is whatever looks right; 1 with white is
-// what an unlit-looking scene turns into. Neither intensity may be negative.
+// UNDER A SKY EVERY DIRECTIONAL LIGHT DRAWS ITS OWN DISC AND GLOW (0411, 0412):
+// the disc in the light's colour at a fixed brightness, whatever its intensity,
+// and a glow tinting the sky around it. DISC_SIZE is the disc's angular radius
+// in degrees, 0 to VOE_SCENE_LIGHT_DISC_SIZE_MAX, 0 no disc; GLOW_SIZE is 0 to
+// 1, 0 no glow. Two suns are two lights. Without a sky neither does anything.
+//
+// INTENSITY IS A MULTIPLIER AND NOT A PHYSICAL UNIT. Exposure and tone are the
+// picture row's (scene/picture_component.h), so a number here is whatever looks
+// right; 1 with white is what an unlit-looking scene turns into. Neither
+// intensity may be negative.
 //
 // THE COLOURS ARE LINEAR, each channel 0 to 1, like every colour that reaches
 // the GPU. They are multiplied into what the light does, so white changes
@@ -62,8 +69,9 @@
 
 // The colours are linear multipliers, (1, 1, 1) white; the intensities are
 // not negative. The fill lifts only the shade, bounces is at most
-// VOE_SCENE_LIGHT_BOUNCES_MAX, cast_shadows is off unless said, and
-// bounce_strength is not negative — see the header.
+// VOE_SCENE_LIGHT_BOUNCES_MAX, cast_shadows is off unless said,
+// bounce_strength is not negative, disc_size is degrees from 0 to
+// VOE_SCENE_LIGHT_DISC_SIZE_MAX and glow_size 0 to 1 — see the header.
 #define VOE_SCENE_LIGHT_FIELDS(F, F_READ_ONLY)      \
 	F(voe_math_float3, colour, COLOUR)          \
 	F(float, intensity, FLOAT32)                \
@@ -71,10 +79,15 @@
 	F(float, fill_intensity, FLOAT32)           \
 	F(uint32_t, bounces, UINT32)                \
 	F(bool, cast_shadows, BOOL)                 \
-	F(float, bounce_strength, FLOAT32)
+	F(float, bounce_strength, FLOAT32)          \
+	F(float, disc_size, FLOAT32)                \
+	F(float, glow_size, FLOAT32)
 
 // The most bounces a light may ask for.
 #define VOE_SCENE_LIGHT_BOUNCES_MAX 3u
+
+// The widest disc a light may draw in the sky, in degrees of angular radius.
+#define VOE_SCENE_LIGHT_DISC_SIZE_MAX 10.0f
 
 // The name of each allowed count, indexed by the count itself.
 extern VOE_BASE_IMPORTED const char

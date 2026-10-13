@@ -17,7 +17,7 @@ module's promises from outside. None of them needs a window or a graphics card.
   inverse with roll kept and none when scaled to nothing, and that a whole-lens
   intent applies a good lens and keeps the row over a bad one.
 - `light.c` — the sun's registration, intents, bounces, bounce strength, cast
-  shadows, and the conversions between a rotation and the direction it shines.
+  shadows, disc and glow sizes, and the conversions between a rotation and the direction it shines.
 - `point_light.c` — the point light's registration, refused and accepted
   replaces, falloff bounds, cast shadows, bounces and bounce strength.
 - `light_blocker.c` — the blocker's registration with a Block All default, the
