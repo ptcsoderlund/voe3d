@@ -68,6 +68,13 @@ space is.
 - `include/scene/sky_system.h` — the whole-row intent as its replace, the direct
   call that creates one, and the run that drains it. Its header says what is
   refused and why the replace is queued.
+- `include/scene/haze_component.h` — haze and its start distance, as a
+  described field list, and the reads. Its header says the row is haze on,
+  that it works with or without a sky, where its colour comes from and each
+  field's bounds.
+- `include/scene/haze_system.h` — the whole-row intent as its replace, the
+  direct call that creates one, and the run that drains it. Its header says
+  what is refused and why the replace is queued.
 - `include/scene/picture_component.h` — the whole picture's exposure in stops
   and its tone, Clip or Soft, named, as a described field list, and the reads.
   Its header says why it is not a camera's and that no row is x1 and Clip.
