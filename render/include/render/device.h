@@ -1466,7 +1466,8 @@ typedef struct {
 // `drawn` non-zero draws the sky first in the pass, behind everything, from
 // the pass's `light` (the plain gradient, no disc, glow or evening, for an
 // `unshaded` one or one of intensity 0), exposed and toned by the pass's
-// voe_render_exposure.
+// voe_render_exposure. It also lifts the first light's reach on lit surfaces
+// (0410): one the sun reaches past about 3° reads at least half lit.
 //
 // `haze`, at least 0, is the metres at which half a surface's colour is haze
 // (ADR-0405 point 6): every mesh exit, lit, unlit, water and blended (its

@@ -19,7 +19,11 @@
 //    fill 0 case 1's rule; the sky zeroed, the red fill as before;
 // 6. case 2's sun white at intensity π, the face in its full light: byte for
 //    byte the same at fill 0, 0.5 and 1; turned away at fill 1 no brighter,
-//    summed, than in that sun; the sky zeroed, light 0's red fill adds nothing.
+//    summed, than in that sun; the sky zeroed, light 0's red fill adds nothing;
+// 7. the editor's low sun (ADR-0410): a pink sun at intensity π, its fill blue,
+//    3° up at N·L sin 5° on the face: at fill 0 at least 0.6 of the bytes it
+//    reads with that sun 3° up behind the camera, and the same bytes at fill
+//    0, 0.562 and 1.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO. The skip is a pass and it
 // prints its reason.
@@ -330,6 +334,49 @@ static void check_full_sun(struct scene *scene, voe_render_light full)
 	}
 }
 
+// The editor's low sun on the +Z face (ADR-0410): lifted to at least 0.6 of
+// its bytes head-on, and past the fill's fade, so the same at every fill.
+static void check_low_sun(struct scene *scene)
+{
+	const voe_render_light_blockers none = { 0 };
+	const float fills[2] = { 0.562f, 1.0f };
+	// Towards it (√(1 − sin²3° − sin²5°), sin 3°, sin 5°), reversed.
+	voe_render_light low = {
+		.direction = { -0.9948190f, -0.0523360f, -0.0871557f },
+		.intensity = PI,
+		.colour = { 1.0f, 0.75f, 0.8f },
+		.fill = { 0.2f, 0.4f, 1.0f },
+	};
+	voe_render_light behind = low;
+	uint8_t at_fill_zero[3] = { 0 };
+	const uint8_t *lit;
+	int head_on;
+
+	behind.direction = (voe_math_float3){ 0.0f, -0.0523360f, -0.9986295f };
+	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, behind,
+			 sky_at(0.0f), none);
+	if (lit == NULL)
+		return;
+	print_pixel("low sun behind the camera, sky light 0", lit);
+	head_on = byte_sum(lit);
+	lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, low,
+			 sky_at(0.0f), none);
+	if (lit == NULL)
+		return;
+	print_pixel("low sun at N.L sin 5, sky light 0", lit);
+	VOE_TEST_CHECK((float)byte_sum(lit) >= 0.6f * (float)head_on);
+	memcpy(at_fill_zero, lit, sizeof at_fill_zero);
+	for (int i = 0; i < 2; i++) {
+		lit = picture_of(scene, scene->cube, scene->grey, CUBE_Z, low,
+				 sky_at(fills[i]), none);
+		if (lit != NULL) {
+			print_pixel("low sun, other sky light", lit);
+			VOE_TEST_CHECK(memcmp(lit, at_fill_zero,
+					      sizeof at_fill_zero) == 0);
+		}
+	}
+}
+
 static void check_cube(struct scene *scene, voe_render_light noon,
 		       voe_render_light evening)
 {
@@ -546,6 +593,7 @@ int main(void)
 		check_red_fill(&scene, noon);
 		full.intensity = PI;
 		check_full_sun(&scene, full);
+		check_low_sun(&scene);
 	}
 	voe_render_device_destroy(scene.device);
 	voe_base_arena_destroy(scene.arena);
