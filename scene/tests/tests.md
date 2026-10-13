@@ -24,10 +24,10 @@ module's promises from outside. None of them needs a window or a graphics card.
   names All, Fill, Direct and the former name "kind", a row read back, a
   replace to Direct landing on a run, refused negative, infinite and NaN sizes
   and a Block past Direct, and a dead entity.
-- `sky.c` — the sky's registration, its default row of strength 1 and haze
-  start 100 and seven fields, a row read back, a horizon replace landing on a
-  run, a refused NaN zenith, negative ground, horizon height 1.5, strength -1
-  and infinite, infinite haze, and haze start -1 and infinite, and a dead entity.
+- `sky.c` — the sky's registration, its default row of strength 1 and five
+  fields, a row read back, a horizon replace landing on a run, a refused NaN
+  zenith, negative ground, horizon height 1.5, strength -1 and infinite, and a
+  dead entity.
 - `haze.c` — the haze's registration, its default row of haze 1000 and start
   100 and two fields, a row read back, a haze replace landing on a run, a
   refused NaN haze, haze -1, start -1 and infinite start, and a dead entity.

@@ -32,7 +32,7 @@ stays on `scene/scene.md`.
 - `light_blocker_system.h` — the replace intent, the direct call that creates
   one, and the run that drains it.
 - `sky_component.h` — the sky: a backdrop with a strength that lights nothing,
-  and haze from a start distance, lit by the directional lights, not the sky.
+  whose horizon hue the haze takes.
 - `sky_system.h` — the replace intent, the direct call that creates one, and
   the run that drains it.
 - `haze_component.h` — the haze: how far surfaces fade, past a start distance,

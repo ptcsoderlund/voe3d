@@ -1,4 +1,4 @@
-// The sky: a backdrop, and nothing about light (0411, 0412, 0415). Read by
+// The sky: a backdrop, and nothing about light (0411, 0412, 0416). Read by
 // anyone, const; written only through scene/sky_system.h.
 //
 // HAVING THE ROW IS THE SKY ON. A world with no sky row draws the old picture,
@@ -9,6 +9,10 @@
 // dark sky under a bright light is a supported look. Game code animates the
 // colours for a day and night cycle.
 //
+// THE HAZE IS NOT THIS ROW'S but the Haze row's (scene/haze_component.h). It
+// takes this row's horizon hue but none of its brightness or strength (0416
+// point 3).
+//
 // THE FIRST ROW IN TABLE ORDER IS THE ONE DRAWN. A world holds at most one by
 // the caller's capacity; a second row, if a caller allows one, is ignored.
 //
@@ -17,14 +21,8 @@
 //                    colours are. Each channel at least 0.
 //   horizon_height — 0 to 1: how far up from the horizon towards the zenith
 //                    the horizon colour reaches; 0 a hard band.
-//   strength       — scales the backdrop only: not the haze, and never a
-//                    light's disc or glow. At least 0.
-//   haze           — metres past haze_start at which half of a surface's
-//                    colour is haze; 0 is no haze. At least 0.
-//   haze_start     — metres within which no surface takes haze (0414); 0 is
-//                    the fade from the eye. At least 0.
-//   haze and haze_start set only how far the fade reaches; the colour it
-//   fades to is the directional lights', not the sky's (0415).
+//   strength       — scales the backdrop only, never a light's disc or glow
+//                    or the haze. At least 0.
 //
 // THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a
 // build that asks for descriptions also has voe_scene_sky_description(), and
@@ -42,16 +40,14 @@
 
 #include <stdint.h>
 
-// Colours not negative, horizon_height 0 to 1, strength, haze and haze_start
-// not negative — see the header.
+// Colours not negative, horizon_height 0 to 1, strength not negative — see the
+// header.
 #define VOE_SCENE_SKY_FIELDS(F, F_READ_ONLY) \
 	F(voe_math_float3, zenith, COLOUR)   \
 	F(voe_math_float3, horizon, COLOUR)  \
 	F(voe_math_float3, ground, COLOUR)   \
 	F(float, horizon_height, FLOAT32)    \
-	F(float, strength, FLOAT32)          \
-	F(float, haze, FLOAT32)              \
-	F(float, haze_start, FLOAT32)
+	F(float, strength, FLOAT32)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_sky, VOE_SCENE_SKY_FIELDS)
 

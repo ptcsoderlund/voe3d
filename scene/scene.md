@@ -62,9 +62,9 @@ space is.
   the direct call that creates one, and the run that drains it. Its header says
   what size and Block are refused and why the replace is queued.
 - `include/scene/sky_component.h` — the sky's backdrop: zenith, horizon and
-  ground colours, horizon height, strength, haze and haze start, as a described field list,
-  and the reads. Its header says the row lights nothing, the lights draw their
-  discs in it, and each field's bounds.
+  ground colours, horizon height and strength, as a described field list, and
+  the reads. Its header says the row lights nothing, the lights draw their
+  discs in it, the haze takes only its hue, and each field's bounds.
 - `include/scene/sky_system.h` — the whole-row intent as its replace, the direct
   call that creates one, and the run that drains it. Its header says what is
   refused and why the replace is queued.
