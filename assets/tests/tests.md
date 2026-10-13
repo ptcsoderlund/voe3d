@@ -37,6 +37,10 @@ belongs to.
   one picture, COLOR_0 in each stored form, material and image names, sides,
   unlit, emission strength and repeat read or defaulted, a long name cut at a
   character, and one byte of a working file changed at a time.
+- `model_material.c` — built glTF materials, no file, to their `.material`
+  values: opaque, MASK, BLEND, unlit, double-sided, emission and repeat; and
+  the ORM picture from metal-roughness alone, with a larger occlusion picture,
+  from occlusion alone, and from neither.
 - `model_data.inc` — those files, as bytes.
 - `jpeg.c` — greyscale, 4:4:4 and 4:2:0 round-tripped against the pixels
   that went in, plus the same three failures and the progressive refusal. Its

@@ -59,6 +59,8 @@ of them is internal to this folder rather than reachable from outside it.
   why triangle lists only and why an unindexed primitive is given indices.
 - `model_gltf_nodes.c` — the node matrices and the node tree. Its header says
   how the tree is proven a tree without recursion.
+- `model_material.c` — a glTF material to `.material` values, and its ORM
+  picture merged from occlusion and metal-roughness at the nearest texel.
 - `model_glb.c` — the container: the header and the chunks. Its header
   carries the layout and says why a `.gltf` is refused by name.
 - `jpeg.c` — markers, Huffman tables, the inverse cosine transform, chroma
