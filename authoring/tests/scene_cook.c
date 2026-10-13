@@ -180,7 +180,13 @@ static void test_cook_exact_text(void)
 
 static bool write_file(const char *path, const char *text, size_t size)
 {
+	// The Windows headers deprecate fopen and -Werror makes that an error
+	// (ADR-0159, 0413); authoring does not link platform, and Annex K's
+	// fopen_s, the replacement, is not on Linux.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 	FILE *file = fopen(path, "wb");
+#pragma clang diagnostic pop
 
 	if (file == NULL)
 		return false;
