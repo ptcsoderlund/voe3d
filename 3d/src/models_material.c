@@ -102,7 +102,8 @@ static bool upload_material(voe_render_device *device, voe_base_arena *scratch,
 			    voe_3d_material_maps maps, voe_3d_model_entry *entry,
 			    entry_held *held, voe_base_error *error)
 {
-	voe_3d_model_part part = { .material = material_of(values) };
+	voe_3d_model_part part = { .material = material_of(values),
+				   .source = VOE_ASSETS_MODEL_NONE };
 	voe_3d_material *material = &part.material;
 	maps_made made = { 0 };
 	bool record = false;

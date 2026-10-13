@@ -98,7 +98,6 @@ voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transfo
 					      const voe_3d_models *models,
 					      voe_math_double3 eye);
 voe_3d_model_part voe_3d_draw_group_part_worn(const voe_3d_models *models,
-					      const voe_3d_model *row,
 					      const voe_3d_model_entry *model,
 					      uint32_t part);
 bool voe_3d_draw_group_shape_type(const voe_ecs_world *world,

@@ -3,11 +3,12 @@
 // names a loaded unlit red material reads red at the centre; the same cube with
 // an empty path, or a path the store does not hold, reads its own grey.
 //
-// A MODEL'S PART WEARS ONE TOO: model_data.inc's model, stood as
+// A MODEL'S PART WEARS ONE TOO (0404): model_data.inc's model, stood as
 // 3d/tests/models.c stands it so its green part covers the centre, reads red
-// with `materials[1]` naming the red material, and green with it empty or with
-// `materials[0]` naming it instead. Part 0 is already red, which is why the
-// worn part read is the green part 1: a red part wearing red proves nothing.
+// when voe_3d_models_parts_set names the red material for part 1's glTF
+// material, and green with it empty or with only part 0's naming it. Part 0 is
+// already red, which is why the worn part read is the green part 1: a red part
+// wearing red proves nothing.
 //
 // UNLIT RED, SO THE CENTRE IS RED WHATEVER THE SUN DOES: a lit grey cube reads
 // its three channels alike, and red with nought green and blue is no grey.
@@ -25,6 +26,7 @@
 #include <3d/shape_component.h>
 #include <3d/shape_system.h>
 #include <assets/material.h>
+#include <assets/parts.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <ecs/world.h>
@@ -119,17 +121,14 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const char *material)
 	return world;
 }
 
-// The lit world and one thing wearing MODEL, its `materials[part]` `material`,
-// turned and stood as 3d/tests/models.c stands it, five metres out.
-static voe_ecs_world *a_model_world(voe_base_arena *arena, uint32_t part,
-				    const char *material)
+// The lit world and one thing wearing MODEL, turned and stood as
+// 3d/tests/models.c stands it, five metres out.
+static voe_ecs_world *a_model_world(voe_base_arena *arena)
 {
 	voe_ecs_world *world = a_lit_world(arena);
 	voe_ecs_entity thing = { 0 };
 	voe_3d_model row = { .path = MODEL, .cast_shadows = true };
 
-	snprintf(row.materials[part], sizeof row.materials[part], "%s",
-		 material);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &thing));
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, thing,
@@ -202,15 +201,26 @@ static void the_cube_reads(voe_render_device *device, voe_base_arena *arena,
 	}
 }
 
-// The model whose `materials[part]` is `material` drawn once; whether its
-// centre reads red, else its green part's own green.
+// The model whose parts file names `material` for part `part`'s glTF material
+// drawn once; whether its centre reads red, else its green part's own green.
 static void the_model_reads(voe_render_device *device, voe_base_arena *arena,
-			    const voe_3d_models *models, uint32_t part,
+			    voe_3d_models *models, uint32_t part,
 			    const char *material, bool red)
 {
-	voe_ecs_world *world = a_model_world(arena, part, material);
+	voe_ecs_world *world = a_model_world(arena);
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, MODEL);
+	voe_assets_parts parts = { .count = VOE_ASSETS_PARTS };
 	uint8_t centre[4] = { 0 };
 
+	VOE_TEST_CHECK(entry != NULL && entry->loaded &&
+		       part < entry->part_count &&
+		       entry->parts[part].source < VOE_ASSETS_PARTS);
+	if (entry == NULL || part >= entry->part_count ||
+	    entry->parts[part].source >= VOE_ASSETS_PARTS)
+		return;
+	snprintf(parts.materials[entry->parts[part].source],
+		 sizeof parts.materials[0], "%s", material);
+	voe_3d_models_parts_set(models, MODEL, &parts);
 	if (!centre_of_a_frame(world, device, arena, models, centre))
 		return;
 	if (red) {

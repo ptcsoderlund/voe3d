@@ -116,7 +116,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, and the record a mesh is drawn with.
-- `draw_material.h` — the loaded material a shape's or model part's path names in the frame's
+- `draw_material.h` — the loaded material a shape's or model part's worn path names in the frame's
   store, for its record; internal.
 - `draw_material.c` — the empty path refused, then the store's linear find.
 - `draw_particles.h` — every live particle as one blended world draw, counted for the group's room
@@ -144,8 +144,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `model_bake.c` — the walk into a list of placed primitives, each part's room counted
   from it, the fill with each colour's complement, and the mirrored node's turned triangles.
 - `models.c` — the store's table of entries with an arena each, and the load that reads, bakes,
-  uploads with each part's blended twin and gives back what a failure made; pictures on the quad,
-  the dot and the water apart.
+  uploads with each part's blended twin and glTF source and gives back what a failure made; the
+  parts set; pictures on the quad, the dot and the water apart.
 - `models_store.h` — the store's table, the shared landscape grid, each entry's held ids, a
   landscape's heights and paint textures, pyramid and two dirts among them, a material's write
   mark, the terrain lookup the draw files ask, and the helpers models.c lends the other store

@@ -140,7 +140,7 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 		}
 		for (uint32_t part = 0; part < model->part_count; part++) {
 			voe_3d_model_part piece = voe_3d_draw_group_part_worn(
-				frame->models, &rows[row], model, part);
+				frame->models, model, part);
 
 			if (voe_3d_draw_casts(&piece.material) &&
 			    !voe_render_frame_draw(device, piece.geometry,
