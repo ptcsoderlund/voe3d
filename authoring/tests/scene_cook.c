@@ -76,8 +76,8 @@ static voe_ecs_entity authored(voe_ecs_world *world, uint64_t id,
 	return entity;
 }
 
-// Two entities out of id order: a light, then a transform with 0.1f and -0.0f
-// and a camera.
+// Two entities out of id order: a light with a disc and glow, then a transform
+// with 0.1f and -0.0f and a camera.
 static voe_ecs_world *small_world(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
@@ -92,6 +92,8 @@ static voe_ecs_world *small_world(voe_base_arena *arena)
 		.bounces = 1,
 		.cast_shadows = true,
 		.bounce_strength = 0.5f,
+		.disc_size = 2.0f,
+		.glow_size = 0.5f,
 	}));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, cube, (voe_scene_transform){
 		.position = { 0.1, -0.0, 2.0 },
@@ -168,7 +170,8 @@ static void test_cook_exact_text(void)
 		".fill_colour = { 0x1p+0f, 0x1p+0f, 0x1p+0f }, "
 		".fill_intensity = 0x1p-2f, "
 		".bounces = 1u, .cast_shadows = true, "
-		".bounce_strength = 0x1p-1f }))\n"
+		".bounce_strength = 0x1p-1f, "
+		".disc_size = 0x1p+1f, .glow_size = 0x1p-1f }))\n"
 		"\t\treturn false;\n"
 		"\treturn true;\n"
 		"}\n");

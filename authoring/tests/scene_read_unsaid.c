@@ -4,7 +4,8 @@
 // test-only type whose two rows differ in one field, and on scene's real light,
 // whose unsaid row casts shadows where its default does not — so a light saved
 // before 049 keeps its sun's shadows. A light as 047 saved it, bounces 1 and no
-// bounce_strength, reads bounces 1 and strength 1, so its bounce stays (0326).
+// bounce_strength, reads bounces 1 and strength 1, so its bounce stays (0326),
+// and disc 1.5 and glow 0.3, so an old scene shows a sun under a sky (0412).
 //
 // THE TEST-ONLY TYPES ARE DECLARED THROUGH VOE_BASE_DESCRIBE_STRUCT, as
 // scene_read.c's test declares its own; this file is its own program, kept apart
@@ -176,7 +177,8 @@ static void test_light_cast_shadows(void)
 	voe_base_arena_destroy(arena);
 }
 
-// A light as 047 saved it: bounces said, bounce_strength not yet a field.
+// A light as 047 saved it: bounces said, bounce_strength, disc_size and
+// glow_size not yet fields.
 static void test_light_047_bounce(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
@@ -192,6 +194,8 @@ static void test_light_047_bounce(void)
 	if (light != NULL) {
 		VOE_TEST_CHECK_INT(light->bounces, 1);
 		VOE_TEST_CHECK(light->bounce_strength == 1.0f);
+		VOE_TEST_CHECK(light->disc_size == 1.5f);
+		VOE_TEST_CHECK(light->glow_size == 0.3f);
 	}
 	voe_base_arena_destroy(arena);
 }

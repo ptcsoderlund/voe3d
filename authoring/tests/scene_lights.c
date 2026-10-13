@@ -1,8 +1,8 @@
 // Two directional lights through a save (0349): a sun and a moon, each with its
 // own transform and light, are written by voe_authoring_scene_write and read
 // into a fresh world by voe_authoring_scene_read, and come back as two light
-// rows, each with every field it was written with, cast_shadows included, and
-// its own rotation. A file holding one light section with no cast_shadows, as a
+// rows, each with every field it was written with, cast_shadows and its own
+// disc and glow sizes included, and its own rotation. A file holding one light section with no cast_shadows, as a
 // scene saved before 049, reads one light that casts (0324).
 //
 // THE WRITER AND READER ARE GENERIC: they walk each type's description and know
@@ -40,6 +40,8 @@ static const voe_scene_light sun_light = {
 	.bounces = 1,
 	.cast_shadows = true,
 	.bounce_strength = 1.0f,
+	.disc_size = 2.0f,
+	.glow_size = 0.5f,
 };
 
 static const voe_scene_light moon_light = {
@@ -48,6 +50,8 @@ static const voe_scene_light moon_light = {
 	.bounces = 0,
 	.cast_shadows = false,
 	.bounce_strength = 1.0f,
+	.disc_size = 0.5f,
+	.glow_size = 0.0f,
 };
 
 static const voe_math_quat sun_turn = { -0.38268343f, 0.0f, 0.0f, 0.9238795f };
@@ -107,7 +111,8 @@ static bool same_light(const voe_scene_light *a, const voe_scene_light *b)
 	       same_float3(a->fill_colour, b->fill_colour) &&
 	       a->fill_intensity == b->fill_intensity &&
 	       a->bounces == b->bounces && a->cast_shadows == b->cast_shadows &&
-	       a->bounce_strength == b->bounce_strength;
+	       a->bounce_strength == b->bounce_strength &&
+	       a->disc_size == b->disc_size && a->glow_size == b->glow_size;
 }
 
 static bool same_quat(voe_math_quat a, voe_math_quat b)
