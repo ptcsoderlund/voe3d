@@ -13,5 +13,9 @@ and the questions each header answers, stays on `assets/assets.md`.
   heights, and back, and a grid resampled to another count.
 - `material.h` — a `.material` file's text to a shader, its factors and three
   map paths, and back.
+- `model_material.h` — a glTF material as a `.material` file's values, and the
+  ORM picture Import textures writes for it; opens no file.
+- `parts.h` — a `.parts` file's text to the `.material` each glTF material of a
+  `.glb` wears, and back.
 - `sound.h` — sounds: 16-bit PCM and 32-bit float WAV decoded to interleaved
   float.
