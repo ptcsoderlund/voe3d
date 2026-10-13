@@ -25,8 +25,10 @@
 
 // The highest number a duplicate's name is given.
 #define DUPLICATE_LAST 99
+#define GLB_ENDING ".glb"
 #define LANDSCAPE_ENDING ".landscape"
 #define MATERIAL_ENDING ".material"
+#define PARTS_ENDING ".parts"
 
 // A path relative to `Assets/` cut at its last `/`: the folder ("" at
 // `Assets/`), in scratch, and the name, pointing into the path.
@@ -123,6 +125,44 @@ static bool folder_listed(voe_editor_session *session, voe_base_arena *scratch,
 		return true;
 	voe_editor_notice_from_report(&session->notice, project_relative(scratch, folder));
 	return false;
+}
+
+// `path` with its name's last extension cut and `.parts` appended, into
+// scratch: the parts file a `.glb` at `path` has (0420 point 1).
+static const char *parts_named(voe_base_arena *scratch, const char *path)
+{
+	const char *slash = strrchr(path, '/');
+	const char *name = slash != NULL ? slash + 1 : path;
+	const char *dot = strrchr(name, '.');
+	int stem = dot != NULL && dot != name ? (int)(dot - path) : (int)strlen(path);
+	size_t size = (size_t)stem + sizeof PARTS_ENDING;
+	char *out = voe_base_arena_push(scratch, size);
+
+	VOE_BASE_ASSERT(out != NULL, "no room for a parts file's name");
+	snprintf(out, size, "%.*s%s", stem, path, PARTS_ENDING);
+	VOE_BASE_ASSERT(strlen(out) == size - 1, "a parts file's name cut short");
+	return out;
+}
+
+// The `.parts` beside `path` when `path` is a file ending in `.glb`, any case,
+// and that `.parts` is a file too, into scratch; else NULL.
+static const char *parts_beside(const voe_editor_session *session, voe_base_arena *scratch,
+				const char *path)
+{
+	size_t length = strlen(path);
+	size_t tail = sizeof GLB_ENDING - 1;
+	const char *parts;
+
+	VOE_BASE_ASSERT(session != NULL && scratch != NULL, "looking for parts in no project");
+	if (length <= tail)
+		return NULL;
+	for (size_t i = 0; i < tail; i++)
+		if (tolower((unsigned char)path[length - tail + i]) != GLB_ENDING[i])
+			return NULL;
+	if (!voe_platform_file_exists(on_disk(session, scratch, path)))
+		return NULL;
+	parts = parts_named(scratch, path);
+	return voe_platform_file_exists(on_disk(session, scratch, parts)) ? parts : NULL;
 }
 
 // The listed entry called `name`, file or folder, hidden or not, or NULL.
@@ -348,10 +388,12 @@ static bool scene_set_followed(voe_editor_session *session, voe_editor_scene *sc
 }
 
 // Every check a move makes before it moves: the name, the target folder's
-// listing, a folder into itself, and every followed path on disk and in the
-// open scene, which is left followed in `followed`.
+// listing, a folder into itself, the `.parts`'s new name (`parts_to`, NULL for
+// none), and every followed path on disk and in the open scene, which is left
+// followed in `followed`.
 static bool move_allowed(voe_editor_session *session, voe_base_arena *scratch, const char *from,
-			 const char *to, voe_authoring_paths_followed *followed)
+			 const char *to, const char *parts_to,
+			 voe_authoring_paths_followed *followed)
 {
 	struct split target = split_path(scratch, to);
 	size_t length = strlen(from);
@@ -367,6 +409,12 @@ static bool move_allowed(voe_editor_session *session, voe_base_arena *scratch, c
 	}
 	if (!name_free(session, scratch, target.folder, target.name))
 		return false;
+	if (parts_to != NULL) {
+		struct split parts = split_path(scratch, parts_to);
+
+		if (!name_free(session, scratch, parts.folder, parts.name))
+			return false;
+	}
 	return voe_editor_assets_follow_check(session->project->folder, project_from, project_to,
 					      scratch, &session->notice) &&
 	       scene_followed(session, scratch, project_from, project_to, followed);
@@ -379,6 +427,8 @@ bool voe_editor_assets_move(voe_editor_session *session, voe_editor_scene *scene
 	struct voe_base_arena_mark mark;
 	voe_authoring_paths_followed followed;
 	voe_editor_notice why = { 0 };
+	const char *parts_from;
+	const char *parts_to = NULL;
 	bool ok = false;
 
 	VOE_BASE_ASSERT(from != NULL && to != NULL, "moving no path");
@@ -388,7 +438,13 @@ bool voe_editor_assets_move(voe_editor_session *session, voe_editor_scene *scene
 	if (strcmp(from, to) == 0)
 		return true;
 	mark = voe_base_arena_mark(scratch);
-	if (!move_allowed(session, scratch, from, to, &followed))
+	parts_from = parts_beside(session, scratch, from);
+	if (parts_from != NULL)
+		parts_to = parts_named(scratch, to);
+	// A rename of the `.glb`'s ending alone leaves its `.parts` where it is.
+	if (parts_to != NULL && strcmp(parts_from, parts_to) == 0)
+		parts_from = parts_to = NULL;
+	if (!move_allowed(session, scratch, from, to, parts_to, &followed))
 		goto rewind;
 	voe_base_report_error_clear();
 	if (!voe_platform_file_move(on_disk(session, scratch, from), on_disk(session, scratch, to),
@@ -407,6 +463,15 @@ bool voe_editor_assets_move(voe_editor_session *session, voe_editor_scene *scene
 	if (!scene_set_followed(session, scene, &followed, &why)) {
 		if (ok)
 			session->notice = why;
+		ok = false;
+	}
+	// The `.parts` last, its failure said only when nothing before failed.
+	voe_base_report_error_clear();
+	if (parts_from != NULL && !voe_platform_file_move(on_disk(session, scratch, parts_from),
+							  on_disk(session, scratch, parts_to), NULL)) {
+		if (ok)
+			voe_editor_notice_from_report(&session->notice,
+						      project_relative(scratch, parts_from));
 		ok = false;
 	}
 	voe_editor_undo_forget(undo);
@@ -436,6 +501,39 @@ static const char *duplicate_name(voe_base_arena *scratch,
 	return NULL;
 }
 
+// `path` read whole into scratch. NULL with the notice naming it, an empty
+// file included: a write refuses no bytes (platform/file.h).
+static const uint8_t *copy_read(voe_editor_session *session, voe_base_arena *scratch,
+				const char *path, size_t *count)
+{
+	const uint8_t *bytes;
+
+	VOE_BASE_ASSERT(path != NULL && count != NULL, "reading no copy");
+	voe_base_report_error_clear();
+	bytes = voe_platform_file_read(on_disk(session, scratch, path), scratch, count, NULL);
+	if (bytes == NULL) {
+		voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
+		return NULL;
+	}
+	if (*count == 0) {
+		voe_editor_notice_set(&session->notice, "%s is empty", project_relative(scratch, path));
+		return NULL;
+	}
+	return bytes;
+}
+
+// `count` bytes written to `path`. False with the notice naming it.
+static bool copy_written(voe_editor_session *session, voe_base_arena *scratch, const char *path,
+			 const uint8_t *bytes, size_t count)
+{
+	VOE_BASE_ASSERT(path != NULL && bytes != NULL && count > 0, "writing no copy");
+	voe_base_report_error_clear();
+	if (voe_platform_file_write(on_disk(session, scratch, path), bytes, count, NULL))
+		return true;
+	voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
+	return false;
+}
+
 bool voe_editor_assets_duplicate(voe_editor_session *session, voe_editor_scene *scene,
 				 voe_editor_undo *undo, voe_editor_models *models,
 				 voe_base_arena *scratch, const char *path)
@@ -445,8 +543,12 @@ bool voe_editor_assets_duplicate(voe_editor_session *session, voe_editor_scene *
 	const voe_platform_folder_entry *entry;
 	struct split source;
 	const char *copy;
+	const char *parts;
+	const char *parts_copy = NULL;
 	const uint8_t *bytes;
+	const uint8_t *parts_bytes = NULL;
 	size_t count = 0;
+	size_t parts_count = 0;
 	bool ok = false;
 
 	VOE_BASE_ASSERT(path != NULL && path[0] != '\0', "duplicating no path");
@@ -470,29 +572,46 @@ bool voe_editor_assets_duplicate(voe_editor_session *session, voe_editor_scene *
 				      project_relative(scratch, path), DUPLICATE_LAST);
 		goto rewind;
 	}
-	voe_base_report_error_clear();
-	bytes = voe_platform_file_read(on_disk(session, scratch, path), scratch, &count, NULL);
-	if (bytes == NULL) {
-		voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
-		goto rewind;
-	}
-	// A write refuses no bytes (platform/file.h), so an empty file is said here.
-	if (count == 0) {
-		voe_editor_notice_set(&session->notice, "%s is empty", project_relative(scratch, path));
-		goto rewind;
-	}
 	copy = voe_editor_assets_join(scratch, source.folder, copy);
-	voe_base_report_error_clear();
-	if (!voe_platform_file_write(on_disk(session, scratch, copy), bytes, count, NULL)) {
-		voe_editor_notice_from_report(&session->notice, project_relative(scratch, copy));
-		goto rewind;
+	parts = parts_beside(session, scratch, path);
+	if (parts != NULL) {
+		parts_copy = parts_named(scratch, copy);
+		if (entry_named(&listing, split_path(scratch, parts_copy).name) != NULL) {
+			voe_editor_notice_set(&session->notice, "%s is taken",
+					      project_relative(scratch, parts_copy));
+			goto rewind;
+		}
+		parts_bytes = copy_read(session, scratch, parts, &parts_count);
+		if (parts_bytes == NULL)
+			goto rewind;
 	}
+	bytes = copy_read(session, scratch, path, &count);
+	if (bytes == NULL || !copy_written(session, scratch, copy, bytes, count))
+		goto rewind;
+	ok = parts == NULL || copy_written(session, scratch, parts_copy, parts_bytes, parts_count);
 	voe_editor_assets_list_due(&scene->assets);
 	materials_read(session, scene, models, scratch);
-	ok = true;
 rewind:
 	voe_base_arena_rewind(scratch, mark);
 	return ok;
+}
+
+// `path` sent to the trash. False with the notice saying why.
+static bool trash_sent(voe_editor_session *session, voe_base_arena *scratch, const char *path)
+{
+	voe_base_error error = VOE_BASE_ERROR_UNAVAILABLE;
+
+	VOE_BASE_ASSERT(path != NULL && path[0] != '\0', "trashing no path");
+	voe_base_report_error_clear();
+	if (voe_platform_trash(on_disk(session, scratch, path), scratch, &error))
+		return true;
+	if (error == VOE_BASE_ERROR_UNSUPPORTED)
+		voe_editor_notice_set(&session->notice,
+				      "%s is on a drive the trash does not take from; nothing deleted",
+				      project_relative(scratch, path));
+	else
+		voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
+	return false;
 }
 
 bool voe_editor_assets_trash(voe_editor_session *session, voe_editor_scene *scene,
@@ -500,7 +619,8 @@ bool voe_editor_assets_trash(voe_editor_session *session, voe_editor_scene *scen
 			     voe_base_arena *scratch, const char *path)
 {
 	struct voe_base_arena_mark mark;
-	voe_base_error error = VOE_BASE_ERROR_UNAVAILABLE;
+	const char *parts;
+	bool sent;
 	bool ok;
 
 	VOE_BASE_ASSERT(path != NULL && path[0] != '\0', "trashing no path");
@@ -508,18 +628,14 @@ bool voe_editor_assets_trash(voe_editor_session *session, voe_editor_scene *scen
 	if (!command_allowed(session, scene, undo, scratch))
 		return false;
 	mark = voe_base_arena_mark(scratch);
-	voe_base_report_error_clear();
-	ok = voe_platform_trash(on_disk(session, scratch, path), scratch, &error);
-	if (ok)
+	// Looked for before the `.glb` goes, which it must be beside.
+	parts = parts_beside(session, scratch, path);
+	sent = trash_sent(session, scratch, path);
+	ok = sent && (parts == NULL || trash_sent(session, scratch, parts));
+	if (sent)
 		voe_editor_assets_list_due(&scene->assets);
-	else if (error == VOE_BASE_ERROR_UNSUPPORTED)
-		voe_editor_notice_set(&session->notice,
-				      "%s is on a drive the trash does not take from; nothing deleted",
-				      project_relative(scratch, path));
-	else
-		voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
 	voe_base_arena_rewind(scratch, mark);
-	if (ok)
+	if (sent)
 		materials_read(session, scene, models, scratch);
 	return ok;
 }

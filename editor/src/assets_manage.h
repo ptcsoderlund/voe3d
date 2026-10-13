@@ -27,10 +27,15 @@
 // Create -> Material's calls material_make so too, `.material` appended and
 // voe_assets_material_default()'s text written (0399 point 1); its caller lists.
 //
-// THE MATERIALS' TABLE IS READ AGAIN (models.h) after every successful
-// material make, move, duplicate and trash (0399 point 7), and the open
-// material refreshed from its row (scene.h); a move follows it first, so its
-// row is found at its new path, and a trash of it closes it.
+// THE MATERIALS' AND PARTS' TABLES ARE READ AGAIN (models.h) after every
+// successful material make, move, duplicate and trash (0399 point 7), and the
+// open material refreshed from its row (scene.h); a move follows it first, so
+// its row is found at its new path, and a trash of it closes it.
+//
+// A `.glb` TAKES ITS `<stem>.parts` ALONG (0420 point 1) when one is beside it:
+// a move gives it the new stem, refused before anything moves when that name is
+// taken, and moves it last; a duplicate copies it under the copy's stem,
+// refused when that is taken; a trash sends it after the `.glb`.
 //
 // A MOVE GOES CHECK, MOVE, WRITE, MEMORY. The project's texts are followed in
 // scratch and the open scene's text too, nothing written; then the move, and

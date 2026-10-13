@@ -212,18 +212,18 @@ carries it out.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
   the release and the ghost, the move's target, the drop point, the Inspector's rows, and each
   swap with its undo step.
-- `assets_walk.h` — the project's `.scene`, `.prefab`, `.material` and `.landscape` texts walked: who names a path before a
-  Delete, and a rename's paths checked before the move and written after it, 128 bytes the room.
+- `assets_walk.h` — the project's `.scene`, `.prefab`, `.material`, `.landscape` and `.parts` texts
+  walked: who names a path before a Delete, and a rename's paths checked before the move and written
+  after it, 128 bytes the room.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
   the match, and the follow with its room check and write.
 - `assets_manage.h` — the Assets panel's file commands: a folder, flat landscape or default material
   made, a rename or move followed on disk, in the open scene and in the model store, a duplicate,
-  the trash, each refused with a notice and nothing changed, the materials read again after and
-  the open material refreshed, a move following it first.
+  the trash, each refused with a notice and nothing changed, a `.glb`'s `.parts` taken along, the
+  materials and parts read again after and the open material refreshed, a move following it first.
 - `assets_manage.c` — the shared checks, a made file's name and write, the landscape's flat file,
-  the material's defaults, the move's check, move,
-  store rename, write and memory with the undo line forgotten, the next free copy name, and the
-  trash's refusals worded.
+  the material's defaults, a `.glb`'s `.parts` found, the move's check, move, store rename, write
+  and memory with the undo line forgotten, the next free copy name, and the trash's refusals worded.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
