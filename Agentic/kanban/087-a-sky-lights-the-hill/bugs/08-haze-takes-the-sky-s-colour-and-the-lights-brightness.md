@@ -16,9 +16,10 @@ haze to a component of its own, yeah?"
 - A dark sky over a brightly lit scene stays possible: turning the sky's strength down does not darken the
   haze, and turning it up does not brighten it.
 
-The sponsor asks whether haze should be a component of its own instead of fields on the sky row. That is a
-question for the tech-lead, not for this plan: stop with needs-decision for it. It also settles what stays of
-0414 (haze start) and 0415 (haze coloured by the lights).
+- Haze is a component of its own, Rendering / Haze, and works with or without a sky. Without a sky it takes
+  the lights' colour as now.
+
+Decided in 0416, which also says what stays of 0414 (haze start) and 0415 (haze coloured by the lights).
 
 ## How to reproduce
 1. Open lumberhill_project in the editor, with the sky on and haze above 0.
