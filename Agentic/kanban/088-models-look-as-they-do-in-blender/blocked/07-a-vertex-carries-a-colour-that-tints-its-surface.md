@@ -26,3 +26,14 @@ because a zeroed colour reads white.
 
 ## Done when
 The test `render/vertex_colours` passes after the folder's build, with the folder's other tests.
+
+## Blocked
+The premise that "every vertex builder keeps compiling unchanged" is false. Flags are
+`-Wall -Wextra -Werror`, and clang's `-Wmissing-field-initializers` rejects every positional
+`{ {pos}, {normal}, {uv} }` once `colour_complement` exists. That hits about 40 of `render/tests/*.c`
+and, outside render, `3d/src/cube.c`, `3d/src/model_picture.c`, `dev/src/{quad,cubes,monitor}.c`
+and `sprite/src/quad.c`. The device.h, pipeline.c, draw.slang, terrain.slangh, shaders.md,
+tests.md and `tests/vertex_colours.c` changes are committed. Render's tests do not compile at this
+commit. To unblock, the tech lead can add `-Wno-missing-field-initializers` in `cmake/voe.cmake`,
+or have the positional builders rewritten designated or with a trailing `{ 0 }`: render's here,
+and a card each for 3d, dev and sprite.

@@ -201,7 +201,8 @@ typedef struct {
 
 // What the vertex pool holds, and what the pipeline's vertex input describes. A
 // caller builds an array of these and hands it over; the layout is this folder's
-// because the shader has to agree with it.
+// because the shader has to agree with it. Four attributes: position, normal, uv
+// and the colour's complement.
 //
 // (0,0) IS THE TOP-LEFT OF THE TEXTURE, which is what Vulkan and glTF both mean
 // by it — see assets/include/assets/image.h for why nothing turns a picture over
@@ -215,6 +216,15 @@ typedef struct {
 	// shaders/draw.slang, which is where that decision is written down.
 	voe_math_float3 normal;
 	voe_math_float2 uv;
+	// The vertex's colour, stored as its complement: each channel reads as
+	// 1 − value/65535, rgba, linear (ADR-0421 point 1). It multiplies the
+	// shading record's base colour, alpha included, in every mesh exit and in
+	// the bounce capture.
+	//
+	// THE COMPLEMENT AND NOT THE COLOUR, SO A ZEROED VERTEX IS OPAQUE WHITE.
+	// Every builder that never heard of this field leaves it nought and draws
+	// exactly as before; only a file's vertex colours write it.
+	uint16_t colour_complement[4];
 } voe_render_vertex;
 
 // A range in the shared pools: some vertices and the indices that walk them.

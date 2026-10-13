@@ -91,5 +91,7 @@ voe_render_draw_vertex_in voe_render_terrain(voe_render_object object,
 	out.position = voe_render_terrain_local(object, at, h);
 	out.normal = normalize(float3(-dx, 2.0 * step, -dz));
 	out.uv = at / side + 0.5;
+	// A complement of nought: a landscape's vertex is white.
+	out.colour_complement = float4(0.0, 0.0, 0.0, 0.0);
 	return out;
 }

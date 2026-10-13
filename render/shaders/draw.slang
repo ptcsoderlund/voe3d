@@ -111,6 +111,12 @@
 // the sun and the fill, unshadowed and unoccluded. Only on the lit path; an
 // unlit exit is its base colour. Under the Clip curve a strong one clips.
 //
+// A VERTEX'S COLOUR MULTIPLIES THE BASE COLOUR, ALPHA INCLUDED (ADR-0421 point
+// 1). The vertex carries its complement, so the colour is 1 − that and a zeroed
+// vertex is white. It is applied as `base` is formed, before the alpha mode, so
+// the cut, the lit, unlit and water exits and the capture's albedo all see it;
+// a landscape node's vertex reads white.
+//
 // A DISTANCE-FIELD BASE COLOUR IS THE THIRD UNIFORM BRANCH IN THIS FILE, AND IT
 // IS SPENT KNOWINGLY. `unlit` was the second and the alpha mode was the first;
 // there is a standing watch to reconsider the whole arrangement at the fourth,
@@ -188,12 +194,14 @@
 #include "tone.slangh"
 
 // The locations are stated rather than left to declaration order, because the C
-// side names the same three numbers in its VkVertexInputAttributeDescription and
+// side names the same four numbers in its VkVertexInputAttributeDescription and
 // two lists that have to agree should not agree by counting.
 struct voe_render_draw_vertex_in {
 	[[vk::location(0)]] float3 position : POSITION;
 	[[vk::location(1)]] float3 normal : NORMAL;
 	[[vk::location(2)]] float2 uv : TEXCOORD;
+	// The colour's complement, UNORM: the colour is 1 − this.
+	[[vk::location(3)]] float4 colour_complement : COLOR;
 };
 
 #include "terrain.slangh"
@@ -210,6 +218,8 @@ struct voe_render_draw_vertex_out {
 	float2 uv : TEXCOORD;
 	// The model's own x and y, which the water path measures its waves over.
 	float2 plane : TEXCOORD1;
+	// The vertex's colour, linear rgba: what multiplies `base`.
+	float4 colour : COLOR;
 };
 
 [shader("vertex")]
@@ -235,6 +245,7 @@ voe_render_draw_vertex(voe_render_draw_vertex_in vertex)
 	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
 	out.uv = vertex.uv;
 	out.plane = vertex.position.xy;
+	out.colour = 1.0 - vertex.colour_complement;
 	return out;
 }
 
@@ -463,6 +474,8 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	float4 base = shading.base_colour_distance_field != 0 ?
 			      float4(factor.rgb, factor.a * field_alpha) :
 			      factor * sheet;
+	// The vertex's colour, before the alpha mode reads `base` (ADR-0421).
+	base *= vertex.colour;
 
 	bool mapped = shading.metallic_roughness_texture != VOE_RENDER_NO_TEXTURE;
 	float roughness = saturate(mapped ? orm.g : shading.roughness);
@@ -575,12 +588,14 @@ static const float VOE_RENDER_BOUNCE_REACH_CELLS = 12.0;
 
 // What the capture vertex stage hands on (ADR-0326 point 3): the clip position
 // on one probe's face, the world normal, the position about the probe, the uv,
-// and the layer last, so the fragment's input below matches the rest in order.
+// the vertex's colour, and the layer last, so the fragment's input below
+// matches the rest in order.
 struct voe_render_capture_out {
 	float4 position : SV_Position;
 	float3 normal : NORMAL;
 	float3 about : POSITION;
 	float2 uv : TEXCOORD;
+	float4 colour : COLOR;
 	uint layer : SV_RenderTargetArrayIndex;
 };
 
@@ -590,6 +605,7 @@ struct voe_render_capture_in {
 	float3 normal : NORMAL;
 	float3 about : POSITION;
 	float2 uv : TEXCOORD;
+	float4 colour : COLOR;
 };
 
 // The capture scratch's two targets, in the pipeline's order.
@@ -622,12 +638,13 @@ voe_render_capture_vertex(voe_render_draw_vertex_in vertex,
 		VOE_RENDER_BOUNCE_REACH_CELLS * voe_render_frame.bounce[0].spacing);
 	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
 	out.uv = vertex.uv;
+	out.colour = 1.0 - vertex.colour_complement;
 	out.layer = layer;
 	return out;
 }
 
 // THE CAPTURE PASS'S FRAGMENT: linear albedo, the base factor × texture × object
-// colour (a painted landscape's layers' colour × object colour), alpha one; and the world normal,
+// colour × vertex colour (a painted landscape's layers' colour × object colour), alpha one; and the world normal,
 // nought for a normal of nothing, with the distance from the probe in w.
 [shader("fragment")]
 voe_render_capture_targets voe_render_capture_fragment(voe_render_capture_in vertex)
@@ -645,7 +662,7 @@ voe_render_capture_targets voe_render_capture_fragment(voe_render_capture_in ver
 			   normalize(vertex.normal);
 	voe_render_capture_targets result;
 
-	result.albedo = float4((factor * sheet).rgb, 1.0);
+	result.albedo = float4((factor * sheet * vertex.colour).rgb, 1.0);
 	// A painted landscape's albedo is its layers' blended colour (ADR-0402).
 	if (object.heights != 0 && object.paint_a != 0)
 		result.albedo.rgb = voe_render_layer_surface_at(object, vertex.uv,

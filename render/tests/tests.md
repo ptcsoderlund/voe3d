@@ -98,6 +98,9 @@ by reading the offscreen colour image back.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
   red to a black surface whether the sun faces it or not, and a metal-roughness map replacing the
   factors. Headless.
+- `vertex_colours.c` — a vertex's colour tinting its surface: an unlit white record on red vertices
+  red, on zeroed ones white, and a lit quad of half-grey vertices about half as bright in linear
+  light as white ones. Headless.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.

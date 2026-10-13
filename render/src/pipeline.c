@@ -140,12 +140,12 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		.stride = sizeof(voe_render_vertex),
 		.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
 	};
-	// THESE THREE LOCATIONS AND draw.slang's THREE vk::location NUMBERS ARE ONE
+	// THESE FOUR LOCATIONS AND draw.slang's FOUR vk::location NUMBERS ARE ONE
 	// FACT IN TWO PLACES. Both are stated rather than counted, and both
 	// offsets come from offsetof rather than from adding up sizes — which is
 	// what makes reordering the struct's fields harmless and renaming one of
 	// them a compile error instead of a wrong picture.
-	VkVertexInputAttributeDescription attributes[3] = {
+	VkVertexInputAttributeDescription attributes[4] = {
 		{
 			.location = 0,
 			.binding = 0,
@@ -165,6 +165,14 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 			.format = VK_FORMAT_R32G32_SFLOAT,
 			.offset = offsetof(voe_render_vertex, uv),
 		},
+		{
+			.location = 3,
+			.binding = 0,
+			// The colour's complement, four 16-bit channels read
+			// as 0..1; the shader takes it from one.
+			.format = VK_FORMAT_R16G16B16A16_UNORM,
+			.offset = offsetof(voe_render_vertex, colour_complement),
+		},
 	};
 	VkPipelineVertexInputStateCreateInfo vertex_input = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -174,7 +182,7 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		// Position alone for the point-shadow stage, which reads no other.
 		.vertexAttributeDescriptionCount = sky	    ? 0 :
 						   point_shadow ? 1 :
-								  3,
+								  4,
 		.pVertexAttributeDescriptions = attributes,
 	};
 	VkPipelineInputAssemblyStateCreateInfo assembly = {
