@@ -32,6 +32,8 @@ that module's promises from outside. None of them needs a window or a display.
   writing that much silence succeeds; skipped, and said, without one.
 - `arguments.c` — that a hand-made argv of three strings, one non-ASCII, comes back with count 3,
   the same bytes and a NULL after the last. Linux only by construction.
+- `environment.c` — that `PATH` comes back set and non-empty and a variable no system has comes back
+  NULL; nothing is set, so it builds on Windows too.
 - `process.c` — that `cmake -E true` ends with 0 and `-E false` with non-zero, that a running
   `-E sleep 30` is ended within five seconds and zeroed, that a missing program is a false start,
   and on Linux that an output file holds both streams and is appended to.

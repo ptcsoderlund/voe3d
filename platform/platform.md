@@ -4,7 +4,7 @@ The operating system, behind one API. The only folder allowed to include an OS
 header, and the only one that knows there is more than one operating system.
 Today that is a window, its keyboard, mouse and gamepads, a clock, reading and writing a
 file, listing, making or finding a folder, starting another program, the
-program's own arguments, and the sound device.
+program's own arguments, the environment, and the sound device.
 
 - `include` — the public headers, in `include/platform/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
@@ -44,6 +44,8 @@ program's own arguments, and the sound device.
   not a thread, and why the whole group ends.
 - `include/platform/arguments.h` — the program's own arguments as UTF-8. Its header says why Linux
   hands back `argv` and Windows reads the wide command line instead.
+- `include/platform/environment.h` — one environment variable's value as UTF-8 on an arena, NULL when
+  unset and `""` when empty. Its header says why the environment is platform's.
 - `protocol/xdg-shell.xml` — the Wayland shell protocol, vendored.
   `wayland-scanner` turns every XML here into C at build time; nothing generated
   is committed.
