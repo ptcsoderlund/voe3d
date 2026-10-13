@@ -117,6 +117,11 @@
 // the cut, the lit, unlit and water exits and the capture's albedo all see it;
 // a landscape node's vertex reads white.
 //
+// A BACK FACE IS SHADED WITH ITS INTERPOLATED NORMAL TURNED ROUND (ADR-0421
+// point 2), before the normal map and the lights read it, so a two-sided draw
+// is lit from the side seen. Safe for a one-sided draw: its back faces are
+// culled and never reach the fragment stage, so every face it shades is front.
+//
 // A DISTANCE-FIELD BASE COLOUR IS THE THIRD UNIFORM BRANCH IN THIS FILE, AND IT
 // IS SPENT KNOWINGLY. `unlit` was the second and the alpha mode was the first;
 // there is a standing watch to reconsider the whole arrangement at the fourth,
@@ -375,7 +380,8 @@ float2 voe_render_repeated_uv(voe_render_shading shading, float2 uv)
 #include "terrain_layers.slangh"
 
 [shader("fragment")]
-float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
+float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
+				bool front : SV_IsFrontFace) : SV_Target
 {
 	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
 	voe_render_shading shading = voe_render_shadings[object.shading];
@@ -534,6 +540,11 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// because the plane's normal comes from its matrices. See the header.
 	if (shading.water != 0)
 		return voe_render_water(object, vertex, base.rgb);
+
+	// A back face, reached only by a two-sided draw: its normal turned
+	// round, so it is lit from the side seen. See the header.
+	if (!front)
+		vertex.normal = -vertex.normal;
 
 	// A normal of nothing: unlit rather than NaN. See the header.
 	if (dot(vertex.normal, vertex.normal) < VOE_LEAST)

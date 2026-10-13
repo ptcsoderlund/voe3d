@@ -1864,6 +1864,15 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 					 voe_render_geometry geometry,
 					 voe_render_object object);
 
+// Whether the mesh draws after this, in this pass, draw back faces too (true)
+// or cull them (false), solid and blended alike (ADR-0421 point 2). A back face
+// is shaded with its normal turned round, so it is lit from its own side. Every
+// pass opens culling them, whatever an earlier pass chose. In a shadow, bounce
+// shadow, point-shadow or capture pass it changes nothing: they cull nothing.
+//
+// Calling this with no pass open is the caller's bug and asserts.
+void voe_render_frame_two_sided(voe_render_device *device, bool two_sided);
+
 // The same draw through the blended pipeline: the depth test still runs, so
 // something behind an opaque object is still hidden, but nothing is written to
 // the depth buffer and what is drawn is blended over what is already there.

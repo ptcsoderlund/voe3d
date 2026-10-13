@@ -50,6 +50,9 @@
 //
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
+//
+// EVERY PASS OPENS CULLING BACK FACES (ADR-0421 point 2): voe_render_pass_start
+// resets the cull mode draw.c tracks beside `bound`.
 #include "frame_internal.h"
 #include "light_bins.h"
 
@@ -268,6 +271,10 @@ void voe_render_open_rendering(VkCommandBuffer commands,
 //
 // THE PASS IS TIMED AND LABELLED HERE (pass_timing.c), its first stamp written
 // before anything it binds, and closed by voe_render_pass_end.
+//
+// EVERY PASS OPENS CULLING BACK FACES, WITH NO CULL MODE RECORDED (ADR-0421
+// point 2): its first solid or blended mesh draw records BACK (draw.c), and a
+// voe_render_frame_two_sided of an earlier pass does not reach this one.
 void voe_render_pass_start(voe_render_device *device,
 			   struct voe_render_frame *frame,
 			   const struct voe_render_frame_block *block,
@@ -284,6 +291,8 @@ void voe_render_pass_start(voe_render_device *device,
 	voe_render_vk.cmd_bind_pipeline(frame->commands,
 					VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 	device->bound = pipeline;
+	device->cull_wanted = VK_CULL_MODE_BACK_BIT;
+	device->cull_recorded = VOE_RENDER_CULL_UNSET;
 	voe_render_vk.cmd_bind_descriptor_sets(frame->commands,
 					       VK_PIPELINE_BIND_POINT_GRAPHICS,
 					       device->layout, 0, 1,

@@ -101,6 +101,9 @@ by reading the offscreen colour image back.
 - `vertex_colours.c` — a vertex's colour tinting its surface: an unlit white record on red vertices
   red, on zeroed ones white, and a lit quad of half-grey vertices about half as bright in linear
   light as white ones. Headless.
+- `two_sided.c` — a lit quad facing away from the camera: one-sided the clear colour, after
+  `voe_render_frame_two_sided(true)` drawn and lit from the camera's side, brighter than with the
+  sun behind, and a following pass one-sided again. Headless.
 - `shadow.c` — the sun's shadow passes: a device without `shadow_size` drawing as before, four
   cascades and a window pass in one frame of five draws, a shadow pass past `passes` refused, and a
   cube shadowing the floor under it — alike with no cascades, base colour when unshaded. Headless.

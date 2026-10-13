@@ -28,6 +28,13 @@
 // depth clear assert in each. The element pipeline (element.c) is
 // never bound here; it leaves `bound` different, and the next mesh rebinds.
 //
+// WHICH SIDES ARE DRAWN (ADR-0421 point 2). voe_render_frame_two_sided sets the
+// cull mode the pass's mesh draws want, device->cull_wanted, BACK as every pass
+// opens (pass.c). The solid and blended pipelines take it as dynamic state:
+// after one of them is bound, draw_with records it only when it differs from
+// device->cull_recorded, which a bind of any other pipeline forgets. The shadow,
+// point-shadow and capture pipelines cull nothing, so it changes nothing there.
+//
 // THIS FILE DOES NOT SORT. The order the blended draws arrive in is the order
 // they are recorded in, and getting it right is voe_3d_draw_system_run's.
 #include "frame_internal.h"
@@ -132,6 +139,14 @@ static uint32_t caster_faces(const voe_render_device *device,
 	return count;
 }
 
+// Whether `pipeline` takes its cull mode as dynamic state: the solid and the
+// blended one (pipeline.c).
+static bool culls_by_draw(const voe_render_device *device, VkPipeline pipeline)
+{
+	return pipeline == device->pipeline ||
+	       pipeline == device->pipeline_blended;
+}
+
 // The whole of both draw calls; `pipeline` is the only thing that differs
 // between them.
 //
@@ -193,10 +208,20 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 		pipeline = device->pipeline_capture;
 
 	if (device->bound != pipeline) {
+		// A pipeline whose cull mode is static, bound since, has
+		// overwritten the one last set.
+		if (!culls_by_draw(device, device->bound))
+			device->cull_recorded = VOE_RENDER_CULL_UNSET;
 		voe_render_vk.cmd_bind_pipeline(frame->commands,
 						VK_PIPELINE_BIND_POINT_GRAPHICS,
 						pipeline);
 		device->bound = pipeline;
+	}
+	if (culls_by_draw(device, pipeline) &&
+	    device->cull_recorded != device->cull_wanted) {
+		voe_render_vk.cmd_set_cull_mode(frame->commands,
+						device->cull_wanted);
+		device->cull_recorded = device->cull_wanted;
 	}
 
 	// Which pool pair the range is in, bound by the pass's first mesh draw
@@ -267,6 +292,17 @@ bool voe_render_frame_draw_blended(voe_render_device *device,
 	VOE_BASE_ASSERT(!device->pass_capture,
 			"drawing a blended mesh in a capture pass — nothing see-through bounces");
 	return draw_with(device, geometry, object, device->pipeline_blended);
+}
+
+// Only the wanted mode is kept here; draw_with records it before the next solid
+// or blended draw, so a pass that draws nothing after it records nothing.
+void voe_render_frame_two_sided(voe_render_device *device, bool two_sided)
+{
+	VOE_BASE_ASSERT(device != NULL, "choosing the sides drawn on no device");
+	VOE_BASE_ASSERT(device->pass_open,
+			"choosing the sides drawn with no pass open — every pass opens culling back faces");
+	device->cull_wanted = two_sided ? VK_CULL_MODE_NONE :
+					  VK_CULL_MODE_BACK_BIT;
 }
 
 // The overlay's depth clear: one command into the rendering block that is
