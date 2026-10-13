@@ -23,7 +23,8 @@ build on Windows.
 
 ## Expected
 The tree builds on Windows with `-Werror`, as 0381 requires. The fix covers every call that the Windows
-headers deprecate, not only `material.c:82`, and keeps them from coming back on Linux, where nothing warns.
+headers deprecate, not only `material.c:82`. No Linux guard: per 0159 the next such call is found on Windows
+(the sponsor chose this again on 2026-10-13).
 
 ## How to reproduce
 On Windows, configure the debug preset and build `voe_assets`, or the whole tree.
