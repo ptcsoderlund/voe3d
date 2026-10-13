@@ -53,7 +53,7 @@
 // THE MODEL CASE: a thing whose model an empty store lacks draws as nothing.
 //
 // THE HAZE CASE: a Haze row's replace reaches the sky record with no sky
-// drawn. It needs no device and runs without one.
+// drawn, its top above the origin's eye. It needs no device.
 //
 // Each draw case writes one file into the working directory, checks it and
 // removes it, pass or fail. A machine with no usable Vulkan skips and says so.
@@ -609,8 +609,9 @@ static void model_case(voe_app *app, voe_base_arena *arena,
 	voe_3d_models_destroy(models);
 }
 
-// A world with only a Haze row of 1000, a replace of 500 drained by one world
-// step: voe_3d_draw_system_sky reads haze 500 with `drawn` 0 (0417 point 1).
+// A world with only a Haze row of 1000, height 1000, a replace of 500 drained
+// by one world step: voe_3d_draw_system_sky, its eye the origin, reads haze
+// 500, haze_top 1000 and `drawn` 0 (0417 point 1, 0419 point 2).
 // No shape row, so the zeroed shapes are never read.
 static void haze_case(void)
 {
@@ -623,15 +624,18 @@ static void haze_case(void)
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &settings));
 	VOE_TEST_CHECK(voe_scene_haze_add(
 		world, settings,
-		(voe_scene_haze){ .haze = 1000.0f, .start = 100.0f }));
+		(voe_scene_haze){
+			.haze = 1000.0f, .start = 100.0f, .height = 1000.0f }));
 	VOE_TEST_CHECK(voe_scene_haze_submit(
-		world, (voe_scene_haze_intent){
-			       .entity = settings,
-			       .haze = { .haze = 500.0f, .start = 100.0f } }));
+		world, (voe_scene_haze_intent){ .entity = settings,
+						.haze = { .haze = 500.0f,
+							  .start = 100.0f,
+							  .height = 1000.0f } }));
 	voe_game_world_step(world, &shapes);
-	sky = voe_3d_draw_system_sky(world);
+	sky = voe_3d_draw_system_sky(world, (voe_math_double3){ 0.0, 0.0, 0.0 });
 	VOE_TEST_CHECK(sky.haze == 500.0f);
 	VOE_TEST_CHECK(sky.haze_start == 100.0f);
+	VOE_TEST_CHECK(sky.haze_top == 1000.0f);
 	VOE_TEST_CHECK(sky.drawn == 0);
 
 	voe_base_arena_destroy(arena);
