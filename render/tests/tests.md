@@ -77,6 +77,8 @@ by reading the offscreen colour image back.
 - `mips.c` — a SMOOTH texture's chain: a 4×4 checker filling the picture reads hard black and
   white texels, a 256×256 one seen 16 pixels across reads a grey blend, and the far half of a plane
   seen at a low angle reads the same blend. Headless.
+- `cutout_far.c` — a cut-out of one-texel alpha stripes, cutoff 0.5: filling the picture about half
+  its pixels drawn, and seen 16 pixels across, at level 4, at least a third still drawn. Headless.
 - `unshaded.c` — that `unshaded` draws a lit cube in its base colour and black without it, that a
   fill lifts a face the sun misses, and that a face the sun meets head-on or at N·L 0.5 reads the
   same with fill and without. Headless.

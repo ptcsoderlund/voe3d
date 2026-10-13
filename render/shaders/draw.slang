@@ -160,7 +160,13 @@
 //              simply go dark — which reads as a lighting regression and is the
 //              single most likely bug in this whole arrangement.
 //   cutout   — discard below the cutoff, then alpha forced to 1. What survives
-//              is fully solid and writes depth like anything else.
+//              is fully solid and writes depth like anything else. Before
+//              the cut the coverage is scaled by 1 + 0.25 × the base colour
+//              map's level of detail (ADR-0421 point 3, Ben Golus' method):
+//              a mip averages thin opaque texels below the cut, so leaves
+//              thin away with distance, and the factor puts back roughly
+//              what averaging took. Approximate, not exact coverage. A
+//              distance-field record keeps its cut unscaled.
 //   blended  — alpha exactly as computed, and the pass it is drawn in blends.
 //
 // THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
@@ -424,6 +430,10 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 			 shading.base_colour_uv_rect.xy;
 	float4 sheet =
 		voe_render_textures[shading.base_colour_texture].Sample(base_uv);
+	// The level that sample read, which a cut-out scales its coverage by;
+	// a query on derivatives too, so it is taken here with the samples.
+	float level = voe_render_textures[shading.base_colour_texture]
+			      .CalculateLevelOfDetail(base_uv);
 	// glTF packs occlusion in red, roughness in green and metalness in blue,
 	// and the metallic-roughness map is the green and blue of that. A file
 	// that puts its occlusion in the same picture points its occlusion
@@ -513,6 +523,9 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 	float coverage = base.a;
 
 	if (shading.alpha_mode == VOE_RENDER_ALPHA_CUTOUT) {
+		// A far cut-out stays solid (ADR-0421 point 3). See the header.
+		if (shading.base_colour_distance_field == 0)
+			coverage *= 1.0 + 0.25 * max(0.0, level);
 		if (coverage < shading.alpha_cutoff)
 			discard;
 		coverage = 1.0;
