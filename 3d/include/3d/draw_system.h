@@ -1,7 +1,9 @@
 // The system that turns the tables into draws. It draws the world into the pass
 // the loop has opened: it finds the camera and the sun, works out the matrices,
 // and issues one draw per drawable — solid ones in table order, see-through ones
-// afterwards and furthest away first.
+// afterwards and furthest away first, a fading model see-through and a gone one
+// not at all — under the frame's sky, each light's disc in it, and the haze with
+// its top above the eye.
 //
 //     voe_3d_frame frame = voe_3d_draw_system_frame(world, size, lag);
 //     if (!voe_render_frame_begin(gpu, size, &drawing))
@@ -54,9 +56,7 @@
 // ROWS IN. This walks meshes and panels, so a world that never builds a panel
 // still calls voe_3d_panel_register — asking for an unregistered component type
 // asserts in `ecs` rather than reading as an empty table, and an empty table is
-// what a world with no panels wants. Registering what a system reads is part of
-// building a world that can be drawn, which is the same rule the camera and the
-// light tables already state below.
+// what a world with no panels wants; the camera and light tables state the same.
 #pragma once
 
 #include <3d/bounce_casters.h>
