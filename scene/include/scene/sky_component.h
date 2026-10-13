@@ -1,5 +1,5 @@
-// The sky: a backdrop, and nothing about light (0411, 0412). Read by anyone,
-// const; written only through scene/sky_system.h.
+// The sky: a backdrop, and nothing about light (0411, 0412, 0415). Read by
+// anyone, const; written only through scene/sky_system.h.
 //
 // HAVING THE ROW IS THE SKY ON. A world with no sky row draws the old picture,
 // byte for byte, so every scene saved before the sky existed keeps its look.
@@ -17,12 +17,14 @@
 //                    colours are. Each channel at least 0.
 //   horizon_height — 0 to 1: how far up from the horizon towards the zenith
 //                    the horizon colour reaches; 0 a hard band.
-//   strength       — scales the backdrop and so the haze, never a light's
-//                    disc or glow. At least 0.
+//   strength       — scales the backdrop only: not the haze, and never a
+//                    light's disc or glow. At least 0.
 //   haze           — metres past haze_start at which half of a surface's
 //                    colour is haze; 0 is no haze. At least 0.
 //   haze_start     — metres within which no surface takes haze (0414); 0 is
 //                    the fade from the eye. At least 0.
+//   haze and haze_start set only how far the fade reaches; the colour it
+//   fades to is the directional lights', not the sky's (0415).
 //
 // THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a
 // build that asks for descriptions also has voe_scene_sky_description(), and
