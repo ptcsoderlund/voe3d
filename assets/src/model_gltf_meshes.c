@@ -7,10 +7,18 @@
 // IN. Strips, fans, lines and points are refused with their mode number in the
 // message. Generating the indices for a primitive that has none costs one array
 // and means everything downstream — the pool, the draw, the importer — has
-// exactly one shape to handle.
+// exactly one shape to handle. Indices are all an expansion adds, so every
+// attribute, COLOR_0 included, comes through it as the file had it.
+//
+// COLOR_0 IS READ AS glTF ALLOWS IT AND NO WIDER: VEC3 or VEC4 of floats, or of
+// unsigned bytes or shorts marked normalized, all turned into float 0 to 1.
+// Any other component type or shape is unsupported, with both numbers in the
+// message.
 #include "model_gltf_read.h"
 
 #include <base/report.h>
+
+#include <string.h>
 
 // The only primitive mode this engine draws.
 #define MODE_TRIANGLES 4
@@ -94,6 +102,85 @@ static bool read_attribute(struct gltf *gltf, uint32_t attributes,
 	}
 
 	*present = true;
+	return true;
+}
+
+// COLOR_0's one element as a float4: floats as they are, a normalized unsigned
+// byte or short divided by its largest value, and alpha 1 for a VEC3.
+static voe_math_float4 read_colour(const struct view *view, uint32_t index)
+{
+	const uint8_t *element = view->base + (size_t)index * view->stride;
+	float values[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+	for (uint32_t c = 0; c < view->components; c++) {
+		if (view->component == COMPONENT_FLOAT) {
+			memcpy(&values[c], element + (size_t)c * sizeof(float),
+			       sizeof(float));
+		} else if (view->component == COMPONENT_UNSIGNED_SHORT) {
+			uint16_t value;
+
+			memcpy(&value, element + (size_t)c * sizeof(value),
+			       sizeof(value));
+			values[c] = (float)value / 65535.0f;
+		} else {
+			values[c] = (float)element[c] / 255.0f;
+		}
+	}
+	return (voe_math_float4){ values[0], values[1], values[2], values[3] };
+}
+
+// COLOR_0 into `*out`, or NULL when the primitive has none. The shapes glTF
+// allows a colour are the ones read; anything else names itself and is refused.
+static bool read_colours(struct gltf *gltf, uint32_t attributes,
+			 uint32_t accessor_count, uint32_t expected,
+			 const voe_math_float4 **out)
+{
+	uint32_t token = voe_assets_json_member(gltf->json, attributes,
+						"COLOR_0");
+	uint32_t index;
+	uint32_t flag;
+	bool normalized;
+	bool readable;
+	struct view view;
+	voe_math_float4 *colours;
+
+	*out = NULL;
+	if (token == VOE_ASSETS_JSON_NONE)
+		return true;
+	if (accessor_count == 0 ||
+	    !voe_assets_json_uint(gltf->json, token, accessor_count - 1, &index))
+		return voe_assets_gltf_malformed(
+			gltf, "a COLOR_0 accessor index that is out of range");
+	if (!voe_assets_gltf_resolve_accessor(gltf, index, &view))
+		return false;
+
+	flag = voe_assets_json_member(
+		gltf->json, voe_assets_gltf_object_at(gltf, gltf->accessors, index),
+		"normalized");
+	normalized = flag != VOE_ASSETS_JSON_NONE &&
+		     voe_assets_json_kind_of(gltf->json, flag) ==
+			     VOE_ASSETS_JSON_TRUE;
+	readable = view.component == COMPONENT_FLOAT ||
+		   (normalized && (view.component == COMPONENT_UNSIGNED_BYTE ||
+				   view.component == COMPONENT_UNSIGNED_SHORT));
+	if (!readable || (view.components != 3 && view.components != 4)) {
+		VOE_BASE_ERROR("assets",
+			       "glTF: a COLOR_0 of %u components of component type %u, %s; this reader reads VEC3 or VEC4 of floats (5126) or of normalized unsigned bytes (5121) or shorts (5123)",
+			       view.components, view.component,
+			       normalized ? "normalized" : "not normalized");
+		gltf->error = VOE_BASE_ERROR_UNSUPPORTED;
+		return false;
+	}
+	if (view.count != expected)
+		return voe_assets_gltf_malformed(
+			gltf,
+			"a primitive whose attributes do not all have the same number of vertices");
+
+	colours = voe_base_arena_push(gltf->arena,
+				      (size_t)view.count * sizeof(*colours));
+	for (uint32_t i = 0; i < view.count; i++)
+		colours[i] = read_colour(&view, i);
+	*out = colours;
 	return true;
 }
 
@@ -184,6 +271,10 @@ static bool read_primitive(struct gltf *gltf, uint32_t primitive,
 			    uvs, &present))
 		return false;
 	out->uvs = present ? uvs : NULL;
+
+	if (!read_colours(gltf, attributes, accessor_count, positions.count,
+			  &out->colours))
+		return false;
 
 	indices_token = voe_assets_json_member(gltf->json, primitive, "indices");
 	if (indices_token == VOE_ASSETS_JSON_NONE) {

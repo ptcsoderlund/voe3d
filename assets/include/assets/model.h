@@ -101,10 +101,16 @@ typedef enum {
 // indices are always there: a primitive without positions is malformed, and one
 // without indices is expanded on the way in so that everything downstream has
 // exactly one shape to handle.
+//
+// colours IS glTF's COLOR_0, ONE PER VERTEX, LINEAR, AND NULL WITHOUT ONE. It
+// multiplies the material's base colour, alpha included, as glTF says. It is
+// float4 whatever the file stored — floats, or normalized unsigned bytes or
+// shorts — so downstream reads one shape, and a three-channel one has alpha 1.
 typedef struct {
 	const voe_math_float3 *positions;
 	const voe_math_float3 *normals;
 	const voe_math_float2 *uvs;
+	const voe_math_float4 *colours;
 	uint32_t vertex_count;
 
 	const uint32_t *indices;

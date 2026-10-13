@@ -6,7 +6,9 @@
 // ARE. An exporter's output is large, changes when the exporter does, and holds
 // none of the specific things worth checking — a node with a matrix and a node
 // with three parts, two textures over one picture, an index at the very edge of
-// its vertex count. These are assembled to hold exactly those.
+// its vertex count. These are assembled to hold exactly those. The COLOR_0
+// files are the exception: one unindexed triangle each, assembled here at run
+// time from readable JSON, because they differ only in the colour accessor.
 //
 // THE REFUSALS ARE HALF THE POINT AND THEY ARE TWO DIFFERENT ANSWERS.
 // MALFORMED is a broken file: nothing will read it. UNSUPPORTED is a file that
@@ -179,6 +181,124 @@ static void a_file_comes_back_as_its_arrays(voe_base_arena *arena)
 		     (voe_math_float3){ 0.0f, 0.0f, -2.0f });
 }
 
+// A little-endian word into a file being assembled.
+static void put_word(uint8_t *at, uint32_t word)
+{
+	for (int i = 0; i < 4; i++)
+		at[i] = (uint8_t)(word >> (8 * i));
+}
+
+// A `.glb` of one unindexed triangle into `out`, its size returned. With
+// `component` 0 the primitive has no COLOR_0; otherwise its COLOR_0 is
+// `colours` read as that component type, `type` and `normalized`.
+static size_t triangle_glb(uint8_t *out, size_t capacity, uint32_t component,
+			   const char *type, bool normalized,
+			   const void *colours, uint32_t colours_size)
+{
+	static const float positions[9] = { 0, 0, 0, 1, 0, 0, 0, 1, 0 };
+	char json[1024];
+	uint8_t bin[256];
+	uint32_t json_size;
+	uint32_t bin_size = (uint32_t)sizeof(positions) + colours_size;
+	uint32_t total;
+
+	memcpy(bin, positions, sizeof(positions));
+	memcpy(bin + sizeof(positions), colours, colours_size);
+	json_size = (uint32_t)snprintf(
+		json, sizeof(json),
+		"{\"asset\":{\"version\":\"2.0\"},"
+		"\"buffers\":[{\"byteLength\":%u}],"
+		"\"bufferViews\":[{\"buffer\":0,\"byteLength\":36},"
+		"{\"buffer\":0,\"byteOffset\":36,\"byteLength\":%u}],"
+		"\"accessors\":[{\"bufferView\":0,\"componentType\":5126,"
+		"\"count\":3,\"type\":\"VEC3\"},{\"bufferView\":1,"
+		"\"componentType\":%u,\"normalized\":%s,\"count\":3,"
+		"\"type\":\"%s\"}],"
+		"\"meshes\":[{\"primitives\":[{\"attributes\":"
+		"{\"POSITION\":0%s}}]}],\"nodes\":[{\"mesh\":0}]}",
+		bin_size, colours_size, component == 0 ? 5126 : component,
+		normalized ? "true" : "false", type,
+		component == 0 ? "" : ",\"COLOR_0\":1");
+	while (json_size % 4 != 0)
+		json[json_size++] = ' ';
+	while (bin_size % 4 != 0)
+		bin[bin_size++] = 0;
+
+	total = 12 + 8 + json_size + 8 + bin_size;
+	VOE_TEST_CHECK(total <= capacity);
+	memcpy(out, "glTF", 4);
+	put_word(out + 4, 2);
+	put_word(out + 8, total);
+	put_word(out + 12, json_size);
+	memcpy(out + 16, "JSON", 4);
+	memcpy(out + 20, json, json_size);
+	put_word(out + 20 + json_size, bin_size);
+	memcpy(out + 24 + json_size, "BIN", 4);
+	memcpy(out + 28 + json_size, bin, bin_size);
+	return total;
+}
+
+static void check_colour(voe_math_float4 actual, voe_math_float4 expected)
+{
+	VOE_TEST_CHECK_FLOAT(actual.x, expected.x, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(actual.y, expected.y, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(actual.z, expected.z, TOLERANCE);
+	VOE_TEST_CHECK_FLOAT(actual.w, expected.w, TOLERANCE);
+}
+
+// COLOR_0 as normalized bytes and as three floats comes back as float4s, none
+// comes back NULL, and signed bytes are refused as glTF never allows them.
+static void a_primitive_carries_its_vertex_colours(voe_base_arena *arena)
+{
+	static const uint8_t bytes[12] = { 255, 0, 0, 255, 0, 51, 0, 128,
+					   0,   0, 255, 0 };
+	static const float floats[9] = { 0.25f, 0.5f, 0.75f, 0.25f, 0.5f,
+					 0.75f, 0.25f, 0.5f, 0.75f };
+	static uint8_t file[2048];
+	voe_assets_model model = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	size_t size;
+
+	size = triangle_glb(file, sizeof(file), 5121, "VEC4", true, bytes,
+			    sizeof(bytes));
+	VOE_TEST_CHECK(voe_assets_model_read_glb(file, size, arena, &model,
+						 &error));
+	if (model.primitive_count == 1 && model.primitives[0].colours) {
+		const voe_math_float4 *colours = model.primitives[0].colours;
+
+		// Unindexed, so expanded: the colours come through it whole.
+		VOE_TEST_CHECK_INT(model.primitives[0].index_count, 3);
+		check_colour(colours[0], (voe_math_float4){ 1, 0, 0, 1 });
+		check_colour(colours[1],
+			     (voe_math_float4){ 0, 0.2f, 0, 128.0f / 255.0f });
+		check_colour(colours[2], (voe_math_float4){ 0, 0, 1, 0 });
+	} else {
+		VOE_TEST_CHECK(false);
+	}
+
+	size = triangle_glb(file, sizeof(file), 5126, "VEC3", false, floats,
+			    sizeof(floats));
+	VOE_TEST_CHECK(voe_assets_model_read_glb(file, size, arena, &model,
+						 &error));
+	if (model.primitive_count == 1 && model.primitives[0].colours)
+		check_colour(model.primitives[0].colours[2],
+			     (voe_math_float4){ 0.25f, 0.5f, 0.75f, 1 });
+	else
+		VOE_TEST_CHECK(false);
+
+	size = triangle_glb(file, sizeof(file), 0, "VEC4", false, bytes,
+			    sizeof(bytes));
+	VOE_TEST_CHECK(voe_assets_model_read_glb(file, size, arena, &model,
+						 &error));
+	VOE_TEST_CHECK(model.primitive_count == 1 &&
+		       model.primitives[0].colours == NULL);
+
+	size = triangle_glb(file, sizeof(file), 5120, "VEC4", true, bytes,
+			    sizeof(bytes));
+	refuses("a COLOR_0 of signed bytes", file, size,
+		VOE_BASE_ERROR_UNSUPPORTED);
+}
+
 // A file that is fine and that this reader will not read. Each one prints what
 // it was, which is the difference between "no" and "export it differently".
 static void well_formed_files_this_reader_refuses(void)
@@ -261,6 +381,7 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 
 	a_file_comes_back_as_its_arrays(arena);
+	a_primitive_carries_its_vertex_colours(arena);
 	well_formed_files_this_reader_refuses();
 	broken_containers_are_malformed();
 
