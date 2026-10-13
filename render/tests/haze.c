@@ -5,22 +5,29 @@
 // at the centre pixel. The quad is an unlit black square filling the view at a
 // distance, scaled by its object matrix:
 //
-// 1. at 2000 m: within 3/255 of the sRGB of (1 − 2^−2) × the horizon's gradient
-//    along the pixel's direction, from voe_render_sky_gradient (../src/sky.h);
-// 2. at 50 m: darker than a tenth of that gradient;
+// 1. at 2000 m: within 3/255 of the sRGB of (1 − 2^−2) × H, H the sun's
+//    colour × intensity / (4π), the haze's colour (ADR-0415 point 1);
+// 2. at 50 m: darker than a tenth of H;
 // 3. haze 0 at 2000 m: black, byte for byte;
 // 4. drawn after the pass's depth clear at 2000 m: black, as authored;
 // 5. a blended black quad of alpha 0.5 at 2000 m over the drawn sky: half its
-//    hazed colour plus half the sky along the pixel, within 3/255;
-// 6. the sun 0.5° up ahead, its disc reaching the horizon, at 2000 m: as case
-//    1 under it, no disc and no glow (ADR-0412 point 2); no channel above
-//    the same quad's with the sun 90° round to the side, plus 3/255;
-// 7. the sky's strength 0.25 at 2000 m: within 3/255 of (1 − 2^−2) × the
-//    backdrop at strength 0.25 along the pixel (ADR-0411 point 4);
+//    hazed colour plus half the sky along the pixel, from
+//    voe_render_sky_radiance (../src/sky.h), within 3/255;
+// 6. the sun 0.5° up ahead, and 90° round to the side, at 2000 m: each within
+//    3/255 of case 1, no view term (0415 point 2);
+// 7. the sky's strength 0.25 and its zenith, horizon and ground all changed, at
+//    2000 m: within 3/255 of case 1, the sky not read (0415 point 2);
 // 8. haze_start 100 m at 50 m: black, byte for byte as with haze 0;
-// 9. haze_start 1000 m at 2000 m: within 3/255 of (1 − 2^−1) × the gradient
-//    along the pixel, as case 1 reads it (ADR-0414 point 1).
-// Cases 1 to 7 keep haze_start 0.
+// 9. haze_start 1000 m at 2000 m: within 3/255 of (1 − 2^−1) × H (ADR-0414
+//    point 1);
+// 10. an orange light (1, 0.5, 0.2) at intensity 3, at 2000 m: within 3/255 of
+//     the sRGB of (1 − 2^−2) × its colour × intensity / (4π);
+// 11. the sun plus one `more` light of another colour, at 2000 m: within 3/255
+//     of (1 − 2^−2) × the sum of both lights' H;
+// 12. the sun at intensity 0, at 2000 m: the black quad black byte for byte,
+//     and a white unlit quad within 3/255 of the sRGB of 2^−2 × white (0415
+//     point 3).
+// Cases 1 to 7 and 10 to 12 keep haze_start 0.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO. The skip is a pass and it
 // prints its reason.
@@ -54,7 +61,7 @@ static const voe_render_capacities CAPACITIES = {
 	.indices = 6,
 	.geometries = 1,
 	.objects = 1,
-	.shadings = 2,
+	.shadings = 3,
 	.passes = 1,
 	.targets = 1,
 };
@@ -77,10 +84,12 @@ struct scene {
 	voe_render_geometry quad;
 	voe_render_shading black;
 	voe_render_shading see_through;
+	voe_render_shading white;
 };
 
 // One picture: the quad's distance and record, the sky, and how it is drawn;
-// `light` and `sky` NULL are SUN and SKY.
+// `light` and `sky` NULL are SUN and SKY, `more` NULL no second light, and
+// `white` the white unlit quad in place of the black one.
 struct haze_case {
 	float distance;
 	float haze;
@@ -89,6 +98,8 @@ struct haze_case {
 	bool after_clear;
 	const voe_render_light *light;
 	const voe_render_sky *sky;
+	const voe_render_directional_light *more;
+	bool white;
 };
 
 // sky.c's camera with its far plane past the far quad.
@@ -131,6 +142,7 @@ static void draw_frame(struct scene *scene, const struct haze_case *with)
 	voe_render_pass_camera camera = {
 		.view = the_camera(),
 		.light = with->light != NULL ? *with->light : SUN,
+		.more = { with->more, with->more != NULL ? 1u : 0u },
 		.sky = with->sky != NULL ? *with->sky : SKY,
 		.exposure = { .tone = VOE_RENDER_TONE_CLIP },
 	};
@@ -138,6 +150,7 @@ static void draw_frame(struct scene *scene, const struct haze_case *with)
 		.world = voe_math_float4x4_identity(),
 		.normal = voe_math_float4x4_identity(),
 		.shading = with->blended ? scene->see_through.index :
+			   with->white ? scene->white.index :
 					   scene->black.index,
 		.colour = { 1.0f, 1.0f, 1.0f, 1.0f },
 	};
@@ -206,14 +219,12 @@ static voe_math_float3 radiance_along(voe_math_float3 view)
 	return voe_render_sky_radiance(&SKY, &SUN, 1, view);
 }
 
-// The haze's colour at the centre under `sky`: its backdrop along it, its
-// height clamped up to the horizon, as tone.slangh's voe_render_haze_colour.
-static voe_math_float3 horizon_gradient(const voe_render_sky *sky)
+// The haze's colour one shown light gives: colour × intensity / (4π), as
+// tone.slangh's voe_render_haze_colour adds it.
+static voe_math_float3 haze_of(const voe_render_light *light)
 {
-	voe_math_float3 view = centre_direction();
-
-	view.y = fmaxf(view.y, 0.0f);
-	return voe_render_sky_gradient(sky, voe_math_float3_normalize(view));
+	return voe_math_float3_scale(light->colour,
+				     light->intensity / (4.0f * 3.14159265f));
 }
 
 static void check_pixel(const char *name, const uint8_t *pixel,
@@ -230,24 +241,24 @@ static void check_pixel(const char *name, const uint8_t *pixel,
 static void check_pictures(struct scene *scene)
 {
 	const struct haze_case far = { FAR_QUAD, HAZE, false, false, false,
-				       NULL, NULL };
+				       NULL, NULL, NULL, false };
 	const struct haze_case near = { NEAR_QUAD, HAZE, false, false, false,
-					NULL, NULL };
+					NULL, NULL, NULL, false };
 	const struct haze_case none = { FAR_QUAD, 0.0f, false, false, false,
-					NULL, NULL };
+					NULL, NULL, NULL, false };
 	const struct haze_case plain = { FAR_QUAD, HAZE, false, false, true,
-					 NULL, NULL };
+					 NULL, NULL, NULL, false };
 	const struct haze_case blended = { FAR_QUAD, HAZE, true, true, false,
-					   NULL, NULL };
-	const voe_math_float3 horizon = horizon_gradient(&SKY);
-	const voe_math_float3 hazed = voe_math_float3_scale(horizon, 0.75f);
+					   NULL, NULL, NULL, false };
+	const voe_math_float3 lit = haze_of(&SUN);
+	const voe_math_float3 hazed = voe_math_float3_scale(lit, 0.75f);
 	const voe_math_float3 black = { 0.0f, 0.0f, 0.0f };
 	const uint8_t *pixel;
 
 	if ((pixel = centre_of(scene, &far)) != NULL)
 		check_pixel("2000 m", pixel, hazed, TOLERANCE);
 	if ((pixel = centre_of(scene, &near)) != NULL) {
-		voe_math_float3 tenth = voe_math_float3_scale(horizon, 0.1f);
+		voe_math_float3 tenth = voe_math_float3_scale(lit, 0.1f);
 
 		printf("50 m: %d %d %d, under %d %d %d\n", pixel[0], pixel[1],
 		       pixel[2], srgb_byte(tenth.x), srgb_byte(tenth.y),
@@ -270,8 +281,8 @@ static void check_pictures(struct scene *scene)
 			    TOLERANCE);
 }
 
-// The sun 0.5° up ahead, its disc reaching the horizon: the far quad takes the
-// gradient alone, and no brighter than with the sun to the side.
+// The sun 0.5° up ahead, its disc reaching the horizon, and 90° round to the
+// side: the far quad as case 1 both times, the haze having no view term.
 static void check_low_sun(struct scene *scene)
 {
 	const float e = 0.5f * (3.14159265f / 180.0f);
@@ -280,41 +291,79 @@ static void check_low_sun(struct scene *scene)
 					 .colour = { 1.0f, 1.0f, 1.0f } };
 	voe_render_light side = ahead;
 	const struct haze_case low = { FAR_QUAD, HAZE, false, false, false,
-				       &ahead, NULL };
+				       &ahead, NULL, NULL, false };
 	const struct haze_case to_side = { FAR_QUAD, HAZE, false, false, false,
-					   &side, NULL };
+					   &side, NULL, NULL, false };
+	const voe_math_float3 hazed = voe_math_float3_scale(haze_of(&SUN), 0.75f);
 	const uint8_t *pixel;
-	const uint8_t *beside;
 
 	side.direction = (voe_math_float3){ -cosf(e), -sinf(e), 0.0f };
 	if ((pixel = centre_of(scene, &low)) != NULL)
-		check_pixel("low sun ahead", pixel,
-			    voe_math_float3_scale(horizon_gradient(&SKY),
-						  0.75f),
-			    TOLERANCE);
-	pixel = centre_of(scene, &low);
-	beside = centre_of(scene, &to_side);
-	if (pixel == NULL || beside == NULL)
-		return;
-	printf("low sun ahead %d %d %d, to the side %d %d %d\n", pixel[0],
-	       pixel[1], pixel[2], beside[0], beside[1], beside[2]);
-	for (int i = 0; i < 3; i++)
-		VOE_TEST_CHECK(pixel[i] <= beside[i] + TOLERANCE);
+		check_pixel("low sun ahead", pixel, hazed, TOLERANCE);
+	if ((pixel = centre_of(scene, &to_side)) != NULL)
+		check_pixel("low sun to the side", pixel, hazed, TOLERANCE);
 }
 
-// A sky of strength 0.25: the far quad hazes towards its dimmer backdrop.
+// A sky of strength 0.25 and other colours: the far quad as case 1, the sky
+// not read.
 static void check_dim_sky(struct scene *scene)
 {
 	voe_render_sky dim = SKY;
 	const struct haze_case far = { FAR_QUAD, HAZE, false, false, false,
-				       NULL, &dim };
+				       NULL, &dim, NULL, false };
 	const uint8_t *pixel;
 
 	dim.strength = 0.25f;
+	dim.zenith = (voe_math_float3){ 0.9f, 0.1f, 0.1f };
+	dim.horizon = (voe_math_float3){ 0.1f, 0.9f, 0.1f };
+	dim.ground = (voe_math_float3){ 0.6f, 0.6f, 0.0f };
 	if ((pixel = centre_of(scene, &far)) != NULL)
-		check_pixel("strength 0.25", pixel,
-			    voe_math_float3_scale(horizon_gradient(&dim), 0.75f),
+		check_pixel("strength 0.25, other colours", pixel,
+			    voe_math_float3_scale(haze_of(&SUN), 0.75f),
 			    TOLERANCE);
+}
+
+// An orange light, the sun with a second light in `more`, and the sun dark:
+// the haze the lights' colour × intensity summed, and nought with none shown.
+static void check_lights(struct scene *scene)
+{
+	const voe_render_light orange = { .direction = SUN.direction,
+					  .intensity = 3.0f,
+					  .colour = { 1.0f, 0.5f, 0.2f } };
+	const voe_render_directional_light blue = {
+		.light = { .direction = { -0.8660254f, -0.5f, 0.0f },
+			   .intensity = 1.0f,
+			   .colour = { 0.2f, 0.4f, 1.0f } },
+	};
+	voe_render_light dark = SUN;
+	const struct haze_case lit_orange = { FAR_QUAD, HAZE, false, false,
+					      false, &orange, NULL, NULL, false };
+	const struct haze_case two = { FAR_QUAD, HAZE, false, false, false,
+				       NULL, NULL, &blue, false };
+	const struct haze_case none = { FAR_QUAD, HAZE, false, false, false,
+					&dark, NULL, NULL, false };
+	const struct haze_case white = { FAR_QUAD, HAZE, false, false, false,
+					 &dark, NULL, NULL, true };
+	const voe_math_float3 black = { 0.0f, 0.0f, 0.0f };
+	const voe_math_float3 quarter = { 0.25f, 0.25f, 0.25f };
+	const uint8_t *pixel;
+
+	dark.intensity = 0.0f;
+	if ((pixel = centre_of(scene, &lit_orange)) != NULL)
+		check_pixel("orange at 3", pixel,
+			    voe_math_float3_scale(haze_of(&orange), 0.75f),
+			    TOLERANCE);
+	if ((pixel = centre_of(scene, &two)) != NULL)
+		check_pixel("sun and a blue more", pixel,
+			    voe_math_float3_scale(
+				    voe_math_float3_add(haze_of(&SUN),
+							haze_of(&blue.light)),
+				    0.75f),
+			    TOLERANCE);
+	if ((pixel = centre_of(scene, &none)) != NULL)
+		check_pixel("no light, black", pixel, black, 0);
+	if ((pixel = centre_of(scene, &white)) != NULL)
+		check_pixel("no light, white", pixel, quarter, TOLERANCE);
 }
 
 // A haze that starts at a distance: nearer surfaces untouched, farther ones
@@ -324,9 +373,9 @@ static void check_haze_start(struct scene *scene)
 	voe_render_sky near_start = SKY;
 	voe_render_sky far_start = SKY;
 	const struct haze_case inside = { NEAR_QUAD, HAZE, false, false, false,
-					  NULL, &near_start };
+					  NULL, &near_start, NULL, false };
 	const struct haze_case past = { FAR_QUAD, HAZE, false, false, false,
-					NULL, &far_start };
+					NULL, &far_start, NULL, false };
 	const voe_math_float3 black = { 0.0f, 0.0f, 0.0f };
 	const uint8_t *pixel;
 
@@ -336,7 +385,7 @@ static void check_haze_start(struct scene *scene)
 		check_pixel("haze_start 100 m at 50 m", pixel, black, 0);
 	if ((pixel = centre_of(scene, &past)) != NULL)
 		check_pixel("haze_start 1000 m at 2000 m", pixel,
-			    voe_math_float3_scale(horizon_gradient(&SKY), 0.5f),
+			    voe_math_float3_scale(haze_of(&SUN), 0.5f),
 			    TOLERANCE);
 }
 
@@ -353,8 +402,10 @@ int main(void)
 		.base_colour_uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f },
 	};
 	voe_render_shading_values see_through = black;
+	voe_render_shading_values white = black;
 
 	see_through.base_colour.w = 0.5f;
+	white.base_colour = (voe_math_float4){ 1.0f, 1.0f, 1.0f, 1.0f };
 	see_through.alpha_mode = VOE_RENDER_ALPHA_BLENDED;
 	scene.device = voe_render_device_new_headless(scene.arena, size,
 						      CAPACITIES, &error);
@@ -376,11 +427,14 @@ int main(void)
 						 &scene.black, &error));
 	VOE_TEST_CHECK(voe_render_shading_create(scene.device, see_through,
 						 &scene.see_through, &error));
+	VOE_TEST_CHECK(voe_render_shading_create(scene.device, white,
+						 &scene.white, &error));
 
 	check_pictures(&scene);
 	check_low_sun(&scene);
 	check_dim_sky(&scene);
 	check_haze_start(&scene);
+	check_lights(&scene);
 
 	voe_render_device_destroy(scene.device);
 	voe_base_arena_destroy(scene.arena);

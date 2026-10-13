@@ -11,7 +11,7 @@
 //     float3 g = voe_render_sky_gradient(voe_render_frame.sky, view);
 //
 // The backdrop: `strength` times an authored gradient from ground through
-// horizon to zenith, following no light; the haze's colour. The radiance: that,
+// horizon to zenith, following no light. The radiance: that,
 // every shown light's glow in its colour, then each one's disc laid over, a
 // lerp to twice its colour. The lights are the frame's: `light` is entry 0 of
 // the sky's sizes, more[i − 1] entry i for i up to `more_count`. A light's
@@ -34,7 +34,7 @@ bool voe_render_sky_shown(voe_render_light light)
 }
 
 // The backdrop along `view`, `strength` included, no glow and no disc
-// (ADR-0412 point 2): the haze's colour.
+// (ADR-0412 point 2).
 float3 voe_render_sky_gradient(voe_render_sky sky, float3 view)
 {
 	float h = view.y;

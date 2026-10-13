@@ -1,11 +1,12 @@
 // Haze, exposure and tone at every mesh exit (ADR-0405 points 6 and 7).
-// voe_render_haze mixes a linear colour towards the sky at the horizon by
+// voe_render_haze mixes a linear colour towards the haze's colour by
 // distance past the sky's haze_start, a surface no farther than it untouched
 // (ADR-0414 point 1); voe_render_expose then multiplies it by 2^exposure from the pass's
 // exposure record and puts it through its curve, Clip (as it is, the 8-bit
 // target clamping) or Soft (Khronos PBR Neutral). HAZE COMES BEFORE EXPOSURE
-// AND TONE: the haze is the sky's backdrop × strength at the horizon, no disc
-// and no glow (ADR-0412 point 2), exposed and toned with the surface it covers. A part (ADR-0308): included by draw.slang after
+// AND TONE: the haze's colour is the shown directional lights' colour ×
+// intensity / (4π), no fill, shadow or view term, the sky's colours and
+// strength not read (ADR-0415), exposed and toned with the surface it covers. A part (ADR-0308): included by draw.slang after
 // bindings.slangh, whose frame block and push constant it reads; includes
 // sky.slangh; never compiled alone.
 //
@@ -28,21 +29,32 @@
 static const uint VOE_RENDER_TONE_CLIP = 0;
 static const uint VOE_RENDER_TONE_SOFT = 1;
 
-// The sky's gradient along `position`'s direction with its height clamped up
-// to the horizon: the backdrop × strength, no disc and no glow, following no
-// light (ADR-0412 point 2). A view straight down has no azimuth and takes +X's
-// horizon.
-float3 voe_render_haze_colour(float3 position)
-{
-	float3 view = position;
+// What an isotropic haze deep in reads per unit of a light's colour ×
+// intensity: a quarter of a white Lambert surface facing it (ADR-0415 point 1).
+static const float VOE_RENDER_HAZE_GAIN = 1.0 / (4.0 * VOE_RENDER_SKY_PI);
 
-	view.y = max(view.y, 0.0);
-	if (dot(view, view) < VOE_LEAST)
-		view = float3(1.0, 0.0, 0.0);
-	return voe_render_sky_gradient(voe_render_frame.sky, normalize(view));
+// Σ colour × intensity × HAZE_GAIN over the frame's shown directional lights,
+// 0 to more_count, the same in every direction: no fill, shadow or view term,
+// the sky's colours and strength not read (ADR-0415 points 1 and 2). None
+// shown is 0, so far surfaces fade towards black (point 3).
+float3 voe_render_haze_colour()
+{
+	uint count = 1 + min(voe_render_frame.more_count,
+			     VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
+	float3 colour = float3(0.0, 0.0, 0.0);
+
+	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
+		if (i >= count)
+			break;
+		voe_render_light light = voe_render_sky_light(i);
+
+		if (voe_render_sky_shown(light))
+			colour += light.colour * light.intensity;
+	}
+	return colour * VOE_RENDER_HAZE_GAIN;
 }
 
-// colour × (1 − f) + sky × f, f = 1 − 2^(−(|position| − haze_start)/haze),
+// colour × (1 − f) + haze × f, f = 1 − 2^(−(|position| − haze_start)/haze),
 // `position` the surface about the eye; at or nearer haze_start, `colour` as it
 // came (ADR-0414 point 1).
 float3 voe_render_haze(float3 colour, float3 position)
@@ -54,7 +66,7 @@ float3 voe_render_haze(float3 colour, float3 position)
 		return colour;
 	float f = 1.0 - exp2(-past / haze);
 
-	return lerp(colour, voe_render_haze_colour(position), f);
+	return lerp(colour, voe_render_haze_colour(), f);
 }
 
 // Khronos PBR Neutral: colours below about 0.8 stay as authored, brighter ones

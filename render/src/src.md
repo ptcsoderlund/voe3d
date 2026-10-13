@@ -96,7 +96,7 @@ which file to open — what each one owns, and where the seams between them run.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
   rectangle of its box's corners.
 - `sky.h` — the sky's model and constants (ADR-0411, 0412), twin of `shaders/sky.slangh`: whether a
-  light is shown, the backdrop (the haze's colour) and radiance along a view, the backdrop's nine
+  light is shown, the backdrop and radiance along a view, the backdrop's nine
   cosine-convolved harmonics, and the irradiance. Pure CPU.
 - `sky.c` — those five calls: a backdrop of strength × an authored gradient, the radiance that plus
   each shown light's glow then disc, the backdrop alone projected over 256 Fibonacci directions.

@@ -11,8 +11,7 @@
 // scattering: above the horizon the view runs from `horizon` to `zenith` by a
 // power of its height, the power rising with `horizon_height` (0 a hard band, 1
 // horizon colour almost to the top); below it, to `ground` within a few
-// degrees. It does not follow any light; the backdrop alone is the haze's
-// colour. A SHOWN light, not unshaded, of intensity above 0 and colour not
+// degrees. It does not follow any light. A SHOWN light, not unshaded, of intensity above 0 and colour not
 // nought, adds in its colour (not times intensity or `strength`) a glow, its
 // exponent narrowing from GLOW_WIDE to GLOW_NARROW as its `glow_size` falls.
 // The glows of every light come first; then each shown light's disc of
@@ -56,7 +55,7 @@
 bool voe_render_sky_shown(voe_render_light light);
 
 // The backdrop of `sky` along unit `view`, `strength` included, no glow and no
-// disc: the haze's colour (ADR-0411 point 4).
+// disc.
 voe_math_float3 voe_render_sky_gradient(const voe_render_sky *sky,
 					voe_math_float3 view);
 

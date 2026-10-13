@@ -1457,7 +1457,7 @@ typedef struct {
 // backdrop's gradient from ground through horizon to zenith. `horizon_height`,
 // 0 to 1, is how far up the horizon colour reaches, 0 a hard band and 1
 // horizon colour almost to the top. `strength`, at least 0, scales the whole
-// backdrop, and so the haze, but no disc or glow.
+// backdrop, but not the haze, a disc or a glow.
 //
 // `disc_size[i]` and `glow_size[i]` are light i's in the sky: entry 0 the
 // pass's `light`, entry i its `more` light i − 1; entries past 1 + `more.count`
@@ -1475,12 +1475,13 @@ typedef struct {
 // haze at all, byte for byte as with `haze` 0 (ADR-0414 point 1); 0 fades from
 // the eye. `haze`, at least 0, is the metres past that start at which half a
 // surface's colour is haze (ADR-0405 point 6): every mesh exit, lit, unlit,
-// water and blended (its straight colour, alpha kept), mixes towards the sky's
-// colour at the horizon along its view by
-// 1 − 2^(−max(distance − haze_start, 0)/haze), before exposure and tone. That
-// colour is the backdrop at the horizon, times `strength`, without discs or
-// glows (0411 point 4), whether or not `drawn`. 0 is none; plain draws take
-// none.
+// water and blended (its straight colour, alpha kept), mixes towards the haze's
+// colour by 1 − 2^(−max(distance − haze_start, 0)/haze), before exposure and
+// tone. That colour is the sum of the pass's shown directional lights' colour ×
+// intensity / (4π), `light` and each `more` light, the same in every direction,
+// whether or not `drawn` (ADR-0415 point 1): no fill, shadow or view term, and
+// the sky's colours and `strength` not read. With no shown light far surfaces
+// fade towards black. 0 is none; plain draws take none.
 //
 // THE SKY LIGHTS NOTHING (ADR-0411 point 1): lights alone light, the same with
 // a sky or without. With `drawn` the sky's reflection, sharp on a smooth
