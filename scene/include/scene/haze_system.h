@@ -3,7 +3,7 @@
 //
 //     voe_scene_haze_register(world, 1);                    // once, at startup
 //     voe_scene_haze_add(world, settings, (voe_scene_haze){
-//             .haze = 1000.0f, .start = 100.0f });
+//             .haze = 1000.0f, .start = 100.0f, .height = 1000.0f });
 //
 //     // from anywhere: the Inspector, game code
 //     voe_scene_haze_submit(world, (voe_scene_haze_intent){
@@ -20,9 +20,10 @@
 // CREATION IS A DIRECT CALL AND NOT AN INTENT, as for every row in this
 // folder: an intent is applied to a component that exists.
 //
-// A HAZE OR START NOT FINITE OR BELOW 0 IS REFUSED, not clamped: none has a
-// nearest right answer. `add` asserts on one; the drain keeps the row and says
-// so on stderr, one line per refused intent. An intent naming an entity with
+// A HAZE OR START NOT FINITE OR BELOW 0, OR A HEIGHT NOT FINITE, IS REFUSED,
+// not clamped: none has a nearest right answer. Any finite height is taken.
+// `add` asserts on one; the drain keeps the row and says so on stderr, one
+// line per refused intent. An intent naming an entity with
 // no haze, a destroyed one included, is dropped silently.
 //
 // IT SITS AT "Rendering / Haze" IN ADD COMPONENT, a menu path registered with
@@ -35,9 +36,9 @@
 #include <stdint.h>
 
 // Registers the table, the intent queue as its replace and the default row of
-// 0417: haze 1000, start 100. It is also the unsaid row, what a file that does
-// not mention a field means, so none is set apart. No needed type. Call it once
-// per world, before anything adds a haze. capacity is how many hazes the world
+// 0417 and 0418: haze 1000, start 100, height 1000. It is also the unsaid row,
+// what a file that does not mention a field means, so none is set apart. No
+// needed type. Call it once per world, before anything adds a haze. capacity is how many hazes the world
 // may hold (the game's is 1) and also how many intents may be waiting at once.
 void voe_scene_haze_register(voe_ecs_world *world, uint32_t capacity);
 

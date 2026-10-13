@@ -7,11 +7,15 @@
 // THE FIRST ROW IN TABLE ORDER IS THE ONE USED. A world holds at most one by
 // the caller's capacity; a second row, if a caller allows one, is ignored.
 //
-// THE FIELDS, each finite and at least 0:
-//   haze  — metres past `start` at which half of a surface's colour is haze;
-//           0 is no haze.
-//   start — metres within which no surface takes haze (0414); 0 is the fade
-//           from the eye.
+// THE FIELDS, `haze` and `start` finite and at least 0, `height` any finite:
+//   haze   — metres past `start` at which half of a surface's colour is haze;
+//            0 is no haze.
+//   start  — metres within which no surface takes haze (0414); 0 is the fade
+//            from the eye.
+//   height — the world height, metres, y up, the haze layer reaches (0418).
+//            It veils the sky, or the backdrop when there is no sky row, seen
+//            through the layer, and nothing else: surfaces still fade by
+//            distance only.
 //
 // THE COLOUR IT FADES TO IS NOT A FIELD (0416 points 2 to 4). Its hue is the
 // sky's horizon hue when there is a sky row and the directional lights' colour
@@ -20,7 +24,7 @@
 //
 // THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a
 // build that asks for descriptions also has voe_scene_haze_description(), and
-// one that does not has the same struct and nothing more. Both fields are
+// one that does not has the same struct and nothing more. Every field is
 // authored, not read-only.
 #pragma once
 
@@ -32,10 +36,11 @@
 
 #include <stdint.h>
 
-// haze and start: finite and not negative — see the header.
+// haze and start: finite and not negative; height: finite — see the header.
 #define VOE_SCENE_HAZE_FIELDS(F, F_READ_ONLY) \
 	F(float, haze, FLOAT32)               \
-	F(float, start, FLOAT32)
+	F(float, start, FLOAT32)              \
+	F(float, height, FLOAT32)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_haze, VOE_SCENE_HAZE_FIELDS)
 

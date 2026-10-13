@@ -38,9 +38,9 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `sky_system.c` — registration with a default row of strength 1, creation, and the run
   that applies a whole sky or keeps it over a number not finite or out of bounds.
 - `haze_component.c` — the key and the reads.
-- `haze_system.c` — registration with a default row of haze 1000 and start
-  100, creation, and the run that applies a whole haze or keeps it over a
-  number not finite or below 0.
+- `haze_system.c` — registration with a default row of haze 1000, start 100
+  and height 1000, creation, and the run that applies a whole haze or keeps it
+  over a number not finite or a haze or start below 0.
 - `picture_component.c` — the key, the tone names Clip and Soft, and the reads.
 - `picture_system.c` — registration with 0406's default row, creation, and the
   run that applies a whole picture or keeps it over an exposure not finite or

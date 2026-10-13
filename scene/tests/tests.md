@@ -28,9 +28,10 @@ module's promises from outside. None of them needs a window or a graphics card.
   fields, a row read back, a horizon replace landing on a run, a refused NaN
   zenith, negative ground, horizon height 1.5, strength -1 and infinite, and a
   dead entity.
-- `haze.c` — the haze's registration, its default row of haze 1000 and start
-  100 and two fields, a row read back, a haze replace landing on a run, a
-  refused NaN haze, haze -1, start -1 and infinite start, and a dead entity.
+- `haze.c` — the haze's registration, its default row of haze 1000, start 100
+  and height 1000 and three fields, a row read back, a haze replace landing on
+  a run, height -50 taken, a refused NaN haze, haze -1, start -1, infinite
+  start, NaN height and infinite height, and a dead entity.
 - `picture.c` — the picture's registration, its exposure 0 and Soft default,
   the tone names Clip and Soft, a row read back, an exposure replace landing on
   a run, a refused NaN exposure, exposure 17 and tone 2, and a dead entity.

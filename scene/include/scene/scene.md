@@ -36,7 +36,8 @@ stays on `scene/scene.md`.
 - `sky_system.h` — the replace intent, the direct call that creates one, and
   the run that drains it.
 - `haze_component.h` — the haze: how far surfaces fade, past a start distance,
-  to the sky's hue at the directional lights' brightness, sky or none.
+  to the sky's hue at the directional lights' brightness, sky or none, and the
+  height its layer reaches, which veils the sky.
 - `haze_system.h` — the replace intent, the direct call that creates one, and
   the run that drains it.
 - `picture_component.h` — the picture: how the whole drawn image is exposed and

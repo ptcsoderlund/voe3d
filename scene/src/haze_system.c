@@ -33,7 +33,8 @@ void voe_scene_haze_register(voe_ecs_world *world, uint32_t capacity)
 {
 	voe_ecs_type type;
 	voe_ecs_intent intent;
-	const voe_scene_haze row = { .haze = 1000.0f, .start = 100.0f };
+	const voe_scene_haze row = { .haze = 1000.0f, .start = 100.0f,
+				     .height = 1000.0f };
 
 	VOE_BASE_ASSERT(world != NULL, "registering hazes in no world");
 
@@ -49,11 +50,13 @@ void voe_scene_haze_register(voe_ecs_world *world, uint32_t capacity)
 	voe_ecs_component_menu_set(world, type, "Rendering / Haze");
 }
 
-// Both fields finite and not negative; written so a NaN fails each.
+// haze and start finite and not negative, height finite; written so a NaN
+// fails each.
 static bool haze_valid(voe_scene_haze haze)
 {
 	return isfinite(haze.haze) && haze.haze >= 0.0f &&
-	       isfinite(haze.start) && haze.start >= 0.0f;
+	       isfinite(haze.start) && haze.start >= 0.0f &&
+	       isfinite(haze.height);
 }
 
 bool voe_scene_haze_add(voe_ecs_world *world, voe_ecs_entity entity,
@@ -61,7 +64,7 @@ bool voe_scene_haze_add(voe_ecs_world *world, voe_ecs_entity entity,
 {
 	VOE_BASE_DEBUG_ASSERT(world != NULL, "adding a haze to no world");
 	VOE_BASE_DEBUG_ASSERT(haze_valid(haze),
-			      "a haze with a number below 0 or not finite");
+			      "a haze with a number not finite, or a haze or start below 0");
 
 	return voe_ecs_component_add(
 		world, voe_ecs_component_type(world, &voe_scene_haze_key),
@@ -98,7 +101,7 @@ void voe_scene_haze_system_run(voe_ecs_world *world)
 			continue;
 		if (!haze_valid(intents[i].haze)) {
 			fprintf(stderr,
-				"error: haze %uv%u: a number below 0 or not finite refused, row kept\n",
+				"error: haze %uv%u: a number not finite, or a haze or start below 0, refused, row kept\n",
 				entity.index, entity.generation);
 			continue;
 		}
