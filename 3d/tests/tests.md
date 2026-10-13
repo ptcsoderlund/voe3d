@@ -28,10 +28,8 @@ again, or to find where a claim that has started failing is written down.
 - `model_data.inc` — that hand-built `.glb`, as bytes.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
   frames blind, the eye lags the last step and a red shape reads red. Skips without a graphics card.
-- `draw_material.c` — that a cube wearing a loaded unlit red material reads red, and one with an
-  empty or unheld path its own grey; a model's green part red when its parts set names it, and
-  green with none or with only its other part's naming it; a cube about the eye red inside when
-  double-sided, the clear colour when not. Skips without a graphics card.
+- `draw_material.c` — that a cube wears an unlit material's colour, a model's part wears what its
+  parts set names, and a double-sided material draws both sides. Skips without a graphics card.
 - `draw_gizmo.c` — that a gizmo's arrows and rings show through the cube it stands in. Skips
   without a graphics card.
 - `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
