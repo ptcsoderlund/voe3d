@@ -10,13 +10,13 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **base** — arenas, containers, strings, the two asserts, error codes, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, tables, intent and structural queues; a type's menu, unsaid row, former names.
-- **platform** — the one OS-aware folder: window, input, pads, files, trash, clock, process, env, sound.
-- **scene** — transform (double, relative, a step behind), parent, prefab, lens, lights, blockers, sky, haze, picture.
+- **platform** — OS-aware: window, input, pads, files, trash, clock, process, env, sound.
+- **scene** — transform (double, relative, lag), parent, prefab, lens, lights, blockers, sky, haze, picture.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts, landscapes, materials, sectioned text to CPU data; JSON.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text read and written, paths followed; cooked to C.
-- **render** — all of Vulkan: card, resources, mips, heights, timed passes, light, bounce, sky, haze, tone, a cache.
+- **render** — all of Vulkan: card, mips, heights, timed passes, light, bounce, sky, haze, tone.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
@@ -55,5 +55,5 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
 - 0333–0338, 0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0358, 0359, 0361–0364, 0370, 0371 — Blocks; moon; GPU ms; mips; splash; F.
-- 0374–0381, 0384–0388, 0392, 0395–0401, 0403, 0404 — Loghouse; bindless; hill; 60 fps; CDLOD; materials.
-- 0405, 0406, 0411, 0413–0416, 0418 — Sky, Haze, Picture rows; lights draw in the sky; env via platform.
+- 0374–0381, 0384–0388, 0392, 0395–0401, 0403, 0404 — Loghouse; bindless; 60 fps; CDLOD; materials.
+- 0405, 0406, 0411, 0413–0416, 0418 — Sky, Haze, Picture rows; lights in the sky; env via platform.
