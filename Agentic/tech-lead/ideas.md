@@ -105,3 +105,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **Light glows tint the haze, and fog beyond haze** (sponsor, 2026-10-13, 0411). Distance turning golden
   towards a low sun: each directional light's glow colouring the haze in its direction. Kept out of 087 so the
   haze stays purely the sky's; volumetric fog and other fog kinds will give more options later.
+
+- **Height fog on surfaces** (sponsor, 2026-10-13, 0418). Haze that pools in valleys and leaves hilltops clear,
+  using the Haze row's height for the ground as well as the sky. Kept out of 087, where the height only veils
+  the sky.

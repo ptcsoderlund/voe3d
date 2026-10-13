@@ -8,10 +8,11 @@ tints the sky around it, and sets the disc's and glow's size (0 hides them). Two
 Lighting is the lights' alone: colour, strength and fill, as before the sky. A dark sky under a bright light
 is fine. A scene can have Haze: far ground fades into it, so the valley looks far away. The haze takes the
 sky's hue, but its brightness comes from the directional lights, so a dark sky over a bright scene still has
-bright haze. Without a sky it takes the lights' colour. Shiny things
+bright haze. Without a sky it takes the lights' colour. Haze reaches a height, and the sky is seen through
+it: dense fog greys the whole sky and hides the sun, light haze makes only the horizon hazy. Shiny things
 reflect the sky. A scene can also have a Picture with an exposure and a tone curve, so bright light rolls off
 softly instead of clipping to white. A scene saved before this feature keeps its look, so the tank and coin
-games are unchanged (0405, 0406, 0411, 0414, 0416).
+games are unchanged (0405, 0406, 0411, 0414, 0416, 0418).
 
 ## Why
 The view from the tower is mostly sky and distance. A sky behind the hill and haze over the valley make it
@@ -37,6 +38,9 @@ look outdoors, while the lights stay the artist's to set freely.
    strength to near 0: the haze stays bright and keeps its hue. Lower the directional light's strength:
    the haze darkens with it. Change the light's colour: the haze keeps the sky's hue. Remove the sky: the
    haze stays and takes the light's colour. Remove the Haze: nothing fades.
+   Make the haze close and dense: the whole sky turns to fog and the sun's disc fades away. Make it light: the
+   horizon is hazy and the sky clears towards the top. Fly above the haze's height and look up: the sky is
+   clear. Remove the sky: the backdrop fades into the haze the same way.
 8. Place a shiny metal sphere. It reflects the sky and the sun's disc.
 9. Add Rendering / Picture. Raise and lower its exposure: the picture brightens and darkens, and with tone
    Soft bright light rolls off softly.
