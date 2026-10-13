@@ -74,10 +74,10 @@
 // One face, wound counter-clockwise seen from +Z, normal +Z, (0, 0) at the
 // top-left. See the header of this file.
 static const voe_render_vertex screen_vertices[VOE_DEV_MONITOR_VERTEX_COUNT] = {
-	{ { -H, H, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
-	{ { H, H, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
-	{ { H, -H, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-	{ { -H, -H, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+	{ { -H, H, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
+	{ { H, H, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0 } },
+	{ { H, -H, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0 } },
+	{ { -H, -H, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0 } },
 };
 
 static const uint32_t screen_indices[VOE_DEV_MONITOR_INDEX_COUNT] = {
