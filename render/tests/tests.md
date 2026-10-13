@@ -94,10 +94,9 @@ by reading the offscreen colour image back.
 - `haze_sky.c` — the sky seen through the haze: dense haze the whole sky and the sun's disc, thin
   haze the horizon most, clear above the layer, and without a drawn sky the clear colour veiled.
   Headless.
-- `sky_light.c` — the sky lighting nothing: a grey cube's face the same bytes with the sky or
-  without and at any zenith, a non-metal quad unchanged, a smooth metal one the sky along R and a
-  rough one nearer E(R)/π, none inside Indoors, both quad and face the same at sky strength 0 and 1.
-  Headless.
+- `sky_light.c` — the sky lighting nothing: a cube's face the same with the sky or without, a
+  non-metal quad unchanged, a metal one the sky along R times the light on it, none indoors or
+  unlit, no brighter than the sky head-on, the same at sky strength 0 and 1. Headless.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
   red to a black surface whether the sun faces it or not, a metal-roughness map replacing the
   factors, and a mirrored half's bump tilting mirrored along u and along v. Headless.

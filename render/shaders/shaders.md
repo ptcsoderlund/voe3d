@@ -23,8 +23,8 @@ shader and never compiled alone.
 - `bounce_read.slangh` — the bounce's one read: E(n) from a probe volume's eight nearest probes,
   weighted and normalised.
 - `lighting.slangh` — the directional lights, their shadows and fills, the bounce and the binned
-  point lights, each gated by the light blockers; the sky lights nothing, and only a metal mirrors
-  it.
+  point lights, each gated by the light blockers; the sky lights nothing, and a metal mirrors it
+  only as bright as the light on it.
 - `terrain.slangh` — a landscape node's vertex: the grid point morphed by distance, its height and
   normal from the height map.
 - `terrain_layers.slangh` — a painted landscape's surface: the paint's weights, up to eight layers

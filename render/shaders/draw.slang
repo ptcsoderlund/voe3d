@@ -588,18 +588,28 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 	// reads that.
 	uint mask = voe_render_surface_mask(vertex.world, surface);
 	float3 fill;
+	float3 sun_reaching;
+	float3 lamp_reaching;
 	// The directional lights, the point lights beside them (ADR-0320), the
 	// bounce with the fills as its floor and the sky's reflection on metal
-	// beside it (ADR-0412 point 5), the terms occlusion darkens (ADR-0400),
-	// and emission last, unshadowed and unoccluded (ADR-0278).
+	// beside it (ADR-0412 point 5), as bright as the light on the surface
+	// (ADR-0424), the terms occlusion darkens (ADR-0400), and emission
+	// last, unshadowed and unoccluded (ADR-0278).
 	float3 direct = voe_render_directionals(vertex.world, surface, n, v,
 						diffuse_colour, f0, alpha, mask,
-						fill) +
+						fill, sun_reaching) +
 			voe_render_points(vertex.world, surface, n, v,
-					  diffuse_colour, f0, alpha, mask);
+					  diffuse_colour, f0, alpha, mask,
+					  lamp_reaching);
+	// The indirect light for a base colour of one, so L can read it; times
+	// the base colour it is the same floats as before.
+	float3 indirect_light = voe_render_indirect(
+		fill, vertex.world, n, float3(1.0, 1.0, 1.0), mask);
+	float3 reaching = sun_reaching + lamp_reaching + VOE_PI * indirect_light;
 	float3 indirect =
-		voe_render_indirect(fill, vertex.world, n, base.rgb, mask) +
-		voe_render_sky_reflection(n, v, f0, roughness, metallic, mask);
+		base.rgb * indirect_light +
+		voe_render_sky_reflection(n, v, f0, roughness, metallic, mask) *
+			voe_render_reflection_light(reaching);
 	float3 lit = direct + indirect * occlusion + shading.emissive * glow;
 
 	return voe_render_premultiplied(

@@ -43,12 +43,15 @@
 // texel along its normal, a 3×3 of comparison lookups on layer slot × 4 +
 // cascade; past the last split fully lit. The reach is multiplied by it.
 //
-// THE SKY LIGHTS NOTHING; A METAL MIRRORS IT (ADR-0411, 0412 point 5): a
-// world with a sky is lit as one without. voe_render_sky_reflection is
-// lerp(sky(R), E(R)/π, roughness) × Karis's EnvBRDFApprox × metalness; E from
-// the nine harmonics, R the reflected view, draw.slang occluding it. Nought
-// unless `drawn` and where voe_render_sky_reaches fails. sky(R) and the
-// harmonics are at strength 1 whatever the row's (0423 point 3, 0424 point 4).
+// THE SKY LIGHTS NOTHING; A METAL MIRRORS IT (ADR-0411, 0412 point 5): as
+// bright as the light on the surface, L over F (0423, 0424); a surface no light
+// reaches mirrors nothing. voe_render_sky_reflection is lerp(sky(R), E(R)/π,
+// roughness) × Karis's EnvBRDFApprox × metalness, R the reflected view, both
+// at strength 1; nought unless `drawn` and where voe_render_sky_reaches fails.
+//
+// L AND F: L is π × what lights a white surface, each light's `reaching` plus
+// π × the indirect; F the largest channel of Σ colour × intensity over the
+// shown lights, at least 1. draw.slang multiplies by saturate(max L / F).
 //
 // THE ARITHMETIC IS glTF'S METALNESS-ROUGHNESS BRDF, WRITTEN OUT: GGX, Smith's
 // height-correlated visibility with the denominator folded in, Schlick's
@@ -385,19 +388,44 @@ float3 voe_render_sky_reflection(float3 n, float3 v, float3 f0, float roughness,
 	       metallic;
 }
 
+// What the sky's reflection is multiplied by on a surface whose light is
+// `light`, the header's L: saturate(max channel of L / F), F the largest
+// channel of Σ colour × intensity over the pass's lights shown in the sky, at
+// least 1 (ADR-0424 points 2 and 3). See the header.
+float voe_render_reflection_light(float3 light)
+{
+	uint count = 1 + min(voe_render_frame.more_count,
+			     VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
+	float3 full = float3(0.0, 0.0, 0.0);
+
+	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
+		if (i >= count)
+			break;
+		voe_render_light shown = voe_render_sky_light(i);
+
+		if (voe_render_sky_shown(shown))
+			full += shown.colour * shown.intensity;
+	}
+	float f = max(1.0, max(full.r, max(full.g, full.b)));
+
+	return saturate(max(light.r, max(light.g, light.b)) / f);
+}
+
 // What the pass's directional lights give a surface at `world` (`surface` its
 // geometric normal, `mask` its blockers) facing `n`, seen along `v`: the sum of
 // each light's BRDF times its radiance by its reach, voe_render_sun_reach of
-// N·L and its own shadow, nought where its own gate stops it; and into `fill`
-// the sum of each one's fill by that reach and its own gate. See the header.
+// N·L and its own shadow, nought where its own gate stops it; into `fill` the
+// sum of each one's fill by that reach and its own gate; and into `reaching`
+// the sum of those radiances, the directionals' part of L. See the header.
 float3 voe_render_directionals(float3 world, float3 surface, float3 n, float3 v,
 			       float3 diffuse_colour, float3 f0, float alpha,
-			       uint mask, out float3 fill)
+			       uint mask, out float3 fill, out float3 reaching)
 {
 	float n_dot_v = saturate(dot(n, v));
 	float3 sum = float3(0.0, 0.0, 0.0);
 
 	fill = float3(0.0, 0.0, 0.0);
+	reaching = float3(0.0, 0.0, 0.0);
 	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
 		if (i > voe_render_frame.more_count)
 			break;
@@ -422,7 +450,10 @@ float3 voe_render_directionals(float3 world, float3 surface, float3 n, float3 v,
 				n_dot_l,
 				voe_render_sunlight(voe_render_directional_shadow(i),
 						    world, surface));
-		sum += (diffuse + specular) * voe_render_sun_radiance(light, reach);
+		float3 radiance = voe_render_sun_radiance(light, reach);
+
+		sum += (diffuse + specular) * radiance;
+		reaching += radiance;
 		fill += voe_render_fill(light, reach,
 					voe_render_fill_reaches(mask, source));
 	}
@@ -485,12 +516,16 @@ float voe_render_point_visibility(voe_render_point_light light, float3 world,
 // `v`: the BRDF of each light its tile and slice both mark, times N·L, its
 // colour and saturate(1 − (d/range)^(2/falloff))², the light's falloff bending
 // its reach, and a slotted light's shadow; only the lights the blockers pass to
-// a surface of mask `mask`. Nought with no lights. See the header.
+// a surface of mask `mask`. Into `reaching` the sum of what each such light
+// multiplies its BRDF by, the lamps' part of L. Nought with no lights. See the
+// header.
 float3 voe_render_points(float3 world, float3 surface, float3 n, float3 v,
-			 float3 diffuse_colour, float3 f0, float alpha, uint mask)
+			 float3 diffuse_colour, float3 f0, float alpha, uint mask,
+			 out float3 reaching)
 {
 	uint count = voe_render_frame.lights;
 
+	reaching = float3(0.0, 0.0, 0.0);
 	if (count == 0)
 		return float3(0.0, 0.0, 0.0);
 	float4 eye = mul(voe_render_frame.camera.view, float4(world, 1.0));
@@ -553,6 +588,7 @@ float3 voe_render_points(float3 world, float3 surface, float3 n, float3 v,
 					     light.shadow_strength);
 			sum += (diffuse + specular) * light.colour * n_dot_l *
 			       fade * fade * shade;
+			reaching += light.colour * n_dot_l * fade * fade * shade;
 		}
 	}
 	return sum;
