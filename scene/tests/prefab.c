@@ -12,6 +12,7 @@
 
 #include <testing/test.h>
 
+#include <stdio.h>
 #include <string.h>
 
 #define ENTITIES 4
@@ -51,7 +52,7 @@ static void rows_read_back_once_applied(voe_base_arena *arena)
 	voe_ecs_entity root = placed(world);
 	voe_scene_prefab row = { 0 };
 
-	strcpy(row.path, "Assets/tank.prefab");
+	snprintf(row.path, sizeof row.path, "%s", "Assets/tank.prefab");
 	VOE_TEST_CHECK(voe_ecs_structure_add(world, prefab, root, &row));
 	VOE_TEST_CHECK(voe_ecs_structure_add(
 		world, part, root, &(voe_scene_prefab_part){ .instance = root }));
