@@ -101,3 +101,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   cursor; selection by Shift+keys, drag and double-click; copy, cut and paste through the system clipboard
   (Wayland's is a piece of `platform` work). Every field gets it at once: Rename, Inspector names, typed
   numbers, hex. Waits until after 094; amends 0192.
+
+- **Light glows tint the haze, and fog beyond haze** (sponsor, 2026-10-13, 0411). Distance turning golden
+  towards a low sun: each directional light's glow colouring the haze in its direction. Kept out of 087 so the
+  haze stays purely the sky's; volumetric fog and other fog kinds will give more options later.

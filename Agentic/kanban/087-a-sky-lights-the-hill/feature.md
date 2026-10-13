@@ -1,33 +1,40 @@
 # 087 — A sky lights the hill
 
 ## What
-A scene can have a sky. It looks like a game's sky, not a photograph: its zenith, horizon and ground
-colours, how high the horizon colour reaches, the sun's size and glow and how much it turns to evening as
-the sun goes down are all set on the sky. The sun's direction and colour come from the directional light.
-The sky lights the scene from all around, so shaded sides take the sky's colours and shiny things reflect
-it; how strongly is the directional light's fill. Far ground fades into a haze of the horizon's colour, so
-the valley looks far away. A scene can also have a Picture with an exposure and a tone curve, so bright
-light rolls off softly instead of clipping to white. A scene saved before this feature keeps its look, so
-the tank and coin games are unchanged (0405, 0406).
+A scene can have a sky. It is a game's sky, not a photograph, and it is a backdrop only: it lights nothing.
+The sky sets its zenith, horizon and ground colours, how high the horizon colour reaches, and its strength.
+The lights drive the sky. Every directional light draws its own disc in its own colour, with a glow that
+tints the sky around it, and sets the disc's and glow's size (0 hides them). Two suns are two lights.
+Lighting is the lights' alone: colour, strength and fill, as before the sky. A dark sky under a bright light
+is fine. Far ground fades into a haze of the sky's horizon colour, so the valley looks far away. Shiny things
+reflect the sky. A scene can also have a Picture with an exposure and a tone curve, so bright light rolls off
+softly instead of clipping to white. A scene saved before this feature keeps its look, so the tank and coin
+games are unchanged (0405, 0406, 0411).
 
 ## Why
-The view from the tower is mostly sky and distance. Light from the sky is what makes the hill look
-outdoors.
+The view from the tower is mostly sky and distance. A sky behind the hill and haze over the valley make it
+look outdoors, while the lights stay the artist's to set freely.
 
 ## How to test
-1. Open the hill, select an entity and add Rendering / Sky. A blue sky with a paler horizon and a sun
-   shows behind the hill, in the editor's views and in the camera preview, and nothing in it is brighter
-   than white but the sun.
-2. Change the sky's zenith, horizon and ground colours, its horizon height, sun size and sun glow. Each
-   changes the sky as named, and the sky has no light setting.
-3. Turn the sun low over the horizon with sunset at 0.5. The horizon on the sun's side turns warm and the
-   sky darkens. At sunset 0 the colours stay as authored.
-4. Turn the sun back up. Shaded slopes take the sky's soft blue, not black. Raise and lower the directional
-   light's fill intensity: the sky's light on them follows it.
-5. Fly to the top of the hill. Far ridges fade into haze of the horizon's colour, nearer ground less so.
-6. Place a shiny metal sphere. It reflects the sky.
-7. Add Rendering / Picture. Raise and lower its exposure: the picture brightens and darkens, and with tone
+1. Open the hill, select an entity and add Rendering / Sky. A blue sky with a paler horizon shows behind the
+   hill, in the editor's views and in the camera preview, with the sun's disc where the directional light
+   points.
+2. Change the sky's zenith, horizon and ground colours and its horizon height. Each changes the sky as named.
+   The lit hill does not change at all: the sky lights nothing.
+3. Lower the sky's strength towards 0. The sky goes dark, but the sun's disc stays bright and the hill stays
+   lit exactly as before.
+4. Change the directional light's colour to orange. Its disc turns orange and the sky around it is tinted
+   orange. Raise its strength a lot: the disc stays orange, not white. Change its disc size and glow size,
+   and set each to 0: the disc and glow go away.
+5. Add a second directional light with a different colour, pointed elsewhere. Two discs with their own glows
+   show in the sky, and both light the hill.
+6. Raise and lower a light's fill: shaded slopes brighten and darken, and the sunlit ground does not change.
+   Remove the sky: the hill is lit exactly the same.
+7. Fly to the top of the hill. Far ridges fade into haze of the horizon's colour, nearer ground less so.
+   Darken the sky: the haze darkens with it.
+8. Place a shiny metal sphere. It reflects the sky and the sun's disc.
+9. Add Rendering / Picture. Raise and lower its exposure: the picture brightens and darkens, and with tone
    Soft bright light rolls off softly.
-8. Open the tank game. It looks exactly as before.
-9. Open the frame breakdown. The sky is a small share of the frame.
-10. Save, close and reopen. Press Play, and ship: the same picture in all three.
+10. Open the tank game. It looks exactly as before.
+11. Open the frame breakdown. The sky is a small share of the frame.
+12. Save, close and reopen. Press Play, and ship: the same picture in all three.
