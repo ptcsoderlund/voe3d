@@ -38,15 +38,11 @@
 // back true: the records fit VOE_GAME_CAPACITIES and draw in the window pass.
 //
 // THE BLOCKER CASE: a camera four metres over a grey ground under a sun and a
-// 1 m light blocker at its centre; between the two frames a replace grows it
-// to 2 m, drained by the second's step. The window, read back, is black at the
-// centre and half a metre out from it, lit at a corner, and plain grey where
-// the box's top edge stands: the game draws nothing for a blocker (0347).
+// 1 m light blocker, grown to 2 m between the frames and read back: the game
+// draws nothing for a blocker (0347).
 //
 // THE DIRECT CASE: the same ground under a low sun with a fill and a Direct
-// blocker over it (0350, 0352). Two frames, both true; read back, the ground
-// in its shadow reads the fill, not black and below sunlit ground clear of
-// it, and its edge is plain grey.
+// blocker over it (0350, 0352), two frames, both true, read back.
 //
 // THE SKY CASE: the lit cube with a sky row of 0406's defaults and a picture
 // row, read back: the corner reads blue above red, not the clear colour; an
@@ -56,9 +52,8 @@
 //
 // THE MODEL CASE: a thing whose model an empty store lacks draws as nothing.
 //
-// THE HAZE CASE: a world with a Haze row of 1000 and no sky, a replace of 500
-// submitted, one world step: voe_3d_draw_system_sky reads haze 500 with
-// `drawn` 0 (0417 point 1). It needs no device and runs without one.
+// THE HAZE CASE: a Haze row's replace reaches the sky record with no sky
+// drawn. It needs no device and runs without one.
 //
 // Each draw case writes one file into the working directory, checks it and
 // removes it, pass or fail. A machine with no usable Vulkan skips and says so.
@@ -405,7 +400,9 @@ static const uint8_t *pixel_at(voe_render_picture picture, uint32_t column,
 	return pixel;
 }
 
-// The blocked world, two frames with a 2 m replace between them, read back.
+// The blocked world, two frames with a 2 m replace between them, drained by
+// the second's step, read back: black at the centre and half a metre out from
+// it, lit at a corner, and plain grey where the box's top edge stands.
 static void blocker_case(voe_app *app, voe_base_arena *arena,
 			 voe_base_arena *scratch, const voe_3d_shapes *shapes)
 {
@@ -458,7 +455,9 @@ static void blocker_case(voe_app *app, voe_base_arena *arena,
 // fill, two frames, read back. Its shadow on the ground runs x 0.7 to 3.2,
 // z -1 to 1: column +24 sees x ≈ 1.9 in it, column 20 x ≈ -3.5 clear of it,
 // and column 41 is where its top edge at x = -1, y = 1.25 stands, about 22.7
-// pixels a metre there, over ground the sun reaches.
+// pixels a metre there, over ground the sun reaches. The ground in its shadow
+// reads the fill, not black and below the sunlit ground, and its edge is
+// plain grey.
 static void direct_case(voe_app *app, voe_base_arena *arena,
 		      voe_base_arena *scratch, const voe_3d_shapes *shapes)
 {
@@ -610,9 +609,9 @@ static void model_case(voe_app *app, voe_base_arena *arena,
 	voe_3d_models_destroy(models);
 }
 
-// A world with only a Haze row, a replace of 500 drained by one world step:
-// the sky record carries it with no sky drawn. No shape row, so the zeroed
-// shapes are never read.
+// A world with only a Haze row of 1000, a replace of 500 drained by one world
+// step: voe_3d_draw_system_sky reads haze 500 with `drawn` 0 (0417 point 1).
+// No shape row, so the zeroed shapes are never read.
 static void haze_case(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1 << 20);
