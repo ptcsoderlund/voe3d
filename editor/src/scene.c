@@ -373,9 +373,12 @@ bool voe_editor_scene_picker_showing(voe_editor_scene *scene,
 			scene->picking.open = false;
 			return false;
 		}
-		*colour = (voe_math_float3){ scene->material.colour[0],
-					     scene->material.colour[1],
-					     scene->material.colour[2] };
+		VOE_BASE_ASSERT(scene->picking.offset + sizeof *colour <=
+					sizeof scene->material,
+				"a material colour past the file's end");
+		memcpy(colour,
+		       (const uint8_t *)&scene->material + scene->picking.offset,
+		       sizeof *colour);
 		return true;
 	}
 

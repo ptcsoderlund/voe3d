@@ -247,7 +247,7 @@ carries it out.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
 - `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,
-  the picker's submit, the drop's prefab, the reveal,
+  the picker's submit (a material's into the field its offset names), the drop's prefab, the reveal,
   the panels' toggles, the bar's or browser's commands, the covers' reads and Preferences'.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
@@ -274,11 +274,11 @@ carries it out.
   material's file name choosing it to paint, and the add row a dropped material lands on.
 - `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
   read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
-- `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour swatch,
-  Roughness and Metal sliders (greyed and unread while ORMmap is set), Repeat clamped 0.01–1000,
+- `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour and Emission
+  swatches, Strength clamped 0–1000, Roughness and Metal sliders (greyed and unread while ORMmap is set), Repeat clamped 0.01–1000,
   Cutout, One side and Both sides, and the four map rows with ×.
 - `inspector_material.c` — the section's one frame of `ui` calls, its nodes forgotten each frame,
-  and the read into the shown copy only.
+  and the read into the shown copy only, a swatch opening the picker on its field's offset.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
   frame from the types' registered menu paths (ADR-0217, 0221), and each level drawn as a list.
 - `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under

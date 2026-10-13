@@ -63,14 +63,19 @@ static void voe_editor_interface_picker_read(voe_ui_context *ui,
 	if (picker == VOE_UI_NODE_NONE)
 		return;
 	result = voe_ui_colour_picker_action(ui, picker);
-	// The open material's colour is the shown copy's; its read below
-	// carries it to the table's row and the store this same frame.
+	// The open material's colour or emission, the field `offset` names, is
+	// the shown copy's; its read below carries it to the table's row and the
+	// store this same frame.
 	if (result.changed && picked->material) {
-		if (scene->material_open[0] != '\0') {
-			scene->material.colour[0] = result.value.x;
-			scene->material.colour[1] = result.value.y;
-			scene->material.colour[2] = result.value.z;
-		}
+		const float value[3] = { result.value.x, result.value.y,
+					 result.value.z };
+
+		VOE_BASE_ASSERT(picked->offset + sizeof value <=
+					sizeof scene->material,
+				"a material colour past the file's end");
+		if (scene->material_open[0] != '\0')
+			memcpy((uint8_t *)&scene->material + picked->offset,
+			       value, sizeof value);
 	} else if (result.changed)
 		voe_editor_inspector_colour_submit(&scene->inspector,
 						   scene->world, picked->entity,
