@@ -690,7 +690,9 @@ bool voe_editor_assets_menu_at(voe_editor_assets *assets, voe_math_float2 at)
 		return false;
 	assets->keyboard = true;
 	voe_editor_assets_menu_open(&assets->menu, at,
-				    under.kind == VOE_EDITOR_ASSETS_AT_ROW);
+				    under.kind == VOE_EDITOR_ASSETS_AT_ROW,
+				    under.kind == VOE_EDITOR_ASSETS_AT_ROW &&
+					    name_ends(assets->rows[under.row].name, ".glb"));
 	VOE_BASE_ASSERT(assets->menu.open, "a right press that opened no menu");
 	return true;
 }

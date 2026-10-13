@@ -194,12 +194,14 @@ carries it out.
   fired prefab's, landscape's or material's path unless dragged, Up and Import afterwards, and the
   import, a `.glb`'s materials and parts written after its copy.
 - `model_import.h` — what Import writes beside a `.glb`: one `<stem>-<name>.material` per glTF
-  material and `<stem>.parts` naming them, both overwritten every import (0403, 0420 point 3).
+  material and `<stem>.parts` naming them, both overwritten every import (0403, 0420 point 3); and
+  Import textures: its pictures as PNGs and the materials' four maps set to them.
 - `model_import.c` — the file read and parsed, each name cleaned and made unique, every path
-  checked before the first write, then the materials and the parts written.
+  checked before the first write, then the materials and the parts, or the PNGs and the dressed
+  materials, written.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
-  over a row, Create with its Folder, Landscape and Material submenu over the empty part, anchored
-  at the pointer.
+  over a row and Import textures over a `.glb`'s, Create with its Folder, Landscape and Material
+  submenu over the empty part, anchored at the pointer.
 - `assets_menu.c` — the menu's one frame of `ui` calls, the read of its rows with its own closing,
   and where it and the submenu go next frame.
 - `assets_ask.h` — the question Delete asks about the Assets panel's selected row: its name, up to
@@ -241,9 +243,9 @@ carries it out.
   of its clicks as calls, in order, into the two below.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
   row, Delete question and a fired prefab, landscape or material opened.
-- `interface_assets.c` — the request and menu row carried out, a made landscape's path, the
-  Landscape panel opened, a material opened in the Inspector with its before, the question answered and opened,
-  and the open material following each rename and trash.
+- `interface_assets.c` — the request and menu row carried out, Import textures with the tables
+  read again, a made landscape's path, the Landscape panel opened, a material opened in the
+  Inspector with its before, the question answered and opened, and the open material following.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
 - `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,
