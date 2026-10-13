@@ -14,7 +14,7 @@ found by the build and registered nowhere.
 - `clock.c` — the first tick, an ordinary interval, a stall clamped, and two
   ticks at the same reading. Its header says why the clamped case is the one
   that matters. Needs no window and no graphics card.
-- `picture.c` — a 4x2 PNG written to the temp folder comes back as a texture of
+- `picture.c` — a 4x2 PNG written to the working directory comes back as a texture of
   that size; a missing file and a file of text are refused. Needs a graphics
   card, and skips with a reason without one.
 - `pipeline_cache.c` — a headless device saves its cache where no folder was

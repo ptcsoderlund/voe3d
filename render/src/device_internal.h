@@ -193,6 +193,9 @@ struct voe_render_device {
 	// writing albedo and normal with distance, nothing culled, no bias.
 	// VK_NULL_HANDLE without output_layer.
 	VkPipeline pipeline_capture;
+	// The sky's (ADR-0405 point 4): one full-screen triangle, no vertex
+	// input, no depth test or write, no blend; sky_draw.c draws it.
+	VkPipeline pipeline_sky;
 	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
 	// settle, relight and sum pipelines; per frame slot a mapped list buffer,
 	// a mapped record buffer of a region per volume, each at its descriptor
@@ -323,6 +326,10 @@ struct voe_render_device {
 	// what is presented is the clear colour and not last lap's picture.
 	bool pass_open;
 	bool pass_camera;
+	// Whether the open pass has had its first voe_render_frame_clear_depth:
+	// every mesh draw after it pushes `plain` 1, drawn as authored (ADR-0405
+	// point 8). Reset by voe_render_pass_start.
+	bool pass_depth_cleared;
 	uint32_t pass_count;
 	bool window_cleared;
 

@@ -2,12 +2,12 @@
 // there or is not a PNG is refused (app/include/app/picture.h).
 //
 // THE PICTURE IS MADE HERE, NOT SHIPPED: a 4x2 RGBA picture is encoded with
-// voe_assets_png_encode and written under the system temp folder with
-// voe_platform_file_write, so the test needs no file in the tree. 4 by 2 is not
-// square, so a width and height swapped anywhere fails the check.
+// voe_assets_png_encode and written into the working directory, not the system
+// temp folder, with voe_platform_file_write, so the test needs no file in the
+// tree. 4 by 2 is not square, so a width and height swapped anywhere fails the
+// check.
 //
-// The temp folder is TMPDIR, then TEMP, then /tmp. Both files written are
-// removed at the end, pass or fail.
+// Both files written are removed at the end, pass or fail.
 //
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO, as capture.c does.
 #include <app/app.h>
@@ -22,11 +22,9 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 #define WIDTH 4
 #define HEIGHT 2
-#define PATH_ROOM 1024
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 1,
@@ -38,20 +36,8 @@ static const voe_render_capacities CAPACITIES = {
 	.passes = 1,
 };
 
-static char png_path[PATH_ROOM];
-static char text_path[PATH_ROOM];
-
-// The system temp folder's path for name, into path.
-static void temp_path(char *path, const char *name)
-{
-	const char *folder = getenv("TMPDIR");
-
-	if (folder == NULL || folder[0] == '\0')
-		folder = getenv("TEMP");
-	if (folder == NULL || folder[0] == '\0')
-		folder = "/tmp";
-	snprintf(path, PATH_ROOM, "%s/%s", folder, name);
-}
+static const char *const png_path = "voe_app_picture_test.png";
+static const char *const text_path = "voe_app_picture_test.txt";
 
 static void reads_a_png(voe_render_device *device, voe_base_arena *scratch)
 {
@@ -81,11 +67,10 @@ static void missing_file_fails(voe_render_device *device,
 {
 	voe_app_picture picture = { 0 };
 	voe_base_error error = VOE_BASE_OK;
-	char path[PATH_ROOM];
 
-	temp_path(path, "voe_app_picture_no_such_file.png");
-	VOE_TEST_CHECK(!voe_app_picture_read(device, path, scratch, &picture,
-					     &error));
+	VOE_TEST_CHECK(!voe_app_picture_read(device,
+					     "voe_app_picture_no_such_file.png",
+					     scratch, &picture, &error));
 	VOE_TEST_CHECK(error != VOE_BASE_OK);
 	VOE_TEST_CHECK_INT(picture.width, 0);
 }
@@ -131,8 +116,6 @@ int main(void)
 		return voe_test_result();
 	}
 
-	temp_path(png_path, "voe_app_picture_test.png");
-	temp_path(text_path, "voe_app_picture_test.txt");
 	reads_a_png(voe_app_device(app), scratch);
 	missing_file_fails(voe_app_device(app), scratch);
 	not_a_png_fails(voe_app_device(app), scratch);

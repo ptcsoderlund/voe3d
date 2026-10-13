@@ -1,7 +1,7 @@
 // What draw.slang's two stages read: the frame block (camera, sun, cascades,
-// depth copy, point lights, blockers, the further lights), the object and shading records, the point
+// depth copy, point lights, blockers, the further lights, the sky, the exposure), the object and shading records, the point
 // lights and their bins, the light blockers, the bindings of set 0 and the push constant that names the
-// object and a point-shadow draw's faces. A part (ADR-0308): included first by
+// object, a point-shadow draw's faces and whether the draw is plain. A part (ADR-0308): included first by
 // draw.slang, never compiled alone.
 //
 // EVERY STRUCT HERE MATCHES A C STRUCT FIELD FOR FIELD, PADDING INCLUDED, and
@@ -91,6 +91,36 @@ struct voe_render_frame_light {
 	uint reserved2;
 };
 
+// The pass's sky: voe_render_sky in render/device.h, 96 bytes, six float4s
+// (ADR-0412 point 1), the backdrop then each light's disc and glow size, light
+// i's at component i. C's `float disc_size[4]` and `glow_size[4]` are float4s
+// here, because a uniform block gives every element of a scalar array sixteen
+// bytes. sky.slangh reads it, haze and haze_start tone.slangh; haze_top is
+// the haze layer's top in metres above the eye.
+struct voe_render_sky {
+	float3 zenith;
+	float horizon_height;
+	float3 horizon;
+	float strength;
+	float3 ground;
+	float haze;
+	uint drawn;
+	float haze_start;
+	float haze_top;
+	uint reserved2;
+	float4 disc_size;
+	float4 glow_size;
+};
+
+// The pass's picture: voe_render_exposure in render/device.h, 16 bytes,
+// tone.slangh's.
+struct voe_render_exposure {
+	float exposure;
+	uint tone;
+	uint reserved0;
+	uint reserved1;
+};
+
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;
@@ -106,6 +136,10 @@ struct voe_render_frame_block {
 	uint more_reserved1;
 	uint more_reserved2;
 	voe_render_frame_light more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
+	voe_render_sky sky;
+	voe_render_exposure exposure;
+	// The backdrop's nine harmonics, sky.h's order, zero unless drawn.
+	float4 sky_harmonics[9];
 };
 
 [[vk::binding(0, 0)]]
@@ -319,14 +353,16 @@ static const uint VOE_RENDER_ALPHA_BLENDED = 2;
 
 // Which object this draw is, and in a point-shadow pass the faces it is drawn
 // onto: a 96-bit mask in three words, bit 6(s − 1) + f for slot s's face f, bit
-// b in word b / 32 (ADR-0325 point 2); nought in every other pass. Sixteen bytes,
-// the whole of a mesh draw's push constant. Three scalars, not a uint3, so they
-// land at 4, 8 and 12 where C pushes them.
+// b in word b / 32 (ADR-0325 point 2); nought in every other pass. Then `plain`,
+// 1 for a draw after the pass's first depth clear, drawn as authored (ADR-0405
+// point 8). Twenty bytes, the whole of a mesh draw's push constant. Scalars, not
+// a uint3, so they land at 4, 8, 12 and 16 where C pushes them.
 struct voe_render_draw_push {
 	uint object;
 	uint faces0;
 	uint faces1;
 	uint faces2;
+	uint plain;
 };
 
 [[vk::push_constant]]

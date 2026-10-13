@@ -38,24 +38,25 @@
 // back true: the records fit VOE_GAME_CAPACITIES and draw in the window pass.
 //
 // THE BLOCKER CASE: a camera four metres over a grey ground under a sun and a
-// 1 m light blocker at its centre; between the two frames a replace grows it
-// to 2 m, drained by the second's step. The window, read back, is black at the
-// centre and half a metre out from it, lit at a corner, and plain grey where
-// the box's top edge stands: the game draws nothing for a blocker (0347).
+// 1 m light blocker, grown to 2 m between the frames and read back: the game
+// draws nothing for a blocker (0347).
 //
 // THE DIRECT CASE: the same ground under a low sun with a fill and a Direct
-// blocker floating over it, its block drained and cooked as any row's field
-// (0350, 0352).
-// Two frames, both true; read back, the ground in its shadow reads the fill,
-// not black and below sunlit ground clear of it, and its edge is plain grey.
+// blocker over it (0350, 0352), two frames, both true, read back.
 //
-// THE MODEL CASE: a store from voe_3d_models_new with nothing loaded, and a
-// thing whose model path the store lacks; two frames with that store come
-// back true, the thing drawing as nothing. The other cases pass no store.
+// THE SKY CASE: the lit cube with a sky row of 0406's defaults and a picture
+// row, read back: the corner reads blue above red, not the clear colour; an
+// exposure replace of -4 on the picture row between the frames darkens the
+// cube's centre; neither row leaves the clear colour; a picture row at -4 and
+// no sky darkens the cube against no row (0405, 0406).
 //
-// Each draw case writes one file into the working directory, checks it is there,
-// and removes it, pass or fail. A machine with no usable Vulkan skips and
-// says so.
+// THE MODEL CASE: a thing whose model an empty store lacks draws as nothing.
+//
+// THE HAZE CASE: a Haze row's replace reaches the sky record with no sky
+// drawn, its top above the origin's eye. It needs no device.
+//
+// Each draw case writes one file into the working directory, checks it and
+// removes it, pass or fail. A machine with no usable Vulkan skips and says so.
 #include <game/frame.h>
 #include <game/interface.h>
 #include <game/landscapes.h>
@@ -75,9 +76,12 @@
 
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
+#include <scene/haze_system.h>
 #include <scene/light_blocker_system.h>
 #include <scene/light_system.h>
+#include <scene/picture_system.h>
 #include <scene/point_light_system.h>
+#include <scene/sky_system.h>
 #include <scene/transform_system.h>
 
 #include <3d/model_component.h>
@@ -90,6 +94,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 
 #define WIDTH 128
 #define HEIGHT 72
@@ -395,7 +400,9 @@ static const uint8_t *pixel_at(voe_render_picture picture, uint32_t column,
 	return pixel;
 }
 
-// The blocked world, two frames with a 2 m replace between them, read back.
+// The blocked world, two frames with a 2 m replace between them, drained by
+// the second's step, read back: black at the centre and half a metre out from
+// it, lit at a corner, and plain grey where the box's top edge stands.
 static void blocker_case(voe_app *app, voe_base_arena *arena,
 			 voe_base_arena *scratch, const voe_3d_shapes *shapes)
 {
@@ -448,7 +455,9 @@ static void blocker_case(voe_app *app, voe_base_arena *arena,
 // fill, two frames, read back. Its shadow on the ground runs x 0.7 to 3.2,
 // z -1 to 1: column +24 sees x ≈ 1.9 in it, column 20 x ≈ -3.5 clear of it,
 // and column 41 is where its top edge at x = -1, y = 1.25 stands, about 22.7
-// pixels a metre there, over ground the sun reaches.
+// pixels a metre there, over ground the sun reaches. The ground in its shadow
+// reads the fill, not black and below the sunlit ground, and its edge is
+// plain grey.
 static void direct_case(voe_app *app, voe_base_arena *arena,
 		      voe_base_arena *scratch, const voe_3d_shapes *shapes)
 {
@@ -485,8 +494,99 @@ static void direct_case(voe_app *app, voe_base_arena *arena,
 	}
 }
 
+// The clear colour render/src/pass.c clears to, #17171A as drawn.
+#define CLEAR_RED 0x17
+#define CLEAR_BLUE 0x1A
+
+// The corner's and the cube centre's channels of one sky case's last frame.
+typedef struct {
+	uint8_t corner[3];
+	uint8_t centre[3];
+} sky_read;
+
+// A fresh lit world, with a sky row of 0406's defaults when `sky` and a Soft
+// picture row at exposure 0 when `lit`, two frames with a picture replace of
+// `exposure` between them when it is not 0, read back.
+static sky_read sky_case(voe_app *app, voe_base_arena *arena,
+			 voe_base_arena *scratch, const voe_3d_shapes *shapes,
+			 bool sky, bool lit, float exposure)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_ecs_world *world = voe_game_world_new(arena);
+	const voe_scene_sky row = {
+		.zenith = { 0.15f, 0.35f, 0.80f },
+		.horizon = { 0.60f, 0.75f, 0.90f },
+		.ground = { 0.20f, 0.18f, 0.16f },
+		.horizon_height = 0.25f,
+		.strength = 1.0f,
+	};
+	const voe_scene_picture look = { .exposure = 0.0f,
+					 .tone = VOE_SCENE_PICTURE_TONE_SOFT };
+	voe_ecs_entity settings;
+	voe_render_picture picture;
+	sky_read read = { 0 };
+
+	(void)build(world, true);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &settings));
+	if (sky)
+		VOE_TEST_CHECK(voe_scene_sky_add(world, settings, row));
+	if (lit)
+		VOE_TEST_CHECK(voe_scene_picture_add(world, settings, look));
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL, NULL));
+	if (lit && exposure != 0.0f) {
+		voe_scene_picture darker = look;
+
+		darker.exposure = exposure;
+		VOE_TEST_CHECK(voe_scene_picture_submit(
+			world, (voe_scene_picture_intent){ .entity = settings,
+							   .picture = darker }));
+	}
+	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
+				      0.0f, NULL, NULL));
+	if (lit) {
+		const voe_scene_picture *got =
+			voe_scene_picture_get(world, settings);
+
+		VOE_TEST_CHECK(got != NULL && got->exposure == exposure);
+	}
+	picture = read_window(app, scratch);
+	if (picture.pixels == NULL)
+		return read;
+	memcpy(read.corner, pixel_at(picture, 0, 0), 3);
+	memcpy(read.centre, pixel_at(picture, WIDTH / 2, HEIGHT / 2), 3);
+	return read;
+}
+
+// A sky behind the cube, the exposure replace darkening the cube with and
+// without a sky, and neither row leaving the clear colour.
+static void sky_cases(voe_app *app, voe_base_arena *arena,
+		      voe_base_arena *scratch, const voe_3d_shapes *shapes)
+{
+	const sky_read lit =
+		sky_case(app, arena, scratch, shapes, true, true, 0.0f);
+	const sky_read dark =
+		sky_case(app, arena, scratch, shapes, true, true, -4.0f);
+	const sky_read none =
+		sky_case(app, arena, scratch, shapes, false, false, 0.0f);
+	const sky_read bare =
+		sky_case(app, arena, scratch, shapes, false, true, -4.0f);
+
+	VOE_TEST_CHECK(lit.corner[2] > lit.corner[0]);
+	VOE_TEST_CHECK(lit.corner[2] > CLEAR_BLUE + TOLERANCE);
+	for (int channel = 0; channel < 3; channel++) {
+		VOE_TEST_CHECK(dark.centre[channel] < lit.centre[channel]);
+		VOE_TEST_CHECK(bare.centre[channel] < none.centre[channel]);
+	}
+	VOE_TEST_CHECK(none.corner[0] >= CLEAR_RED - TOLERANCE &&
+		       none.corner[0] <= CLEAR_RED + TOLERANCE);
+	VOE_TEST_CHECK(none.corner[2] >= CLEAR_BLUE - TOLERANCE &&
+		       none.corner[2] <= CLEAR_BLUE + TOLERANCE);
+}
+
 // A fresh lit world with a thing wearing a path an empty store lacks, two
-// frames drawn with that store, both true.
+// frames drawn with that store from voe_3d_models_new, both true, the thing
+// drawing as nothing. The other cases pass no store.
 static void model_case(voe_app *app, voe_base_arena *arena,
 		       voe_base_arena *scratch, const voe_3d_shapes *shapes)
 {
@@ -507,6 +607,38 @@ static void model_case(voe_app *app, voe_base_arena *arena,
 				      0.0f, NULL, NULL));
 	VOE_TEST_CHECK(voe_3d_models_count(models) == 0);
 	voe_3d_models_destroy(models);
+}
+
+// A world with only a Haze row of 1000, height 1000, a replace of 500 drained
+// by one world step: voe_3d_draw_system_sky, its eye the origin, reads haze
+// 500, haze_top 1000 and `drawn` 0 (0417 point 1, 0419 point 2).
+// No shape row, so the zeroed shapes are never read.
+static void haze_case(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(1 << 20);
+	voe_ecs_world *world = voe_game_world_new(arena);
+	const voe_3d_shapes shapes = { 0 };
+	voe_ecs_entity settings;
+	voe_render_sky sky;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &settings));
+	VOE_TEST_CHECK(voe_scene_haze_add(
+		world, settings,
+		(voe_scene_haze){
+			.haze = 1000.0f, .start = 100.0f, .height = 1000.0f }));
+	VOE_TEST_CHECK(voe_scene_haze_submit(
+		world, (voe_scene_haze_intent){ .entity = settings,
+						.haze = { .haze = 500.0f,
+							  .start = 100.0f,
+							  .height = 1000.0f } }));
+	voe_game_world_step(world, &shapes);
+	sky = voe_3d_draw_system_sky(world, (voe_math_double3){ 0.0, 0.0, 0.0 });
+	VOE_TEST_CHECK(sky.haze == 500.0f);
+	VOE_TEST_CHECK(sky.haze_start == 100.0f);
+	VOE_TEST_CHECK(sky.haze_top == 1000.0f);
+	VOE_TEST_CHECK(sky.drawn == 0);
+
+	voe_base_arena_destroy(arena);
 }
 
 // One label; the run goes on.
@@ -554,6 +686,7 @@ int main(void)
 	voe_3d_shapes shapes;
 	voe_app *app;
 
+	haze_case();
 	app = voe_app_new_headless(arena, scratch, settings, &error);
 	if (app == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
@@ -579,6 +712,7 @@ int main(void)
 	landscape_case(app, arena, scratch, &shapes);
 	blocker_case(app, arena, scratch, &shapes);
 	direct_case(app, arena, scratch, &shapes);
+	sky_cases(app, arena, scratch, &shapes);
 	interface_case(app, arena, scratch, &shapes);
 	model_case(app, arena, scratch, &shapes);
 

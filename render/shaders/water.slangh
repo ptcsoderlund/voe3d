@@ -1,6 +1,7 @@
 // The water path (ADR-0305): voe_render_water shades a `water` record. A part
 // (ADR-0308): included by draw.slang after bindings.slangh, lighting.slangh,
-// the vertex stage's output and voe_render_premultiplied, all of which it uses;
+// tone.slangh, the vertex stage's output and voe_render_premultiplied, all of
+// which it uses, its exit hazed, exposed and tone mapped as every mesh exit is;
 // never compiled alone. draw.slang's fragment stage calls it as its fourth
 // uniform branch.
 //
@@ -142,5 +143,8 @@ float4 voe_render_water(voe_render_object object, voe_render_draw_vertex_out ver
 						  vertex.world, n, body)) +
 		     sky_share * object.sky.rgb + glint * radiance;
 
-	return voe_render_premultiplied(lit, VOE_WATER_DEEP_COVERAGE * share);
+	return voe_render_premultiplied(
+		voe_render_expose(voe_render_haze(
+			lit, vertex.world - voe_render_frame.camera.eye)),
+		VOE_WATER_DEEP_COVERAGE * share);
 }

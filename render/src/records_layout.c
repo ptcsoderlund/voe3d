@@ -32,8 +32,30 @@ static_assert(sizeof(voe_render_directional_light) == 368,
 	      "voe_render_directional_light is no longer the frame light and its bounce words");
 static_assert(sizeof(struct voe_render_frame_light) == 368,
 	      "the frame light no longer matches bindings.slangh's");
-static_assert(sizeof(struct voe_render_frame_block) == 656 + 3 * 368,
+static_assert(sizeof(struct voe_render_frame_block) ==
+		      656 + 3 * 368 + 96 + 16 + 9 * 16,
 	      "the per-pass block no longer matches what draw.slang reads at binding 0");
+static_assert(offsetof(struct voe_render_frame_block, sky_harmonics) ==
+		      656 + 3 * 368 + 96 + 16,
+	      "the sky's harmonics moved inside the per-pass block; draw.slang has them at 1872");
+static_assert(offsetof(struct voe_render_frame_block, sky) == 656 + 3 * 368,
+	      "the sky moved inside the per-pass block; draw.slang has it at 1760");
+static_assert(offsetof(struct voe_render_frame_block, exposure) ==
+		      656 + 3 * 368 + 96,
+	      "the exposure moved inside the per-pass block; draw.slang has it at 1856");
+static_assert(offsetof(voe_render_sky, horizon) == 16 &&
+		      offsetof(voe_render_sky, strength) == 28 &&
+		      offsetof(voe_render_sky, ground) == 32 &&
+		      offsetof(voe_render_sky, haze) == 44 &&
+		      offsetof(voe_render_sky, drawn) == 48 &&
+		      offsetof(voe_render_sky, haze_start) == 52 &&
+		      offsetof(voe_render_sky, haze_top) == 56 &&
+		      offsetof(voe_render_sky, disc_size) == 64 &&
+		      offsetof(voe_render_sky, glow_size) == 80,
+	      "the sky record's float4s, haze_start or haze_top moved; bindings.slangh has them at 0, 16, 32, 48, 64 and 80, haze_start at 52, haze_top at 56");
+static_assert(offsetof(voe_render_exposure, exposure) == 0 &&
+		      offsetof(voe_render_exposure, tone) == 4,
+	      "the exposure record's fields moved; tone.slangh reads them at 0 and 4");
 static_assert(offsetof(struct voe_render_frame_block, more_count) == 640,
 	      "the further light count moved inside the per-pass block; draw.slang has it at 640");
 static_assert(offsetof(struct voe_render_frame_block, more) == 656,

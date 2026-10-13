@@ -22,9 +22,9 @@
 // array below. Every one of them is the same integer the CPU handed out
 // (ADR-0018), so there is no table anywhere between the two sides of the bus.
 //
-// ONE FILE, FIVE ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
-// to draw.spv with all of them in it (the point-shadow pass's vertex stage, which writes the layer, and the capture
-// pass's two), and pipeline.c names them by the names
+// ONE FILE, SEVEN ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
+// to draw.spv with all of them in it (the point-shadow pass's vertex stage, which writes the layer, the capture
+// pass's two and the sky's two), and pipeline.c names them by the names
 // spelled here — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
 // keeps those strings true.
 //
@@ -49,7 +49,9 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// SIX PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// EIGHT PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// tone.slangh, after lighting.slangh, hazes, exposes and tone maps every exit;
+// lighting.slangh includes sky.slangh, the sky's radiance, twin of src/sky.c.
 // bindings.slangh first: the frame block, the records and the bindings both
 // stages read. lighting.slangh next: the sun, its cascades, the fill, the BRDF
 // terms and voe_render_points, the point lights the lit exit adds to the sun's
@@ -107,7 +109,7 @@
 //
 // EMISSION IS ADDED LAST: the record's emissive times the emissive map, after
 // the sun and the fill, unshadowed and unoccluded. Only on the lit path; an
-// unlit exit is its base colour. Untone-mapped, so a strong one clips.
+// unlit exit is its base colour. Under the Clip curve a strong one clips.
 //
 // A DISTANCE-FIELD BASE COLOUR IS THE THIRD UNIFORM BRANCH IN THIS FILE, AND IT
 // IS SPENT KNOWINGLY. `unlit` was the second and the alpha mode was the first;
@@ -176,11 +178,14 @@
 // once as it stores them. There is no gamma arithmetic in this shader and there
 // must not be — that is the double-encode that makes everything pale.
 //
-// NOTHING IS TONE MAPPED, SO A BRIGHT ENOUGH LIGHT CLIPS TO WHITE. Expected, and
-// on the later list; see render/include/render/device.h.
+// EVERY EXIT IS HAZED, THEN EXPOSED AND TONE MAPPED, BY tone.slangh (ADR-0405
+// points 6 and 7), on its straight colour before the premultiply, as the pass's
+// sky record says; a zeroed one is no haze, ×1 and Clip, so a bright enough
+// light clips to white.
 
 #include "bindings.slangh"
 #include "lighting.slangh"
+#include "tone.slangh"
 
 // The locations are stated rather than left to declaration order, because the C
 // side names the same three numbers in its VkVertexInputAttributeDescription and
@@ -367,6 +372,8 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// factor below reads this one.
 	float4 factor = shading.base_colour * object.colour;
 	voe_render_light sun = voe_render_frame.light;
+	// The surface about the eye, which every exit hazes by.
+	float3 about = vertex.world - voe_render_frame.camera.eye;
 
 	// EVERY SAMPLE HAPPENS BEFORE ANY BRANCH, AND THAT IS DELIBERATE. A
 	// Sample needs the derivatives the rasteriser computes across a quad of
@@ -500,11 +507,15 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	// things — this one was asked for and that one is a file with no
 	// normals in it.
 	if (shading.unlit != 0)
-		return voe_render_premultiplied(base.rgb, coverage);
+		return voe_render_premultiplied(
+			voe_render_expose(voe_render_haze(base.rgb, about)),
+			coverage);
 
 	// A pass with no sun: every surface unshaded. See the header.
 	if (sun.unshaded != 0)
-		return voe_render_premultiplied(base.rgb, coverage);
+		return voe_render_premultiplied(
+			voe_render_expose(voe_render_haze(base.rgb, about)),
+			coverage);
 
 	// THE FOURTH UNIFORM BRANCH: water, before the vertex normal is read,
 	// because the plane's normal comes from its matrices. See the header.
@@ -513,7 +524,9 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 
 	// A normal of nothing: unlit rather than NaN. See the header.
 	if (dot(vertex.normal, vertex.normal) < VOE_LEAST)
-		return voe_render_premultiplied(base.rgb, coverage);
+		return voe_render_premultiplied(
+			voe_render_expose(voe_render_haze(base.rgb, about)),
+			coverage);
 
 	// The geometric normal places the shadow lookup; the mapped one shades.
 	float3 surface = normalize(vertex.normal);
@@ -538,18 +551,21 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex) : SV_Target
 	uint mask = voe_render_surface_mask(vertex.world, surface);
 	float3 fill;
 	// The directional lights, the point lights beside them (ADR-0320), the
-	// bounce with the fills as its floor, the one term occlusion darkens
-	// (ADR-0400), and emission last, unshadowed and unoccluded (ADR-0278).
+	// bounce with the fills as its floor and the sky's reflection on metal
+	// beside it (ADR-0412 point 5), the terms occlusion darkens (ADR-0400),
+	// and emission last, unshadowed and unoccluded (ADR-0278).
 	float3 direct = voe_render_directionals(vertex.world, surface, n, v,
 						diffuse_colour, f0, alpha, mask,
 						fill) +
 			voe_render_points(vertex.world, surface, n, v,
 					  diffuse_colour, f0, alpha, mask);
 	float3 indirect =
-		voe_render_indirect(fill, vertex.world, n, base.rgb, mask);
+		voe_render_indirect(fill, vertex.world, n, base.rgb, mask) +
+		voe_render_sky_reflection(n, v, f0, roughness, metallic, mask);
 	float3 lit = direct + indirect * occlusion + shading.emissive * glow;
 
-	return voe_render_premultiplied(lit, coverage);
+	return voe_render_premultiplied(
+		voe_render_expose(voe_render_haze(lit, about)), coverage);
 }
 
 // How far a probe's picture reaches, in its volume's cells: the bounce
@@ -638,4 +654,61 @@ voe_render_capture_targets voe_render_capture_fragment(voe_render_capture_in ver
 				    object.colour.rgb;
 	result.normal = float4(n, length(vertex.about));
 	return result;
+}
+
+// What the sky's vertex stage hands on (ADR-0405 point 4): the clip position
+// and the world direction through it, not normalized.
+struct voe_render_sky_out {
+	float4 position : SV_Position;
+	float3 direction : TEXCOORD;
+};
+
+// THE SKY'S VERTEX STAGE: one triangle over the whole target from the vertex
+// index, at the far plane. The view direction through a corner is the clip
+// position over the projection's scale terms, looking along −Z, turned into the
+// world by the view's rotation transposed; an orthographic projection (its
+// [3][3] not nought) looks along the view's −Z everywhere.
+[shader("vertex")]
+voe_render_sky_out voe_render_sky_vertex(uint index : SV_VertexID)
+{
+	voe_render_sky_out out;
+	float2 corner = float2((index << 1) & 2, index & 2) * 2.0 - 1.0;
+	float4x4 projection = voe_render_frame.camera.projection;
+	float4x4 view = voe_render_frame.camera.view;
+	float3 eye = float3(0.0, 0.0, -1.0);
+
+	if (projection[3][3] == 0.0)
+		eye = float3(corner.x / projection[0][0],
+			     corner.y / projection[1][1], -1.0);
+	out.position = float4(corner, 0.0, 1.0);
+	out.direction = eye.x * view[0].xyz + eye.y * view[1].xyz +
+			eye.z * view[2].xyz;
+	return out;
+}
+
+// THE SKY'S FRAGMENT, veiled by the haze it is seen through (ADR-0419 point
+// 4), f tone.slangh's voe_render_haze_veil along the direction. With `drawn`:
+// the radiance, the backdrop with the pass's shown lights' glows and discs,
+// mixed towards the haze's colour by f, then exposed and tone mapped as every
+// mesh exit is. Without (the stage runs then only with haze): the clear colour
+// mixed towards the exposed and toned haze colour by f, so f 0 is the clear
+// colour byte for byte. Opaque: everything later draws over it.
+[shader("fragment")]
+float4 voe_render_sky_fragment(voe_render_sky_out vertex) : SV_Target
+{
+	float3 view = vertex.direction;
+
+	if (dot(view, view) < VOE_LEAST)
+		view = float3(0.0, 1.0, 0.0);
+	view = normalize(view);
+	float f = voe_render_haze_veil(view);
+	if (voe_render_frame.sky.drawn == 0)
+		return voe_render_premultiplied(
+			lerp(VOE_RENDER_CLEAR,
+			     voe_render_expose(voe_render_haze_colour()), f),
+			1.0);
+	float3 radiance = voe_render_sky_radiance(view);
+	return voe_render_premultiplied(
+		voe_render_expose(lerp(radiance, voe_render_haze_colour(), f)),
+		1.0);
 }

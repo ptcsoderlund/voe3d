@@ -187,6 +187,8 @@ bool voe_editor_view_passes_draw(
 		camera = voe_editor_view_pass_camera(view, light);
 		frame = (voe_3d_frame){ .view = camera.view,
 					.light = camera.light,
+					.sky = voe_3d_draw_system_sky(world, view->eye),
+					.exposure = voe_3d_draw_system_picture(world),
 					.eye = view->eye,
 					.models = models,
 					.target = view->target,
@@ -212,6 +214,8 @@ bool voe_editor_view_passes_draw(
 		voe_3d_frame drawn = (voe_3d_frame){
 				.view = camera.view,
 				.light = camera.light,
+				.sky = frame.sky,
+				.exposure = frame.exposure,
 				.eye = view->eye,
 				.shadow = frame.shadow,
 				.models = models,

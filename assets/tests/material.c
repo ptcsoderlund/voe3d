@@ -7,6 +7,7 @@
 
 #include <testing/test.h>
 
+#include <stdio.h>
 #include <string.h>
 
 static bool read_text(const char *text, voe_assets_material_file *out,
@@ -71,8 +72,9 @@ static void a_full_file_round_trips(voe_base_arena *arena)
 	voe_assets_material_file back = voe_assets_material_default();
 	voe_assets_material_text text;
 
-	strcpy(full.colormap, "Assets/brick wall.png");
-	strcpy(full.normalmap, "Assets/\"odd\" \\ name.png");
+	snprintf(full.colormap, sizeof full.colormap, "%s", "Assets/brick wall.png");
+	snprintf(full.normalmap, sizeof full.normalmap, "%s",
+		 "Assets/\"odd\" \\ name.png");
 	memset(full.ormmap, 'r', VOE_ASSETS_MATERIAL_PATH - 1);
 	full.ormmap[VOE_ASSETS_MATERIAL_PATH - 1] = '\0';
 

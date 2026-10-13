@@ -4,12 +4,18 @@ The engine's shaders and the only files `slangc` runs over: Slang compiled to ro
 build time and `#embed`ded, so nothing is read at run time. A `.slangh` is a part, included by a
 shader and never compiled alone.
 
-- `bindings.slangh` — the part `draw.slang` includes first: the frame block, the records, set 0's
-  bindings and the push constant, each matching its C struct; the object record carries a landscape's
-  paint and layers.
-- `draw.slang` — the mesh pipelines' entry points: placing, maps at the record's repeat, a painted
-  landscape's layers, alpha, the lit and unlit exits, the point-shadow vertex stage and the capture
-  pass's two.
+- `bindings.slangh` — the part `draw.slang` includes first: the frame block with its sky, exposure and harmonics, the
+  records, set 0's bindings and the push constant with its `plain` word, each matching its C struct;
+  the object record carries a landscape's paint and layers.
+- `draw.slang` — the mesh pipelines' seven entry points: placing, maps at the record's repeat, a
+  painted landscape's layers, alpha, the lit and unlit exits, hazed, exposed and tone mapped, the
+  point-shadow vertex stage, the capture pass's two and the sky's full-screen two, the sky or the
+  clear colour veiled by the haze.
+- `tone.slangh` — haze, exposure and tone at every mesh exit: mixed by distance past the haze start
+  towards the drawn sky's horizon hue at the lights' brightness, or else their colour, × 2^exposure,
+  Clip or Soft; a `plain` draw as authored; the sky's veil along a view below the haze's top.
+- `sky.slangh` — whether a light is shown, the sky's backdrop and its radiance along a view, that
+  backdrop plus each of the frame's shown lights' glow then disc, twin of `src/sky.h`.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector and the clip position on
   it; draw and lookup share it.
 - `blockers.slangh` — which light blockers hold a point and whether a segment passes them, twin of
@@ -17,7 +23,8 @@ shader and never compiled alone.
 - `bounce_read.slangh` — the bounce's one read: E(n) from a probe volume's eight nearest probes,
   weighted and normalised.
 - `lighting.slangh` — the directional lights, their shadows and fills, the bounce and the binned
-  point lights, each gated by the light blockers.
+  point lights, each gated by the light blockers; the sky lights nothing, and only a metal mirrors
+  it.
 - `terrain.slangh` — a landscape node's vertex: the grid point morphed by distance, its height and
   normal from the height map.
 - `terrain_layers.slangh` — a painted landscape's surface: the paint's weights, up to eight layers

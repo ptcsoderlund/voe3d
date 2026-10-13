@@ -19,6 +19,7 @@
 
 #include <testing/test.h>
 
+#include <stdio.h>
 #include <string.h>
 
 #define SCRATCH (256 * 1024)
@@ -66,7 +67,7 @@ static void an_added_row_reads_back(voe_base_arena *arena)
 	voe_audio_sound sound = { .loop = true, .volume = 0.5f, .pitch = 2.0f };
 	const voe_audio_sound *row;
 
-	strcpy(sound.path, "sounds/hum.wav");
+	snprintf(sound.path, sizeof sound.path, "%s", "sounds/hum.wav");
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_audio_sound_add(world, entity, sound));
 	row = voe_audio_sound_get(world, entity);

@@ -36,9 +36,9 @@
 #include "backend.h"
 
 #include <base/report.h>
+#include <platform/environment.h>
 
 #include <assert.h>
-#include <stdlib.h>
 #include <string.h>
 
 #define VALIDATION_LAYER "VK_LAYER_KHRONOS_validation"
@@ -281,7 +281,8 @@ bool voe_render_instance_create(voe_render_device *device, voe_base_arena *arena
 	best_practices = validate &&
 			 voe_render_best_practices_wanted(
 				 device->headless,
-				 getenv("VOE_RENDER_BEST_PRACTICES"));
+				 voe_platform_environment_read(
+					 "VOE_RENDER_BEST_PRACTICES", arena));
 	if (best_practices)
 		turn_on_best_practices(device, arena, &info, extensions,
 				       &extension_count, settings,

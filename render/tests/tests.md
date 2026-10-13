@@ -65,7 +65,7 @@ by reading the offscreen colour image back.
   only for `VOE_RENDER_BEST_PRACTICES` exactly `1`; needs no graphics card.
 - `new_messages.c` — what the Best Practices classifier keeps for the close to name, on made-up
   messages; needs no graphics card.
-- `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within six
+- `prepare.c` — a device opened unprepared: prepare answering preparing then prepared within seven
   calls and one more than the step count says, a pass with no camera drawing an element before any,
   a camera pass preparing it all, and prepare on a thread while element frames draw. Headless.
 - `pipeline_cache.c` — the pipeline cache as bytes: one device's handed out and taken by a second,
@@ -80,6 +80,21 @@ by reading the offscreen colour image back.
 - `unshaded.c` — that `unshaded` draws a lit cube in its base colour and black without it, that a
   fill lifts a face the sun misses, and that a face the sun meets head-on or at N·L 0.5 reads the
   same with fill and without. Headless.
+- `exposure.c` — a pass's exposure record on a quad: a zeroed one the old byte, exposure ±1 at
+  Clip, Soft as PBR Neutral, a lit quad's sun clipped or rolled off, a draw after the depth clear
+  as authored, a blended one doubled, and no sky. Headless.
+- `sky.c` — the sky drawn behind a pass: its pixels the CPU twin's radiance within 2/255, a quad
+  over it, a zeroed sky the clear colour, a dark sun the plain gradient, `<pass>: sky` in the
+  breakdown, and a red light and a blue one in `more` each drawing its own disc. Headless.
+- `haze.c` — far surfaces fading into haze of the sky's hue at the lights' brightness, wherever the
+  sun and whatever the sky: lights summed, no light or haze black, no sky the lights' colour, after
+  the depth clear, over a veiled sky, from a haze start. Headless.
+- `haze_sky.c` — the sky seen through the haze: dense haze the whole sky and the sun's disc, thin
+  haze the horizon most, clear above the layer, and without a drawn sky the clear colour veiled.
+  Headless.
+- `sky_light.c` — the sky lighting nothing: a grey cube's face the same bytes with the sky or
+  without and at any zenith, a non-metal quad unchanged, a smooth metal one the sky along R and a
+  rough one nearer E(R)/π, none inside Indoors. Headless.
 - `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
   red to a black surface whether the sun faces it or not, and a metal-roughness map replacing the
   factors. Headless.
@@ -116,6 +131,9 @@ by reading the offscreen colour image back.
 - `light_bins.c` — which tiles and slices point lights mark, with no card: a light ahead the middle,
   one behind nothing, one around the eye every tile, one to the side none, light 40 word 1 bit 8,
   and slices rising from NEAR to FAR.
+- `sky_model.c` — the backdrop, glow and irradiance, with no card: colours as authored, the
+  horizon band, strength scaling the backdrop, each light's disc at 2c, a light not shown leaving
+  the backdrop, glow in a black sky, and the harmonics within 5% of a brute-force sum.
 - `light_blockers.c` — which boxes hold a point, with no card: a box's centre and face and not
   past it, a turned box's diagonal, two boxes both bits, blocker 31 bit 31, none mask 0, and
   inside the sphere but outside the box 0, the call reached through `render/device.h`.

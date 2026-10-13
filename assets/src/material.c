@@ -74,12 +74,14 @@ static bool read_path(const voe_assets_sectioned *doc, uint32_t section,
 		      const char *key, char *path, voe_base_error *error)
 {
 	const char *value = voe_assets_sectioned_value(doc, section, key);
+	size_t length;
 
 	if (value == NULL)
 		return true;
-	if (strlen(value) >= VOE_ASSETS_MATERIAL_PATH)
+	length = strlen(value);
+	if (length >= VOE_ASSETS_MATERIAL_PATH)
 		return refuse(error, key, "a path of 128 bytes or more");
-	strcpy(path, value);
+	memcpy(path, value, length + 1);
 	return true;
 }
 

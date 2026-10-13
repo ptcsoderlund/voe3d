@@ -95,7 +95,7 @@ static voe_ecs_entity a_thing(voe_ecs_world *world, voe_math_double3 where,
 	voe_ecs_entity entity = { 0 };
 	voe_audio_sound sound = { .playing = true, .loop = loop, .volume = 1, .pitch = 1 };
 
-	strcpy(sound.path, path);
+	snprintf(sound.path, sizeof sound.path, "%s", path);
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, (voe_scene_transform){
 		.position = where, .rotation = { 0, 0, 0, 1 }, .scale = { 1, 1, 1 } }));
@@ -185,7 +185,7 @@ static void no_mixer_applies_a_replace_and_starts_nothing(voe_base_arena *arena)
 	voe_audio_sound_intent intent = { .entity = thing,
 		.sound = { .playing = true, .loop = true, .volume = 0.5f, .pitch = 1 } };
 
-	strcpy(intent.sound.path, "hum.wav");
+	snprintf(intent.sound.path, sizeof intent.sound.path, "%s", "hum.wav");
 	VOE_TEST_CHECK(voe_audio_sound_submit(world, intent));
 	voe_audio_sound_system_run(world, NULL, 1.0f);
 	VOE_TEST_CHECK(strcmp(voe_audio_sound_get(world, thing)->path, "hum.wav") == 0);

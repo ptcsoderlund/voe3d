@@ -46,6 +46,8 @@
 // cut to the pass's count; a light not finite, a shadow slot past the lights
 // ready or shared with another shadowed light asserts. Every other pass has none.
 //
+// ITS SKY (ADR-0405) is placed into its block by pass_sky.c.
+//
 // THE ONE Y FLIP IN THE ENGINE IS HERE, in voe_render_frame_viewport, which
 // every block opens with; voe_render_frame_set_viewport lets a test replace it.
 #include "frame_internal.h"
@@ -78,6 +80,9 @@
 // the range the tests above measure against, where the background is assumed to
 // be something no geometry wears, and render/tests/offscreen.c counts pixels per
 // channel against exactly that assumption.
+//
+// render/shaders/tone.slangh's VOE_RENDER_CLEAR is the twin of these three,
+// the backdrop a sky not drawn fades from in haze; a change here is made there.
 #define CLEAR_RED 0.00857f
 #define CLEAR_GREEN 0.00857f
 #define CLEAR_BLUE 0.01033f
@@ -286,6 +291,7 @@ void voe_render_pass_start(voe_render_device *device,
 	device->pools_bound = false;
 
 	device->pass_open = true;
+	device->pass_depth_cleared = false;
 	device->pass_count++;
 	device->pass_point_shadow = false;
 	device->pass_capture = false;
@@ -590,6 +596,8 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 		place_blockers(frame, device->pass_count, camera->blockers,
 			       camera->points, &block);
 		place_further_lights(device, camera, &block);
+		voe_render_pass_place_sky(camera, &block);
+		voe_render_pass_place_sky_light(camera, &block);
 	}
 
 	// The window's pair or this frame slot's pair of the target, each with
@@ -630,6 +638,8 @@ bool voe_render_pass_begin(voe_render_device *device, voe_render_target target,
 			      name);
 	device->pass_camera = camera != NULL;
 	device->pass_shadow = false;
+	// The sky first, behind everything the caller draws (ADR-0405 point 4).
+	voe_render_sky_draw(device);
 	return true;
 }
 

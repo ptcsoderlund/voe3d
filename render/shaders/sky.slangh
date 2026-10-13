@@ -1,0 +1,96 @@
+// The sky's backdrop, its lights' glows and discs along a view, in Slang
+// (ADR-0411, ADR-0412 points 2 and 3): the twin of voe_render_sky_shown,
+// voe_render_sky_gradient and voe_render_sky_radiance in render/src/sky.h and
+// sky.c, the same curves, the same constants and the same arithmetic, so the
+// drawn sky and the CPU's agree within 2/255. A change there is made here too;
+// sky.h holds the model's words. A part (ADR-0308): included by lighting.slangh
+// and tone.slangh after bindings.slangh, whose voe_render_sky, voe_render_light
+// and voe_render_frame it reads, once by its #pragma once; never compiled alone.
+//
+//     float3 l = voe_render_sky_radiance(view);
+//     float3 g = voe_render_sky_gradient(voe_render_frame.sky, view);
+//
+// The backdrop: `strength` times an authored gradient from ground through
+// horizon to zenith, following no light. The radiance: that,
+// every shown light's glow in its colour, then each one's disc laid over, a
+// lerp to twice its colour. The lights are the frame's: `light` is entry 0 of
+// the sky's sizes, more[i − 1] entry i for i up to `more_count`. A light's
+// direction is where its light travels (it stands at −direction); `view` a
+// unit direction, world space, +Y up. A sky with no shown light is its backdrop.
+#pragma once
+
+static const float VOE_RENDER_SKY_PI = 3.14159265358979;
+static const float VOE_RENDER_SKY_GLOW_NARROW = 256.0;
+static const float VOE_RENDER_SKY_GLOW_WIDE = 4.0;
+static const float VOE_RENDER_SKY_DISC_GAIN = 2.0;
+static const float VOE_RENDER_SKY_DISC_EDGE = 1.1;
+static const float VOE_RENDER_SKY_GROUND_FADE = 10.0;
+
+// Whether `light` is in the sky: shaded, of intensity and of colour.
+bool voe_render_sky_shown(voe_render_light light)
+{
+	return light.unshaded == 0 && light.intensity > 0.0 &&
+	       any(light.colour > 0.0);
+}
+
+// The backdrop along `view`, `strength` included, no glow and no disc
+// (ADR-0412 point 2).
+float3 voe_render_sky_gradient(voe_render_sky sky, float3 view)
+{
+	float h = view.y;
+	float3 radiance;
+
+	if (h >= 0.0)
+		radiance = lerp(sky.horizon, sky.zenith,
+				pow(h, 4.0 * sky.horizon_height + 1.0 / 16.0));
+	else
+		radiance = lerp(sky.horizon, sky.ground,
+				saturate(-VOE_RENDER_SKY_GROUND_FADE * h));
+	return radiance * sky.strength;
+}
+
+// The frame's light that is entry `i` of the sky's sizes.
+voe_render_light voe_render_sky_light(uint i)
+{
+	if (i == 0)
+		return voe_render_frame.light;
+	return voe_render_frame.more[i - 1].light;
+}
+
+// The backdrop, every shown light's glow, then their discs laid over in light
+// order (ADR-0412 point 3).
+float3 voe_render_sky_radiance(float3 view)
+{
+	voe_render_sky sky = voe_render_frame.sky;
+	uint count = 1 + min(voe_render_frame.more_count,
+			     VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
+	float3 radiance = voe_render_sky_gradient(sky, view);
+
+	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
+		if (i >= count)
+			break;
+		voe_render_light light = voe_render_sky_light(i);
+		float g = sky.glow_size[i];
+
+		if (!voe_render_sky_shown(light))
+			continue;
+		radiance += light.colour * g *
+			    pow(saturate(dot(view, -normalize(light.direction))),
+				VOE_RENDER_SKY_GLOW_NARROW -
+					(VOE_RENDER_SKY_GLOW_NARROW -
+					 VOE_RENDER_SKY_GLOW_WIDE) * g);
+	}
+	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
+		if (i >= count)
+			break;
+		voe_render_light light = voe_render_sky_light(i);
+		float r = sky.disc_size[i] * (VOE_RENDER_SKY_PI / 180.0);
+
+		if (!voe_render_sky_shown(light) || r <= 0.0 || view.y < 0.0)
+			continue;
+		radiance = lerp(radiance, light.colour * VOE_RENDER_SKY_DISC_GAIN,
+				smoothstep(cos(VOE_RENDER_SKY_DISC_EDGE * r), cos(r),
+					   dot(view, -normalize(light.direction))));
+	}
+	return radiance;
+}

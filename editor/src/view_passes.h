@@ -1,8 +1,10 @@
 // What a frame draws into the scene views: per view the dock tree shows, the
 // sun's shadow passes fitted to it (voe_3d_draw_system_shadows, ADR-0258),
 // then a pass onto that view's target with its own camera, the light
-// voe_editor_view_light gives (the world's or the preview) and those shadows:
-// the world and its models (voe_3d_draw_system_run), the selection's outline,
+// voe_editor_view_light gives (the world's or the preview), the world's sky
+// seen from the view's own eye so the haze veils it from there
+// (voe_3d_draw_system_sky, 0405, 0418 point 2), its picture (voe_3d_draw_system_picture,
+// 0406) and those shadows: the world and its models (voe_3d_draw_system_run), the selection's outline,
 // a model's too (ADR-0203), its collider as lines (0253), its move gizmo
 // (ADR-0205), the scene camera's marker (0223), every sun's (0360) and every
 // point light's (0320) and every meshless place's (0365), the brush's two
@@ -19,10 +21,6 @@
 //     drawn = drawn && voe_editor_view_passes_draw(gpu, arena, world, &views, &root,
 //                                         light, &scene, &geometries, models,
 //                                         &shapes, palette, &gizmo, ppmm);
-//
-// A REFUSED PASS STOPS THE REST, a shadow pass as much as a view's: no later
-// view is begun and the call returns false, the caller's `drawn`, and the frame
-// is still the caller's to close.
 //
 // WHAT THE DEVICE'S CAPACITIES MUST COVER is VOE_EDITOR_CAPACITIES below, kept
 // beside the passes so the next capacity a pass needs is added here. The
@@ -211,6 +209,9 @@
 // outline through `models` (NULL for none), and returns false at the first
 // pass the device refuses. Called inside an open draw, never inside a pass.
 // `views` is written only by 3d, into each view's remembered casters (0394).
+// A REFUSED PASS STOPS THE REST, a shadow pass as much as a view's: no later
+// view is begun and the call returns false, the caller's `drawn`, and the frame
+// is still the caller's to close.
 [[nodiscard]] bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
 	voe_editor_views *views, const voe_editor_dock_root *root,

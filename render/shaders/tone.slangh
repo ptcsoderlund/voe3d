@@ -1,0 +1,152 @@
+// Haze, exposure and tone at every mesh exit (ADR-0405 points 6 and 7).
+// voe_render_haze mixes a linear colour towards the haze's colour by
+// distance past the sky's haze_start, a surface no farther than it untouched
+// (ADR-0414 point 1); voe_render_expose then multiplies it by 2^exposure from the pass's
+// exposure record and puts it through its curve, Clip (as it is, the 8-bit
+// target clamping) or Soft (Khronos PBR Neutral). HAZE COMES BEFORE EXPOSURE
+// AND TONE: with the sky drawn the haze's colour is the sky's horizon hue ×
+// the shown directional lights' brightness, Σ largest channel × intensity /
+// (4π), the sky's strength and colour brightness never reaching it (ADR-0416);
+// without, the lights' colour × intensity / (4π) (ADR-0415); no fill, shadow
+// or view term, exposed and toned with the surface it covers. A part (ADR-0308): included by draw.slang after
+// bindings.slangh, whose frame block and push constant it reads; includes
+// sky.slangh; never compiled alone.
+//
+//     float3 c = voe_render_expose(voe_render_haze(colour,
+//                                  world - voe_render_frame.camera.eye));
+//
+// draw.slang's lit, unlit and water exits call both on their straight colour
+// before voe_render_premultiplied, so a blended draw keeps its alpha. A draw
+// pushed `plain` (after the pass's first depth clear, ADR-0405 point 8) is
+// returned as it came by both. A zeroed sky is no haze and a zeroed exposure
+// record ×1 and Clip: the old picture, byte for byte. Elements never haze.
+//
+// THE SKY IS VEILED, NOT HAZED (ADR-0418 point 2, 0419 points 3 and 4): the
+// sky's fragment fades towards the haze's colour by voe_render_haze_veil, the
+// path along its view through the layer below haze_top; never a mesh exit,
+// which hazes by distance only as before. VOE_RENDER_CLEAR is the backdrop a
+// sky not drawn fades from.
+//
+// THERE IS NO HDR TARGET. The curve runs per fragment before an 8-bit sRGB
+// target, so blending happens after it; only see-through draws differ from a
+// resolve pass, which is the trade 0405 made.
+
+#include "sky.slangh"
+
+// render/device.h's VOE_RENDER_TONE_*, which these must equal.
+static const uint VOE_RENDER_TONE_CLIP = 0;
+static const uint VOE_RENDER_TONE_SOFT = 1;
+
+// What an isotropic haze deep in reads per unit of a light's colour ×
+// intensity: a quarter of a white Lambert surface facing it (ADR-0415 point 1).
+static const float VOE_RENDER_HAZE_GAIN = 1.0 / (4.0 * VOE_RENDER_SKY_PI);
+
+// pass.c's clear colour (its CLEAR_*), linear, which this must equal.
+static const float3 VOE_RENDER_CLEAR = float3(0.00857, 0.00857, 0.01033);
+
+// The haze's colour over the frame's shown directional lights, 0 to
+// more_count, the same in every direction: no fill, shadow or view term. With
+// the sky `drawn` it is hue × B (ADR-0416 points 2 and 3, ADR-0417 point 2): B
+// is Σ largest colour channel × intensity × HAZE_GAIN, so a light's colour
+// does not change how bright it is; hue is the sky's gradient along a level
+// view at strength 1 over its largest channel, white when that is not above
+// 0, so neither the sky's strength nor how bright its colours are reaches it.
+// Without `drawn` it is Σ colour × intensity × HAZE_GAIN (ADR-0415 point 1).
+// None shown is 0, so far surfaces fade towards black.
+float3 voe_render_haze_colour()
+{
+	voe_render_sky sky = voe_render_frame.sky;
+	uint count = 1 + min(voe_render_frame.more_count,
+			     VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
+	float3 colour = float3(0.0, 0.0, 0.0);
+	float brightness = 0.0;
+
+	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
+		if (i >= count)
+			break;
+		voe_render_light light = voe_render_sky_light(i);
+
+		if (!voe_render_sky_shown(light))
+			continue;
+		colour += light.colour * light.intensity;
+		brightness += max(light.colour.r,
+				  max(light.colour.g, light.colour.b)) *
+			      light.intensity;
+	}
+	if (sky.drawn == 0)
+		return colour * VOE_RENDER_HAZE_GAIN;
+	sky.strength = 1.0;
+	float3 horizon = voe_render_sky_gradient(sky, float3(0.0, 0.0, -1.0));
+	float peak = max(horizon.r, max(horizon.g, horizon.b));
+	float3 hue = peak > 0.0 ? horizon / peak : float3(1.0, 1.0, 1.0);
+
+	return hue * brightness * VOE_RENDER_HAZE_GAIN;
+}
+
+// colour × (1 − f) + haze × f, f = 1 − 2^(−(|position| − haze_start)/haze),
+// `position` the surface about the eye; at or nearer haze_start, `colour` as it
+// came (ADR-0414 point 1).
+float3 voe_render_haze(float3 colour, float3 position)
+{
+	float haze = voe_render_frame.sky.haze;
+	float past = length(position) - voe_render_frame.sky.haze_start;
+
+	if (haze <= 0.0 || past <= 0.0 || voe_render_draw_current.plain != 0)
+		return colour;
+	float f = 1.0 - exp2(-past / haze);
+
+	return lerp(colour, voe_render_haze_colour(), f);
+}
+
+// How much of the sky along unit world `view` is veiled by the haze layer
+// (ADR-0419 point 3), T the sky's haze_top: T > 0 looking level or down, or
+// T <= 0 looking down, is an endless path, 1; T > 0 looking up is the path
+// L = T / view.y, faded as a surface is, f = 1 − 2^(−max(L − haze_start, 0)/
+// haze); T <= 0 looking level or up is no path, 0. Haze 0 is 0. Only the sky's
+// fragment calls it; a mesh exit never does.
+float voe_render_haze_veil(float3 view)
+{
+	voe_render_sky sky = voe_render_frame.sky;
+
+	if (sky.haze <= 0.0)
+		return 0.0;
+	if (sky.haze_top > 0.0 ? view.y <= 0.0 : view.y < 0.0)
+		return 1.0;
+	if (sky.haze_top <= 0.0)
+		return 0.0;
+	float past = sky.haze_top / view.y - sky.haze_start;
+
+	return past <= 0.0 ? 0.0 : 1.0 - exp2(-past / sky.haze);
+}
+
+// Khronos PBR Neutral: colours below about 0.8 stay as authored, brighter ones
+// roll off towards white and desaturate. The constants are the reference's.
+float3 voe_render_pbr_neutral(float3 colour)
+{
+	const float start = 0.8 - 0.04;
+	const float desaturation = 0.15;
+	float x = min(colour.r, min(colour.g, colour.b));
+	float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+
+	colour -= offset;
+	float peak = max(colour.r, max(colour.g, colour.b));
+	if (peak < start)
+		return colour;
+	const float d = 1.0 - start;
+	float new_peak = 1.0 - d * d / (peak + d - start);
+	colour *= new_peak / peak;
+	float g = 1.0 - 1.0 / (desaturation * (peak - new_peak) + 1.0);
+	return lerp(colour, float3(new_peak, new_peak, new_peak), g);
+}
+
+float3 voe_render_expose(float3 linear)
+{
+	voe_render_exposure picture = voe_render_frame.exposure;
+
+	if (voe_render_draw_current.plain != 0)
+		return linear;
+	float3 exposed = linear * exp2(picture.exposure);
+	if (picture.tone == VOE_RENDER_TONE_SOFT)
+		return voe_render_pbr_neutral(exposed);
+	return exposed;
+}

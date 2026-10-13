@@ -66,6 +66,16 @@
 // each one's light, shadow record and the mask of the blockers holding its
 // place, cut to the pass's blocker count. Three reserved words round the count
 // to sixteen bytes.
+//
+// `sky` AND `exposure` ARE THE CAMERA'S voe_render_sky AND voe_render_exposure
+// (ADR-0407 point 1); zeroed in a pass with no camera and in the shadow,
+// point-shadow and capture passes. Their 96 and 16 bytes are already multiples
+// of sixteen.
+//
+// `sky_harmonics` ARE THE BACKDROP ONLY (ADR-0412 point 4): sky.h's nine
+// cosine-convolved harmonics of the sky's backdrop, no glow and no disc, filled
+// by pass_sky.c when the sky is `drawn`, zero otherwise; only a rough metal's
+// reflection reads them.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;
@@ -92,6 +102,9 @@ struct voe_render_frame_block {
 	uint32_t more_count;
 	uint32_t reserved[3];
 	struct voe_render_frame_light more[VOE_RENDER_DIRECTIONAL_LIGHTS - 1];
+	voe_render_sky sky;
+	voe_render_exposure exposure;
+	voe_math_float4 sky_harmonics[9];
 };
 
 // One pass's region at binding 11 (ADR-0347 point 3): its light blockers as

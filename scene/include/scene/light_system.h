@@ -27,9 +27,9 @@
 //
 // NOTHING IS NORMALIZED OR CORRECTED; A BAD LIGHT IS REFUSED. A number that is
 // not finite, a colour channel outside [0, 1], a negative intensity or bounce
-// strength, or bounces past VOE_SCENE_LIGHT_BOUNCES_MAX has no nearest right
-// answer, so `add`
-// asserts on one and the drain keeps the last valid row and says so on stderr,
+// strength, bounces past VOE_SCENE_LIGHT_BOUNCES_MAX, a disc size outside 0 to
+// VOE_SCENE_LIGHT_DISC_SIZE_MAX or a glow size outside 0 to 1 has no nearest
+// right answer, so `add` asserts on one and the drain keeps the last valid row and says so on stderr,
 // one line per refused intent.
 //
 // AN INTENT NAMING A DESTROYED ENTITY IS DROPPED, SILENTLY AND ON PURPOSE. An
@@ -47,9 +47,10 @@
 
 // Registers the table, the intent queue as its replace, the transform it needs
 // and the default row: white of strength one, a white fill of nought, no
-// bounces at a bounce strength of one, no shadows cast. The default row is what "add at default" gives
+// bounces at a bounce strength of one, no shadows cast, a disc of 1.5 degrees
+// and a glow of 0.3 (0412). The default row is what "add at default" gives
 // (0190). The unsaid row, what a file that does not mention a field means, is
-// the default row casting shadows (0324). Call it once per world,
+// the default row casting shadows (0324), so an old scene shows a sun too. Call it once per world,
 // after the transform table (it asserts on none) and before anything adds a
 // light. capacity is how many lights the world may hold and also how many
 // intents may be waiting at once.

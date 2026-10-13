@@ -17,16 +17,18 @@ file; the rest hand the writer a world and the reader text held in memory.
   still load, and fields of every shape from rank 0 to 7.
 - `scene_read_unsaid.c` — a field a section does not mention read from the
   type's unsaid row, else its default, a said field kept, and a light with no
-  `cast_shadows` reading true, and an 047 light keeping bounces 1 at strength 1.
+  `cast_shadows` reading true, and an 047 light keeping bounces 1 at strength 1
+  and reading disc 1.5 and glow 0.3.
 - `scene_lights.c` — a sun and a moon written and read back as two light rows,
-  each keeping its fields, `cast_shadows` included, and its rotation, and a
-  light saved before 049 reading one row that casts.
+  each keeping its fields, `cast_shadows` and its disc and glow sizes included,
+  and its rotation, and a light saved before 049 reading one row that casts.
 - `scene_read_former.c` — a blocker saved with `kind` read as its `block`,
   written back as `block` alone, `block` winning over `kind` in either order,
   and a blocker saying neither reading All.
 - `scene_cook.c` — the exact source for a small scene, the sun's bounces,
-  `cast_shadows` and `bounce_strength` included, that source compiled by `clang`, the refusals leaving
-  `*out` untouched, and an empty world.
+  `cast_shadows`, `bounce_strength`, `disc_size` and `glow_size` included, that
+  source compiled by `clang`, the refusals leaving `*out` untouched, and an
+  empty world.
 - `landscape_cook.c` — the cooked array's name and length, and heights as the
   whole millimetres the file holds, a rounded -0 as 0, and paint as one plane's
   bytes up to four layers and both past, a painted point's bytes as set.

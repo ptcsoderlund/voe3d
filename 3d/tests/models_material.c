@@ -20,7 +20,6 @@
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <string.h>
 
 #define SCRATCH (1024 * 1024)
 #define SIDE 16
@@ -46,9 +45,12 @@ static voe_assets_material_file three_maps(void)
 	material.colour[1] = 0.4f;
 	material.colour[2] = 0.6f;
 	material.repeat = 4.0f;
-	strcpy(material.colormap, "Assets/brick.png");
-	strcpy(material.normalmap, "Assets/brick_n.png");
-	strcpy(material.ormmap, "Assets/brick_orm.png");
+	snprintf(material.colormap, sizeof material.colormap, "%s",
+		 "Assets/brick.png");
+	snprintf(material.normalmap, sizeof material.normalmap, "%s",
+		 "Assets/brick_n.png");
+	snprintf(material.ormmap, sizeof material.ormmap, "%s",
+		 "Assets/brick_orm.png");
 	return material;
 }
 

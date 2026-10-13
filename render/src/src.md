@@ -39,8 +39,8 @@ which file to open — what each one owns, and where the seams between them run.
   capture tool; each does nothing without debug-utils.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,
   and the `render` line that says which and why.
-- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the five
-  mesh pipelines, solid, blended, shadow, point shadow and capture, through the device's pipeline
+- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the six
+  mesh pipelines, solid, blended, shadow, sky, point shadow and capture, through the device's pipeline
   cache, then the relight, a step a call, and the count of those steps.
 - `pipeline_cache.c` — the device's pipeline cache: made empty at open, seeded from a caller's bytes
   before the first prepare step, and handed out behind render's own header.
@@ -95,6 +95,13 @@ which file to open — what each one owns, and where the seams between them run.
   a pass reaches, one bit per light in each, and the slice of a view distance. Pure CPU.
 - `light_bins.c` — those two calls: a light's view-space sphere to its slices and to the NDC
   rectangle of its box's corners.
+- `sky.h` — the sky's model and constants (ADR-0411, 0412), twin of `shaders/sky.slangh`: whether a
+  light is shown, the backdrop and radiance along a view, the backdrop's nine
+  cosine-convolved harmonics, and the irradiance. Pure CPU.
+- `sky.c` — those five calls: a backdrop of strength × an authored gradient, the radiance that plus
+  each shown light's glow then disc, the backdrop alone projected over 256 Fibonacci directions.
+- `sky_draw.c` — the sky drawn first in a camera pass whose sky is `drawn` or has haze: one
+  full-screen triangle through the sky pipeline, timed as the span `sky`.
 - `light_blockers.c` — `voe_render_light_blockers_mask`, declared in `render/device.h`: the boxes
   holding a point, bit i for blocker i, a sphere compare, then three rows, inclusive at the face.
 - `point_shadow_faces.h` — a caster's bounding sphere from its vertices, moved under a world
@@ -120,14 +127,16 @@ which file to open — what each one owns, and where the seams between them run.
 - `pass.c` — a pass: one rendering block onto the window or a target, its camera block with probe
   volume, point lights, light blockers and further lights, the clear colour, the
   first-clears-later-load rule, the one Y flip, and each pass's name, timed by `pass_timing.c`.
+- `pass_sky.c` — a camera pass's sky and exposure placed into its block, checked, and the nine
+  harmonics of its backdrop when its sky is drawn.
 - `pass_timing.c` — every pass timed and labelled by its name: a timestamp pair per pass in the
   slot's pool, read after the fence into the breakdown `voe_render_frame_pass_times` copies out.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written
   into the pass's block.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, and in
-  the point-shadow pass one instance per cube face reached, the depth clear between them, and the
-  rebinds only when pipeline or pool pair changes.
+  the point-shadow pass one instance per cube face reached, the depth clear between them after
+  which draws push `plain`, and the rebinds only when pipeline or pool pair changes.
 - `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is
   the one write into a swapchain image.
 - `probe.c` — the pipeline that reads a matrix and reports what it saw, built

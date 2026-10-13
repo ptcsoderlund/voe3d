@@ -24,8 +24,9 @@ it. Nothing here names a GPU resource, a file or a graphics API.
   whole lens or keeps the row over one that cannot project.
 - `light_component.c` — the key, the reads, and the conversions between a
   rotation and the direction it shines.
-- `light_system.c` — registration with its default and unsaid rows, creation,
-  and the drain that applies a whole light or keeps the row over one it refuses.
+- `light_system.c` — registration with its default and unsaid rows, a sun's
+  disc and glow in both, creation, and the drain that applies a whole light or
+  keeps the row over one it refuses, a bad disc or glow size included.
 - `point_light_component.c` — the key and the reads.
 - `point_light_system.c` — registration, creation, and the run that applies whole
   lights, falloff included, or keeps the row over one it refuses.
@@ -33,3 +34,14 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `light_blocker_system.c` — registration, creation, and the run that applies a
   whole row or keeps it over a size that is negative or not finite or a Block
   past Direct.
+- `sky_component.c` — the key and the reads.
+- `sky_system.c` — registration with a default row of strength 1, creation, and the run
+  that applies a whole sky or keeps it over a number not finite or out of bounds.
+- `haze_component.c` — the key and the reads.
+- `haze_system.c` — registration with a default row of haze 1000, start 100
+  and height 1000, creation, and the run that applies a whole haze or keeps it
+  over a number not finite or a haze or start below 0.
+- `picture_component.c` — the key, the tone names Clip and Soft, and the reads.
+- `picture_system.c` — registration with 0406's default row, creation, and the
+  run that applies a whole picture or keeps it over an exposure not finite or
+  past 16 stops or a tone past Soft.

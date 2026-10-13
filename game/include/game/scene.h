@@ -36,12 +36,15 @@
 #include <ecs/world.h>
 
 #include <scene/camera_component.h>
+#include <scene/haze_component.h>
 #include <scene/identity_component.h>
 #include <scene/light_blocker_component.h>
 #include <scene/light_component.h>
 #include <scene/parent_component.h>
+#include <scene/picture_component.h>
 #include <scene/point_light_component.h>
 #include <scene/prefab_component.h>
+#include <scene/sky_component.h>
 #include <scene/transform_component.h>
 
 #include <stdbool.h>

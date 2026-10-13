@@ -193,6 +193,7 @@ static bool read_layers(const voe_assets_sectioned *doc, const char *text,
 	for (uint32_t k = 0; k < VOE_ASSETS_LANDSCAPE_LAYERS; k++) {
 		char name[16];
 		const char *path;
+		size_t length;
 
 		snprintf(name, sizeof(name), "layer%u", k);
 		path = voe_assets_sectioned_value(doc, section, name);
@@ -200,10 +201,11 @@ static bool read_layers(const voe_assets_sectioned *doc, const char *text,
 			break;
 		if (!written_quoted(doc, section, name, text, size))
 			return refuse_layer(error, k, "a path not quoted");
-		if (strlen(path) >= VOE_ASSETS_MATERIAL_PATH)
+		length = strlen(path);
+		if (length >= VOE_ASSETS_MATERIAL_PATH)
 			return refuse_layer(error, k,
 					    "a path of 128 bytes or more");
-		strcpy(into->layers[k], path);
+		memcpy(into->layers[k], path, length + 1);
 		into->layer_count = k + 1;
 	}
 	return true;

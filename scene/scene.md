@@ -39,13 +39,14 @@ space is.
   direct call that creates one. Its header says why creation is not an intent,
   which of the two checks is an assert and which a correction, and why the
   report's state is per process.
-- `include/scene/light_component.h` — the directional light: its linear colour
-  and strength, a fill of the shade, a named count of bounces and its strength,
-  and whether it casts shadows, as a described field list, and the conversions between a
-  rotation and its direction, the transform's -Z.
+- `include/scene/light_component.h` — the directional light: colour and
+  strength, a fill of the shade, bounces, shadows, and the disc and glow it
+  draws under a sky, as a described field list, and the conversions between a
+  rotation and its direction.
 - `include/scene/light_system.h` — the whole-light intent, registered as the
   light's replace, the direct call that creates one, and the transform it needs.
-  Its header says what light is refused and why a drawn world needs the table.
+  Its header says the default disc and glow, what light is refused and why a
+  drawn world needs the table.
 - `include/scene/point_light_component.h` — a lamp beside the sun: linear colour,
   intensity, range, falloff, shadows and bounces, as a described field list,
   and the falloff's bounds. Its header says where it shines from, what falloff does and why it
@@ -60,3 +61,23 @@ space is.
 - `include/scene/light_blocker_system.h` — the whole-row intent as its replace,
   the direct call that creates one, and the run that drains it. Its header says
   what size and Block are refused and why the replace is queued.
+- `include/scene/sky_component.h` — the sky's backdrop: zenith, horizon and
+  ground colours, horizon height and strength, as a described field list, and
+  the reads. Its header says the row lights nothing, the lights draw their
+  discs in it, the haze takes only its hue, and each field's bounds.
+- `include/scene/sky_system.h` — the whole-row intent as its replace, the direct
+  call that creates one, and the run that drains it. Its header says what is
+  refused and why the replace is queued.
+- `include/scene/haze_component.h` — haze, its start distance and the height
+  its layer reaches, as a described field list, and the reads. Its header says the row is haze on,
+  that it works with or without a sky, where its colour comes from and each
+  field's bounds.
+- `include/scene/haze_system.h` — the whole-row intent as its replace, the
+  direct call that creates one, and the run that drains it. Its header says
+  what is refused and why the replace is queued.
+- `include/scene/picture_component.h` — the whole picture's exposure in stops
+  and its tone, Clip or Soft, named, as a described field list, and the reads.
+  Its header says why it is not a camera's and that no row is x1 and Clip.
+- `include/scene/picture_system.h` — the whole-row intent as its replace, the
+  direct call that creates one, and the run that drains it. Its header says
+  what is refused and why the replace is queued.

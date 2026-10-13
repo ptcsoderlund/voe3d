@@ -1,13 +1,13 @@
 // The Windows half of platform/folder.h: FindFirstFileW/FindNextFileW,
-// CreateDirectoryW, and GetEnvironmentVariableW for the home and settings
+// CreateDirectoryW, and platform/environment.h for the home and settings
 // folders. Read the header first — what each call promises and which failure
 // is which is written there.
 //
 // A PATH IS UTF-8 AND IS CONVERTED ON THE WAY IN, AND A NAME ON THE WAY OUT
 // (ADR-0247, ADR-0248), through platform/src/wide_win32.h. A path goes into a
 // MAX_PATH wide stack buffer; one that does not fit fails as the call fails
-// when the folder is not there. Each listed name and each environment value is
-// made UTF-8 in the caller's arena.
+// when the folder is not there. Each listed name is made UTF-8 in the caller's
+// arena.
 //
 // TWO PASSES OVER THE SAME FOLDER, FOR THE SAME REASON platform/src/
 // folder_wayland.c makes two: the arena's array has to be exactly the right
@@ -25,15 +25,16 @@
 // folder" the way the Linux side needs fstatat — there is nothing this file
 // has to follow.
 //
-// NO getenv (ADR-0159): the environment is read with GetEnvironmentVariableW,
-// which is also how a value's length is found before it is pushed into an
-// arena sized for it.
+// NO getenv (ADR-0159, ADR-0413): %USERPROFILE% and %APPDATA% are read through
+// voe_platform_environment_read, which reads them wide and hands them back
+// UTF-8 on the caller's arena.
 #include <platform/folder.h>
 
 #include "wide_win32.h"
 
 #include <base/assert.h>
 #include <base/report.h>
+#include <platform/environment.h>
 
 #include <windows.h>
 
@@ -178,38 +179,35 @@ bool voe_platform_folder_create(const char *path, voe_base_error *error)
 	return false;
 }
 
-// Reads name out of the environment into arena as UTF-8, dropping one trailing
-// '\\' or '/' if there is one — every path this file hands back promises none
-// — and answers NULL for a variable the environment never set or set to
-// nothing. The wide value is read into the arena too, since its length is only
-// known at run time.
-static const char *read_variable(voe_base_arena *arena, const wchar_t *name)
+// The folder in the environment variable name, on arena, with one trailing
+// '\\' or '/' dropped if there is one — every path this file hands back
+// promises none — and NULL for a variable the environment never set or set to
+// nothing.
+static const char *folder_from_environment(const char *name,
+					   voe_base_arena *arena)
 {
-	DWORD needed;
-	wchar_t *wide;
-	char *buffer;
+	const char *value = voe_platform_environment_read(name, arena);
 	size_t length;
+	char *trimmed;
 
-	needed = GetEnvironmentVariableW(name, NULL, 0);
-	if (needed <= 1)
+	if (value == NULL || value[0] == '\0')
 		return NULL;
 
-	wide = voe_base_arena_push(arena, needed * sizeof *wide);
-	if (GetEnvironmentVariableW(name, wide, needed) == 0)
-		return NULL;
-	buffer = voe_platform_utf8_from_wide(wide, arena);
+	length = strlen(value);
+	if (length <= 1 || (value[length - 1] != '\\' && value[length - 1] != '/'))
+		return value;
 
-	length = strlen(buffer);
-	if (length > 1 && (buffer[length - 1] == '\\' || buffer[length - 1] == '/'))
-		buffer[length - 1] = '\0';
-	return buffer;
+	// The push is zeroed (base/arena.h), so the terminator is already there.
+	trimmed = voe_base_arena_push(arena, length);
+	memcpy(trimmed, value, length - 1);
+	return trimmed;
 }
 
 const char *voe_platform_folder_home(voe_base_arena *arena)
 {
 	VOE_BASE_ASSERT(arena != NULL, "finding the home folder into no arena");
 
-	return read_variable(arena, L"USERPROFILE");
+	return folder_from_environment("USERPROFILE", arena);
 }
 
 const char *voe_platform_folder_settings(voe_base_arena *arena)
@@ -217,5 +215,5 @@ const char *voe_platform_folder_settings(voe_base_arena *arena)
 	VOE_BASE_ASSERT(arena != NULL,
 			"finding the settings folder into no arena");
 
-	return read_variable(arena, L"APPDATA");
+	return folder_from_environment("APPDATA", arena);
 }

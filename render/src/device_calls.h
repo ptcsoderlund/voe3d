@@ -198,6 +198,14 @@ voe_render_target_at(voe_render_device *device, voe_render_target target);
 // in the engine — read the comment above it in pass.c before touching it.
 VkViewport voe_render_frame_viewport(VkExtent2D extent);
 
+// pass_sky.c. A camera pass's sky into its block, checked, then the nine
+// harmonics of its backdrop when its sky is drawn; voe_render_pass_begin calls
+// both, in that order, after the block's lights.
+void voe_render_pass_place_sky(const voe_render_pass_camera *camera,
+			       struct voe_render_frame_block *block);
+void voe_render_pass_place_sky_light(const voe_render_pass_camera *camera,
+				     struct voe_render_frame_block *block);
+
 // frame.c. The slot the next frame will use, and the one the recording that is
 // open belongs to. Reading it is how the tests get at a frame's target and its
 // fence without indexing an array they would have to bound-check themselves.
@@ -435,6 +443,12 @@ void voe_render_texture_levels_record(voe_render_device *device,
 				      VkCommandBuffer commands, VkImage image,
 				      uint32_t width, uint32_t height,
 				      uint32_t level_count);
+
+// sky_draw.c. Inside an open camera pass whose block's sky is `drawn`, the sky:
+// the span `sky`, the sky pipeline, three vertices, `bound` left for the next
+// mesh draw to rebind. Does nothing otherwise. pass.c calls it once, right after
+// a camera pass's block is written.
+void voe_render_sky_draw(voe_render_device *device);
 
 // probe.c. The pipeline that reads a matrix and reports what it saw, built on
 // demand and owned by the caller — VK_NULL_HANDLE on failure, and destroyed with

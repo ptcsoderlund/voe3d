@@ -19,9 +19,12 @@ header.
 - `folder_wayland.c` — opendir/readdir, mkdir, and $HOME/$XDG_CONFIG_HOME. Its
   header says why listing is two passes and the sort is by hand, and when
   `fstatat` decides `folder` instead of `d_type`.
-- `folder_win32.c` — FindFirstFileW/FindNextFileW, CreateDirectoryW, and
-  GetEnvironmentVariableW for %USERPROFILE%/%APPDATA%, each name made UTF-8. Its header says why a
-  directory symlink needs no extra call here, unlike the Linux side.
+- `folder_win32.c` — FindFirstFileW/FindNextFileW, CreateDirectoryW, and %USERPROFILE%/%APPDATA%
+  read through `environment.h`, each name made UTF-8. Its header says why a directory symlink needs
+  no extra call here, unlike the Linux side.
+- `environment_wayland.c` — getenv, the value copied onto the arena.
+- `environment_win32.c` — GetEnvironmentVariableW, the name made wide and the value UTF-8, unset
+  told from empty by ERROR_ENVVAR_NOT_FOUND.
 - `trash_wayland.c` — realpath, an exclusive `.trashinfo` create, and rename into the home trash.
 - `trash_win32.c` — SHFileOperationW into the Recycle Bin, a fixed drive only. Its header says why
   not IFileOperation, why the nuke warning stays, and why the double NUL.

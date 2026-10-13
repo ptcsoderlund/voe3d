@@ -20,9 +20,9 @@ stays on `scene/scene.md`.
 - `identity_system.h` — the intent that renames one, and the direct call that
   creates one.
 - `light_component.h` — the sun: which way its light travels, its colour and its
-  strength.
-- `light_system.h` — the intent that turns it, and the direct call that creates
-  one.
+  strength, and the disc and glow it draws under a sky.
+- `light_system.h` — the intent that turns it, the direct call that creates
+  one, and its default disc of 1.5 degrees and glow of 0.3.
 - `point_light_component.h` — a lamp: its colour, intensity, range and flash,
   and the strength it shines with now.
 - `point_light_system.h` — the replace and flash intents, the direct call that
@@ -31,3 +31,16 @@ stays on `scene/scene.md`.
   or Direct: its size along its transform's axes and its Block.
 - `light_blocker_system.h` — the replace intent, the direct call that creates
   one, and the run that drains it.
+- `sky_component.h` — the sky: a backdrop with a strength that lights nothing,
+  whose horizon hue the haze takes.
+- `sky_system.h` — the replace intent, the direct call that creates one, and
+  the run that drains it.
+- `haze_component.h` — the haze: how far surfaces fade, past a start distance,
+  to the sky's hue at the directional lights' brightness, sky or none, and the
+  height its layer reaches, which veils the sky.
+- `haze_system.h` — the replace intent, the direct call that creates one, and
+  the run that drains it.
+- `picture_component.h` — the picture: how the whole drawn image is exposed and
+  toned, exposure in stops and tone, Clip or Soft.
+- `picture_system.h` — the replace intent, the direct call that creates one,
+  and the run that drains it.

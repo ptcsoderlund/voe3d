@@ -4,10 +4,13 @@
 // a pass is open, and a mesh draw that the pass was opened with a camera.
 //
 // ONE OBJECT RECORD PER DRAW. A draw writes its voe_render_object into the
-// slot's object buffer at device->object_count and pushes that number, with
-// three words of face mask, as the push constant; the shader reads its own
-// record with it. The buffer holds capacities.objects records, and a draw past
-// that is a returned failure.
+// slot's object buffer at device->object_count and pushes that number, three
+// words of face mask and a fifth word `plain`, as the push constant; the shader
+// reads its own record with it. The buffer holds capacities.objects records,
+// and a draw past that is a returned failure.
+//
+// `plain` IS 1 FOR EVERY MESH DRAW AFTER THE PASS'S FIRST DEPTH CLEAR (ADR-0405
+// point 8): the overlay, drawn as authored, no exposure or tone. 0 before it.
 //
 // IN THE POINT-SHADOW PASS (ADR-0325 point 2) the mask is every slotted light's
 // faces the geometry's sphere reaches under the world matrix, bit 6(s − 1) + f,
@@ -142,8 +145,9 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 {
 	const struct voe_render_geometry_slot *slot;
 	struct voe_render_frame *frame;
-	// The object's number and the face mask: the sixteen bytes pushed.
-	uint32_t push[4] = { 0 };
+	// The object's number, the face mask and `plain`: the twenty bytes
+	// pushed, inside pipeline.c's 64-byte range.
+	uint32_t push[5] = { 0 };
 	uint32_t instances = 1;
 
 	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
@@ -209,12 +213,13 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 		       (size_t)device->object_count * sizeof(object),
 	       &object, sizeof(object));
 
-	// The object's number and the face mask, the whole push constant. The
+	// The object's number, the face mask and `plain`, the whole push constant. The
 	// shader reads its own record out of the buffer with the number — which
 	// is also why this stops being a push constant the day the draws become
 	// indirect: an indirect draw's shader reads the same number out of its
 	// instance index instead.
 	push[0] = device->object_count;
+	push[4] = device->pass_depth_cleared ? 1u : 0u;
 	voe_render_vk.cmd_push_constants(frame->commands, device->layout,
 					 VK_SHADER_STAGE_VERTEX_BIT |
 						 VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -320,6 +325,8 @@ void voe_render_frame_clear_depth(voe_render_device *device)
 			"clearing depth in a capture pass — its depth is the probes' pictures being drawn");
 
 	rect.rect.extent = device->pass_extent;
+	// Every mesh draw from here to the pass's end is the overlay.
+	device->pass_depth_cleared = true;
 
 	voe_render_vk.cmd_clear_attachments(voe_render_frame_at(device, device->slot)->commands,
 					    1, &attachment, 1, &rect);

@@ -1,6 +1,6 @@
 // A device opens unprepared and voe_render_device_prepare builds the rest a step
 // a call (ADR-0345). Three claims, each on a device of its own, so each starts
-// unprepared: prepare answers PREPARING at least once and PREPARED within six
+// unprepared: prepare answers PREPARING at least once and PREPARED within seven
 // calls, and PREPARED again after; a pass with no camera draws an element on a
 // device nothing has prepared, and prepare still has steps left after it; a
 // pass with a camera prepares the device itself, draws a mesh, and leaves
@@ -40,8 +40,8 @@ static const voe_render_shading_values MESH_RED = {
 	.base_colour_uv_rect = { 0.0f, 0.0f, 1.0f, 1.0f },
 };
 
-// The prepare steps there can be: five pipelines and the relight's startup.
-#define MOST_STEPS 6
+// The prepare steps there can be: six pipelines and the relight's startup.
+#define MOST_STEPS 7
 
 // The most element frames the main thread draws while the worker prepares.
 #define MOST_FRAMES 100000

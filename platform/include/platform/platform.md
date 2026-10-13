@@ -24,3 +24,4 @@ stays on `platform/platform.md`.
 - `process.h` — starting a program with its output shared or appended to a file,
   polling it without waiting, and ending it with everything it started.
 - `arguments.h` — the program's own arguments as UTF-8 on both platforms.
+- `environment.h` — one environment variable as UTF-8 on an arena: NULL unset, `""` empty.
