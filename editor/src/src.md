@@ -274,8 +274,8 @@ carries it out.
 - `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
   read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
 - `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour and Emission
-  swatches, Strength clamped 0–1000, Roughness and Metal sliders (greyed and unread while ORMmap is set), Repeat clamped 0.01–1000,
-  Cutout, One side and Both sides, and the four map rows with ×.
+  swatches, Strength clamped 0–1000, Roughness and Metal sliders (greyed and unread while ORMmap is
+  set), Repeat clamped 0.01–1000, Cutout, One side and Both sides, and the four map rows with ×.
 - `inspector_material.c` — the section's one frame of `ui` calls, its nodes forgotten each frame,
   and the read into the shown copy only, a swatch opening the picker on its field's offset.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
@@ -335,9 +335,9 @@ carries it out.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.
-- `scene.c` — the selection closing the open material, its follow of a move and refresh from its row, Delete and Duplicate, the gizmo's switch, the colour picker and
-  dropdown targets, the Scene panel's rows and folds, asked after the frame has ended, and the
-  reveal's unfold and scroll.
+- `scene.c` — the selection closing the open material, its follow of a move and refresh from its
+  row, Delete and Duplicate, the gizmo's switch, the colour picker and dropdown targets, the Scene
+  panel's rows and folds, asked after the frame has ended, and the reveal's unfold and scroll.
 - `pick.h` — a left click in a scene view selects what is under the pointer, every placed thing on
   its mesh or its marker, a marker before a mesh, and a click on nothing clears the selection; the
   ray and what it meets are `3d`'s (ADR-0202, 0354).

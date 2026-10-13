@@ -20,3 +20,6 @@
 # out to sit beside its own CMakeLists.txt, so this name is matched at any depth
 # and not only at the root.
 compile_commands.json
+
+# CTest run outside a build tree
+/check/Testing/

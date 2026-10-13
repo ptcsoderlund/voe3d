@@ -55,5 +55,5 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
 - 0333–0338, 0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0358, 0359, 0361–0364, 0370, 0371 — Blocks; moon; GPU ms; mips; splash; F.
-- 0374–0381, 0384–0388, 0392, 0395–0401, 0403, 0404 — Loghouse; bindless; 60 fps; CDLOD; materials.
-- 0405, 0406, 0411, 0413–0416, 0418 — Sky, Haze, Picture rows; lights in the sky; env via platform.
+- 0374–0381, 0384–0388, 0392, 0395–0401, 0403, 0404, 0420–0421 — Loghouse; bindless; 60 fps; models.
+- 0405, 0406, 0411, 0413–0416, 0418, 0423 — Sky, Haze, Picture; only lights light; env via platform.
