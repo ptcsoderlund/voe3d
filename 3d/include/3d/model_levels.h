@@ -41,22 +41,23 @@
 //     per made level k >= 1: its error (float), then per part
 //         its index count | that many indices into level 0's baked part
 //
-// Version 1 and 2 files, made before the strength and the swap, are stale (0430
-// point 7, 0432 point 2). The file records the swap, not the count or strength.
-//
 // STALE IS NEVER AN ERROR (0426 point 1): a file whose magic, version or hash
-// differs, a count past its limit (levels, parts, whole triangles), an error
-// not finite and at least nought, a swap not finite and above nought, bytes cut
-// short or left over: _read says false and the file is made again. An index is
-// not checked against its part's vertices, which this file does not know: the
-// hash ties it to its `.glb`, and the store holds the vertex counts.
+// differs (versions 1 and 2 predate the strength and the swap, 0430 point 7,
+// 0432 point 2), a count past its limit (levels, parts, whole triangles), an
+// error not finite and at least nought, a swap not finite and above nought,
+// bytes cut short or left over: _read says false and the file is made again.
+// An index is not checked against its part's vertices, which this file does not
+// know: the hash ties it to its `.glb`, and the store holds the vertex counts.
 //
 // THE CHOICE HAS NO STATE (0425 point 3), so every asker gets one answer. `s` =
 // world radius × |P[1][1]| ÷ the centre's clip w, the world radius the model's
 // radius times its largest scale component: the radius as a fraction of half
 // the screen. The level is the largest k below `level_count` whose
-// `levels[k].bound` is above `s`; level 0 when the eye is inside the world
-// sphere, when the w is not above nought, or for an entry with one level.
+// `levels[k].bound` b_k is above `s`; level 0 when the eye is inside the world
+// sphere, when the w is not above nought, or for an entry with one level. From
+// b_k down to low, the larger of 0.8 × b_k and b_(k+1), is a band (0432 point
+// 3): `shown` = (b_k − s) ÷ (b_k − low), level k − 1 drawing the rest; whole
+// below it, for level 0 and an infinite bound.
 #pragma once
 
 #include <3d/models.h>
@@ -112,8 +113,23 @@ voe_3d_model_levels_make(voe_base_arena *arena, const uint8_t *glb,
 					    const uint8_t *glb, size_t glb_size,
 					    voe_3d_model_levels *out);
 
+// A view's choice of a model's level.
+typedef struct {
+	// The level, as voe_3d_model_level answers.
+	uint32_t level;
+	// In (0, 1]: the share of the model's pixels `level` draws, `level` − 1
+	// drawing the rest when under 1; 1 for level 0.
+	float shown;
+} voe_3d_model_level_choice;
+
 // The level `view` draws of `model` placed at `placed`, the view about `eye`
-// (eye-relative, 0250), as the paragraph above says.
+// (eye-relative, 0250), and its share, as the paragraph above says.
+voe_3d_model_level_choice
+voe_3d_model_level_choose(const voe_3d_model_entry *model,
+			  const voe_scene_transform *placed,
+			  voe_math_double3 eye, const voe_render_view *view);
+
+// voe_3d_model_level_choose's level.
 uint32_t voe_3d_model_level(const voe_3d_model_entry *model,
 			    const voe_scene_transform *placed,
 			    voe_math_double3 eye, const voe_render_view *view);

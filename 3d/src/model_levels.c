@@ -2,7 +2,7 @@
 // level 0 and simplified a part at a time into the file's bytes, and those
 // bytes read back field by field against the `.glb` they were made from; and a
 // view's level of a loaded model, walked from the top over bounds made
-// non-increasing at load.
+// non-increasing at load, with its share of the pixels in its band.
 //
 // A LEVEL IS MADE WHOLE BEFORE IT IS JUDGED: every part simplified, its
 // triangles summed, and only then held against three quarters of the level
@@ -334,10 +334,33 @@ bool voe_3d_model_levels_read(voe_base_arena *arena, const uint8_t *bytes,
 	return reader.at == reader.size;
 }
 
-uint32_t voe_3d_model_level(const voe_3d_model_entry *model,
-			    const voe_scene_transform *placed,
-			    voe_math_double3 eye, const voe_render_view *view)
+// Level k's share of the pixels at `s`, from its band (0432 point 3): the
+// band's floor, 0.8 of the bound, keeps it a fifth of the bound wide, narrow
+// enough that the stipple shows only while a model rests in it.
+static float shown_at(const voe_3d_model_entry *model, uint32_t k, float s)
 {
+	const float BAND_FLOOR = 0.8f;
+	const float bound = model->levels[k].bound;
+	float low;
+
+	VOE_BASE_ASSERT(k < model->level_count, "a share of no level");
+	if (k == 0 || !isfinite(bound))
+		return 1.0f;
+	low = BAND_FLOOR * bound;
+	if (k + 1 < model->level_count)
+		low = fmaxf(low, model->levels[k + 1].bound);
+	if (s < low || bound <= low)
+		return 1.0f;
+	VOE_BASE_ASSERT(s < bound, "a level chosen above its bound");
+	return (bound - s) / (bound - low);
+}
+
+voe_3d_model_level_choice
+voe_3d_model_level_choose(const voe_3d_model_entry *model,
+			  const voe_scene_transform *placed,
+			  voe_math_double3 eye, const voe_render_view *view)
+{
+	const voe_3d_model_level_choice whole = { 0, 1.0f };
 	voe_math_float3 scale;
 	voe_math_float3 centre;
 	voe_math_float4 clip;
@@ -359,11 +382,25 @@ uint32_t voe_3d_model_level(const voe_3d_model_entry *model,
 		(voe_math_float4){ centre.x, centre.y, centre.z, 1.0f });
 	if (model->level_count <= 1 || clip.w <= 0.0f ||
 	    voe_math_float3_length(centre) <= radius)
-		return 0;
+		return whole;
 
 	s = radius * fabsf(view->projection.m[1][1]) / clip.w;
 	for (uint32_t k = model->level_count - 1; k > 0; k--)
 		if (model->levels[k].bound > s)
-			return k;
-	return 0;
+			return (voe_3d_model_level_choice){
+				k, shown_at(model, k, s)
+			};
+	return whole;
+}
+
+uint32_t voe_3d_model_level(const voe_3d_model_entry *model,
+			    const voe_scene_transform *placed,
+			    voe_math_double3 eye, const voe_render_view *view)
+{
+	const voe_3d_model_level_choice choice =
+		voe_3d_model_level_choose(model, placed, eye, view);
+
+	VOE_BASE_ASSERT(choice.shown > 0.0f && choice.shown <= 1.0f,
+			"a share outside (0, 1]");
+	return choice.level;
 }

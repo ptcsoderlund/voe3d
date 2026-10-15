@@ -19,7 +19,14 @@
 //    0.05) on the −z axis of a 60° projection, the distances from its P[1][1]:
 //    0 with the eye inside, 0 at 2 m, 1 where s is 0.1, 2 where s is 0.01, and
 //    below 2 there when scaled by 10.
-// 10. The sphere made at SWAP_FAR: read gives `swap` 2; at the defaults, 1.
+// 10. A view's choice on 9's entry, in level 1's band from 0.2 down to 0.16,
+//     where s is about 0.19: level 1 showing 0.25 of its pixels (within 0.01).
+// 11. Where s is about 0.15, below the band: level 1, whole.
+// 12. With the third bound 0.19, narrowing the band, s about 0.195: level 1
+//     showing 0.5 (within 0.05).
+// 13. The eye inside the sphere: level 0, whole.
+// 14. At each of 9's distances, voe_3d_model_level is the choice's level.
+// 15. The sphere made at SWAP_FAR: read gives `swap` 2; at the defaults, 1.
 #include <3d/model_levels.h>
 #include <3d/projection.h>
 
@@ -143,7 +150,7 @@ static void levels_asked(voe_base_arena *arena)
 	VOE_TEST_CHECK(medium.level_count == 2 && levels.level_count == 2);
 	VOE_TEST_CHECK(levels.index_counts[1][0] < medium.index_counts[1][0]);
 
-	// 10
+	// 15
 	VOE_TEST_CHECK(sphere_made(arena,
 				   (voe_assets_levels){
 					   4, VOE_ASSETS_LEVELS_MEDIUM,
@@ -199,6 +206,52 @@ static uint32_t level_at(const voe_3d_model_entry *model,
 	return voe_3d_model_level(model, &placed, (voe_math_double3){ 0 }, view);
 }
 
+static voe_3d_model_level_choice choice_at(const voe_3d_model_entry *model,
+					   const voe_render_view *view,
+					   double distance, float scale)
+{
+	const voe_scene_transform placed = {
+		.position = { 0.0, 0.0, -distance },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { scale, scale, scale },
+	};
+
+	return voe_3d_model_level_choose(model, &placed, (voe_math_double3){ 0 },
+					 view);
+}
+
+// 10 to 14 on view_levels' entry and view; its third bound is put back.
+static void view_shares(voe_3d_model_entry *model, const voe_render_view *view)
+{
+	const double focal = view->projection.m[1][1];
+	const double distances[] = { 0.5, 2.0, focal / 0.1, focal / 0.01 };
+	voe_3d_model_level_choice choice;
+
+	// 10, 11, 13
+	choice = choice_at(model, view, focal / 0.19, 1.0f);
+	VOE_TEST_CHECK_INT(choice.level, 1);
+	VOE_TEST_CHECK(fabsf(choice.shown - 0.25f) < 0.01f);
+	choice = choice_at(model, view, focal / 0.15, 1.0f);
+	VOE_TEST_CHECK_INT(choice.level, 1);
+	VOE_TEST_CHECK(choice.shown == 1.0f);
+	choice = choice_at(model, view, 0.5, 1.0f);
+	VOE_TEST_CHECK_INT(choice.level, 0);
+	VOE_TEST_CHECK(choice.shown == 1.0f);
+	// 14
+	for (size_t i = 0; i < sizeof(distances) / sizeof(distances[0]); i++)
+		VOE_TEST_CHECK_INT(level_at(model, view, distances[i], 1.0f),
+				   choice_at(model, view, distances[i], 1.0f).level);
+	VOE_TEST_CHECK_INT(level_at(model, view, focal / 0.01, 10.0f),
+			   choice_at(model, view, focal / 0.01, 10.0f).level);
+
+	// 12
+	model->levels[2].bound = 0.19f;
+	choice = choice_at(model, view, focal / 0.195, 1.0f);
+	VOE_TEST_CHECK_INT(choice.level, 1);
+	VOE_TEST_CHECK(fabsf(choice.shown - 0.5f) < 0.05f);
+	model->levels[2].bound = 0.05f;
+}
+
 static void view_levels(void)
 {
 	static voe_3d_model_entry model;
@@ -224,6 +277,7 @@ static void view_levels(void)
 	VOE_TEST_CHECK_INT(level_at(&model, &view, focal / 0.1, 1.0f), 1);
 	VOE_TEST_CHECK_INT(level_at(&model, &view, focal / 0.01, 1.0f), 2);
 	VOE_TEST_CHECK(level_at(&model, &view, focal / 0.01, 10.0f) < 2);
+	view_shares(&model, &view);
 }
 
 int main(void)

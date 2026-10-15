@@ -160,6 +160,7 @@ again, or to find where a claim that has started failing is written down.
   cylinder cut along its seam lines at angle 0 and further softened at 180. Needs no graphics card.
 - `model_levels.c` — that a sphere's levels file is made and read back, keeps to the count asked,
   cuts harder when strong, carries the swap asked, goes stale when its `.glb` or version changes,
-  versions 1 and 2 included, and chooses a view's level by its screen size. Needs no graphics card.
+  versions 1 and 2 included, and chooses a view's level by its screen size, with its share of the
+  pixels in the band below its bound. Needs no graphics card.
 - `model_glb.inc` — a UV sphere's `.glb` built on an arena, with a second "Ball_LOD1" root when
   asked.
