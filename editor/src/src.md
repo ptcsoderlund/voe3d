@@ -241,9 +241,8 @@ carries it out.
   of its clicks as calls, in order, into the two below.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
   row, Delete question and a fired prefab, landscape or material opened.
-- `interface_assets.c` — the request and menu row carried out, Import textures with the tables
-  read again, Make levels asking the prepare, a made landscape's path, the Landscape panel opened, a material opened in the
-  Inspector with its before, the question answered and opened, and the open material following.
+- `interface_assets.c` — the Assets panel's requests and menu rows carried out, Make levels
+  asking the prepare, and the Delete question answered.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
 - `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,
