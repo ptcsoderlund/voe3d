@@ -20,9 +20,9 @@
 // `<folder>/Cache/levels/<path>.levels`, made when missing or stale, in update
 // and watch alike. The write is atomic, its folders made as needed; a failed
 // one is a line on stderr, the levels made still drawn. `Cache/` may go any
-// time. The file is made with the count and strength of the `.parts` beside
-// the `.glb`, the defaults when none (0430 point 5), so a shipped game, which
-// has none, uses the files it ships.
+// time. The file is made with the count, strength and swap of the `.parts`
+// beside the `.glb`, the defaults when none (0430 point 5, 0432 point 2), so a
+// shipped game, which has none, uses the files it ships.
 //
 // PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the
 // distinct paths the call will read are counted first, then "Loading models"

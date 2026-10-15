@@ -45,9 +45,10 @@
 // fresh file makes it again, fitting; a missing `.glb` will not prepare. Then
 // a flat 8 × 8 grid, `grid.glb`, prepared with remake: with no `grid.parts`
 // three levels or more; with one saying `count=2`, two; with `count=9`, which
-// will not parse, three or more again. On a tenth world and store, the grid
-// updated holds three levels or more; a prepare to `count=2` leaves the store
-// alone; a reload holds two; a reload of a path the store lacks adds nothing.
+// will not parse, three or more again; with `swap="far"`, a file whose swap is
+// 2. On a tenth world and store, the grid updated holds three levels or more;
+// a prepare to `count=2` leaves the store alone; a reload holds two; a reload
+// of a path the store lacks adds nothing.
 //
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
@@ -703,10 +704,10 @@ static bool levels_fit(voe_base_arena *scratch, const uint8_t *glb,
 	return fits;
 }
 
-// The grid's levels file on disk read against `grid`: its level count, 0
-// when it will not read.
-static uint32_t grid_levels(voe_base_arena *scratch, const uint8_t *grid,
-			    uint32_t size)
+// The grid's levels file on disk read against `grid`: its counts and swap,
+// the indices rewound away; zeroed when it will not read.
+static voe_3d_model_levels grid_read(voe_base_arena *scratch,
+				     const uint8_t *grid, uint32_t size)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	voe_3d_model_levels levels = { 0 };
@@ -718,7 +719,7 @@ static uint32_t grid_levels(voe_base_arena *scratch, const uint8_t *grid,
 					     &levels);
 
 	voe_base_arena_rewind(scratch, mark);
-	return fits ? levels.level_count : 0;
+	return fits ? levels : (voe_3d_model_levels){ 0 };
 }
 
 // The grid prepared, remade, with `parts` as its parts file (NULL for none):
@@ -738,7 +739,7 @@ static uint32_t grid_prepared(voe_base_arena *scratch, const uint8_t *grid,
 					&error);
 	VOE_TEST_CHECK(ready);
 	VOE_TEST_CHECK(made);
-	return ready ? grid_levels(scratch, grid, size) : 0;
+	return ready ? grid_read(scratch, grid, size).level_count : 0;
 }
 
 // The grid's levels as its parts file says: the defaults with none, its
@@ -762,6 +763,11 @@ static void check_levels_asked(voe_base_arena *scratch)
 	// ---- `count=9` will not parse: the default again
 	VOE_TEST_CHECK(grid_prepared(scratch, grid, size,
 				     "[Parts]\n[Levels]\ncount=9\n") >= 3);
+
+	// ---- `swap="far"`: the file's swap is 2
+	VOE_TEST_CHECK(grid_prepared(scratch, grid, size,
+				     "[Parts]\n[Levels]\nswap=\"far\"\n") >= 3);
+	VOE_TEST_CHECK(grid_read(scratch, grid, size).swap == 2.0f);
 }
 
 // The grid's entry's level count, 0 when the store lacks it.
