@@ -21,7 +21,8 @@
 //                             "Assets/brick.material",
 //                             "",
 //                       },
-//                       .levels = { .count = 4, .strength = VOE_ASSETS_LEVELS_MEDIUM } } },
+//                       .levels = { .count = 4, .strength = VOE_ASSETS_LEVELS_MEDIUM,
+//                                   .swap = VOE_ASSETS_LEVELS_SWAP_NORMAL } } },
 //             },
 //             1,
 //     };
@@ -142,6 +143,18 @@ static const char *strength_name(voe_assets_levels_strength strength)
 						    : "VOE_ASSETS_LEVELS_STRONG";
 }
 
+// The enumerator's name for swap, as the cooked text spells it.
+static const char *swap_name(voe_assets_levels_swap swap)
+{
+	static const char *const names[] = {
+		"VOE_ASSETS_LEVELS_SWAP_NEAR", "VOE_ASSETS_LEVELS_SWAP_NORMAL",
+		"VOE_ASSETS_LEVELS_SWAP_FAR", "VOE_ASSETS_LEVELS_SWAP_FARTHER"
+	};
+
+	VOE_BASE_ASSERT(swap <= VOE_ASSETS_LEVELS_SWAP_FARTHER, "a swap past the four");
+	return names[swap];
+}
+
 // One table entry for the parts file at Assets/path holding p, named by the
 // `.glb` beside it, in arena.
 static const char *parts_entry(voe_base_arena *arena, const char *path,
@@ -162,11 +175,12 @@ static const char *parts_entry(voe_base_arena *arena, const char *path,
 	return voe_editor_game_tree_format(
 		arena,
 		"\t\t{ \"%s\", { .count = %u, .materials = {\n%s\t\t  },\n"
-		"\t\t  .levels = { .count = %u, .strength = %s } } },\n",
+		"\t\t  .levels = { .count = %u, .strength = %s, .swap = %s } } },\n",
 		voe_editor_game_tree_c_string(
 			arena, voe_editor_game_tree_format(arena, "Assets/%.*s.glb",
 							   (int)stem, path)),
-		p->count, names, p->levels.count, strength_name(p->levels.strength));
+		p->count, names, p->levels.count, strength_name(p->levels.strength),
+		swap_name(p->levels.swap));
 }
 
 // The definition of name, a table of type whose rows are row, holding entries.
