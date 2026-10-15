@@ -324,7 +324,7 @@ static bool load_glb(voe_render_device *device, voe_base_arena *scratch,
 
 	loaded = voe_assets_model_read_glb(bytes, size, scratch, &model,
 					   error) &&
-		 voe_3d_model_bake_create(scratch, &model, &bake, error) &&
+		 voe_3d_model_bake_create(scratch, &model, 0, &bake, error) &&
 		 voe_3d_model_upload_create(device, scratch, &model, &upload,
 					    error) &&
 		 upload_parts(device, &bake, &upload, entry, &made, error);

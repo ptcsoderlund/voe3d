@@ -6,6 +6,12 @@
 // Grey 0.5 is (1 − 0.5) × 65535 = 32767.5, which rounds to 32768; the check
 // allows one either side.
 //
+// The bake takes one level of a file's own: a root "Tree" with children
+// "Tree_LOD1", "Leaves_lod2" (over an unnamed child, which inherits level 2) and
+// "Twig_LOD7" counts 3 levels, bakes the root alone at level 0, one part at
+// level 1 and materials 1 then 0 at level 2; a tree with no suffix counts 1 and
+// bakes every node at level 0.
+//
 // It reads the internal bake through model_bake.h. Needs no graphics card.
 #include "../src/model_bake.h"
 
@@ -64,7 +70,7 @@ static void colours_become_complements(voe_base_arena *arena)
 	voe_3d_model_bake bake;
 	const voe_render_vertex *grey;
 
-	VOE_TEST_CHECK(voe_3d_model_bake_create(arena, &model, &bake, &error));
+	VOE_TEST_CHECK(voe_3d_model_bake_create(arena, &model, 0, &bake, &error));
 	VOE_TEST_CHECK_INT(bake.part_count, 1);
 	VOE_TEST_CHECK_INT(bake.vertex_count, 6);
 	if (bake.vertex_count != 6)
@@ -82,11 +88,85 @@ static void colours_become_complements(voe_base_arena *arena)
 		check_complement(&bake.vertices[v], 0, 0, 0, 0);
 }
 
+static void levels_are_told_by_names(voe_base_arena *arena)
+{
+	const voe_assets_primitive primitives[2] = {
+		{ .positions = POSITIONS, .vertex_count = 3, .indices = INDICES,
+		  .index_count = 3, .material = 0 },
+		{ .positions = POSITIONS, .vertex_count = 3, .indices = INDICES,
+		  .index_count = 3, .material = 1 },
+	};
+	const voe_assets_mesh meshes[2] = {
+		{ .first_primitive = 0, .primitive_count = 1 },
+		{ .first_primitive = 1, .primitive_count = 1 },
+	};
+	const voe_assets_material materials[2] = {
+		{ .base_colour = { 1, 1, 1, 1 } },
+		{ .base_colour = { 0, 1, 0, 1 } },
+	};
+	const uint32_t tree_children[3] = { 1, 2, 4 };
+	const uint32_t leaves_children[1] = { 3 };
+	const voe_assets_node nodes[5] = {
+		{ .local = voe_math_float4x4_identity(), .mesh = 0,
+		  .children = tree_children, .child_count = 3,
+		  .name = { "Tree" } },
+		{ .local = voe_math_float4x4_identity(), .mesh = 0,
+		  .name = { "Tree_LOD1" } },
+		{ .local = voe_math_float4x4_identity(), .mesh = 1,
+		  .children = leaves_children, .child_count = 1,
+		  .name = { "Leaves_lod2" } },
+		{ .local = voe_math_float4x4_identity(), .mesh = 0 },
+		{ .local = voe_math_float4x4_identity(), .mesh = 0,
+		  .name = { "Twig_LOD7" } },
+	};
+	const uint32_t root = 0;
+	voe_assets_model model = {
+		.primitives = primitives, .primitive_count = 2,
+		.meshes = meshes, .mesh_count = 2,
+		.materials = materials, .material_count = 2,
+		.nodes = nodes, .node_count = 5,
+		.roots = &root, .root_count = 1,
+	};
+	const uint32_t plain_children[1] = { 1 };
+	const voe_assets_node plain[2] = {
+		{ .local = voe_math_float4x4_identity(), .mesh = 0,
+		  .children = plain_children, .child_count = 1,
+		  .name = { "Tree" } },
+		{ .local = voe_math_float4x4_identity(), .mesh = 0,
+		  .name = { "Trunk" } },
+	};
+	voe_base_error error = VOE_BASE_OK;
+	voe_3d_model_bake bake;
+
+	VOE_TEST_CHECK_INT(voe_3d_model_bake_levels(&model), 3);
+
+	VOE_TEST_CHECK(voe_3d_model_bake_create(arena, &model, 0, &bake, &error));
+	VOE_TEST_CHECK_INT(bake.part_count, 1);
+	VOE_TEST_CHECK_INT(bake.vertex_count, 3);
+
+	VOE_TEST_CHECK(voe_3d_model_bake_create(arena, &model, 1, &bake, &error));
+	VOE_TEST_CHECK_INT(bake.part_count, 1);
+	VOE_TEST_CHECK_INT(bake.parts[0].material, 0);
+
+	VOE_TEST_CHECK(voe_3d_model_bake_create(arena, &model, 2, &bake, &error));
+	VOE_TEST_CHECK_INT(bake.part_count, 2);
+	VOE_TEST_CHECK_INT(bake.parts[0].material, 1);
+	VOE_TEST_CHECK_INT(bake.parts[1].material, 0);
+
+	model.nodes = plain;
+	model.node_count = 2;
+	VOE_TEST_CHECK_INT(voe_3d_model_bake_levels(&model), 1);
+	VOE_TEST_CHECK(voe_3d_model_bake_create(arena, &model, 0, &bake, &error));
+	VOE_TEST_CHECK_INT(bake.part_count, 1);
+	VOE_TEST_CHECK_INT(bake.vertex_count, 6);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 
 	colours_become_complements(arena);
+	levels_are_told_by_names(arena);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

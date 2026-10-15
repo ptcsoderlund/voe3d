@@ -129,7 +129,9 @@ again, or to find where a claim that has started failing is written down.
 - `water_system.c` — a waves row after one run, the clock stepped and wrapped at 60 s, a replace's
   colour, and a removed water's row gone. Needs no graphics card.
 - `model_bake.c` — that a baked primitive's vertex colours become their complements, red as
-  0/65535/65535/0 and grey about 32767, and one without colours stays zeroed. Needs no graphics card.
+  0/65535/65535/0 and grey about 32767, and one without colours stays zeroed; and that `_LOD<n>`
+  node names make 3 levels, each baked alone, an unnamed child inheriting and level 7 left out,
+  while a tree without them counts 1. Needs no graphics card.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
   blended twin and none leaked, its glTF source and the `wears` a parts set fills and a reload
   empties, pictures and the uncounted dot, and a model drawn only with the store. Skips without a
