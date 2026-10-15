@@ -326,9 +326,9 @@ carries it out.
 - `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, lit by every
   light and kept out of the blockers, every place marked and blocker lined, the brush's rings with
   the gizmo hidden while brushing, stopping at the first refused pass.
-- `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
-  emptied on a different project, a broken file in the notice, the one place its landscapes' heights,
-  paint and layers and the project's materials are edited, and its models given their parts.
+- `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
+  or a prepared model on asking, emptied on a different project, a broken file in the notice, where
+  its landscapes and the project's materials are edited, and its models given their parts.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
@@ -338,7 +338,7 @@ carries it out.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
 - `models.c` — the store made, emptied on a new folder, filled, watched and re-read through
-  game/models.h with a failure's notice, and destroyed; its landscapes stamped, painted and put back,
+  game/models.h with a failure's notice, a prepared model reloaded, and destroyed; its landscapes stamped, painted and put back,
   its parts given, and its materials written and loaded again, those a read changed too.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the

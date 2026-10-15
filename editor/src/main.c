@@ -443,7 +443,8 @@ int main(int argc, char *argv[])
 		voe_render_light light = { 0 };
 
 		// AN IMPORTED MODEL'S LEVELS MADE BEHIND THE SPLASH (loading.h),
-		// before any load replaces the project it was imported into.
+		// before any load replaces the project it was imported into. The
+		// model is loaded again so its new levels draw at once (0431).
 		if (session.prepare_due) {
 			voe_editor_loading_prepare prepare = {
 				.folder = session.project->folder,
@@ -458,6 +459,8 @@ int main(int argc, char *argv[])
 				break;
 			}
 			voe_base_arena_clear(scratch);
+			voe_editor_models_reload(models, &session, gpu,
+						 session.prepare_path, scratch);
 			session.prepare_due = false;
 			session.prepare_remake = false;
 		}

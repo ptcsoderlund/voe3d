@@ -1,6 +1,7 @@
 // The editor's one model store models.h describes: made empty, emptied on a
 // different folder, its materials' and parts' tables read again then, filled,
-// watched and re-read through game/models.h once a frame, the tables'
+// watched and re-read through game/models.h once a frame, one prepared model
+// loaded again on asking, the tables'
 // materials loaded and parts given after, cleared through the device and
 // destroyed, and handed out read-only; its landscapes' heights and paint
 // stamped, put back and their layers set, heights and materials' records
@@ -231,6 +232,38 @@ void voe_editor_models_update(voe_editor_models *models,
 					      models->folder, &table, &parts,
 					      scratch));
 	material_reload(models, device, scratch, &session->notice);
+}
+
+// Between frames, since a load waits for the card to go idle. A path the
+// store lacks is left alone: it loads with the new levels when first placed
+// (0431). The materials call runs on every update, so no reload need be
+// remembered for the parts.
+void voe_editor_models_reload(voe_editor_models *models,
+			      voe_editor_session *session,
+			      voe_render_device *device, const char *path,
+			      voe_base_arena *scratch)
+{
+	const char *folder;
+	struct voe_base_arena_mark mark;
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_BASE_ASSERT(models != NULL && session != NULL &&
+				session->project != NULL,
+			"reloading a model of no store or no project");
+	VOE_BASE_ASSERT(device != NULL && path != NULL && scratch != NULL,
+			"reloading a model with no device, path or scratch");
+	folder = session->project->folder;
+	if (folder == NULL || models->folder == NULL ||
+	    strcmp(folder, models->folder) != 0)
+		return;
+	mark = voe_base_arena_mark(scratch);
+	voe_base_report_error_clear();
+	if (!voe_game_models_reload(models->store, device, models->folder, path,
+				    scratch, &error))
+		say_failure(&session->notice,
+			    (voe_game_models_failures){ .count = 1,
+							.first = path });
+	voe_base_arena_rewind(scratch, mark);
 }
 
 void voe_editor_models_frame(voe_editor_models *models,

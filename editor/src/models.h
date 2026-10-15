@@ -26,7 +26,7 @@
 //
 // ONCE A SECOND the store's files are asked for their stamps (0277 point 5):
 // often enough for a person exporting from Blender, and not a file system
-// call per model every frame.
+// call per model every frame. A prepared model is also loaded again on asking.
 //
 // A BROKEN FILE sets the session notice to `Could not read <path>: <reason>`
 // (0277 point 9), the reason being the last phrase of base/report.h's first
@@ -88,6 +88,17 @@ void voe_editor_models_update(voe_editor_models *models,
 			      voe_render_device *device,
 			      voe_base_arena *scratch, double now,
 			      voe_game_progress *progress);
+
+// `path` loaded again with its levels file whatever its stamp, after a
+// prepare rewrote them (0431): nothing without a folder, on a folder the
+// store has not read against yet, or for a path the store lacks, which loads
+// with the new file when first placed. A failure is said in the notice as a
+// broken file is; the next update gives the model its parts before it is
+// drawn. Between frames; `scratch` is rewound.
+void voe_editor_models_reload(voe_editor_models *models,
+			      voe_editor_session *session,
+			      voe_render_device *device, const char *path,
+			      voe_base_arena *scratch);
 
 // Once a frame, after the draw opens and before any pass: the landscapes'
 // dirty heights written into their textures, up to

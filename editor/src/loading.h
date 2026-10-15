@@ -16,7 +16,8 @@
 // same way. The project is opened before the window, so the start has none.
 // A PREPARE ("Preparing <file>") makes an imported `.glb`'s levels file
 // through voe_game_models_prepare (0426 point 3), no device in it; the Assets
-// menu's Make levels runs the same one, made even when fresh (0429).
+// menu's Make levels runs the same one, made even when fresh (0429); main.c
+// loads the model again after the wait (0431).
 //
 // WHAT THE WORKER OWNS. During the wait the worker owns everything its context
 // names: the session and its project, the scene, the model store, the shapes
