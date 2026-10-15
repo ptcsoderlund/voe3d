@@ -16,6 +16,12 @@
 // root container per frame (see ui/layout.h) and a root is its own surface with
 // its own size, so it has its own element transform and its own range of the
 // buffer. One root today, one frame, one draw command.
+//
+// IT DRAWS IN THE THEME IT IS HANDED, at pixels per millimetre from the
+// window's height (voe_editor_interface_surface). Each root is the top bar
+// above its dock tree, with the browser, Preferences, Project, Errors or the
+// frame breakdown over the dock when one shows, and the Delete and levels
+// questions or the colour picker over that.
 #pragma once
 
 #include "assets_drag.h"

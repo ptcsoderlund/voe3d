@@ -1,5 +1,6 @@
 // The project being worked on, its notice, Play, Refresh and Ship, open prefab
 // and the refuse-once rule: no one click or shortcut throws unsaved work away.
+// It holds the Delete and levels questions interface.c draws and answers.
 //
 // ONE ARMED COMMAND IS THE WHOLE OF THE RULE. With unsaved work, CLOSE, NEW,
 // OPEN and BACK are refused the first time: the notice says so and `armed`
