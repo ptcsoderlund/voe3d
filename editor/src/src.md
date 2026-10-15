@@ -9,7 +9,7 @@ carries it out.
   frame breakdown's timings each frame and writing, saving and reverting landscapes.
 - `loading.h` — the start's, a New or Open load's and an import's prepare works for a splash wait:
   shaders with the editor's pipeline cache, shapes and models, the scene and its models, or an
-  imported model's levels file, and what the worker owns.
+  imported model's levels file, made again for Make levels, and what the worker owns.
 - `loading.c` — the three works, each step after a stop check, in the worker's own scratch.
 - `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
   time so a missing copy shows the plain screen, kept by the caller until the device closes.
@@ -199,7 +199,7 @@ carries it out.
   checked before the first write, then the materials and the parts, or the PNGs and the dressed
   materials, written.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
-  over a row and Import textures over a `.glb`'s, Create with its Folder, Landscape and Material
+  over a row and Import textures and Make levels over a `.glb`'s, Create with its Folder, Landscape and Material
   submenu over the empty part, anchored at the pointer.
 - `assets_menu.c` — the menu's one frame of `ui` calls, the read of its rows with its own closing,
   and where it and the submenu go next frame.
@@ -242,7 +242,7 @@ carries it out.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
   row, Delete question and a fired prefab, landscape or material opened.
 - `interface_assets.c` — the request and menu row carried out, Import textures with the tables
-  read again, a made landscape's path, the Landscape panel opened, a material opened in the
+  read again, Make levels asking the prepare, a made landscape's path, the Landscape panel opened, a material opened in the
   Inspector with its before, the question answered and opened, and the open material following.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.

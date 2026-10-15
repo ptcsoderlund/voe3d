@@ -15,7 +15,9 @@
 // after the panels list and read here after the panel: Rename, Delete, Folder,
 // Landscape and Material begin on the panel, Duplicate goes through assets_manage.h,
 // and Import textures through model_import.h, the tables read again after.
-// Escape closing it first, and the dock's covers, are interface.c's.
+// Make levels asks the session's prepare, which main.c runs behind the splash
+// next frame (0429). Escape closing it first, and the dock's covers, are
+// interface.c's.
 #include "interface_assets.h"
 
 #include "assets_ask.h"
@@ -176,6 +178,29 @@ static void voe_editor_interface_assets_textures_do(voe_editor_session *session,
 	voe_editor_assets_list_due(&scene->assets);
 }
 
+// Make levels on `path`, relative to `Assets/` (0429): its `Assets/...` path
+// copied into the session with `prepare_due` and `prepare_remake` set, for
+// main.c's splash wait next frame. A path too long for VOE_3D_MODEL_PATH does
+// nothing, as no model of that path can be in the store.
+static void voe_editor_interface_assets_levels_do(voe_editor_session *session,
+						  voe_base_arena *arena,
+						  const char *path)
+{
+	const char *joined;
+
+	VOE_BASE_ASSERT(session != NULL && arena != NULL && path != NULL,
+			"Make levels with no session, scratch or path");
+	joined = voe_editor_assets_join(arena, "Assets", path);
+	if (strlen(joined) >= sizeof session->prepare_path)
+		return;
+	snprintf(session->prepare_path, sizeof session->prepare_path, "%s",
+		 joined);
+	session->prepare_due = true;
+	session->prepare_remake = true;
+	VOE_BASE_ASSERT(session->prepare_path[0] != '\0',
+			"Make levels asked with no path");
+}
+
 // A fired row of the Assets menu carried out on the selected row or the shown
 // folder (assets_panel.h, assets_manage.h).
 static void voe_editor_interface_assets_menu_do(voe_editor_session *session,
@@ -212,6 +237,11 @@ static void voe_editor_interface_assets_menu_do(voe_editor_session *session,
 						 sizeof path))
 		voe_editor_interface_assets_textures_do(session, scene, models,
 							arena, path);
+	else if (item == VOE_EDITOR_ASSETS_MENU_MAKE_LEVELS &&
+		 session->project->folder != NULL &&
+		 voe_editor_assets_selected_path(&scene->assets, path,
+						 sizeof path))
+		voe_editor_interface_assets_levels_do(session, arena, path);
 }
 
 void voe_editor_interface_assets_read(

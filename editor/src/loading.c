@@ -87,7 +87,8 @@ bool voe_editor_loading_prepare_work(void *context, voe_game_progress *progress)
 	if (voe_game_progress_stopped(progress))
 		return false;
 	if (!voe_game_models_prepare(prepare->folder, prepare->path,
-				     prepare->scratch, &made, &error))
+				     prepare->scratch, prepare->remake, &made,
+				     &error))
 		VOE_BASE_ERROR("editor", "%s: its levels were not made: %s",
 			       prepare->path, voe_base_error_string(error));
 	voe_base_arena_clear(prepare->scratch);

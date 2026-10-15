@@ -1,7 +1,8 @@
 // The menu the right button opens over the Assets panel (0377 point 2, 0378
 // point 8). Over a row it holds Rename, Duplicate and Delete, and over a
-// `.glb`'s row Import textures after them (0403, 0404); over the empty
-// part under the rows it holds Create, which opens a submenu beside it holding
+// `.glb`'s row Import textures and Make levels after them (0403, 0404, 0429);
+// over the empty part under the rows it holds Create, which opens a submenu
+// beside it holding
 // the kinds a person can make there: Folder, Landscape (0379), then Material
 // (0399). LATER KINDS ADD THEIR ROW TO CREATE'S SUBMENU in assets_menu.c's kind
 // tables and an item here.
@@ -39,8 +40,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// A row's menu: Rename, Duplicate, Delete and, over a `.glb`, Import textures.
-#define VOE_EDITOR_ASSETS_MENU_ROWS 4
+// A row's menu: Rename, Duplicate, Delete and, over a `.glb`, Import textures
+// and Make levels (0429).
+#define VOE_EDITOR_ASSETS_MENU_ROWS 5
 // Create's submenu: Folder, Landscape and Material.
 #define VOE_EDITOR_ASSETS_MENU_KINDS 3
 
@@ -54,6 +56,7 @@ typedef enum {
 	VOE_EDITOR_ASSETS_MENU_LANDSCAPE,
 	VOE_EDITOR_ASSETS_MENU_MATERIAL,
 	VOE_EDITOR_ASSETS_MENU_IMPORT_TEXTURES,
+	VOE_EDITOR_ASSETS_MENU_MAKE_LEVELS,
 } voe_editor_assets_menu_item;
 
 // Whether the menu shows, whether it was opened over a row (else over the
@@ -80,8 +83,9 @@ typedef struct {
 	float kinds_wide;
 } voe_editor_assets_menu;
 
-// Opens the menu at `at`, a row's menu when `on_row`, Import textures in it
-// when `glb`, else Create, its submenu shut and its widths measured afresh.
+// Opens the menu at `at`, a row's menu when `on_row`, Import textures and Make
+// levels (0429) in it when `glb`, else Create, its submenu shut and its widths
+// measured afresh.
 void voe_editor_assets_menu_open(voe_editor_assets_menu *menu,
 				 voe_math_float2 at, bool on_row, bool glb);
 

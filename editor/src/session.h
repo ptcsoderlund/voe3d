@@ -133,10 +133,12 @@ typedef struct voe_editor_session {
 	// folder, copied out of the browser; empty is NEW's untitled project.
 	bool load_due;
 	char load_folder[VOE_EDITOR_SESSION_FOLDER];
-	// An import of a `.glb` asked for its levels made, which main.c does
-	// next frame behind the splash and then clears. `prepare_path` is the
-	// copy's `Assets/...` path (voe_editor_assets_import).
+	// An import of a `.glb` asked for its levels made, or Make levels did,
+	// which also sets `prepare_remake`; main.c makes them next frame behind
+	// the splash and then clears both. `prepare_path` is the model's
+	// `Assets/...` path (voe_editor_assets_import, interface_assets.c).
 	bool prepare_due;
+	bool prepare_remake;
 	char prepare_path[VOE_3D_MODEL_PATH];
 } voe_editor_session;
 

@@ -15,7 +15,8 @@
 // A LOAD is voe_editor_session_load ("Loading scene") and the models read the
 // same way. The project is opened before the window, so the start has none.
 // A PREPARE ("Preparing <file>") makes an imported `.glb`'s levels file
-// through voe_game_models_prepare (0426 point 3), no device in it.
+// through voe_game_models_prepare (0426 point 3), no device in it; the Assets
+// menu's Make levels runs the same one, made even when fresh (0429).
 //
 // WHAT THE WORKER OWNS. During the wait the worker owns everything its context
 // names: the session and its project, the scene, the model store, the shapes
@@ -72,11 +73,13 @@ typedef struct {
 
 // An import's prepare, the one `session->prepare_due` asks for: `path` under
 // `folder`, as game/models.h takes them. `phase` is the work's own, written
-// by it and pointed at by the progress while the wait runs.
+// by it and pointed at by the progress while the wait runs. `remake` is
+// voe_game_models_prepare's: Import leaves it false, Make levels sets it.
 typedef struct {
 	const char *folder;
 	const char *path;
 	voe_base_arena *scratch;
+	bool remake;
 	char phase[VOE_EDITOR_LOADING_PHASE];
 } voe_editor_loading_prepare;
 

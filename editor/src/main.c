@@ -448,7 +448,8 @@ int main(int argc, char *argv[])
 			voe_editor_loading_prepare prepare = {
 				.folder = session.project->folder,
 				.path = session.prepare_path,
-				.scratch = worker_scratch };
+				.scratch = worker_scratch,
+				.remake = session.prepare_remake };
 			if (!voe_game_starting_wait(app, ui, scratch,
 						    splash_held ? &splash : NULL,
 						    voe_editor_loading_prepare_work,
@@ -458,6 +459,7 @@ int main(int argc, char *argv[])
 			}
 			voe_base_arena_clear(scratch);
 			session.prepare_due = false;
+			session.prepare_remake = false;
 		}
 
 		// NEW OR OPEN'S LOAD ON A WORKER BEHIND THE SPLASH (loading.h);
