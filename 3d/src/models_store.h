@@ -5,8 +5,12 @@
 // A LANDSCAPE'S TEXTURE, PYRAMID AND DIRT ARE HELD, NOT SHOWN (0396 points 3
 // and 5, 0402 point 4): its one part draws the store's shared grid, and what
 // makes that grid its ground is here. The pyramid lives in the entry's arena;
-// a dirty rect is the heights or paint not yet written into its texture, empty
-// when x0 ≥ x1. The paint textures sit in `textures` too, freed with the rest.
+// its two dirty rects are the heights and the paint not yet written into their
+// textures, empty when x0 ≥ x1. The paint textures sit in `textures` too,
+// freed with the rest. The draw files ask voe_3d_models_terrain_of for it.
+//
+// A MATERIAL'S WRITE MARK is its records changed since last written. The
+// helpers below are models.c's, lent to the other store files.
 //
 // THE GRID IS 33 × 33 VERTICES at x, z in 0..1, normals up, uv = xz, y 0 but
 // the last row's 1, so its box is a unit cube; the shader ignores y. Made at

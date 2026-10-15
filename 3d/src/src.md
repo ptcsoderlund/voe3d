@@ -149,10 +149,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models.c` — the store's table of entries with an arena each, and the load that reads, bakes,
   uploads with each part's blended twin and glTF source and gives back what a failure made; the
   parts set; pictures on the quad, the dot and the water apart.
-- `models_store.h` — the store's table, the shared landscape grid, each entry's held ids, a
-  landscape's heights and paint textures, pyramid and two dirts among them, a material's write
-  mark, the terrain lookup the draw files ask, the helpers models.c lends the other store
-  files, and models_levels.c's calls; internal.
+- `models_store.h` — the store's internal table and the helpers the store's files share.
 - `models_levels.c` — a `.glb`'s levels beside its parts: own levels baked and joined by
   material, or a levels file's checked and each part's used vertices gathered; the sphere, the
   level-0 mirror and the free.
