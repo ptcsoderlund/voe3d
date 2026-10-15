@@ -10,7 +10,8 @@
 // reader takes them back (0149), so any path returns as it went.
 //
 // `[LEVELS]` IS READ THE SAME WAY, after the defaults are filled, its count a
-// whole number and its strength a quoted word, and always written back.
+// whole number and its strength and swap quoted words, and always written
+// back.
 #include <assets/parts.h>
 #include <assets/sectioned.h>
 
@@ -25,6 +26,10 @@
 
 // Each strength's word, in the enum's order.
 static const char *const strength_words[] = { "gentle", "medium", "strong" };
+
+// Each swap's word, in the enum's order.
+static const char *const swap_words[] = { "near", "normal", "far",
+					  "farther" };
 
 static bool refuse(voe_base_error *error, const char *key, const char *message)
 {
@@ -86,7 +91,8 @@ static bool read_section(const voe_assets_sectioned *doc,
 }
 
 // One `[Levels]` key into `levels`: `count` a single digit 1 to
-// VOE_ASSETS_LEVELS, `strength` one of the three words.
+// VOE_ASSETS_LEVELS, `strength` one of the three words, `swap` one of the
+// four.
 static bool read_level_key(const voe_assets_sectioned_key *key,
 			   voe_assets_levels *levels, voe_base_error *error)
 {
@@ -99,8 +105,18 @@ static bool read_level_key(const voe_assets_sectioned_key *key,
 		levels->count = (uint32_t)(key->value[0] - '0');
 		return true;
 	}
+	if (strcmp(key->name, "swap") == 0) {
+		for (uint32_t i = 0; i < 4; i++) {
+			if (strcmp(key->value, swap_words[i]) == 0) {
+				levels->swap = (voe_assets_levels_swap)i;
+				return true;
+			}
+		}
+		return refuse(error, key->name,
+			      "not near, normal, far or farther");
+	}
 	if (strcmp(key->name, "strength") != 0)
-		return refuse(error, key->name, "not count or strength");
+		return refuse(error, key->name, "not count, strength or swap");
 	for (uint32_t i = 0; i < 3; i++) {
 		if (strcmp(key->value, strength_words[i]) == 0) {
 			levels->strength = (voe_assets_levels_strength)i;
@@ -200,9 +216,11 @@ static size_t print_parts(char *buffer, size_t room,
 	}
 	written = snprintf(buffer == NULL ? NULL : buffer + at,
 			   buffer == NULL ? 0 : room - at,
-			   "\n[Levels]\ncount=%u\nstrength=\"%s\"\n",
+			   "\n[Levels]\ncount=%u\nstrength=\"%s\"\n"
+			   "swap=\"%s\"\n",
 			   (unsigned)parts->levels.count,
-			   strength_words[parts->levels.strength]);
+			   strength_words[parts->levels.strength],
+			   swap_words[parts->levels.swap]);
 	VOE_BASE_ASSERT(written > 0, "printing parts failed");
 	at += (size_t)written;
 	VOE_BASE_ASSERT(buffer == NULL || at < room,
@@ -225,6 +243,8 @@ voe_assets_material_text voe_assets_parts_write(const voe_assets_parts *parts,
 			"writing a levels count out of range");
 	VOE_BASE_ASSERT(parts->levels.strength <= VOE_ASSETS_LEVELS_STRONG,
 			"writing a strength that is not one of three");
+	VOE_BASE_ASSERT(parts->levels.swap <= VOE_ASSETS_LEVELS_SWAP_FARTHER,
+			"writing a swap that is not one of four");
 
 	size =print_parts(NULL, 0, parts);
 	text = voe_base_arena_push(arena, size + 1);
