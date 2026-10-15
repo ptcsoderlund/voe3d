@@ -14,7 +14,7 @@ For 089 bug 02.
 3. `voe_game_models_prepare` takes `bool remake` for it: false keeps a fresh file, as Import and the
    loader do; true makes the file whatever is there.
 4. The model in the store is not loaded again: the making is the same for the same bytes, so the levels
-   it draws are already the ones just written.
+   it draws are already the ones just written. Replaced by 0431.
 
 ## Reasoning
 A re-import (0403) rewrites the model's materials and drops the map paths a person assigned, a high
