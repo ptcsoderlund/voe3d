@@ -39,6 +39,11 @@
 // table without the `.glb` leaves `wears` empty; a material with an emission
 // map loads it into the emissive slot.
 //
+// THE LEVELS, on a ninth world and store: an update leaves the `.glb`'s levels
+// file in the folder's Cache, fitting the `.glb`; a prepare then makes none;
+// the file made stale, a prepare makes it again, fitting; a missing `.glb`
+// will not prepare.
+//
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include <game/models.h>
@@ -47,6 +52,7 @@
 
 #include <3d/emitter_component.h>
 #include <3d/model_component.h>
+#include <3d/model_levels.h>
 #include <3d/models.h>
 #include <3d/shape_component.h>
 #include <3d/water_component.h>
@@ -86,6 +92,9 @@
 #define LAYERED_LANDSCAPE "layered.landscape"
 #define ASSETS_ON_DISK FOLDER "/Assets"
 #define MATERIAL_ON_DISK FOLDER "/" MATERIAL
+#define CACHE_ON_DISK FOLDER "/Cache"
+#define LEVELS_FOLDER_ON_DISK CACHE_ON_DISK "/levels"
+#define LEVELS_ON_DISK LEVELS_FOLDER_ON_DISK "/" GOOD ".levels"
 
 // Room for the triangle twice over a reload, the pictures' quad, and the
 // shadings of the triangle, the picture and the dot, plus two blended twins:
@@ -608,6 +617,76 @@ static void check_files(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
+// The levels file on disk read against the `.glb`'s bytes.
+static bool levels_fit(voe_base_arena *scratch, const uint8_t *glb,
+		       uint32_t size)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+	voe_3d_model_levels levels;
+	size_t count = 0;
+	const uint8_t *bytes =
+		voe_platform_file_read(LEVELS_ON_DISK, scratch, &count, NULL);
+	bool fits = bytes != NULL &&
+		    voe_3d_model_levels_read(scratch, bytes, count, glb, size,
+					     &levels);
+
+	voe_base_arena_rewind(scratch, mark);
+	return fits;
+}
+
+static void check_levels(voe_ecs_world *world, voe_render_device *device,
+			 voe_base_arena *scratch, const uint8_t *glb,
+			 uint32_t size)
+{
+	static const uint8_t STALE[] = "stale";
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_models_failures failures;
+	voe_base_error error = VOE_BASE_OK;
+	bool made = true;
+
+	// ---- an update leaves the levels file, fitting the `.glb`
+	remove(LEVELS_ON_DISK);
+	wear(world, GOOD);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
+
+	// ---- prepare with the file there: none made
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, &made,
+					       &error));
+	VOE_TEST_CHECK(!made);
+
+	// ---- the file stale: made again, fitting
+	VOE_TEST_CHECK(voe_platform_file_write(LEVELS_ON_DISK, STALE,
+					       sizeof(STALE) - 1, NULL));
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, &made,
+					       &error));
+	VOE_TEST_CHECK(made);
+	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
+
+	// ---- a missing `.glb`: false
+	VOE_TEST_CHECK(!voe_game_models_prepare(FOLDER, MISSING, scratch, &made,
+						&error));
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
+// Every file and folder the cases write, deepest first.
+static void remove_files(void)
+{
+	remove(GOOD_ON_DISK);
+	remove(PICTURE_ON_DISK);
+	remove(LANDSCAPE_ON_DISK);
+	remove(MATERIAL_ON_DISK);
+	remove(ASSETS_ON_DISK);
+	remove(LEVELS_ON_DISK);
+	remove(LEVELS_FOLDER_ON_DISK);
+	remove(CACHE_ON_DISK);
+	remove(FOLDER);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1 << 20);
@@ -629,12 +708,7 @@ int main(void)
 		goto released;
 	}
 	// A folder left by a run that crashed goes first.
-	remove(GOOD_ON_DISK);
-	remove(PICTURE_ON_DISK);
-	remove(LANDSCAPE_ON_DISK);
-	remove(MATERIAL_ON_DISK);
-	remove(ASSETS_ON_DISK);
-	remove(FOLDER);
+	remove_files();
 	VOE_TEST_CHECK(voe_platform_folder_create(FOLDER, NULL));
 	VOE_TEST_CHECK(voe_platform_file_write(GOOD_ON_DISK, glb, length, NULL));
 	VOE_TEST_CHECK(voe_platform_file_write(PICTURE_ON_DISK, PNG,
@@ -651,12 +725,8 @@ int main(void)
 	check_materials(voe_game_world_new(arena), device, scratch);
 	check_layers(voe_game_world_new(arena), device, scratch);
 	check_parts(voe_game_world_new(arena), device, scratch);
-	remove(GOOD_ON_DISK);
-	remove(PICTURE_ON_DISK);
-	remove(LANDSCAPE_ON_DISK);
-	remove(MATERIAL_ON_DISK);
-	remove(ASSETS_ON_DISK);
-	remove(FOLDER);
+	check_levels(voe_game_world_new(arena), device, scratch, glb, length);
+	remove_files();
 	voe_render_device_destroy(device);
 released:
 	voe_base_arena_destroy(scratch);
