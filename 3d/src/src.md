@@ -167,10 +167,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
   heights or, painting, on a layer's weights.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
-- `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, seams
-  kept and borders held, for a model's levels; internal.
-- `simplify.c` — the weld, the plane sums and a heap of stamped collapses popped cheapest first,
-  each refused past 90° of turn.
+- `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, borders
+  held, seam lines moved along their line and normals within an angle softened, for a model's
+  levels; internal.
+- `simplify.c` — the weld, each vertex's side, the plane sums and a heap of stamped collapses
+  popped cheapest first, a seam line's re-pointed by side and a soft position's onto the kept
+  vertex, each refused past 90° of turn.
 - `model_levels.c` — a `.glb`'s levels file: the FNV-1a hash, level 0 baked and each level
   simplified part by part under a quarter of the radius until one keeps over three quarters, and
   the bytes written and read back, any stale field refused.

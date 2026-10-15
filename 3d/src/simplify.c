@@ -3,13 +3,16 @@
 //
 // THE WELD is an open-addressed table of positions at twice the vertex count, so
 // it is at most half full and a probe never walks far. Each position keeps the
-// first vertex that reached it, whose point it stands at.
+// first vertex that reached it, whose point it stands at. After it, each vertex
+// is given its side: the first vertex at its position it may share one with.
 //
 // A POSITION'S TRIANGLES ARE A LIST OF CORNERS, one `next` per corner. A collapse
 // re-points the moved position's corners at a vertex of the kept one and splices
 // its list onto the kept one's; a dead triangle's corners stay in the lists and
-// are skipped. The vertex taken is the one the collapsed edge's triangle names
-// at the kept position, so uv and colour stay those of a real vertex.
+// are skipped. A position of one side takes the vertex the collapsed edge's
+// triangle names at the kept position, so uv and colour stay those of a real
+// vertex. A seam line's corners go by side: each takes the vertex the edge's
+// triangle of its own side names there.
 //
 // THE HEAP holds one entry per triangle edge pushed, the cheaper allowed way
 // round, stamped with both positions' stamps. A collapse bumps both stamps and
@@ -18,9 +21,12 @@
 // than three per live triangle, so a heap of three per triangle, compacted of
 // stale entries when full, always has room.
 //
-// CONSTRAINTS: a border count and the flip check walk a position's whole list,
-// dead corners included, so a position of very high valence is slow; a list or
-// an index per position would lift it. Costs and planes are in double.
+// CONSTRAINTS: a border or seam edge count, a seam line's sides and the flip
+// check walk a position's whole list, dead corners included, and a vertex's
+// side is found by walking its position's sides, so a position of very high
+// valence or many sides is slow; a list or an index per position would lift it.
+// A position's kind is fixed when built; a move is checked again when popped.
+// Costs and planes are in double.
 #include "simplify.h"
 
 #include <base/arena.h>
@@ -34,8 +40,12 @@
 // No position, no corner: the end of a list and an empty weld slot.
 #define NONE UINT32_MAX
 
-// What a position may do: move freely, move only along a border edge, or never.
-enum kind { FREE, BORDER, SEAM };
+// What a position may do: move freely, move only along a border edge, move
+// only along a seam edge by side, or never.
+enum kind { FREE, BORDER, SEAM_LINE, FIXED };
+
+// The PI the angle is turned into radians with.
+#define PI 3.14159265358979323846
 
 // A sum of weighted planes n·p + d = 0: the squared distance at p is
 // pᵀAp + 2b·p + c, and weight is what the sum's planes weigh together.
@@ -55,14 +65,28 @@ struct collapse {
 	uint32_t to_stamp;
 };
 
-// The welded mesh as it is simplified. Per vertex: position_of. Per position:
-// vertex_at, kind, stamp, first, quadrics. Per corner: corner (its vertex) and
-// next. Per triangle: dead.
+// A seam line's move by side: the two live triangles on the edge, each one's
+// side at the moved position and vertex at the kept one.
+struct across {
+	uint32_t side[2];
+	uint32_t vertex[2];
+};
+
+// The welded mesh as it is simplified. Per vertex: position_of, side_of. Per
+// position: vertex_at, kind, sides and seams (each counted up to three), stamp,
+// first, quadrics. Per corner: corner (its vertex) and next. Per triangle:
+// dead. `cosine` is the least dot of two unit normals in one side, `exact`
+// when they must be equal.
 struct mesh {
 	const voe_render_vertex *vertices;
 	uint32_t *position_of;
+	uint32_t *side_of;
 	uint32_t *vertex_at;
 	uint8_t *kind;
+	uint8_t *sides;
+	uint8_t *seams;
+	double cosine;
+	bool exact;
 	uint32_t *stamp;
 	uint32_t *first;
 	struct quadric *quadrics;
@@ -184,11 +208,46 @@ static double cost(const struct mesh *m, uint32_t from, uint32_t to)
 	return fmax(0.0, (distances(a, p) + distances(b, p)) / weight);
 }
 
+// Fills `out` for moving `from` along the edge onto `to`; false when the edge
+// is not a seam edge or a corner that stays has a side neither triangle names.
+static bool seam_across(const struct mesh *m, uint32_t from, uint32_t to,
+			struct across *out)
+{
+	uint32_t found = 0;
+
+	for (uint32_t c = m->first[from]; c != NONE; c = m->next[c]) {
+		const uint32_t at = m->dead[c / 3] ? NONE : corner_of(m, c / 3, to);
+
+		if (at == NONE)
+			continue;
+		if (found == 2)
+			return false;
+		out->side[found] = m->side_of[m->corner[c]];
+		out->vertex[found++] = m->corner[at];
+	}
+	if (found != 2 || (out->side[0] == out->side[1] &&
+			   m->side_of[out->vertex[0]] == m->side_of[out->vertex[1]]))
+		return false;
+	for (uint32_t c = m->first[from]; c != NONE; c = m->next[c]) {
+		const uint32_t side = m->side_of[m->corner[c]];
+
+		if (m->dead[c / 3] || corner_of(m, c / 3, to) != NONE)
+			continue;
+		if (side != out->side[0] && side != out->side[1])
+			return false;
+	}
+	return true;
+}
+
 // Whether `from` may move onto `to` as the kinds say.
 static bool may_move(const struct mesh *m, uint32_t from, uint32_t to)
 {
-	if (m->kind[from] == SEAM)
+	struct across across;
+
+	if (m->kind[from] == FIXED)
 		return false;
+	if (m->kind[from] == SEAM_LINE)
+		return seam_across(m, from, to, &across);
 	return m->kind[from] == FREE || shared(m, from, to) != 2;
 }
 
@@ -342,12 +401,22 @@ static uint32_t vertex_across(const struct mesh *m, uint32_t from, uint32_t to)
 }
 
 // Moves `from` onto `to`: the triangles naming both die, the rest name
-// `to`'s vertex, the lists and quadrics join, and `to`'s edges are pushed anew.
+// `to`'s vertex, by side on a seam line, the lists and quadrics join, and
+// `to`'s edges are pushed anew.
 static void collapse(struct mesh *m, uint32_t from, uint32_t to)
 {
-	const uint32_t vertex = vertex_across(m, from, to);
+	const bool by_side = m->kind[from] == SEAM_LINE;
+	struct across across = { { NONE, NONE }, { NONE, NONE } };
+	uint32_t vertex = NONE;
 	uint32_t last = NONE;
 
+	if (by_side) {
+		const bool moves = seam_across(m, from, to, &across);
+
+		VOE_BASE_ASSERT(moves, "a seam line's move is checked when popped");
+	} else {
+		vertex = vertex_across(m, from, to);
+	}
 	for (uint32_t c = m->first[from]; c != NONE; c = m->next[c]) {
 		last = c;
 		if (m->dead[c / 3])
@@ -357,6 +426,10 @@ static void collapse(struct mesh *m, uint32_t from, uint32_t to)
 			m->live--;
 			continue;
 		}
+		if (by_side)
+			vertex = m->side_of[m->corner[c]] == across.side[0] ?
+					 across.vertex[0] :
+					 across.vertex[1];
 		m->corner[c] = vertex;
 	}
 	absorb(&m->quadrics[to], &m->quadrics[from]);
@@ -412,19 +485,86 @@ static void weld(struct mesh *m, voe_base_arena *scratch, uint32_t vertex_count)
 	}
 }
 
-// A position whose vertices differ in anything but where they are is a seam.
-static void mark_seams(struct mesh *m, uint32_t vertex_count)
+// Whether vertex `v` joins the side whose first vertex is `first`: equal uv and
+// colour complement, normals equal or within the angle.
+static bool joins_side(const struct mesh *m, uint32_t first, uint32_t v)
 {
+	const voe_render_vertex *a = &m->vertices[first];
+	const voe_render_vertex *b = &m->vertices[v];
+	const double n[3] = { a->normal.x, a->normal.y, a->normal.z };
+	const double o[3] = { b->normal.x, b->normal.y, b->normal.z };
+
+	if (memcmp(&a->uv, &b->uv, sizeof a->uv) != 0 ||
+	    memcmp(a->colour_complement, b->colour_complement,
+		   sizeof a->colour_complement) != 0)
+		return false;
+	if (m->exact)
+		return memcmp(&a->normal, &b->normal, sizeof a->normal) == 0;
+	return dot(n, o) >= m->cosine * sqrt(dot(n, n) * dot(o, o));
+}
+
+// Gives each vertex its side, the first vertex at its position it joins, and
+// counts each position's sides; `first` and `next` list a position's sides.
+static void mark_sides(struct mesh *m, voe_base_arena *scratch,
+		       uint32_t vertex_count)
+{
+	uint32_t *first = voe_base_arena_push(scratch, sizeof *first * vertex_count);
+	uint32_t *next = voe_base_arena_push(scratch, sizeof *next * vertex_count);
+
+	memset(first, 0xff, sizeof *first * vertex_count);
 	for (uint32_t v = 0; v < vertex_count; v++) {
 		const uint32_t p = m->position_of[v];
-		const voe_render_vertex *a = &m->vertices[v];
-		const voe_render_vertex *b = &m->vertices[m->vertex_at[p]];
+		uint32_t side = first[p];
+		uint32_t last = NONE;
 
-		if (memcmp(&a->normal, &b->normal, sizeof a->normal) != 0 ||
-		    memcmp(&a->uv, &b->uv, sizeof a->uv) != 0 ||
-		    memcmp(a->colour_complement, b->colour_complement,
-			   sizeof a->colour_complement) != 0)
-			m->kind[p] = SEAM;
+		while (side != NONE && !joins_side(m, side, v)) {
+			last = side;
+			side = next[side];
+		}
+		if (side == NONE) {
+			side = v;
+			next[v] = NONE;
+			if (last == NONE)
+				first[p] = v;
+			else
+				next[last] = v;
+			m->sides[p] += m->sides[p] < 3;
+		}
+		m->side_of[v] = side;
+	}
+}
+
+// Whether the edge a–b of live triangle `t`, shared by two, is a seam edge seen
+// from the earlier of its triangles: the other names a different side at either end.
+static bool seam_edge_first(const struct mesh *m, uint32_t t, uint32_t a,
+			    uint32_t b)
+{
+	for (uint32_t c = m->first[a]; c != NONE; c = m->next[c]) {
+		const uint32_t u = c / 3;
+		const uint32_t at = m->dead[u] || u == t ? NONE : corner_of(m, u, b);
+
+		if (at == NONE)
+			continue;
+		return u > t &&
+		       (m->side_of[m->corner[c]] !=
+				m->side_of[m->corner[corner_of(m, t, a)]] ||
+			m->side_of[m->corner[at]] !=
+				m->side_of[m->corner[corner_of(m, t, b)]]);
+	}
+	return false;
+}
+
+// One side stays free or border as add_planes left it; two sides on exactly two
+// seam edges and no border are a seam line; anything else is fixed.
+static void mark_kinds(struct mesh *m, uint32_t vertex_count)
+{
+	for (uint32_t p = 0; p < vertex_count; p++) {
+		if (m->sides[p] <= 1)
+			continue;
+		m->kind[p] = m->sides[p] == 2 && m->seams[p] == 2 &&
+					     m->kind[p] == FREE ?
+				     SEAM_LINE :
+				     FIXED;
 	}
 }
 
@@ -452,7 +592,7 @@ static void link_corners(struct mesh *m, const uint32_t *indices)
 
 // Each live triangle's plane, weighted by its area, into its three positions;
 // along each border edge the upright plane, weighted by the length squared, into
-// both ends, which become borders unless they are seams.
+// both ends, which become borders; each seam edge counted once at both ends.
 static void add_planes(struct mesh *m)
 {
 	for (uint32_t t = 0; t < m->triangle_count; t++) {
@@ -483,29 +623,44 @@ static void add_planes(struct mesh *m)
 						  p[k][2] + n[2] };
 			double upright[3], size;
 
-			if (shared(m, a, b) == 2)
+			if (shared(m, a, b) == 2) {
+				if (seam_edge_first(m, t, a, b)) {
+					m->seams[a] += m->seams[a] < 3;
+					m->seams[b] += m->seams[b] < 3;
+				}
 				continue;
+			}
 			normal_of(p[k], p[(k + 1) % 3], along, upright);
 			size = sqrt(dot(upright, upright));
 			for (uint32_t i = 0; i < 3; i++)
 				upright[i] /= size;
 			add_plane(&m->quadrics[a], upright, p[k], dot(edge, edge));
 			add_plane(&m->quadrics[b], upright, p[k], dot(edge, edge));
-			m->kind[a] = m->kind[a] == SEAM ? SEAM : BORDER;
-			m->kind[b] = m->kind[b] == SEAM ? SEAM : BORDER;
+			m->kind[a] = BORDER;
+			m->kind[b] = BORDER;
 		}
 	}
 }
 
+// The angle 180 gives a cosine below any dot of two normals over their lengths,
+// so rounding never parts two opposite ones.
 static void build(struct mesh *m, voe_base_arena *scratch,
 		  const voe_render_vertex *vertices, uint32_t vertex_count,
-		  const uint32_t *indices, uint32_t index_count)
+		  const uint32_t *indices, uint32_t index_count,
+		  float edge_degrees)
 {
 	*m = (struct mesh){ .vertices = vertices,
-			    .triangle_count = index_count / 3 };
+			    .triangle_count = index_count / 3,
+			    .exact = edge_degrees <= 0.0f,
+			    .cosine = edge_degrees >= 180.0f ?
+					      -2.0 :
+					      cos(edge_degrees * PI / 180.0) };
 	m->position_of = voe_base_arena_push(scratch, sizeof(uint32_t) * vertex_count);
+	m->side_of = voe_base_arena_push(scratch, sizeof(uint32_t) * vertex_count);
 	m->vertex_at = voe_base_arena_push(scratch, sizeof(uint32_t) * vertex_count);
 	m->kind = voe_base_arena_push(scratch, vertex_count);
+	m->sides = voe_base_arena_push(scratch, vertex_count);
+	m->seams = voe_base_arena_push(scratch, vertex_count);
 	m->stamp = voe_base_arena_push(scratch, sizeof(uint32_t) * vertex_count);
 	m->first = voe_base_arena_push(scratch, sizeof(uint32_t) * vertex_count);
 	m->quadrics = voe_base_arena_push(scratch,
@@ -518,9 +673,10 @@ static void build(struct mesh *m, voe_base_arena *scratch,
 				      sizeof(struct collapse) * m->heap_capacity);
 	memset(m->first, 0xff, sizeof(uint32_t) * vertex_count);
 	weld(m, scratch, vertex_count);
-	mark_seams(m, vertex_count);
+	mark_sides(m, scratch, vertex_count);
 	link_corners(m, indices);
 	add_planes(m);
+	mark_kinds(m, vertex_count);
 	for (uint32_t t = 0; t < m->triangle_count; t++)
 		for (uint32_t k = 0; k < 3 && !m->dead[t]; k++)
 			push_edge(m, position_at(m, t * 3 + k),
@@ -531,7 +687,7 @@ uint32_t voe_3d_simplify(voe_base_arena *scratch,
 			 const voe_render_vertex *vertices,
 			 uint32_t vertex_count, const uint32_t *indices,
 			 uint32_t index_count, uint32_t target, float max_error,
-			 uint32_t *out, float *error)
+			 float edge_degrees, uint32_t *out, float *error)
 {
 	const struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	struct mesh m;
@@ -541,14 +697,18 @@ uint32_t voe_3d_simplify(voe_base_arena *scratch,
 
 	VOE_BASE_ASSERT(index_count % 3 == 0, "indices are whole triangles");
 	VOE_BASE_ASSERT(vertex_count < UINT32_MAX / 2, "the weld doubles it");
+	VOE_BASE_ASSERT(edge_degrees >= 0.0f && edge_degrees <= 180.0f,
+			"an angle between normals is 0 to 180");
 	for (uint32_t i = 0; i < index_count; i++)
 		VOE_BASE_ASSERT(indices[i] < vertex_count,
 				"an index names one of the vertices");
-	build(&m, scratch, vertices, vertex_count, indices, index_count);
+	build(&m, scratch, vertices, vertex_count, indices, index_count,
+	      edge_degrees);
 	while (m.live * 3 > target && pop(&m, &next)) {
 		if (sqrt(next.cost) > (double)max_error)
 			break;
-		if (!keeps_facing(&m, next.from, next.to))
+		if (!may_move(&m, next.from, next.to) ||
+		    !keeps_facing(&m, next.from, next.to))
 			continue;
 		largest = fmax(largest, next.cost);
 		collapse(&m, next.from, next.to);

@@ -103,7 +103,7 @@ static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
 			arena, bake->vertices + part->first_vertex,
 			part->vertex_count, bake->indices + part->first_index,
 			part->index_count, (part->index_count / 3 >> k) * 3,
-			max_error, out, &part_error);
+			max_error, 0.0f, out, &part_error);
 
 		levels->indices[k][p] = out;
 		levels->index_counts[k][p] = count;

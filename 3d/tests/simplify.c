@@ -9,7 +9,15 @@
 // 3. That sphere with a max_error of 1e-6 stops well above the target, writing
 //    at most what it was given.
 // 4. The grid with its middle column of positions duplicated as a uv seam keeps
-//    every seam position used by some triangle.
+//    the column's two end positions used, and no triangle names vertices of
+//    both copies of the column: the seam moves along its line, untorn.
+// 5. A flat-shaded open cylinder of 16 sides and 8 rings, each side its own
+//    strip, to 96 indices at angle 0 writes at most 96 at an error under 1e-5:
+//    the rings fall along straight seam lines.
+// 6. That cylinder to 48 indices, max_error its radius: at angle 0 it writes 96
+//    or more; at 180, softened, fewer, at an error above nought and under it.
+//
+// Every call passes the angle; 0 is the exact normals cases 1 to 4 were made for.
 #include "../src/simplify.h"
 
 #include <base/arena.h>
@@ -28,6 +36,8 @@
 #define SEGMENTS 32
 #define RINGS 16
 #define PI 3.14159265358979323846f
+#define FACETS 16
+#define LENGTHS 8
 
 struct mesh {
 	voe_render_vertex *vertices;
@@ -35,6 +45,49 @@ struct mesh {
 	uint32_t *indices;
 	uint32_t index_count;
 };
+
+// The cylinder's point on rim column `column` (wrapped) at ring `ring`: radius
+// 1, a quarter metre between rings. One sum per column, so strips meet exactly.
+static voe_math_float3 rim(uint32_t column, uint32_t ring)
+{
+	const float phi = 2.0f * PI * (float)(column % FACETS) / FACETS;
+
+	return (voe_math_float3){ cosf(phi), 0.25f * (float)ring, sinf(phi) };
+}
+
+// Side s is vertices s × 18 + edge × 9 + ring, edge 0 at column s and 1 at
+// s + 1, all wearing the normal through the side's middle; uv and colour none.
+static struct mesh cylinder(voe_base_arena *arena)
+{
+	struct mesh m = { .vertex_count = FACETS * 2 * (LENGTHS + 1),
+			  .index_count = FACETS * LENGTHS * 6 };
+	uint32_t at = 0;
+
+	m.vertices = voe_base_arena_push(arena, sizeof *m.vertices * m.vertex_count);
+	m.indices = voe_base_arena_push(arena, sizeof *m.indices * m.index_count);
+	for (uint32_t s = 0; s < FACETS; s++) {
+		const float middle = 2.0f * PI * ((float)s + 0.5f) / FACETS;
+		const uint32_t base = s * 2 * (LENGTHS + 1);
+
+		for (uint32_t v = 0; v < 2 * (LENGTHS + 1); v++) {
+			m.vertices[base + v].position =
+				rim(s + v / (LENGTHS + 1), v % (LENGTHS + 1));
+			m.vertices[base + v].normal =
+				(voe_math_float3){ cosf(middle), 0.0f, sinf(middle) };
+		}
+		for (uint32_t r = 0; r < LENGTHS; r++) {
+			const uint32_t a = base + r;
+			const uint32_t b = base + r + 1;
+			const uint32_t c = base + LENGTHS + 1 + r;
+			const uint32_t d = base + LENGTHS + 2 + r;
+			const uint32_t quad[6] = { a, b, c, c, b, d };
+
+			for (uint32_t k = 0; k < 6; k++)
+				m.indices[at++] = quad[k];
+		}
+	}
+	return m;
+}
 
 // Grid vertex (i, j) at x = i/32, z = j/32, facing up. With `seam`, the quads
 // right of column 16 use a copy of it whose u is one more.
@@ -199,7 +252,7 @@ static void flat_grid(voe_base_arena *arena)
 	float error = -1.0f;
 	const uint32_t count = voe_3d_simplify(arena, m.vertices, m.vertex_count,
 					       m.indices, m.index_count, target,
-					       FLT_MAX, out, &error);
+					       FLT_MAX, 0.0f, out, &error);
 	const uint32_t corners[4] = { 0, QUADS, QUADS * SIDE, SIDE * SIDE - 1 };
 
 	VOE_TEST_CHECK(count <= target);
@@ -221,7 +274,7 @@ static void round_sphere(voe_base_arena *arena)
 
 	VOE_TEST_CHECK(faces_out(&m, m.indices, m.index_count));
 	count = voe_3d_simplify(arena, m.vertices, m.vertex_count, m.indices,
-				m.index_count, target, FLT_MAX, out, &error);
+				m.index_count, target, FLT_MAX, 0.0f, out, &error);
 	VOE_TEST_CHECK(count <= target);
 	VOE_TEST_CHECK(count > 0);
 	VOE_TEST_CHECK(error > 0.0f && error < 0.1f);
@@ -230,7 +283,7 @@ static void round_sphere(voe_base_arena *arena)
 
 	// 3: a limit no collapse on this sphere is under.
 	count = voe_3d_simplify(arena, m.vertices, m.vertex_count, m.indices,
-				m.index_count, target, 1e-6f, out, &error);
+				m.index_count, target, 1e-6f, 0.0f, out, &error);
 	VOE_TEST_CHECK(count > target + (m.index_count - target) / 2);
 	VOE_TEST_CHECK(count <= m.index_count);
 	VOE_TEST_CHECK(error <= 1e-6f);
@@ -244,13 +297,53 @@ static void seamed_grid(voe_base_arena *arena)
 	float error = -1.0f;
 	const uint32_t count = voe_3d_simplify(arena, m.vertices, m.vertex_count,
 					       m.indices, m.index_count,
-					       m.index_count / 8, FLT_MAX, out,
+					       m.index_count / 8, FLT_MAX, 0.0f, out,
 					       &error);
 
+	bool torn = false;
+
 	VOE_TEST_CHECK(count < m.index_count);
-	for (uint32_t j = 0; j < SIDE; j++)
-		VOE_TEST_CHECK(uses_point(&m, out, count,
-					  m.vertices[SIDE * SIDE + j].position));
+	VOE_TEST_CHECK(uses_point(&m, out, count, m.vertices[SIDE * SIDE].position));
+	VOE_TEST_CHECK(uses_point(&m, out, count,
+				  m.vertices[SIDE * SIDE + QUADS].position));
+	for (uint32_t i = 0; i + 2 < count; i += 3) {
+		bool original = false;
+		bool copy = false;
+
+		for (uint32_t k = 0; k < 3; k++) {
+			original |= out[i + k] / SIDE == QUADS / 2 &&
+				    out[i + k] < SIDE * SIDE;
+			copy |= out[i + k] >= SIDE * SIDE;
+		}
+		torn |= original && copy;
+	}
+	VOE_TEST_CHECK(!torn);
+	check_triangles(&m, out, count);
+}
+
+static void faceted_cylinder(voe_base_arena *arena)
+{
+	const struct mesh m = cylinder(arena);
+	uint32_t *out = voe_base_arena_push(arena, sizeof *out * m.index_count);
+	float error = -1.0f;
+	uint32_t count = voe_3d_simplify(arena, m.vertices, m.vertex_count,
+					 m.indices, m.index_count, 96, 1e-3f, 0.0f,
+					 out, &error);
+	uint32_t hard;
+
+	VOE_TEST_CHECK(count <= 96);
+	VOE_TEST_CHECK(error >= 0.0f && error < 1e-5f);
+	check_triangles(&m, out, count);
+
+	// 6: the radius is 1.
+	hard = voe_3d_simplify(arena, m.vertices, m.vertex_count, m.indices,
+			       m.index_count, 48, 1.0f, 0.0f, out, &error);
+	VOE_TEST_CHECK(hard >= 96);
+	check_triangles(&m, out, hard);
+	count = voe_3d_simplify(arena, m.vertices, m.vertex_count, m.indices,
+				m.index_count, 48, 1.0f, 180.0f, out, &error);
+	VOE_TEST_CHECK(count < hard);
+	VOE_TEST_CHECK(error > 0.0f && error < 1.0f);
 	check_triangles(&m, out, count);
 }
 
@@ -261,6 +354,7 @@ int main(void)
 	flat_grid(arena);
 	round_sphere(arena);
 	seamed_grid(arena);
+	faceted_cylinder(arena);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

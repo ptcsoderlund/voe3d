@@ -155,7 +155,8 @@ again, or to find where a claim that has started failing is written down.
   once, neighbours within a level, within capacity, bounding their heights; an update equal to a
   fresh build and the pyramid's box. Needs no graphics card.
 - `simplify.c` — a flat grid to an eighth at no error with its corners, a sphere to a half facing
-  out, the sphere held by a tiny limit, and a uv seam's positions kept. Needs no graphics card.
+  out, the sphere held by a tiny limit, a uv seam moving along its line untorn, and a faceted
+  cylinder cut along its seam lines at angle 0 and further softened at 180. Needs no graphics card.
 - `model_levels.c` — that a sphere's levels file is made and read back, goes stale when its `.glb`
   or version changes, and chooses a view's level by its screen size. Needs no graphics card.
 - `model_glb.inc` — a UV sphere's `.glb` built on an arena, with a second "Ball_LOD1" root when
