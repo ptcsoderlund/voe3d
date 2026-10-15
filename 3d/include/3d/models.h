@@ -15,8 +15,6 @@
 // NODES ARE BAKED AND PARTS MERGED: each node's matrices applied to its vertices
 // and normals, every primitive of one material joined into one part, at most
 // VOE_3D_MODEL_PARTS, so a model is a handful of draws. The file's tree is lost.
-// A PART WEARS what its model's parts file names for its glTF `source` once
-// _parts_set gives it (0404, 0420); a load leaves `wears` empty, the file's own.
 //
 // A `.glb` HAS LEVELS (0425 points 3, 4, 6; 0426): own levels baked per level and
 // joined to level 0's parts by material, the bound 2^-k; made ones, from a levels
@@ -48,18 +46,15 @@
 // A `.landscape` IS ONE PART (0379 points 2, 6; 0396 points 3, 5): the shared
 // grid wearing one lit opaque ground and its twin; the entry owns its grid's
 // copy, a heights texture and a min/max pyramid; its shape is empty, the pick
-// and bounds meeting the heights. A brush or _put updates the pyramid, grows
-// the dirty rect and marks it edited; _landscape_frame writes the dirt inside a
-// frame, a budget a frame: an upload between frames would stutter a drag. ITS
-// PAINT TOO (0402 points 1, 3, 4): layer paths and both planes, all layer 0
-// when given none, as two RGBA8 DATA textures FIELD-sampled (bilinear, one
-// level, weights not a picture to mip); its own dirt, one budget for both.
+// and bounds meeting the heights. ITS PAINT TOO (0402 points 1, 3, 4): layer
+// paths and both planes, all layer 0 when given none, as two RGBA8 DATA
+// textures FIELD-sampled (bilinear, one level, weights not a picture to mip);
+// its own dirt, one budget for both.
 //
 // A `.material` IS AN ENTRY WITH NO SHAPE (0399 points 4, 5): one part with no
 // geometry holding its record, its blended twin and its own maps, here because
 // reload, rename, clear and the twin already live here. A map two materials
-// name is uploaded twice. _material_set marks it; _material_frame rewrites the
-// records inside a frame, so a drag needs no upload.
+// name is uploaded twice.
 #pragma once
 
 #include <3d/landscape.h>
@@ -245,11 +240,14 @@ void voe_3d_models_material_set(voe_3d_models *models, const char *path,
 // Each part of `path`'s loaded model takes `parts->materials[source]` into
 // `wears`, "" for a `source` of NONE or at or past `parts->count`; NULL
 // `parts` empties every `wears`. Nothing for a path that is no loaded model.
+// So a part wears what its model's parts file names for its glTF `source`
+// (0404, 0420); a load leaves `wears` empty, the file's own.
 void voe_3d_models_parts_set(voe_3d_models *models, const char *path,
 			     const voe_assets_parts *parts);
 
 // Inside a frame, before its first pass: every marked material's record and
-// twin rewritten (voe_render_shading_write), the marks cleared.
+// twin rewritten (voe_render_shading_write), the marks cleared, so a drag that
+// _material_set marks needs no upload.
 void voe_3d_models_material_frame(voe_3d_models *models,
 				  voe_render_device *device);
 
@@ -285,7 +283,8 @@ void voe_3d_models_landscape_layer_set(voe_3d_models *models, const char *path,
 // Inside a frame, before its first pass: each entry's dirty heights and then
 // its dirty paint written into their textures, whole rows while
 // VOE_3D_LANDSCAPE_WRITE_TEXELS last, the rest kept dirty for the next frame.
-// A refused write keeps its rows dirty and says so on stderr.
+// A refused write keeps its rows dirty and says so on stderr. A budget a frame,
+// inside one: an upload between frames would stutter a drag.
 void voe_3d_models_landscape_frame(voe_3d_models *models,
 				   voe_render_device *device);
 
