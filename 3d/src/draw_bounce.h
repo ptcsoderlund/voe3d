@@ -53,7 +53,8 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 uint32_t landscape_nodes, bool coarsest);
 
 // Whether light row `light`, in table order, casts (0324 point 4); false past
-// the count. draw_shadows.c.
+// the count and for a row whose owner is off, so no cascade is drawn for it
+// (0428 point 4). draw_shadows.c.
 bool voe_3d_draw_light_casts(const voe_ecs_world *world, uint32_t light);
 
 // The stale spheres of this step into `spheres`, xyz about the frame's eye and

@@ -69,6 +69,7 @@
 #include <3d/shape_component.h>
 #include <base/assert.h>
 #include <math/double3.h>
+#include <scene/identity_component.h>
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
@@ -245,12 +246,14 @@ static bool anything_bounces(const voe_ecs_world *world,
 }
 
 // Whether light row `light`, in table order, casts (0324 point 4). Past the
-// count never does.
+// count never does, nor a row whose owner is off (0428 point 4).
 bool voe_3d_draw_light_casts(const voe_ecs_world *world, uint32_t light)
 {
 	VOE_BASE_ASSERT(world != NULL, "casting from no world");
 	return light < voe_scene_light_count(world) &&
-	       voe_scene_light_rows(world)[light].cast_shadows;
+	       voe_scene_light_rows(world)[light].cast_shadows &&
+	       !voe_scene_identity_off(world,
+				       voe_scene_light_entities(world)[light]);
 }
 
 // Directional light `light` of the frame: 0 is `light` and `shadow`, i + 1 is

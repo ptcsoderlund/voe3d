@@ -58,6 +58,8 @@ again, or to find where a claim that has started failing is written down.
 - `directional_lights.c` — that one light frames no more, a moon after a sun rides in `more_lights`
   with its light, bounces and strength, five lights keep three more, a Room about the moon sets its
   mask and not the sun's, and the pass camera carries `more`. Needs no graphics card.
+- `lights_switched_off.c` — that an off sun or moon keeps its row with no light and casts not, and
+  an off lamp or blocker is left out of the frame. Needs no graphics card.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.

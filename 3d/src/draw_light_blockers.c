@@ -9,7 +9,8 @@
 // narrowed (ADR-0250); its rows are render/device.h's (a_i / h_i,
 // −a_i·c / h_i), a_i the rotated local axes, and its sphere is the centre and
 // the half's length, the box's corner. A half of nought on any axis would
-// divide by nothing and holds no point, so that box is left out.
+// divide by nothing and holds no point, so that box is left out, as is an off
+// owner left out (0428 point 4).
 //
 // BLOCK IS MASKS BY KEPT INDEX (0350 point 2): a kept record's bit is its
 // place among the kept, not the table's, so a box left out shifts the bits
@@ -34,6 +35,7 @@
 #include <math/double3.h>
 #include <math/float3.h>
 #include <math/float4x4.h>
+#include <scene/identity_component.h>
 #include <scene/light_blocker_component.h>
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
@@ -85,13 +87,19 @@ static uint32_t sun_mask(const voe_ecs_world *world, const voe_3d_frame *frame,
 }
 
 // Light row `row` as voe_3d_draw_system_light makes the first (draw_system.c):
-// its transform rotation's -Z, -Z with none, the fill colour times intensity.
+// its transform rotation's -Z, -Z with none, the fill colour times intensity;
+// an off owner's row kept with intensity and fill nought, for the reason that
+// function's comment gives (0428 point 4).
 static voe_render_light light_of(const voe_ecs_world *world, uint32_t row)
 {
 	VOE_BASE_ASSERT(row < voe_scene_light_count(world), "a light row past the table");
 	voe_scene_light light = voe_scene_light_rows(world)[row];
 	voe_ecs_entity lit = voe_scene_light_entities(world)[row];
 
+	if (voe_scene_identity_off(world, lit)) {
+		light.intensity = 0.0f;
+		light.fill_intensity = 0.0f;
+	}
 	return (voe_render_light){
 		.direction = voe_scene_transform_get(world, lit) ?
 				     voe_scene_light_direction(
@@ -167,7 +175,8 @@ bool voe_3d_draw_system_light_blockers(const voe_ecs_world *world,
 	for (uint32_t i = 0; i < count && filled < room; i++) {
 		voe_physics_shape box;
 
-		if (!voe_3d_light_blocker_shape(world, owners[i], frame->lag,
+		if (voe_scene_identity_off(world, owners[i]) ||
+		    !voe_3d_light_blocker_shape(world, owners[i], frame->lag,
 						&box) ||
 		    !(box.half.x > 0.0f && box.half.y > 0.0f &&
 		      box.half.z > 0.0f))

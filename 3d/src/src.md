@@ -98,12 +98,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
   its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
   a model at the camera's level, a gone one casting nothing and a landscape by the view's nodes.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
-  frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
-  those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
+  frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0, an
+  off owner's and those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
 - `light_blocker.c` — a blocker's row and transform into a box: the world place at the lag, its
   rotation, and |scale| × size / 2 per axis.
 - `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
-  the eye with its rows and sphere, flat ones and those past 32 left out, the Direct and Fill bits,
+  the eye with its rows and sphere, flat ones, an off owner's and those past 32 left out, the Direct and Fill bits,
   the sun's mask, and light rows 2 to 4 each masked at its place.
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres and the removed casters'
   after them, the caster walk and measure bounce_casters.c shares, the still casters' box, and the

@@ -48,6 +48,7 @@
 #include <base/report.h>
 #include <scene/camera_component.h>
 #include <scene/haze_component.h>
+#include <scene/identity_component.h>
 #include <scene/light_component.h>
 #include <scene/picture_component.h>
 #include <scene/sky_component.h>
@@ -61,6 +62,10 @@
 // fill is its colour times its strength. No light is the zeroed light, which
 // draws lit surfaces black (ADR-0287, 0290 point 1). The first row in table
 // order; the rest are voe_3d_draw_system_lights' (0357 point 1).
+// A row whose owner is off is handed over with intensity and fill nought,
+// direction and colour as ever, and not skipped (0428 point 4): row i is the
+// sky's disc i, `more_lights[i - 1]` and a shadow slot in table order, so
+// dropping a row would hand every later light another's disc and slot.
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 {
 	VOE_BASE_ASSERT(world != NULL, "lighting no world");
@@ -83,6 +88,10 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world)
 		.colour = light.colour,
 	};
 
+	if (voe_scene_identity_off(world, lit)) {
+		sun.intensity = 0.0f;
+		sun.fill = (voe_math_float3){ 0 };
+	}
 	return sun;
 }
 
