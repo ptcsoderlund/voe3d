@@ -61,8 +61,10 @@
 #include <base/describe.h>
 
 #include "add_menu.h"
+#include "inspector_level.h"
 #include "inspector_material.h"
 #include "sculpt.h"
+#include "view.h"
 
 #include <3d/models.h>
 
@@ -320,6 +322,9 @@ typedef struct {
 	// reason every other control here is.
 	voe_editor_dropdown_row rows[VOE_EDITOR_DROPDOWN_ROWS];
 	uint32_t row_count;
+	// The Level section's labels, kept for the reason every label's text
+	// is (inspector_level.h).
+	voe_editor_inspector_level level;
 } voe_editor_inspector;
 
 // Forgets last frame's controls and takes this frame's arena. Called between
@@ -351,7 +356,9 @@ bool voe_editor_inspector_is_part(const voe_ecs_world *world,
 // `kept` holds `kept_count` types whose sections have no Remove button. After
 // the sections, a thing that wears a landscape gets `sculpt`'s Sculpt section
 // (inspector_sculpt.h) and, its grid loaded in `store`, the Layers section
-// (inspector_layers.h). While `material_open` is not "", `material`'s section
+// (inspector_layers.h); after Layers, a thing whose model is loaded in `store`
+// gets the Level section, the level each of `views` draws
+// (inspector_level.h). While `material_open` is not "", `material`'s section
 // is drawn in place of all of it into `controls` (inspector_material.h), and
 // no entity is recorded, so no entity's edit is read.
 void voe_editor_inspector_draw(voe_ui_context *ui,
@@ -360,6 +367,7 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			       const voe_ecs_type *kept, uint32_t kept_count,
 			       voe_editor_sculpt *sculpt,
 			       const voe_3d_models *store,
+			       const voe_editor_views *views,
 			       const char *material_open,
 			       const voe_assets_material_file *material,
 			       voe_editor_inspector_material *controls);

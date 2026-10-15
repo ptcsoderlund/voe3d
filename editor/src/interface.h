@@ -354,8 +354,15 @@
 // NODES, the row and its two labels, and TWENTY-NINE ELEMENTS: "Triangles",
 // nine, and at most twenty digits. 2550 + 3 = 2553 nodes, 51336 + 29 = 51365
 // elements. No scroll area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2553
-#define VOE_EDITOR_INTERFACE_ELEMENTS 51365
+//
+// THE INSPECTOR'S LEVEL SECTION (inspector_level.h, ADR-0425) ADDS SIX NODES,
+// its panel, the "Level" heading and a label for each of VOE_EDITOR_VIEWS (4)
+// views, and 131 ELEMENTS: the panel's border and fill, two; "Level", five;
+// each label at most its 32-byte buffer less the zero, thirty-one apiece,
+// 124. 2553 + 6 = 2559 nodes, 51365 + 131 = 51496 elements. No scroll area:
+// five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2559
+#define VOE_EDITOR_INTERFACE_ELEMENTS 51496
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
