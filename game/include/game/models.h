@@ -22,8 +22,7 @@
 // one is a line on stderr, the levels made still drawn. `Cache/` may go any
 // time. The file is made with the count and strength of the `.parts` beside
 // the `.glb`, the defaults when none (0430 point 5), so a shipped game, which
-// has none, uses the files it ships. _prepare makes the file alone: kept when fresh for the editor's
-// import, made again for its Make levels (0429).
+// has none, uses the files it ships.
 //
 // PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the
 // distinct paths the call will read are counted first, then "Loading models"
@@ -32,24 +31,20 @@
 // loads no dot or water; the paths left unread are read by a later call.
 //
 // WATCH, a stamp of time and size asked once a second, no watcher thread (0277
-// point 5), reads and loads again every entry, pictures too, whose stamp
-// differs: a success replaces the parts, a failure keeps them (3d/models.h). A
-// failed entry whose file now has a stamp differs from its 0 and is tried
-// again; a loaded file that has gone is kept failed at 0, tried again when it
-// is back. The dot is made in code and not watched, nor a landscape (0379 point
-// 2), nor a material: its path is no model file; the editor reloads one itself.
+// point 5), reloads every entry, pictures too, whose stamp differs: a success
+// replaces the parts, a failure keeps them (3d/models.h). A failed entry whose
+// file now has a stamp differs from its 0 and is tried again; a loaded file
+// that has gone is kept failed at 0, tried again when it is back.
 //
-// MATERIALS come from tables too (game/materials.h, 0399 point 7, 0420): each
-// loaded model first takes its parts from the parts table, none for a path it
-// lacks; then each shape's material, part's `wears` and landscape's layer (0402
-// point 8) the store lacks is loaded from the material table at stamp 0, its
-// maps read as files are, or kept failed when the table has none, each failure
-// counted once. Call it after a watch too, so a reloaded model wears its parts.
+// MATERIALS come from tables (game/materials.h, 0399 point 7, 0420): each
+// loaded model takes its parts from the parts table, none for a path it lacks;
+// then each shape's material, part's `wears` and landscape's layer (0402 point
+// 8) the store lacks loads from the material table at stamp 0, its maps read as
+// files are, or stays failed if that table has none, each failure counted once.
 //
 // LANDSCAPES come from a table, never a file (game/landscapes.h, 0236): each
 // one's millimetres made metres in scratch, its layers and paint carried, and
-// loaded at stamp 0, a failure counted as an update's. The game loads its
-// cooked table before its first update, so landscape rows find their entries.
+// loaded at stamp 0, a failure counted as an update's.
 //
 // BOTH RETURN how many paths failed and the first one's path, the store's own
 // copy, valid until that entry loads again or the store is cleared; NULL for
@@ -93,7 +88,8 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_game_progress *progress);
 
 // Loads every landscape of `landscapes` into the store at stamp 0. See the
-// header.
+// header. The game loads its cooked table before its first update, so
+// landscape rows find their entries.
 voe_game_models_failures
 voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 			   const voe_game_landscapes *landscapes,
@@ -109,7 +105,8 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 
 // Gives every loaded model its parts from `parts`, then loads every shape's
 // material path, model part's `wears` and loaded landscape's layer path the
-// store lacks from `table`, failing one it has not. See the header.
+// store lacks from `table`, failing one it has not. See the header. Call it
+// after a watch too, so a reloaded model wears its parts.
 voe_game_models_failures
 voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 			  voe_render_device *device, const char *folder,
@@ -121,13 +118,16 @@ voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 // makes and writes it whatever is there, `made` then true whenever the `.glb`
 // reads and parses. False, `error` set, only when the `.glb` will not read or
 // parse; a write that fails is a line on stderr and true. Scratch rewound to
-// where it stood. See the header.
+// where it stood. It makes the file alone: the editor's import keeps a fresh
+// one, its Make levels makes it again (0429). See the header.
 [[nodiscard]] bool voe_game_models_prepare(const char *folder, const char *path,
 					   voe_base_arena *scratch, bool remake,
 					   bool *made, voe_base_error *error);
 
 // Reads and loads again every entry whose file's stamp changed, landscapes
-// and materials aside. See the header.
+// and materials aside. See the header. The dot is made in code and not
+// watched, nor a landscape (0379 point 2), nor a material: its path is no
+// model file; the editor reloads one itself.
 voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 					       voe_render_device *device,
 					       const char *folder,
