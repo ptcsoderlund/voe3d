@@ -124,6 +124,21 @@ voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 					   voe_base_arena *scratch, bool remake,
 					   bool *made, voe_base_error *error);
 
+// A prepare rewrites only the levels file, which no stamp covers, so the
+// watch would keep drawing the levels it loaded (0431).
+//
+// Reads `<folder>/<path>` again when the store holds `path`
+// (`voe_3d_models_find`) and loads it with its levels file whatever its stamp,
+// at the file's stamp; a path it lacks is nothing and true. False, `error`
+// set, when the load failed, the entry kept as the store keeps a failed
+// reload. Between frames; call the materials call after, as after a watch.
+// For the editor's prepare (0431).
+[[nodiscard]] bool voe_game_models_reload(voe_3d_models *models,
+					  voe_render_device *device,
+					  const char *folder, const char *path,
+					  voe_base_arena *scratch,
+					  voe_base_error *error);
+
 // Reads and loads again every entry whose file's stamp changed, landscapes
 // and materials aside. See the header. The dot is made in code and not
 // watched, nor a landscape (0379 point 2), nor a material: its path is no

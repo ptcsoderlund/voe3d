@@ -45,7 +45,9 @@
 // fresh file makes it again, fitting; a missing `.glb` will not prepare. Then
 // a flat 8 × 8 grid, `grid.glb`, prepared with remake: with no `grid.parts`
 // three levels or more; with one saying `count=2`, two; with `count=9`, which
-// will not parse, three or more again.
+// will not parse, three or more again. On a tenth world and store, the grid
+// updated holds three levels or more; a prepare to `count=2` leaves the store
+// alone; a reload holds two; a reload of a path the store lacks adds nothing.
 //
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
@@ -109,13 +111,15 @@
 // Then a landscape as the store makes it (0396 point 3): the shared grid of
 // VOE_3D_LANDSCAPE_NODE_QUADS² quads, its ground and its twin, and the
 // heights texture, which takes a texture slot and no capacity. Then a
-// material's record and twin, with no geometry, and a second one's.
+// material's record and twin, with no geometry, and a second one's. The
+// reload case's store alone holds the most geometries: the grid's four levels
+// and the two it reloads to, at once.
 #define GRID_SIDE (VOE_3D_LANDSCAPE_NODE_QUADS + 1)
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 16 + GRID_SIDE * GRID_SIDE,
 	.indices = 16 + VOE_3D_LANDSCAPE_NODE_QUADS *
 				VOE_3D_LANDSCAPE_NODE_QUADS * 6,
-	.geometries = 4 + 1,
+	.geometries = 4 + 2,
 	.objects = 1,
 	.shadings = 10 + 2 + 2 + 2,
 	.passes = 1,
@@ -760,6 +764,59 @@ static void check_levels_asked(voe_base_arena *scratch)
 				     "[Parts]\n[Levels]\ncount=9\n") >= 3);
 }
 
+// The grid's entry's level count, 0 when the store lacks it.
+static uint32_t grid_held(const voe_3d_models *models)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, GRID);
+
+	return entry != NULL ? entry->level_count : 0;
+}
+
+// The store keeps the levels it loaded over a prepare; a reload takes the
+// new ones.
+static void check_reload(voe_ecs_world *world, voe_render_device *device,
+			 voe_base_arena *scratch)
+{
+	static uint8_t grid[4096];
+	uint32_t size = grid_build(grid, sizeof(grid));
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_models_failures failures;
+	voe_base_error error = VOE_BASE_OK;
+	uint32_t held;
+	uint32_t count;
+
+	VOE_TEST_CHECK(voe_platform_file_write(GRID_ON_DISK, grid, size, NULL));
+
+	// ---- no parts file, an update: 3 levels or more
+	remove(GRID_PARTS_ON_DISK);
+	wear(world, GRID);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	held = grid_held(models);
+	VOE_TEST_CHECK(held >= 3);
+
+	// ---- `count=2` prepared: the store's levels unchanged
+	VOE_TEST_CHECK_INT(grid_prepared(scratch, grid, size,
+					 "[Parts]\n[Levels]\ncount=2\n"),
+			   2);
+	VOE_TEST_CHECK_INT(grid_held(models), held);
+
+	// ---- reloaded: two levels
+	VOE_TEST_CHECK(voe_game_models_reload(models, device, FOLDER, GRID,
+					      scratch, &error));
+	VOE_TEST_CHECK_INT(grid_held(models), 2);
+
+	// ---- a path the store lacks: true, nothing added
+	count = voe_3d_models_count(models);
+	VOE_TEST_CHECK(voe_game_models_reload(models, device, FOLDER, MISSING,
+					      scratch, &error));
+	VOE_TEST_CHECK_INT(voe_3d_models_count(models), count);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 static void check_levels(voe_ecs_world *world, voe_render_device *device,
 			 voe_base_arena *scratch, const uint8_t *glb,
 			 uint32_t size)
@@ -863,6 +920,7 @@ int main(void)
 	check_layers(voe_game_world_new(arena), device, scratch);
 	check_parts(voe_game_world_new(arena), device, scratch);
 	check_levels(voe_game_world_new(arena), device, scratch, glb, length);
+	check_reload(voe_game_world_new(arena), device, scratch);
 	remove_files();
 	voe_render_device_destroy(device);
 released:

@@ -11,7 +11,8 @@
 // with its levels file, `<folder>/Cache/levels/<path>.levels`, read on scratch
 // or made there and written, its folders made first when absent; made with
 // the `[Levels]` of the `.parts` beside the `.glb`, the defaults when there is
-// none or it will not parse.
+// none or it will not parse. One held path is loaded again on asking, its
+// stamp not asked.
 #include <game/models.h>
 
 #include <3d/emitter_component.h>
@@ -201,13 +202,14 @@ bool voe_game_models_prepare(const char *folder, const char *path,
 	return ready;
 }
 
-// Loads `path` from `folder` if its stamp is not `known`; a file with no
-// stamp becomes a failed entry at 0, unless it already is one. A `.glb` loads
-// with its levels file, made when missing or stale. False, with the category
-// in `error`, when it failed.
+// Loads `path` from `folder` if its stamp is not `known`, or whatever it is
+// when `always`; a file with no stamp becomes a failed entry at 0, unless it
+// already is one. A `.glb` loads with its levels file, made when missing or
+// stale. False, with the category in `error`, when it failed.
 static bool load_changed(voe_3d_models *models, voe_render_device *device,
 			 const char *folder, const char *path, uint64_t known,
-			 voe_base_arena *scratch, voe_base_error *error)
+			 bool always, voe_base_arena *scratch,
+			 voe_base_error *error)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	const char *full = voe_platform_path_join(scratch, folder, path);
@@ -228,7 +230,7 @@ static bool load_changed(voe_3d_models *models, voe_render_device *device,
 			*error = VOE_BASE_ERROR_UNAVAILABLE;
 			loaded = false;
 		}
-	} else if (stamp != known) {
+	} else if (always || stamp != known) {
 		bytes = voe_platform_file_read(full, scratch, &size, error);
 		if (bytes == NULL)
 			voe_3d_models_fail(models, path, 0);
@@ -246,6 +248,24 @@ static bool load_changed(voe_3d_models *models, voe_render_device *device,
 	VOE_BASE_ASSERT(loaded || *error != VOE_BASE_OK,
 			"a failed model load with no category");
 	return loaded;
+}
+
+bool voe_game_models_reload(voe_3d_models *models, voe_render_device *device,
+			    const char *folder, const char *path,
+			    voe_base_arena *scratch, voe_base_error *error)
+{
+	const voe_3d_model_entry *entry;
+
+	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
+	VOE_BASE_ASSERT(folder != NULL && path != NULL && scratch != NULL &&
+				error != NULL,
+			"no folder, path, scratch or error");
+	*error = VOE_BASE_OK;
+	entry = voe_3d_models_find(models, path);
+	if (entry == NULL)
+		return true;
+	return load_changed(models, device, folder, entry->path, entry->stamp,
+			    true, scratch, error);
 }
 
 // The path of the world's `index`th file: the model rows' paths, then the
@@ -314,8 +334,8 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 		if (voe_3d_models_count(models) == VOE_3D_MODELS)
 			break;
 		voe_game_progress_set(progress, "Loading models", done, total);
-		if (!load_changed(models, device, folder, path, 0, scratch,
-				  &error))
+		if (!load_changed(models, device, folder, path, 0, false,
+				  scratch, &error))
 			count_failure(&failures, models, path, error);
 		done++;
 	}
@@ -413,7 +433,7 @@ voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 		if (entry->landscape != NULL || entry->material)
 			continue;
 		if (!load_changed(models, device, folder, entry->path,
-				  entry->stamp, scratch, &error))
+				  entry->stamp, false, scratch, &error))
 			count_failure(&failures, models,
 				      voe_3d_models_at(models, i)->path, error);
 	}
