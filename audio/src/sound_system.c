@@ -1,6 +1,7 @@
 // The sound system's run: the two drains, the voice rows added and dropped,
 // the listener from the camera, each row reconciled with its voice and the
-// sweep. See audio/sound_system.h for what a run does and in which order.
+// sweep. See audio/sound_system.h for what a run does and in which order. An
+// off sound is stopped, not ended.
 //
 // A ROW IS CHANGED AS A COPY, set back whole: the table hands out no writable
 // row, as in 3d/src/emitter_system.c.
@@ -18,6 +19,7 @@
 #include <math/float4x4.h>
 
 #include <scene/camera_component.h>
+#include <scene/identity_component.h>
 #include <scene/transform_component.h>
 
 #include <inttypes.h>
@@ -174,6 +176,9 @@ static void listen(const voe_ecs_world *world, voe_audio_mixer *mixer, float asp
 }
 
 // Brings one row's voice in line with its sound, and the row with the voice.
+// An off entity's voice is stopped and its row zeroed, but `playing` is kept
+// (0428 point 6): switched on, a playing sound has no voice and so is started,
+// and a one-shot is not taken as ended, since the ended test needs a voice.
 static void reconcile(voe_ecs_world *world, voe_audio_mixer *mixer,
 		      voe_ecs_entity entity, voe_audio_sound sound)
 {
@@ -184,6 +189,12 @@ static void reconcile(voe_ecs_world *world, voe_audio_mixer *mixer,
 			 (voe_math_double3){ 0 };
 	const bool live = voe_audio_mixer_playing(mixer, voice.voice);
 
+	if (voe_scene_identity_off(world, entity)) {
+		voe_audio_mixer_stop(mixer, voice.voice);
+		voice = (voe_audio_sound_voice){ 0 };
+		(void)voe_ecs_component_set(world, voice_type(world), entity, &voice);
+		return;
+	}
 	if (voice.voice.id != 0 && !live && !sound.loop && !voice.restart) {
 		sound.playing = false;
 		(void)voe_ecs_component_set(world, sound_type(world), entity, &sound);
