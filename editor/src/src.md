@@ -340,9 +340,9 @@ carries it out.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.
-- `scene.c` — the selection closing the open material, its follow of a move and refresh from its
-  row, Delete, Duplicate and the Enabled switch, the gizmo's switch, the colour picker and dropdown targets, the Scene
-  panel's rows and folds, asked after the frame has ended, and the reveal's unfold and scroll.
+- `scene.c` — the selection and its targets, the open material's close, follow and refresh,
+  Delete, Duplicate and the Inspector's switch, and the Scene panel's rows, asked after the frame
+  has ended.
 - `pick.h` — a left click in a scene view selects what is under the pointer, every placed thing on
   its mesh or its marker, a marker before a mesh, and a click on nothing clears the selection; the
   ray and what it meets are `3d`'s (ADR-0202, 0354).
