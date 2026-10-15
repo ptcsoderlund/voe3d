@@ -42,18 +42,22 @@
 void voe_3d_draw_marks_camera(const voe_ecs_world *world,
 			      voe_render_device *device, voe_base_arena *arena,
 			      voe_3d_frame frame);
+// Every sun's mark; an off owner's left out (0428).
 void voe_3d_draw_marks_sun(const voe_ecs_world *world,
 			   voe_render_device *device, voe_base_arena *arena,
 			   voe_3d_frame frame);
+// Every point light's mark; an off owner's left out (0428).
 void voe_3d_draw_marks_point_lights(const voe_ecs_world *world,
 				    voe_render_device *device,
 				    voe_base_arena *arena, voe_3d_frame frame);
+// Every bare place's mark; an off owner's left out (0428).
 void voe_3d_draw_marks_places(const voe_ecs_world *world,
 			      voe_render_device *device, voe_base_arena *arena,
 			      voe_3d_frame frame);
 void voe_3d_draw_marks_brush(const voe_ecs_world *world,
 			     voe_render_device *device, voe_base_arena *arena,
 			     voe_3d_frame frame);
+// Every unselected blocker's lines; an off owner's left out (0428).
 void voe_3d_draw_marks_light_blockers(const voe_ecs_world *world,
 				      voe_render_device *device,
 				      voe_base_arena *arena, voe_3d_frame frame);

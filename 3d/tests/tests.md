@@ -91,7 +91,7 @@ again, or to find where a claim that has started failing is written down.
   outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
 - `pick.c` — that the pick ray meets the nearest cube, model, water plane or child at the right
   distance and nothing where nothing is, a camera, sun or place marker wins over a cube in front of
-  it or behind it, and a drawn pixel the cube covers picks it.
+  it or behind it, a drawn pixel the cube covers picks it, and passes what is off.
 - `bounds.c` — a scaled cube's centre and radius, a parent's box from its child and round a far
   child, a bare transform with none, a cube 100 km out to the millimetre, and the framing distance
   √2 for a square picture and more for a tall one. Needs no graphics card.

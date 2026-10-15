@@ -99,7 +99,8 @@ voe_3d_ray voe_3d_pick_ray(voe_render_view view, voe_math_double3 eye,
 
 // The nearest marker `ray` meets, else the frontmost mesh, or a zeroed entity when it meets none — and
 // a zeroed entity is never a live one (ecs/world.h), which is what clears a
-// selection.
+// selection. An off entity is never the answer, a camera aside (0428); the ray
+// goes on to whatever is behind it.
 //
 // `distance` may be NULL; when it is not, it is how far along the ray the hit
 // is, in metres from the ray's own origin — which for a pick ray is the point on

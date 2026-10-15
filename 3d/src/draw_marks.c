@@ -4,7 +4,9 @@
 // silhouette, a collider's and the selected blocker's lines and the gizmo's two
 // meshes, arrows or rings,
 // each as this frame's transient geometry and one or two draws, at the entity's
-// world place. See draw_marks.h.
+// world place. An off entity is not met (0428): its sun, lamp, place and
+// blocker marks are left out, its outline, lines and gizmo kept. See
+// draw_marks.h.
 //
 // All of them are in metres about the frame's eye already (ADR-0250), so every
 // object here has identity matrices; the record is the caller's unlit one and the colour the caller's.
@@ -27,6 +29,7 @@
 #include <ecs/component.h>
 #include <physics/shape.h>
 #include <scene/camera_component.h>
+#include <scene/identity_component.h>
 #include <scene/light_blocker_component.h>
 #include <scene/light_component.h>
 #include <scene/point_light_component.h>
@@ -152,7 +155,8 @@ void voe_3d_draw_marks_point_lights(const voe_ecs_world *world,
 	for (uint32_t i = 0; i < count; i++) {
 		voe_3d_outline_mesh mesh;
 
-		if (voe_scene_transform_get(world, owners[i]) == NULL)
+		if (voe_scene_transform_get(world, owners[i]) == NULL ||
+		    voe_scene_identity_off(world, owners[i]))
 			continue;
 		if (!voe_3d_point_light_marker_quads(
 			    voe_scene_transform_world(world, owners[i]).position,
@@ -213,7 +217,8 @@ void voe_3d_draw_marks_places(const voe_ecs_world *world,
 	for (uint32_t i = 0; i < count; i++) {
 		voe_3d_outline_mesh mesh;
 
-		if (!voe_3d_place_marker_wanted(world, owners[i]))
+		if (!voe_3d_place_marker_wanted(world, owners[i]) ||
+		    voe_scene_identity_off(world, owners[i]))
 			continue;
 		if (!voe_3d_place_marker_quads(
 			    voe_scene_transform_world(world, owners[i]).position,
@@ -309,7 +314,8 @@ void voe_3d_draw_marks_sun(const voe_ecs_world *world,
 	for (uint32_t i = 0; i < count; i++) {
 		voe_3d_outline_mesh mesh;
 
-		if (voe_scene_transform_get(world, owners[i]) == NULL)
+		if (voe_scene_transform_get(world, owners[i]) == NULL ||
+		    voe_scene_identity_off(world, owners[i]))
 			continue;
 		if (!voe_3d_sun_marker_quads(
 			    voe_scene_transform_world(world, owners[i]),
@@ -410,8 +416,9 @@ void voe_3d_draw_marks_light_blockers(const voe_ecs_world *world,
 		voe_physics_shape shape;
 		voe_3d_outline_mesh mesh;
 
-		if (owners[i].index == marked.selected.index &&
-		    owners[i].generation == marked.selected.generation)
+		if ((owners[i].index == marked.selected.index &&
+		     owners[i].generation == marked.selected.generation) ||
+		    voe_scene_identity_off(world, owners[i]))
 			continue;
 		if (!voe_3d_light_blocker_shape(world, owners[i], frame.lag,
 						&shape))

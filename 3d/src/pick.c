@@ -8,7 +8,7 @@
 // out once, its derivation in a comment above it. The markers — cameras' boxes,
 // suns', point lights' and place markers' cubes — are tested as one group, and
 // its nearest hit wins over any mesh hit; the meshes are walked only when no
-// marker is met.
+// marker is met. An off entity is not met (0428), a camera aside.
 #include <3d/camera_marker.h>
 #include <3d/landscape.h>
 #include <3d/model_component.h>
@@ -28,6 +28,7 @@
 #include <ecs/component.h>
 
 #include <scene/camera_component.h>
+#include <scene/identity_component.h>
 #include <scene/light_component.h>
 #include <scene/point_light_component.h>
 #include <scene/transform_component.h>
@@ -282,13 +283,19 @@ struct nearest_hit {
 };
 
 // Keeps `entity` at `t` when it is the group's first hit or nearer than it.
-static void keep_nearer(struct nearest_hit *best, voe_ecs_entity entity,
-			float t)
+// An off entity is kept nowhere, so the one behind it is met (0428 point 7),
+// unless it has a camera row: cameras ignore the switch (point 8).
+static void keep_nearer(const voe_ecs_world *world, struct nearest_hit *best,
+			voe_ecs_entity entity, float t)
 {
 	VOE_BASE_ASSERT(best != NULL, "a hit kept in nothing");
 	VOE_BASE_ASSERT(entity.generation != 0, "a hit on no entity");
 
 	if (best->entity.generation != 0 && t >= best->distance)
+		return;
+	if (voe_scene_identity_off(world, entity) &&
+	    !(has_store(world, &voe_scene_camera_key) &&
+	      voe_scene_camera_get(world, entity) != NULL))
 		return;
 	best->entity = entity;
 	best->distance = t;
@@ -313,7 +320,7 @@ static struct nearest_hit mesh_hit(const voe_ecs_world *world,
 		    geometry != NULL &&
 		    geometry_hit(voe_scene_transform_world(world, entities[i]),
 				 geometry, ray, &t))
-			keep_nearer(&best, entities[i], t);
+			keep_nearer(world, &best, entities[i], t);
 	}
 
 	// A model row is tested on its loaded entry's own triangles, exactly as
@@ -338,10 +345,10 @@ static struct nearest_hit mesh_hit(const voe_ecs_world *world,
 			if (entry->landscape != NULL) {
 				if (landscape_hit(placed, entry->landscape, ray,
 						  &ground))
-					keep_nearer(&best, owners[i],
+					keep_nearer(world, &best, owners[i],
 						    ground.distance);
 			} else if (geometry_hit(placed, &entry->shape, ray, &t)) {
-				keep_nearer(&best, owners[i], t);
+				keep_nearer(world, &best, owners[i], t);
 			}
 		}
 	}
@@ -359,7 +366,7 @@ static struct nearest_hit mesh_hit(const voe_ecs_world *world,
 			if (voe_scene_transform_get(world, owners[i]) != NULL &&
 			    water_hit(voe_scene_transform_world(world, owners[i]),
 				      bodies[i], ray, &t))
-				keep_nearer(&best, owners[i], t);
+				keep_nearer(world, &best, owners[i], t);
 		}
 	}
 	return best;
@@ -386,7 +393,7 @@ static struct nearest_hit marker_hit(const voe_ecs_world *world,
 			    voe_3d_camera_marker_hit(
 				    voe_scene_transform_world(world, owners[i]),
 				    ray, &t))
-				keep_nearer(&best, owners[i], t);
+				keep_nearer(world, &best, owners[i], t);
 		}
 	}
 
@@ -403,7 +410,7 @@ static struct nearest_hit marker_hit(const voe_ecs_world *world,
 			    voe_3d_sun_marker_hit(
 				    voe_scene_transform_world(world, owners[i]),
 				    ray, &t))
-				keep_nearer(&best, owners[i], t);
+				keep_nearer(world, &best, owners[i], t);
 		}
 	}
 
@@ -422,7 +429,7 @@ static struct nearest_hit marker_hit(const voe_ecs_world *world,
 				    voe_scene_transform_world(world, owners[i])
 					    .position,
 				    ray, &t))
-				keep_nearer(&best, owners[i], t);
+				keep_nearer(world, &best, owners[i], t);
 		}
 	}
 
@@ -441,7 +448,7 @@ static struct nearest_hit marker_hit(const voe_ecs_world *world,
 				    voe_scene_transform_world(world, owners[i])
 					    .position,
 				    ray, &t))
-				keep_nearer(&best, owners[i], t);
+				keep_nearer(world, &best, owners[i], t);
 		}
 	}
 	return best;
