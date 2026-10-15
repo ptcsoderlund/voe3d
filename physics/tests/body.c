@@ -1,6 +1,7 @@
 // Kinematic bodies: registered after colliders, the default row and what the
 // type needs, a row replaced whole when the system runs, each bad field
-// keeping the row, and the move: resting, walls, ramps, a ledge and a gap.
+// keeping the row, and the move: resting, walls, ramps, a ledge and a gap, a
+// floor switched off fallen through and a body switched off not moved (0428).
 //
 // THE REFUSED ROWS ARE REPORTED ON stderr. Those lines are expected output, not
 // a failure; the checks are on the row.
@@ -19,6 +20,7 @@
 #include <physics/body_system.h>
 #include <physics/collider_component.h>
 #include <physics/collider_system.h>
+#include <scene/identity_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -36,12 +38,13 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = ENTITIES,
-		.component_types = 3,
-		.intent_types = 3,
+		.component_types = 4,
+		.intent_types = 4,
 	};
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 
 	voe_scene_transform_register(world, ENTITIES);
+	voe_scene_identity_register(world, ENTITIES);
 	voe_physics_collider_register(world, ENTITIES);
 	voe_physics_body_register(world, ENTITIES);
 	return world;
@@ -164,17 +167,19 @@ static voe_ecs_entity placed(voe_ecs_world *world, voe_math_double3 base,
 	return entity;
 }
 
-static void box(voe_ecs_world *world, voe_math_double3 base,
-		voe_math_double3 at, float angle, voe_math_float3 size)
+static voe_ecs_entity box(voe_ecs_world *world, voe_math_double3 base,
+			  voe_math_double3 at, float angle,
+			  voe_math_float3 size)
 {
-	(void)placed(world, base, at, angle, VOE_PHYSICS_COLLIDER_BOX, size);
+	return placed(world, base, at, angle, VOE_PHYSICS_COLLIDER_BOX, size);
 }
 
 // A floor whose top is y = 0 and whose far edge is at x = `edge`.
-static void floor_to(voe_ecs_world *world, voe_math_double3 base, double edge)
+static voe_ecs_entity floor_to(voe_ecs_world *world, voe_math_double3 base,
+			       double edge)
 {
-	box(world, base, (voe_math_double3){ edge - 20.0, -0.5, 0.0 }, 0.0f,
-	    (voe_math_float3){ 40.0f, 1.0f, 40.0f });
+	return box(world, base, (voe_math_double3){ edge - 20.0, -0.5, 0.0 },
+		   0.0f, (voe_math_float3){ 40.0f, 1.0f, 40.0f });
 }
 
 // A capsule (1, 2, 1) body standing at x = 0, its centre `height` up.
@@ -357,9 +362,41 @@ static voe_math_double3 off_an_edge(voe_base_arena *arena,
 	return end;
 }
 
+// The floor switched off, a body over it walked in place falls below its top;
+// a body switched off, walked, stays where it is.
+static voe_math_double3 a_body_falls_through_an_off_floor(voe_base_arena *arena,
+							  voe_math_double3 base)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity floor = floor_to(world, base, 20.0);
+	voe_ecs_entity body = player(world, base, 1.0);
+	voe_ecs_entity still = player(world, base, 5.0);
+	voe_math_double3 before = at(world, still, base);
+	voe_math_double3 end;
+	voe_math_double3 after;
+
+	VOE_TEST_CHECK(voe_scene_identity_add(
+		world, floor,
+		(voe_scene_identity){ .id = 1, .name = "Floor", .off = true }));
+	VOE_TEST_CHECK(voe_scene_identity_add(
+		world, still,
+		(voe_scene_identity){ .id = 2, .name = "Still", .off = true }));
+	walk(world, body, 0.0f, 0.0f, 60);
+	end = at(world, body, base);
+	VOE_TEST_CHECK(end.y < 0.0);
+	VOE_TEST_CHECK(!on_floor(world, body));
+
+	walk(world, still, 2.0f, 0.0f, 60);
+	after = at(world, still, base);
+	VOE_TEST_CHECK(after.x == before.x && after.y == before.y &&
+		       after.z == before.z);
+	return end;
+}
+
 static voe_math_double3 (*const scenes[])(voe_base_arena *,
 					  voe_math_double3) = {
 	rests, head_on, slides, gentle, steep, onto_a_ledge, off_an_edge,
+	a_body_falls_through_an_off_floor,
 };
 
 int main(void)

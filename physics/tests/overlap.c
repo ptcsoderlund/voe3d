@@ -1,6 +1,7 @@
 // The overlap query: a capsule on a floor, against a wall and on a tilted box;
 // sphere against sphere and capsule against capsule; a trigger flagged, the
-// ignored entity left out, and capacity honoured; a child at its world place.
+// ignored entity left out, and capacity honoured; a child at its world place; a
+// floor switched off not touched (0428).
 //
 // EVERY SCENE RUNS TWICE, at the origin and moved by (100000, 0, 100000), and
 // checks the same numbers to 1e-5. A float there has a step of about 0.008, so
@@ -12,6 +13,7 @@
 #include <physics/collider_component.h>
 #include <physics/collider_system.h>
 #include <physics/overlap.h>
+#include <scene/identity_system.h>
 #include <scene/parent_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
@@ -27,8 +29,8 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = ENTITIES,
-		.component_types = 3,
-		.intent_types = 2,
+		.component_types = 4,
+		.intent_types = 3,
 		// voe_scene_parent_set queues through it.
 		.structure_requests = 4,
 		.structure_bytes = 128,
@@ -37,6 +39,7 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 
 	voe_scene_transform_register(world, ENTITIES);
 	voe_scene_parent_register(world, ENTITIES);
+	voe_scene_identity_register(world, ENTITIES);
 	voe_physics_collider_register(world, ENTITIES);
 	return world;
 }
@@ -261,6 +264,26 @@ static void a_child_collides_at_its_world_place(voe_base_arena *arena,
 	VOE_TEST_CHECK_INT(n, 0);
 }
 
+// The floor and capsule of the first case, the floor switched off: no contact.
+static void an_off_floor_is_not_touched(voe_base_arena *arena,
+					voe_math_double3 base)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_physics_contact contacts[4];
+	voe_ecs_entity floor =
+		placed(world, base, (voe_math_double3){ 0.0, -0.5, 0.0 },
+		       turned_about_z(0.0f), VOE_PHYSICS_COLLIDER_BOX,
+		       (voe_math_float3){ 10.0f, 1.0f, 10.0f }, false);
+
+	VOE_TEST_CHECK(voe_scene_identity_add(
+		world, floor,
+		(voe_scene_identity){ .id = 1, .name = "Floor", .off = true }));
+	VOE_TEST_CHECK_INT(voe_physics_overlap(world, capsule_at(base, 0.99),
+					       (voe_ecs_entity){ 0 }, contacts,
+					       4),
+			   0);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
@@ -274,6 +297,7 @@ int main(void)
 		round_against_round(arena, places[i]);
 		trigger_ignore_and_capacity(arena, places[i]);
 		a_child_collides_at_its_world_place(arena, places[i]);
+		an_off_floor_is_not_touched(arena, places[i]);
 	}
 
 	voe_base_arena_destroy(arena);

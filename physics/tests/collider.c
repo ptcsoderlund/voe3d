@@ -1,6 +1,7 @@
 // Colliders: what registration tells a tool, that an intent lands only when the
 // system runs and a bad size keeps the row, and what shape a collider becomes in
-// the world once its transform's scale applies.
+// the world once its transform's scale applies, and that a box switched off,
+// itself or through a parent, has none (0428).
 //
 // THE BOX SITS AT x = 100000 ON PURPOSE. A float there has a step of about
 // 0.008, so a centre that passed through a float would come back off by up to
@@ -13,11 +14,14 @@
 // failure; the checks are on the row.
 #include <base/arena.h>
 #include <ecs/component.h>
+#include <ecs/structure.h>
 #include <ecs/world.h>
 #include <math/quat.h>
 #include <physics/collider_component.h>
 #include <physics/collider_system.h>
 #include <physics/shape.h>
+#include <scene/identity_system.h>
+#include <scene/parent_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
@@ -31,14 +35,31 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = ENTITIES,
-		.component_types = 2,
-		.intent_types = 2,
+		.component_types = 4,
+		.intent_types = 3,
+		// voe_scene_parent_set queues through it.
+		.structure_requests = 4,
+		.structure_bytes = 128,
 	};
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 
 	voe_scene_transform_register(world, ENTITIES);
+	voe_scene_parent_register(world, ENTITIES);
+	voe_scene_identity_register(world, ENTITIES);
 	voe_physics_collider_register(world, ENTITIES);
 	return world;
+}
+
+// Sets the entity's own switch through the identity intent.
+static void switched(voe_ecs_world *world, voe_ecs_entity entity, bool off)
+{
+	voe_scene_identity identity = *voe_scene_identity_get(world, entity);
+
+	identity.off = off;
+	VOE_TEST_CHECK(voe_scene_identity_submit(
+		world, (voe_scene_identity_intent){ .entity = entity,
+						    .identity = identity }));
+	voe_scene_identity_system_run(world);
 }
 
 // An entity with a transform at `position` scaled by `scale`, and `collider`.
@@ -182,14 +203,55 @@ static void a_capsule_and_no_collider(voe_base_arena *arena)
 	VOE_TEST_CHECK(!voe_physics_shape_of(world, bare, &shape));
 }
 
+// A box with a shape has none once its identity is off, and the same one on
+// again; a child box has none once its parent is off.
+static void an_off_collider_has_no_shape(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	const voe_physics_collider cube = { .kind = VOE_PHYSICS_COLLIDER_BOX,
+					    .size = { 1.0f, 1.0f, 1.0f } };
+	voe_ecs_entity box = placed(world, (voe_math_double3){ 3.0, 0.0, 0.0 },
+				    (voe_math_float3){ 2.0f, 2.0f, 2.0f }, cube);
+	voe_ecs_entity child = placed(world, (voe_math_double3){ 0.0, 0.0, 0.0 },
+				      (voe_math_float3){ 1.0f, 1.0f, 1.0f },
+				      cube);
+	voe_ecs_entity parent = { 0 };
+	voe_physics_shape before = { 0 };
+	voe_physics_shape shape = { 0 };
+
+	VOE_TEST_CHECK(voe_scene_identity_add(
+		world, box, (voe_scene_identity){ .id = 1, .name = "Box" }));
+	VOE_TEST_CHECK(voe_physics_shape_of(world, box, &before));
+	switched(world, box, true);
+	VOE_TEST_CHECK(!voe_physics_shape_of(world, box, &shape));
+	switched(world, box, false);
+	VOE_TEST_CHECK(voe_physics_shape_of(world, box, &shape));
+	VOE_TEST_CHECK(shape.kind == before.kind &&
+		       shape.centre.x == before.centre.x &&
+		       shape.half.x == before.half.x &&
+		       shape.half.y == before.half.y &&
+		       shape.half.z == before.half.z);
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &parent));
+	VOE_TEST_CHECK(voe_scene_identity_add(
+		world, parent, (voe_scene_identity){ .id = 2, .name = "Parent" }));
+	VOE_TEST_CHECK(voe_scene_parent_set(world, child, parent));
+	voe_ecs_structure_apply(world);
+	voe_scene_transform_system_run(world);
+	VOE_TEST_CHECK(voe_physics_shape_of(world, child, &shape));
+	switched(world, parent, true);
+	VOE_TEST_CHECK(!voe_physics_shape_of(world, child, &shape));
+}
+
 int main(void)
 {
-	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	voe_base_arena *arena = voe_base_arena_new(256 * 1024);
 
 	registration_tells_a_tool(arena);
 	an_intent_is_drained_and_a_bad_size_kept(arena);
 	a_scaled_box_far_away(arena);
 	a_capsule_and_no_collider(arena);
+	an_off_collider_has_no_shape(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
