@@ -266,9 +266,11 @@ typedef struct {
 	// non-zero count is what tells session.h an edit reached the project
 	// (session.h).
 	uint32_t replaced;
-	// The Duplicate and Delete buttons as drawn this frame,
-	// VOE_UI_NODE_NONE when they were not: nothing selected, or the
-	// camera's entity (ADR-0218). A light's entity has both (0357 point 5).
+	// The Enabled row's switch and the Duplicate and Delete buttons as
+	// drawn this frame, VOE_UI_NODE_NONE when they were not: nothing
+	// selected, a prefab's part, or the camera's entity (ADR-0218). A
+	// light's entity has all three (0357 point 5).
+	voe_ui_node enabled;
 	voe_ui_node duplicate;
 	voe_ui_node remove;
 	// Each section's Remove button as drawn this frame, the kept types'

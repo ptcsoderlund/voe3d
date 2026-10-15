@@ -181,8 +181,8 @@ carries it out.
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
   drag parents, unparents or, onto the Assets panel, makes a prefab; a part never drags.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
-  stack, rows tightly padded in one gapless column, each in a rim wrapper, a copy's file name,
-  the drag's ghost refused or not, and the held row's drop.
+  stack, rows tightly padded in one gapless column, each in a rim wrapper, an off row greyed, a
+  copy's file name, the drag's ghost refused or not, and the held row's drop.
 - `drag_ghost.h` — the ghost every editor drag shows beside the pointer: a raised panel of the
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
@@ -252,7 +252,7 @@ carries it out.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
-- `inspector.c` — the Duplicate and Delete row, each described component's heading, Remove and
+- `inspector.c` — the Enabled row's On or Off button, the Duplicate and Delete row, each described component's heading, Remove and
   "Needs" line, Add component, its menu and open list, a part read-only, the Sculpt and Layers
   sections on a landscape, or an open material's section instead.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
@@ -293,7 +293,7 @@ carries it out.
 - `inspector_edit.c` — a dragged or typed number submitted as the component's replace intent, a
   rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
   bytes, and the picker's colour and the open list's choice submitted the same way.
-- `inspector_buttons.c` — the fired buttons carried out through scene.h and entities.h, and the
+- `inspector_buttons.c` — the fired buttons, Enabled's switch among them, carried out through scene.h and entities.h, and the
   open dropdown and Add component's lists and submenus opened, closed and placed each frame; none
   on a prefab's part.
 - `inspector_place.h` — the side-and-cap rule the open lists and submenus are placed by, and the
@@ -341,7 +341,7 @@ carries it out.
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.
 - `scene.c` — the selection closing the open material, its follow of a move and refresh from its
-  row, Delete and Duplicate, the gizmo's switch, the colour picker and dropdown targets, the Scene
+  row, Delete, Duplicate and the Enabled switch, the gizmo's switch, the colour picker and dropdown targets, the Scene
   panel's rows and folds, asked after the frame has ended, and the reveal's unfold and scroll.
 - `pick.h` — a left click in a scene view selects what is under the pointer, every placed thing on
   its mesh or its marker, a marker before a mesh, and a click on nothing clears the selection; the

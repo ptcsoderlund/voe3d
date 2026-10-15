@@ -361,8 +361,14 @@
 // each label at most its 32-byte buffer less the zero, thirty-one apiece,
 // 124. 2553 + 6 = 2559 nodes, 51365 + 131 = 51496 elements. No scroll area:
 // five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2559
-#define VOE_EDITOR_INTERFACE_ELEMENTS 51496
+//
+// THE INSPECTOR'S ENABLED ROW (inspector.h, ADR-0427) ADDS FOUR NODES, the
+// row, the "Enabled" label, the button and its label, and TWELVE ELEMENTS:
+// "Enabled", seven; the button's border and fill, two; and "Off", its longer
+// label, three. 2559 + 4 = 2563 nodes, 51496 + 12 = 51508 elements. No scroll
+// area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2563
+#define VOE_EDITOR_INTERFACE_ELEMENTS 51508
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

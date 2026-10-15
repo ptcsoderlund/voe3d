@@ -6,8 +6,9 @@
 //
 // Delete takes a whole tree and Duplicate one entity; both refuse a part and
 // the camera, and a light is copied as a second sun (0357 point 5). The colour picker and dropdown
-// open, close and are placed where the Inspector measured them. A fold is
-// submitted as the entity's identity with `folded` flipped; a reveal's unfold
+// open, close and are placed where the Inspector measured them. A fold, and
+// the Inspector's switch, is submitted as the entity's identity with `folded`,
+// or `off`, flipped; a reveal's unfold
 // as its ancestors' with `folded` false, then its row centred a frame later
 // through ui/widgets.h's voe_ui_scroll_centre.
 //
@@ -159,19 +160,29 @@ void voe_editor_scene_row_add(voe_editor_scene *scene, voe_ui_node node,
 	};
 }
 
-// A fired fold: the entity's identity row submitted whole with `folded`
-// flipped, one structural change so it is an undo step and unsaved.
-static void fold_flip(voe_editor_scene *scene, voe_ecs_entity entity)
+// The identity bit identity_flip flips.
+enum identity_bit { BIT_FOLDED, BIT_OFF };
+
+// A fired fold or switch: the entity's identity row submitted whole with
+// `folded` or `off` flipped, one structural change so it is an undo step and
+// unsaved, or `full` when the queue refuses it.
+static void identity_flip(voe_editor_scene *scene, voe_ecs_entity entity,
+			  enum identity_bit bit)
 {
 	const voe_scene_identity *identity =
 		voe_scene_identity_get(scene->world, entity);
 	voe_scene_identity flipped;
 
-	VOE_BASE_ASSERT(scene->world != NULL, "folding a row of no world");
+	VOE_BASE_ASSERT(scene->world != NULL, "flipping an identity of no world");
+	VOE_BASE_ASSERT(bit == BIT_FOLDED || bit == BIT_OFF,
+			"flipping an identity bit that is not one");
 	if (identity == NULL)
 		return;
 	flipped = *identity;
-	flipped.folded = !flipped.folded;
+	if (bit == BIT_FOLDED)
+		flipped.folded = !flipped.folded;
+	else
+		flipped.off = !flipped.off;
 	if (!voe_scene_identity_submit(scene->world,
 				       (voe_scene_identity_intent){
 					       .entity = entity,
@@ -203,7 +214,8 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 			scene->material_open[0] = '\0';
 		}
 		if (action_of(ui, scene->listed[i].fold).fired)
-			fold_flip(scene, scene->listed[i].entity);
+			identity_flip(scene, scene->listed[i].entity,
+				      BIT_FOLDED);
 	}
 
 	if (!action_of(ui, scene->add).fired)
@@ -217,7 +229,7 @@ bool voe_editor_scene_clicks_read(voe_editor_scene *scene,
 }
 
 // Every folded ancestor of `entity` submitted with `folded` false, as
-// fold_flip submits; how many were, a refused one setting `full`.
+// identity_flip submits; how many were, a refused one setting `full`.
 static uint32_t ancestors_unfold(voe_editor_scene *scene, voe_ecs_entity entity)
 {
 	uint32_t submitted = 0;
@@ -330,6 +342,17 @@ void voe_editor_scene_duplicate(voe_editor_scene *scene)
 	}
 	scene->selected = made;
 	scene->structural++;
+}
+
+void voe_editor_scene_switch(voe_editor_scene *scene)
+{
+	voe_ecs_entity selected = voe_editor_scene_selected(scene);
+
+	if (selected.generation == 0 ||
+	    voe_editor_inspector_is_part(scene->world, selected, NULL) ||
+	    voe_scene_camera_get(scene->world, selected) != NULL)
+		return;
+	identity_flip(scene, selected, BIT_OFF);
 }
 
 void voe_editor_scene_gizmo_switch(voe_editor_scene *scene)

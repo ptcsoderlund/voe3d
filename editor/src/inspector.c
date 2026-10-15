@@ -1,5 +1,6 @@
-// The walk over the world's component types, each component's panel with a row
-// per described field (inspector_rows.h), Add component and the open list. See
+// The Enabled switch's row, the walk over the world's component types, each
+// component's panel with a row per described field (inspector_rows.h), Add
+// component and the open list. See
 // the header for why this file names no component; the replace intent a moved
 // control becomes is inspector_edit.c's. A thing wearing a landscape gets the
 // Sculpt section and, its grid loaded, Layers; a loaded model, Level. While a material is open its section
@@ -36,6 +37,7 @@
 #include <3d/model_component.h>
 
 #include <scene/camera_component.h>
+#include <scene/identity_component.h>
 #include <scene/prefab_component.h>
 
 #include <ui/colour.h>
@@ -328,6 +330,7 @@ void voe_editor_inspector_frame_begin(voe_editor_inspector *inspector,
 	inspector->control_count = 0;
 	inspector->replaced = 0;
 	inspector->entity = (voe_ecs_entity){ 0 };
+	inspector->enabled = VOE_UI_NODE_NONE;
 	inspector->duplicate = VOE_UI_NODE_NONE;
 	inspector->remove = VOE_UI_NODE_NONE;
 	inspector->remove_count = 0;
@@ -425,10 +428,24 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 				      prefab != NULL ? prefab->path : "?"));
 	}
 
-	// No Duplicate and no Delete for the camera's entity: the scene's one
-	// camera is neither copied nor deleted (ADR-0218). A light's has both:
-	// a copy is a second directional light (0357 point 5).
+	// No Enabled switch, Duplicate or Delete for the camera's entity: the
+	// scene's one camera is neither switched off, copied nor deleted
+	// (ADR-0218, 0428 point 8). A light's has all three: a copy is a second
+	// directional light (0357 point 5). The switch reads the identity's own
+	// `off`, not an ancestor's.
 	if (!part && voe_scene_camera_get(world, selected) == NULL) {
+		const voe_scene_identity *identity =
+			voe_scene_identity_get(world, selected);
+
+		voe_ui_row_begin(ui, (voe_ui_container){
+					     .across = VOE_UI_ACROSS_CENTER,
+					     .gap = COMPONENT_GAP });
+		voe_ui_label(ui, "Enabled");
+		inspector->enabled = voe_ui_button_begin(ui, "enabled", 0);
+		voe_ui_label(ui, identity != NULL && identity->off ? "Off"
+								   : "On");
+		voe_ui_end(ui);
+		voe_ui_end(ui);
 		voe_ui_row_begin(ui,
 				 (voe_ui_container){ .gap = COMPONENT_GAP });
 		inspector->duplicate = voe_ui_button_begin(ui, "duplicate", 0);

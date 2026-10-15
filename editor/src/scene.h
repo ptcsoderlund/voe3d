@@ -329,6 +329,12 @@ void voe_editor_scene_delete(voe_editor_scene *scene);
 // when the world or the queue is full.
 void voe_editor_scene_duplicate(voe_editor_scene *scene);
 
+// Flips the selected entity's `off` (0427, 0428 point 9): its identity row
+// submitted whole, one structural change, so it is one undo step and unsaved;
+// `full` when the queue refuses it. Nothing selected does nothing, nor does a
+// prefab's part (0283 point 5) or the camera's entity, as for Duplicate.
+void voe_editor_scene_switch(voe_editor_scene *scene);
+
 // Flips `rings`: move becomes turn and turn becomes move, whatever is selected.
 void voe_editor_scene_gizmo_switch(voe_editor_scene *scene);
 
