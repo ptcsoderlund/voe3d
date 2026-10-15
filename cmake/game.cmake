@@ -59,7 +59,8 @@
 # depends on) to the same relative path under CMAKE_BINARY_DIR, and installed
 # the same way. Relative, because the game resolves a file's project-relative
 # path against its own program's folder, in Play and shipped alike. Build/ and
-# Cache/ are skipped: they hold build output, not the project's files. The glob
+# Cache/ are skipped: they hold build output, not the project's files, save the
+# model levels files under Cache/levels/, carried the same way (0426). The glob
 # is per top-level folder, skipping those two, so the copies under Build/ never
 # count as a change and a build re-runs CMake only when the project's own files
 # change.
@@ -187,6 +188,9 @@ else()
             list(APPEND voe_files "${voe_entry}")
         endif()
     endforeach()
+    # 0426: the editor's model levels ride along; a missing one is made by the game at load.
+    file(GLOB_RECURSE voe_level_files CONFIGURE_DEPENDS "${voe_project_root}/Cache/levels/*.levels")
+    list(APPEND voe_files ${voe_level_files})
     set(voe_file_copies "")
     foreach(voe_file IN LISTS voe_files)
         file(RELATIVE_PATH voe_file_rel "${voe_project_root}" "${voe_file}")
