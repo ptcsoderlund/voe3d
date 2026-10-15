@@ -1,6 +1,8 @@
 // The levels file made and read (3d/model_levels.h): a `.glb` parsed, baked at
 // level 0 and simplified a part at a time into the file's bytes, and those
-// bytes read back field by field against the `.glb` they were made from.
+// bytes read back field by field against the `.glb` they were made from; and a
+// view's level of a loaded model, walked from the top over bounds made
+// non-increasing at load.
 //
 // A LEVEL IS MADE WHOLE BEFORE IT IS JUDGED: every part simplified, its
 // triangles summed, and only then held against three quarters of the level
@@ -284,4 +286,38 @@ bool voe_3d_model_levels_read(voe_base_arena *arena, const uint8_t *bytes,
 		}
 	}
 	return reader.at == reader.size;
+}
+
+uint32_t voe_3d_model_level(const voe_3d_model_entry *model,
+			    const voe_scene_transform *placed,
+			    voe_math_double3 eye, const voe_render_view *view)
+{
+	voe_math_float3 scale;
+	voe_math_float3 centre;
+	voe_math_float4 clip;
+	float radius;
+	float s;
+
+	VOE_BASE_ASSERT(model != NULL && placed != NULL && view != NULL,
+			"choosing a level of nothing");
+	VOE_BASE_ASSERT(model->level_count <= VOE_3D_MODEL_LEVELS,
+			"a model with more levels than it can hold");
+
+	scale = placed->scale;
+	radius = model->radius *
+		 fmaxf(fabsf(scale.x), fmaxf(fabsf(scale.y), fabsf(scale.z)));
+	centre = voe_math_float4x4_transform_point(
+		voe_scene_transform_matrix(*placed, eye), model->centre);
+	clip = voe_math_float4x4_mul_float4(
+		voe_math_float4x4_mul(view->projection, view->view),
+		(voe_math_float4){ centre.x, centre.y, centre.z, 1.0f });
+	if (model->level_count <= 1 || clip.w <= 0.0f ||
+	    voe_math_float3_length(centre) <= radius)
+		return 0;
+
+	s = radius * fabsf(view->projection.m[1][1]) / clip.w;
+	for (uint32_t k = model->level_count - 1; k > 0; k--)
+		if (model->levels[k].bound > s)
+			return k;
+	return 0;
 }

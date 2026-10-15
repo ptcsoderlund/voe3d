@@ -10,7 +10,12 @@
 // 3. The sphere with a second root "Ball_LOD1": its file reads `own`, one level.
 // 4. The hash of "a" is FNV-1a 64's, 0xaf63dc4c8601ec8c.
 // 5. Making levels of bytes that are no `.glb`: NULL, MALFORMED.
+// 6. A view's level of a hand-filled entry (radius 1, bounds infinite, 0.2,
+//    0.05) on the −z axis of a 60° projection, the distances from its P[1][1]:
+//    0 with the eye inside, 0 at 2 m, 1 where s is 0.1, 2 where s is 0.01, and
+//    below 2 there when scaled by 10.
 #include <3d/model_levels.h>
+#include <3d/projection.h>
 
 #include <base/arena.h>
 #include <base/error.h>
@@ -103,6 +108,46 @@ static void not_a_glb(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_MALFORMED);
 }
 
+static uint32_t level_at(const voe_3d_model_entry *model,
+			 const voe_render_view *view, double distance,
+			 float scale)
+{
+	const voe_scene_transform placed = {
+		.position = { 0.0, 0.0, -distance },
+		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+		.scale = { scale, scale, scale },
+	};
+
+	return voe_3d_model_level(model, &placed, (voe_math_double3){ 0 }, view);
+}
+
+static void view_levels(void)
+{
+	static voe_3d_model_entry model;
+	const voe_scene_camera lens = {
+		.fov_y = 1.0471976f, // 60°
+		.near_plane = 0.1f,
+		.far_plane = 1000.0f,
+	};
+	const voe_render_view view = {
+		.view = voe_math_float4x4_identity(),
+		.projection = voe_3d_projection(lens, 1.0f),
+	};
+	const double focal = view.projection.m[1][1];
+
+	model.radius = 1.0f;
+	model.level_count = 3;
+	model.levels[0].bound = INFINITY;
+	model.levels[1].bound = 0.2f;
+	model.levels[2].bound = 0.05f;
+
+	VOE_TEST_CHECK_INT(level_at(&model, &view, 0.5, 1.0f), 0);
+	VOE_TEST_CHECK_INT(level_at(&model, &view, 2.0, 1.0f), 0);
+	VOE_TEST_CHECK_INT(level_at(&model, &view, focal / 0.1, 1.0f), 1);
+	VOE_TEST_CHECK_INT(level_at(&model, &view, focal / 0.01, 1.0f), 2);
+	VOE_TEST_CHECK(level_at(&model, &view, focal / 0.01, 10.0f) < 2);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
@@ -112,6 +157,7 @@ int main(void)
 	VOE_TEST_CHECK(voe_3d_model_levels_hash((const uint8_t *)"a", 1) ==
 		       0xaf63dc4c8601ec8cull);
 	not_a_glb(arena);
+	view_levels();
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

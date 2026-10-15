@@ -1,6 +1,7 @@
 // A `.glb`'s levels file: the levels the engine makes of a model, as the bytes
-// kept in the project's Cache (0426 point 1) and read back by the model store.
-// `game` makes and reads the file; the store reads it at load.
+// kept in the project's Cache (0426 point 1) and read back by the model store;
+// and the level a view draws of a loaded model. `game` makes and reads the
+// file; the store reads it at load; the draws and the Inspector choose with it.
 //
 //     const uint8_t *file;
 //     size_t file_size;
@@ -40,12 +41,23 @@
 // says false and the file is made again. An index is not checked against its
 // part's vertices, which this file does not know: the hash ties it to the
 // `.glb` it was made from, and the store holds the vertex counts.
+//
+// THE CHOICE HAS NO STATE (0425 point 3), so every asker gets one answer. `s` =
+// world radius × |P[1][1]| ÷ the centre's clip w, the world radius the model's
+// radius times its largest scale component: the radius as a fraction of half
+// the screen. The level is the largest k below `level_count` whose
+// `levels[k].bound` is above `s`; level 0 when the eye is inside the world
+// sphere, when the w is not above nought, or for an entry with one level.
 #pragma once
 
 #include <3d/models.h>
 
 #include <base/arena.h>
 #include <base/error.h>
+
+#include <math/double3.h>
+#include <render/device.h>
+#include <scene/transform_component.h>
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -84,3 +96,9 @@ voe_3d_model_levels_make(voe_base_arena *arena, const uint8_t *glb,
 					    const uint8_t *bytes, size_t size,
 					    const uint8_t *glb, size_t glb_size,
 					    voe_3d_model_levels *out);
+
+// The level `view` draws of `model` placed at `placed`, the view about `eye`
+// (eye-relative, 0250), as the paragraph above says.
+uint32_t voe_3d_model_level(const voe_3d_model_entry *model,
+			    const voe_scene_transform *placed,
+			    voe_math_double3 eye, const voe_render_view *view);
