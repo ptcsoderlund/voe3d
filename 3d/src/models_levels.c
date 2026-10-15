@@ -15,6 +15,10 @@
 // saying false, a part count not the bake's, or any index at or past its part's
 // vertices, all found before anything is uploaded.
 //
+// EVERY BOUND OF LEVEL 1 ON IS ÷ THE FILE'S SWAP (0432 point 2), before they
+// are made non-increasing: 1 with no fresh file, an own `.glb`'s file read for
+// the swap alone.
+//
 // AN OWN LEVEL MATCHING NO PART ENDS THE LIST: it would draw nothing, and the
 // levels after it are farther still.
 //
@@ -125,7 +129,7 @@ static bool upload_own_level(voe_render_device *device, voe_base_arena *scratch,
 
 static bool upload_own(voe_render_device *device, voe_base_arena *scratch,
 		       const voe_assets_model *model,
-		       const voe_3d_model_bake *zero, uint32_t count,
+		       const voe_3d_model_bake *zero, uint32_t count, float swap,
 		       voe_3d_model_entry *entry, voe_base_error *error)
 {
 	entry->levels_own = true;
@@ -133,7 +137,7 @@ static bool upload_own(voe_render_device *device, voe_base_arena *scratch,
 		uint32_t matched = 0;
 
 		entry->level_count = k + 1;
-		entry->levels[k].bound = ldexpf(1.0f, -(int)k);
+		entry->levels[k].bound = ldexpf(1.0f, -(int)k) / swap;
 		if (!upload_own_level(device, scratch, model, zero, k, entry,
 				      &matched, error))
 			return false;
@@ -205,7 +209,7 @@ static bool upload_made(voe_render_device *device, voe_base_arena *scratch,
 	for (uint32_t k = 1; k < read->level_count; k++) {
 		const float made = read->errors[k];
 		const float bound = made > 0.0f ? SCREEN_ERROR * entry->radius /
-							  made :
+							  made / read->swap :
 						  INFINITY;
 
 		entry->level_count = k + 1;
@@ -232,6 +236,7 @@ bool voe_3d_models_levels_upload(voe_render_device *device,
 {
 	const uint32_t own = voe_3d_model_bake_levels(model);
 	voe_3d_model_levels read;
+	bool fresh;
 
 	VOE_BASE_ASSERT(device != NULL && scratch != NULL,
 			"uploading levels with no device or arena");
@@ -239,13 +244,13 @@ bool voe_3d_models_levels_upload(voe_render_device *device,
 			"uploading the levels of nothing");
 	VOE_BASE_ASSERT(entry->level_count == 1, "levels uploaded twice");
 
+	fresh = levels != NULL &&
+		voe_3d_model_levels_read(scratch, levels, levels_size, glb,
+					 glb_size, &read);
 	if (own > 1)
-		return upload_own(device, scratch, model, bake, own, entry,
-				  error);
-	if (levels == NULL ||
-	    !voe_3d_model_levels_read(scratch, levels, levels_size, glb,
-				      glb_size, &read) ||
-	    !fits(&read, bake))
+		return upload_own(device, scratch, model, bake, own,
+				  fresh ? read.swap : 1.0f, entry, error);
+	if (!fresh || !fits(&read, bake))
 		return true;
 	return upload_made(device, scratch, bake, &read, entry, error);
 }

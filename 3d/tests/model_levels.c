@@ -13,11 +13,13 @@
 // 6. The sphere made with count 2: at most 2 levels read; with count 1:
 //    exactly 1.
 // 7. The sphere made strong: level 1 has fewer triangles than made medium.
-// 8. The defaults' file with its version field set to 1: read false, stale.
+// 8. The defaults' file with its version field set to 1, and to 2: read false,
+//    stale.
 // 9. A view's level of a hand-filled entry (radius 1, bounds infinite, 0.2,
 //    0.05) on the −z axis of a 60° projection, the distances from its P[1][1]:
 //    0 with the eye inside, 0 at 2 m, 1 where s is 0.1, 2 where s is 0.01, and
 //    below 2 there when scaled by 10.
+// 10. The sphere made at SWAP_FAR: read gives `swap` 2; at the defaults, 1.
 #include <3d/model_levels.h>
 #include <3d/projection.h>
 
@@ -48,6 +50,7 @@ static void sphere_levels(voe_base_arena *arena)
 	voe_3d_model_levels levels = {};
 	uint64_t previous = SEGMENTS * (RINGS - 1) * 2;
 	const uint32_t version_1 = 1;
+	const uint32_t version_2 = 2;
 	uint8_t *changed;
 
 	VOE_TEST_CHECK(file != NULL);
@@ -81,9 +84,12 @@ static void sphere_levels(voe_base_arena *arena)
 	VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size, glb,
 						 glb_size, &levels));
 
-	// 8: a file the earlier simplifier made.
+	// 8: files the earlier simplifier made, before and after the strength.
 	memcpy(changed, file, size);
 	memcpy(changed + 4, &version_1, sizeof(version_1));
+	VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size, glb,
+						 glb_size, &levels));
+	memcpy(changed + 4, &version_2, sizeof(version_2));
 	VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size, glb,
 						 glb_size, &levels));
 }
@@ -110,24 +116,42 @@ static void levels_asked(voe_base_arena *arena)
 	voe_3d_model_levels medium = {};
 
 	// 6
-	VOE_TEST_CHECK(sphere_made(
-		arena, (voe_assets_levels){ 2, VOE_ASSETS_LEVELS_MEDIUM },
-		&levels));
+	VOE_TEST_CHECK(sphere_made(arena,
+				   (voe_assets_levels){
+					   2, VOE_ASSETS_LEVELS_MEDIUM,
+					   VOE_ASSETS_LEVELS_SWAP_NORMAL },
+				   &levels));
 	VOE_TEST_CHECK(levels.level_count <= 2);
-	VOE_TEST_CHECK(sphere_made(
-		arena, (voe_assets_levels){ 1, VOE_ASSETS_LEVELS_MEDIUM },
-		&levels));
+	VOE_TEST_CHECK(sphere_made(arena,
+				   (voe_assets_levels){
+					   1, VOE_ASSETS_LEVELS_MEDIUM,
+					   VOE_ASSETS_LEVELS_SWAP_NORMAL },
+				   &levels));
 	VOE_TEST_CHECK_INT(levels.level_count, 1);
 
 	// 7
-	VOE_TEST_CHECK(sphere_made(
-		arena, (voe_assets_levels){ 2, VOE_ASSETS_LEVELS_MEDIUM },
-		&medium));
-	VOE_TEST_CHECK(sphere_made(
-		arena, (voe_assets_levels){ 2, VOE_ASSETS_LEVELS_STRONG },
-		&levels));
+	VOE_TEST_CHECK(sphere_made(arena,
+				   (voe_assets_levels){
+					   2, VOE_ASSETS_LEVELS_MEDIUM,
+					   VOE_ASSETS_LEVELS_SWAP_NORMAL },
+				   &medium));
+	VOE_TEST_CHECK(sphere_made(arena,
+				   (voe_assets_levels){
+					   2, VOE_ASSETS_LEVELS_STRONG,
+					   VOE_ASSETS_LEVELS_SWAP_NORMAL },
+				   &levels));
 	VOE_TEST_CHECK(medium.level_count == 2 && levels.level_count == 2);
 	VOE_TEST_CHECK(levels.index_counts[1][0] < medium.index_counts[1][0]);
+
+	// 10
+	VOE_TEST_CHECK(sphere_made(arena,
+				   (voe_assets_levels){
+					   4, VOE_ASSETS_LEVELS_MEDIUM,
+					   VOE_ASSETS_LEVELS_SWAP_FAR },
+				   &levels));
+	VOE_TEST_CHECK(levels.swap == 2.0f);
+	VOE_TEST_CHECK(sphere_made(arena, VOE_ASSETS_LEVELS_DEFAULT, &levels));
+	VOE_TEST_CHECK(levels.swap == 1.0f);
 }
 
 static void own_levels(voe_base_arena *arena)

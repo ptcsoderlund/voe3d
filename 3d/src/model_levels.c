@@ -28,9 +28,9 @@
 #include <string.h>
 
 #define MAGIC "VOEL"
-#define VERSION 2u
-// Magic, version, hash, own, level count, part count.
-#define HEAD_BYTES (4 + 4 + 8 + 4 + 4 + 4)
+#define VERSION 3u
+// Magic, version, hash, own, level count, part count, swap.
+#define HEAD_BYTES (4 + 4 + 8 + 4 + 4 + 4 + 4)
 
 static_assert(VOE_ASSETS_LEVELS == VOE_3D_MODEL_LEVELS,
 	      "a parts file's level count is the store's");
@@ -47,6 +47,18 @@ static const struct strength {
 	[VOE_ASSETS_LEVELS_MEDIUM] = { 60.0f, 1, 4.0f },
 	[VOE_ASSETS_LEVELS_STRONG] = { 180.0f, 2, 2.0f },
 };
+
+// How many times the distance its error allows a level swaps in at, by swap
+// (0432 point 1).
+static const float SWAPS[] = {
+	[VOE_ASSETS_LEVELS_SWAP_NEAR] = 0.5f,
+	[VOE_ASSETS_LEVELS_SWAP_NORMAL] = 1.0f,
+	[VOE_ASSETS_LEVELS_SWAP_FAR] = 2.0f,
+	[VOE_ASSETS_LEVELS_SWAP_FARTHER] = 4.0f,
+};
+static_assert(sizeof(SWAPS) / sizeof(SWAPS[0]) ==
+		      VOE_ASSETS_LEVELS_SWAP_FARTHER + 1,
+	      "a swap without its multiplier");
 
 struct writer {
 	uint8_t *bytes;
@@ -193,6 +205,7 @@ static const uint8_t *write_file(voe_base_arena *arena,
 	put_u32(&writer, levels->own ? 1 : 0);
 	put_u32(&writer, levels->level_count);
 	put_u32(&writer, levels->part_count);
+	put(&writer, &levels->swap, sizeof(float));
 	for (uint32_t k = 1; k < levels->level_count; k++) {
 		put(&writer, &levels->errors[k], sizeof(float));
 		for (uint32_t p = 0; p < levels->part_count; p++) {
@@ -225,7 +238,10 @@ const uint8_t *voe_3d_model_levels_make(voe_base_arena *arena,
 			"a level count out of range");
 	VOE_BASE_ASSERT(levels.strength <= VOE_ASSETS_LEVELS_STRONG,
 			"a level strength out of range");
+	VOE_BASE_ASSERT(levels.swap <= VOE_ASSETS_LEVELS_SWAP_FARTHER,
+			"a level swap out of range");
 
+	made.swap = SWAPS[levels.swap];
 	if (!voe_assets_model_read_glb(glb, glb_size, arena, &model, error))
 		return NULL;
 	if (voe_3d_model_bake_levels(&model) > 1) {
@@ -255,7 +271,7 @@ static bool take_u32(struct reader *reader, uint32_t *value)
 	return take(reader, value, sizeof(*value));
 }
 
-// The magic, version, hash and counts, each within its limit.
+// The magic, version, hash, counts and swap, each within its limit.
 static bool take_head(struct reader *reader, uint64_t glb_hash,
 		      voe_3d_model_levels *out)
 {
@@ -270,10 +286,12 @@ static bool take_head(struct reader *reader, uint64_t glb_hash,
 	    !take(reader, &hash, sizeof(hash)) || hash != glb_hash ||
 	    !take_u32(reader, &own) || own > 1 ||
 	    !take_u32(reader, &out->level_count) ||
-	    !take_u32(reader, &out->part_count))
+	    !take_u32(reader, &out->part_count) ||
+	    !take(reader, &out->swap, sizeof(float)))
 		return false;
 	out->own = own == 1;
-	return out->level_count >= 1 &&
+	return isfinite(out->swap) && out->swap > 0.0f &&
+	       out->level_count >= 1 &&
 	       out->level_count <= VOE_3D_MODEL_LEVELS &&
 	       out->part_count <= VOE_3D_MODEL_PARTS &&
 	       (!out->own || (out->level_count == 1 && out->part_count == 0));

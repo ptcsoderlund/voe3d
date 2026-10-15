@@ -11,6 +11,9 @@
 //    `level_count` 2, `levels[1].bound` 0.5, level 1's part 0 a live id.
 // 4. The levelled sphere loaded again (both copies at once), the store
 //    cleared and all four loaded once more, three times over: each load true.
+// 5. After a clear, the sphere loaded with a SWAP_FAR levels file:
+//    `levels[1].bound` half, within 1e-6 relative, that of the sphere loaded
+//    with the defaults' file.
 //
 // THE DEVICE HOLDS TWELVE GEOMETRIES: two copies of the levelled sphere at four
 // levels at most, the two plain ones and the own one's two. A clear or replace
@@ -47,13 +50,15 @@ static const voe_render_capacities CAPACITIES = {
 	.passes = 1,
 };
 
-// The files the claims load: the sphere, its levels, another sphere's levels
-// and the sphere with its own level.
+// The files the claims load: the sphere, its levels, its levels made at
+// SWAP_FAR, another sphere's levels and the sphere with its own level.
 typedef struct {
 	const uint8_t *glb;
 	size_t glb_size;
 	const uint8_t *levels;
 	size_t levels_size;
+	const uint8_t *far_levels;
+	size_t far_levels_size;
 	const uint8_t *other_levels;
 	size_t other_levels_size;
 	const uint8_t *own;
@@ -66,16 +71,22 @@ static files make_files(voe_base_arena *arena)
 	files out = { 0 };
 	size_t other_size;
 	const uint8_t *other = sphere_glb(arena, 16, 32, false, &other_size);
+	voe_assets_levels far = VOE_ASSETS_LEVELS_DEFAULT;
 
+	far.swap = VOE_ASSETS_LEVELS_SWAP_FAR;
 	out.glb = sphere_glb(arena, RINGS, SEGMENTS, false, &out.glb_size);
 	out.own = sphere_glb(arena, RINGS, SEGMENTS, true, &out.own_size);
 	out.levels = voe_3d_model_levels_make(arena, out.glb, out.glb_size,
 					      VOE_ASSETS_LEVELS_DEFAULT,
 					      &out.levels_size, &error);
+	out.far_levels = voe_3d_model_levels_make(arena, out.glb, out.glb_size,
+						  far, &out.far_levels_size,
+						  &error);
 	out.other_levels = voe_3d_model_levels_make(
 		arena, other, other_size, VOE_ASSETS_LEVELS_DEFAULT,
 		&out.other_levels_size, &error);
-	VOE_TEST_CHECK(out.levels != NULL && out.other_levels != NULL);
+	VOE_TEST_CHECK(out.levels != NULL && out.far_levels != NULL &&
+		       out.other_levels != NULL);
 	return out;
 }
 
@@ -143,6 +154,30 @@ static void check_own(const voe_3d_models *models, voe_render_device *device)
 	VOE_TEST_CHECK(live(device, entry->levels[1].geometries[0]));
 }
 
+// The sphere loaded with its defaults' and its SWAP_FAR levels side by side.
+static void check_swap(voe_3d_models *models, voe_render_device *device,
+		       const files *f)
+{
+	const voe_3d_model_entry *normal;
+	const voe_3d_model_entry *far;
+	float half;
+
+	VOE_TEST_CHECK(load(models, device, "Assets/ball.glb", f->glb,
+			    f->glb_size, f->levels, f->levels_size));
+	VOE_TEST_CHECK(load(models, device, "Assets/far.glb", f->glb,
+			    f->glb_size, f->far_levels, f->far_levels_size));
+	normal = voe_3d_models_find(models, "Assets/ball.glb");
+	far = voe_3d_models_find(models, "Assets/far.glb");
+	VOE_TEST_CHECK(normal != NULL && normal->level_count >= 2);
+	VOE_TEST_CHECK(far != NULL && far->level_count >= 2);
+	if (normal == NULL || far == NULL || normal->level_count < 2 ||
+	    far->level_count < 2)
+		return;
+	half = normal->levels[1].bound * 0.5f;
+	VOE_TEST_CHECK(isfinite(half) && half > 0.0f);
+	VOE_TEST_CHECK(fabsf(far->levels[1].bound - half) <= 1e-6f * half);
+}
+
 // All four loaded; false when any load was.
 static bool load_all(voe_3d_models *models, voe_render_device *device,
 		     const files *f)
@@ -195,6 +230,10 @@ int main(void)
 		VOE_TEST_CHECK(load_all(models, device, &f));
 	}
 	check_levelled(models, device);
+
+	// 5
+	voe_3d_models_clear(models, device);
+	check_swap(models, device, &f);
 
 	voe_3d_models_destroy(models);
 	voe_render_device_destroy(device);

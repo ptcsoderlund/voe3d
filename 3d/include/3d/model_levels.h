@@ -27,27 +27,29 @@
 // half the one before, a quarter of the radius; medium: 60°, half, a quarter;
 // strong: 180°, a quarter, half. A level's error is the largest of its parts',
 // in model metres. A level holding more than three quarters of the previous
-// level's triangles ends the list: it and the ones after are dropped.
+// level's triangles ends the list: it and the ones after are dropped. Each
+// level swaps in at `levels.swap`'s ½, 1, 2 or 4 times the distance its error
+// allows (0432 point 1).
 //
 // A FILE WITH ITS OWN LEVELS IS NEVER SIMPLIFIED (0425 point 4): a node named
 // `_LOD1` to `_LOD3` anywhere makes a file of one level, `own` set, no parts.
 //
-// THE LAYOUT, native-endian, every field a uint32_t but the hash:
+// THE LAYOUT, native-endian, every field a uint32_t but the hash and floats:
 //
-//     magic "VOEL" | version 2 | FNV-1a 64 of the .glb (uint64_t)
-//     own | level count | part count
+//     magic "VOEL" | version 3 | FNV-1a 64 of the .glb (uint64_t)
+//     own | level count | part count | swap's distance multiplier (float)
 //     per made level k >= 1: its error (float), then per part
 //         its index count | that many indices into level 0's baked part
 //
-// Version 1 files, made before the strength, are stale (0430 point 7). The file
-// records neither the count nor the strength it was made with.
+// Version 1 and 2 files, made before the strength and the swap, are stale (0430
+// point 7, 0432 point 2). The file records the swap, not the count or strength.
 //
 // STALE IS NEVER AN ERROR (0426 point 1): a file whose magic, version or hash
 // differs, a count past its limit (levels, parts, whole triangles), an error
-// that is no finite non-negative number, bytes cut short or left over: _read
-// says false and the file is made again. An index is not checked against its
-// part's vertices, which this file does not know: the hash ties it to the
-// `.glb` it was made from, and the store holds the vertex counts.
+// not finite and at least nought, a swap not finite and above nought, bytes cut
+// short or left over: _read says false and the file is made again. An index is
+// not checked against its part's vertices, which this file does not know: the
+// hash ties it to its `.glb`, and the store holds the vertex counts.
 //
 // THE CHOICE HAS NO STATE (0425 point 3), so every asker gets one answer. `s` =
 // world radius × |P[1][1]| ÷ the centre's clip w, the world radius the model's
@@ -80,6 +82,9 @@ typedef struct {
 	uint32_t part_count;
 	// Each level's error in model metres; level 0's nought.
 	float errors[VOE_3D_MODEL_LEVELS];
+	// How many times the distance its error allows each level after level
+	// 0 swaps in at: 0.5, 1, 2 or 4 (0432 point 1); own files carry it too.
+	float swap;
 	// Level k's indices into level 0's part p, counted from the part's first
 	// vertex; level 0's are unused, the bake's own indices being level 0.
 	uint32_t *indices[VOE_3D_MODEL_LEVELS][VOE_3D_MODEL_PARTS];
@@ -90,8 +95,8 @@ typedef struct {
 uint64_t voe_3d_model_levels_hash(const uint8_t *bytes, size_t size);
 
 // Parses `glb`, bakes level 0, makes at most `levels.count` levels in all, as
-// hard as `levels.strength`, and writes the file's bytes, returned with their
-// count in `*size`, all on `arena`. The bytes are the return and not an
+// hard as `levels.strength`, and writes the file's bytes with `levels.swap`'s
+// multiplier, returned with their count in `*size`, all on `arena`. The bytes are the return and not an
 // out-parameter, since rule 6 allows no `**`. NULL with `error` set as the
 // store's load would fail: MALFORMED or UNSUPPORTED as the reader says,
 // UNSUPPORTED or REFUSED as the bake says.

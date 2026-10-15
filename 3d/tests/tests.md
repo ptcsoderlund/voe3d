@@ -142,7 +142,8 @@ again, or to find where a claim that has started failing is written down.
   card.
 - `models_levels.c` — a sphere loaded with its levels file: three levels or more, live, bounds
   non-increasing, its radius; NULL or another file's levels load level 0 alone; a `Ball_LOD1`
-  sphere's own level at bound 0.5; reloads and clears leaking no level. Skips without a card.
+  sphere's own level at bound 0.5; reloads and clears leaking no level; a far swap halving level
+  1's bound. Skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget. Skips without a card.
 - `models_material.c` — a `.material` with four maps loaded as one part with a live record and
@@ -158,7 +159,7 @@ again, or to find where a claim that has started failing is written down.
   out, the sphere held by a tiny limit, a uv seam moving along its line untorn, and a faceted
   cylinder cut along its seam lines at angle 0 and further softened at 180. Needs no graphics card.
 - `model_levels.c` — that a sphere's levels file is made and read back, keeps to the count asked,
-  cuts harder when strong, goes stale when its `.glb` or version changes, version 1 included, and
-  chooses a view's level by its screen size. Needs no graphics card.
+  cuts harder when strong, carries the swap asked, goes stale when its `.glb` or version changes,
+  versions 1 and 2 included, and chooses a view's level by its screen size. Needs no graphics card.
 - `model_glb.inc` — a UV sphere's `.glb` built on an arena, with a second "Ball_LOD1" root when
   asked.
