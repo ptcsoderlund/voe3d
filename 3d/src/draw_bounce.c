@@ -183,7 +183,7 @@ static void grow_model(struct still_box *box, const voe_render_device *device,
 	}
 	for (uint32_t part = 0; part < model->part_count; part++) {
 		voe_3d_model_part piece =
-			voe_3d_draw_group_part_worn(models, model, part);
+			voe_3d_draw_group_part_worn(models, model, part, 0);
 
 		if (voe_3d_draw_casts(&piece.material))
 			grow(box, device, piece.geometry, placed);
@@ -289,7 +289,7 @@ static bool model_casts(const voe_3d_frame *frame, const voe_3d_model *row)
 		return false;
 	for (uint32_t part = 0; part < model->part_count; part++) {
 		voe_3d_model_part piece = voe_3d_draw_group_part_worn(
-			frame->models, model, part);
+			frame->models, model, part, 0);
 
 		if (voe_3d_draw_casts(&piece.material))
 			return true;
@@ -459,7 +459,7 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 	drawn = voe_3d_draw_casters(world, device, frame,
 				    sun == 0 ? frame->blockers.sun :
 					       frame->more_lights[sun - 1].blockers,
-				    VOE_3D_TERRAIN_BOUNCE_NODES);
+				    VOE_3D_TERRAIN_BOUNCE_NODES, true);
 	voe_render_pass_end(device);
 	return drawn;
 }
@@ -513,7 +513,7 @@ static bool bounce_volume(struct bouncing *call, voe_3d_bounce_grid grid,
 			break;
 		call->captured++;
 		drawn = voe_3d_draw_casters(call->world, call->device, frame, 0,
-					    VOE_3D_TERRAIN_BOUNCE_NODES);
+					    VOE_3D_TERRAIN_BOUNCE_NODES, true);
 		voe_render_pass_end(call->device);
 		if (!drawn)
 			return false;

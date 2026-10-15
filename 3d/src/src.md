@@ -96,7 +96,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   once per row per call.
 - `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
   its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
-  a gone model casting nothing and a landscape by the view's nodes.
+  a model at the camera's level, a gone one casting nothing and a landscape by the view's nodes.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0 and
   those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
@@ -107,7 +107,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the sun's mask, and light rows 2 to 4 each masked at its place.
 - `draw_bounce.h` — the frame's probe bounce, this step's stale spheres and the removed casters'
   after them, the caster walk and measure bounce_casters.c shares, the still casters' box, and the
-  cascades' caster walk and casting test; internal.
+  cascades' caster walk, at the camera's level or the last, and casting test; internal.
 - `bounce_casters.c` — a removed caster's sphere where the target's memory saw it last, then the
   memory refilled with this frame's casters.
 - `draw_bounce.c` — the frame's probe bounce, run only when a light bounces: the volumes fitted to

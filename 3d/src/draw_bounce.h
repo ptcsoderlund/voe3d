@@ -44,10 +44,13 @@ bool voe_3d_draw_casts(const voe_3d_material *material);
 // over `frame->blockers`' kept records holding every bit of `within` (0361
 // point 2); `within` 0 draws every caster and takes no mask. A landscape
 // caster draws at most `landscape_nodes` nodes, the cast's capacity (0397).
-// False when render refuses a draw. draw_shadows.c.
+// With `coarsest` false each model row draws at the level the frame's camera
+// chooses for it, with true at its last: the bounce passes true, so the camera
+// never changes the bounce (0331, 0425 point 5). False when render refuses a
+// draw. draw_shadows.c.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame, uint32_t within,
-			 uint32_t landscape_nodes);
+			 uint32_t landscape_nodes, bool coarsest);
 
 // Whether light row `light`, in table order, casts (0324 point 4); false past
 // the count. draw_shadows.c.

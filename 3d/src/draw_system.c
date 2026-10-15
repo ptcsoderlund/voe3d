@@ -21,7 +21,8 @@
 // move gizmo, each sit behind a depth clear of their own. The held-back groups
 // are draw_group.c's and the marker, outline, collider and gizmo
 // draw_marks.c's; this file walks and orders them. A model row at fade 1 or
-// more is not drawn, and one between 0 and 1 is held blended (0336 point 3).
+// more is not drawn, and one between 0 and 1 is held blended (0336 point 3);
+// each at the level the camera chooses for it (0425 point 5).
 // A landscape row is draw_terrain.c's nodes, its solid draws inside the pass's
 // "terrain" span, at most VOE_3D_LANDSCAPES_DRAWN a frame (0396, 0388).
 // A mesh or model part whose worn material is double-sided is drawn two-sided,
@@ -38,6 +39,7 @@
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
+#include <3d/model_levels.h>
 #include <3d/models.h>
 #include <3d/panel_component.h>
 #include <3d/projection.h>
@@ -400,6 +402,7 @@ static bool draw_models(voe_ecs_world *world, voe_render_device *device,
 	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
 		const voe_3d_model_entry *model;
 		voe_scene_transform drawn;
+		uint32_t level;
 		float fade = rows[row].fade;
 		// False for a NaN as for nought, so either draws as ever.
 		bool fading = fade > 0.0f && fade < 1.0f;
@@ -411,13 +414,16 @@ static bool draw_models(voe_ecs_world *world, voe_render_device *device,
 		if (model == NULL || is_landscape(frame->models, model))
 			continue;
 		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
+		level = voe_3d_model_level(model, &drawn, frame->eye, &frame->view);
 		for (uint32_t part = 0; part < model->part_count; part++) {
 			// Its own record, or the one its parts file names.
 			voe_3d_model_part piece = voe_3d_draw_group_part_worn(
-				frame->models, model, part);
+				frame->models, model, part, level);
 			struct voe_3d_deferred entry = model_part_entry(
 				&piece, &drawn, fading, fade, frame->eye);
 
+			if (piece.geometry.generation == 0)
+				continue;
 			if (fading ||
 			    piece.material.alpha_mode == VOE_RENDER_ALPHA_BLENDED)
 				voe_3d_draw_group_hold(world_blended, entry,
