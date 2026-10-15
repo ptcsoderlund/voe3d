@@ -45,7 +45,7 @@ static void sphere_levels(voe_base_arena *arena)
 	size_t size = 0;
 	const uint8_t *file = voe_3d_model_levels_make(
 		arena, glb, glb_size, VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
-	voe_3d_model_levels levels;
+	voe_3d_model_levels levels = {};
 	uint64_t previous = SEGMENTS * (RINGS - 1) * 2;
 	const uint32_t version_1 = 1;
 	uint8_t *changed;
@@ -106,8 +106,8 @@ static bool sphere_made(voe_base_arena *arena, voe_assets_levels asked,
 
 static void levels_asked(voe_base_arena *arena)
 {
-	voe_3d_model_levels levels;
-	voe_3d_model_levels medium;
+	voe_3d_model_levels levels = {};
+	voe_3d_model_levels medium = {};
 
 	// 6
 	VOE_TEST_CHECK(sphere_made(
@@ -138,7 +138,7 @@ static void own_levels(voe_base_arena *arena)
 	size_t size = 0;
 	const uint8_t *file = voe_3d_model_levels_make(
 		arena, glb, glb_size, VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
-	voe_3d_model_levels levels;
+	voe_3d_model_levels levels = {};
 
 	VOE_TEST_CHECK(file != NULL);
 	if (file == NULL)
