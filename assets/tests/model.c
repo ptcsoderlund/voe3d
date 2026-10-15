@@ -26,6 +26,11 @@
 // `3d`'s "upload each picture once" comes from, so a reader that handed back two
 // indices would cost a texture slot per channel and nobody would notice until
 // the slots ran out.
+//
+// BEYOND THE ARRAYS: COLOR_0 in each stored form (normalized bytes, three
+// floats, absent, and signed bytes refused); material and image names, sides,
+// unlit, emission strength and the colour texture's repeat, each read or
+// defaulted; a 100-byte name cut at a whole character; and node names.
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
