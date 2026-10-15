@@ -1,8 +1,10 @@
 // The question a model's levels ask (ADR 0430 point 6): a panel "Levels of
-// <file>" with how many levels the model has in all, 1 to 4, and how hard each
-// cuts, Gentle, Medium or Strong (0430 points 2 and 3), the chosen two lit,
-// then Make and Cancel, as an anchored panel over the dock below the bar, drawn
-// and read the way assets_ask.h's Delete question is.
+// <file>" with how many levels the model has in all, 1 to 4, how hard each
+// cuts, Gentle, Medium or Strong (0430 points 2 and 3), and how far away they
+// swap in, Near, Normal, Far or Farther, at 1/2, 1, 2 or 4 times the distance
+// (0432 point 1), the chosen three lit, then Make and Cancel, as an anchored
+// panel over the dock below the bar, drawn and read the way assets_ask.h's
+// Delete question is.
 //
 //     voe_editor_levels_ask_open(&ask, project_folder, "Assets/a.glb", scratch);
 //     voe_editor_levels_ask_draw(ui, &ask, top);
@@ -14,8 +16,8 @@
 //
 // THE VALUES SHOWN ARE THE MODEL'S OWN: on opening, the `.parts` beside the
 // `.glb` (assets/parts.h) is read for its `[Levels]`, quietly, and none, or
-// one that will not read, shows the defaults. A press on a count or strength
-// only changes the shown values; Make's save writes them back into that
+// one that will not read, shows the defaults. A press on a count, strength or
+// swap only changes the shown values; Make's save writes them back into that
 // `.parts`, every material line kept. Nothing here prepares a model or closes
 // the question: the caller carries out the answer.
 //
@@ -39,6 +41,9 @@
 // The strengths offered, in voe_assets_levels_strength's order.
 #define VOE_EDITOR_LEVELS_ASK_STRENGTHS 3
 
+// The swaps offered, in voe_assets_levels_swap's order.
+#define VOE_EDITOR_LEVELS_ASK_SWAPS 4
+
 // Zeroed is a question never asked.
 typedef struct {
 	bool open;
@@ -51,6 +56,7 @@ typedef struct {
 	voe_ui_node panel;
 	voe_ui_node count_buttons[VOE_ASSETS_LEVELS];
 	voe_ui_node strength_buttons[VOE_EDITOR_LEVELS_ASK_STRENGTHS];
+	voe_ui_node swap_buttons[VOE_EDITOR_LEVELS_ASK_SWAPS];
 	voe_ui_node make_button;
 	voe_ui_node cancel_button;
 } voe_editor_levels_ask;
@@ -70,12 +76,13 @@ void voe_editor_levels_ask_open(voe_editor_levels_ask *ask,
 void voe_editor_levels_ask_close(voe_editor_levels_ask *ask);
 
 // Draws the question centred across the surface, `top` below its top, over the
-// dock, and records its nodes. Asserts when it is not open.
+// dock, its Levels, Strength and Swap rows, and records its nodes. Asserts
+// when it is not open.
 void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 				float top);
 
-// After voe_ui_frame_end: a fired count or strength sets `ask->levels` and is
-// NONE; Make or Cancel fired, or a `pointer_down` at `at` outside the panel,
+// After voe_ui_frame_end: a fired count, strength or swap sets `ask->levels`
+// and is NONE; Make or Cancel fired, or a `pointer_down` at `at` outside the panel,
 // which is a Cancel; NONE otherwise.
 voe_editor_levels_ask_answer
 voe_editor_levels_ask_read(const voe_ui_context *ui, voe_editor_levels_ask *ask,

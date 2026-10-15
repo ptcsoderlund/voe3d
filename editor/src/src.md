@@ -207,10 +207,11 @@ carries it out.
   four users and "and N more" walked once on opening, Delete and Cancel, as an anchored panel.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
-- `levels_ask.h` — the question a model's levels ask: Levels 1 to 4 and Gentle, Medium or Strong,
-  read from its `.parts` and lit, with Make and Cancel, as an anchored panel; Make's save writes them.
-- `levels_ask.c` — the open with its quiet `.parts` read, the panel's one frame of `ui` calls, the
-  read of its buttons and a press outside, and the save into the `.parts`.
+- `levels_ask.h` — the question a model's levels ask: Levels 1 to 4, Gentle, Medium or Strong and
+  a Swap of Near to Farther, read from its `.parts` and lit, with Make and Cancel, as an anchored
+  panel; Make's save writes them.
+- `levels_ask.c` — the open with its quiet `.parts` read, the panel's one frame of `ui` calls with
+  its Swap row, the read of its buttons and a press outside, and the save into the `.parts`.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
   folder row or Up, a new thing or copy placed in a scene view, a swap, a shape's material, a filled
   map or a set landscape layer over the Inspector, a material over a model and elsewhere nothing.

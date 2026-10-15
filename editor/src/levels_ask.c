@@ -1,5 +1,5 @@
 // The levels question's open with its one quiet read of the `.parts`, its one
-// frame of `ui` calls with the chosen count and strength lit as
+// frame of `ui` calls with the chosen count, strength and swap lit as
 // inspector_sculpt.c lights its chosen kind, the read of its buttons and of a
 // press outside it afterwards, and Make's save into the `.parts`. See the
 // header for what is shown and what a save refuses.
@@ -29,6 +29,10 @@ static const char *const COUNT_NAMES[VOE_ASSETS_LEVELS] = { "1", "2", "3", "4" }
 
 static const char *const STRENGTH_NAMES[VOE_EDITOR_LEVELS_ASK_STRENGTHS] = {
 	"Gentle", "Medium", "Strong"
+};
+
+static const char *const SWAP_NAMES[VOE_EDITOR_LEVELS_ASK_SWAPS] = {
+	"Near", "Normal", "Far", "Farther"
 };
 
 // `c` in lower case when it is an ASCII capital.
@@ -88,6 +92,8 @@ void voe_editor_levels_ask_open(voe_editor_levels_ask *ask,
 		ask->count_buttons[i] = VOE_UI_NODE_NONE;
 	for (uint32_t i = 0; i < VOE_EDITOR_LEVELS_ASK_STRENGTHS; i++)
 		ask->strength_buttons[i] = VOE_UI_NODE_NONE;
+	for (uint32_t i = 0; i < VOE_EDITOR_LEVELS_ASK_SWAPS; i++)
+		ask->swap_buttons[i] = VOE_UI_NODE_NONE;
 	snprintf(ask->path, sizeof ask->path, "%s", path);
 	name = strrchr(ask->path, '/');
 	name = name != NULL ? name + 1 : ask->path;
@@ -153,6 +159,16 @@ void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 	}
 	voe_ui_end(ui); // Strength row
 
+	voe_ui_row_begin(ui, row);
+	voe_ui_label(ui, "Swap");
+	for (uint32_t i = 0; i < VOE_EDITOR_LEVELS_ASK_SWAPS; i++) {
+		ask->swap_buttons[i] = voe_ui_choice_begin(
+			ui, "levels_ask_swap", i, (uint32_t)ask->levels.swap == i);
+		voe_ui_label(ui, SWAP_NAMES[i]);
+		voe_ui_end(ui);
+	}
+	voe_ui_end(ui); // Swap row
+
 	voe_ui_row_begin(ui, (voe_ui_container){ .gap = ASK_GAP });
 	ask->make_button = voe_ui_button_begin(ui, "levels_ask_make", 0);
 	voe_ui_label(ui, "Make");
@@ -186,6 +202,9 @@ voe_editor_levels_ask_read(const voe_ui_context *ui, voe_editor_levels_ask *ask,
 	for (uint32_t i = 0; i < VOE_EDITOR_LEVELS_ASK_STRENGTHS; i++)
 		if (fired(ui, ask->strength_buttons[i]))
 			ask->levels.strength = (voe_assets_levels_strength)i;
+	for (uint32_t i = 0; i < VOE_EDITOR_LEVELS_ASK_SWAPS; i++)
+		if (fired(ui, ask->swap_buttons[i]))
+			ask->levels.swap = (voe_assets_levels_swap)i;
 	if (fired(ui, ask->make_button))
 		return VOE_EDITOR_LEVELS_ASK_MAKE;
 	if (fired(ui, ask->cancel_button))
