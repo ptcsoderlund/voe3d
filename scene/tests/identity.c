@@ -2,7 +2,9 @@
 // one is an intent the system drains, and that the drain corrects rather than
 // refuses — a name that was not terminated, and an id that may not be replaced.
 // Also that the fold lands and unfolds through the replace, a new row arrives
-// unfolded, and the field list a world hands back marks the id read-only.
+// unfolded, and the field list a world hands back marks the id read-only. And
+// that the switch lands, reaches the children through the parent table, and
+// reads on in a world without the tables.
 //
 // THE RAW SUBMIT IS THE POINT OF HALF THIS FILE. The typed calls assert a
 // terminated name, so a test that only used them could never reach the drain's
@@ -30,6 +32,8 @@
 #include <ecs/world.h>
 #include <scene/identity_component.h>
 #include <scene/identity_system.h>
+#include <scene/parent_system.h>
+#include <scene/transform_system.h>
 
 #include <testing/test.h>
 
@@ -43,12 +47,23 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = IDENTITIES,
-		.component_types = 2,
+		.component_types = 3,
 		.intent_types = 2,
 	};
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 
 	voe_scene_identity_register(world, IDENTITIES);
+	return world;
+}
+
+// world_of's world with a tree: the parent table, and the transform table it
+// asserts was registered first.
+static voe_ecs_world *parented_world_of(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+
+	voe_scene_transform_register(world, IDENTITIES);
+	voe_scene_parent_register(world, IDENTITIES);
 	return world;
 }
 
@@ -247,16 +262,16 @@ static void check_field(const voe_base_field_description *actual,
 	VOE_TEST_CHECK_INT(actual->read_only, read_only);
 }
 
-// Three fields, in the order they are declared: the id read-only, because nothing
-// but creation may set it, the name sixty-four characters that may be edited, and
-// the fold, one editable bool.
+// Four fields, in the order they are declared: the id read-only, because nothing
+// but creation may set it, the name sixty-four characters that may be edited,
+// and the fold and the switch, each one editable bool.
 static void check_description(const voe_base_struct_description *description)
 {
 	const voe_base_field_description *fields = description->fields;
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_scene_identity") == 0);
-	VOE_TEST_CHECK_INT(description->field_count, 3);
-	if (description->field_count != 3)
+	VOE_TEST_CHECK_INT(description->field_count, 4);
+	if (description->field_count != 4)
 		return;
 
 	check_field(&fields[0], "id", VOE_BASE_FIELD_UINT64,
@@ -266,6 +281,89 @@ static void check_description(const voe_base_struct_description *description)
 		    VOE_SCENE_IDENTITY_NAME, false);
 	check_field(&fields[2], "folded", VOE_BASE_FIELD_BOOL,
 		    offsetof(voe_scene_identity, folded), 1, false);
+	check_field(&fields[3], "off", VOE_BASE_FIELD_BOOL,
+		    offsetof(voe_scene_identity, off), 1, false);
+}
+
+// Sets an authored entity's own switch through the replace, as the Inspector
+// would, and lands it.
+static void switch_to(voe_ecs_world *world, voe_ecs_entity entity, bool off)
+{
+	const voe_scene_identity *read = voe_scene_identity_get(world, entity);
+	voe_scene_identity row;
+
+	VOE_TEST_CHECK(read != NULL);
+	if (read == NULL)
+		return;
+	row = *read;
+	row.off = off;
+	VOE_TEST_CHECK(voe_scene_identity_submit(
+		world, (voe_scene_identity_intent){ .entity = entity,
+						    .identity = row }));
+	voe_scene_identity_system_run(world);
+}
+
+static void check_off(voe_ecs_world *world, voe_ecs_entity root,
+		      voe_ecs_entity child, voe_ecs_entity grandchild,
+		      bool root_off, bool child_off, bool grandchild_off)
+{
+	VOE_TEST_CHECK_INT(voe_scene_identity_off(world, root), root_off);
+	VOE_TEST_CHECK_INT(voe_scene_identity_off(world, child), child_off);
+	VOE_TEST_CHECK_INT(voe_scene_identity_off(world, grandchild),
+			   grandchild_off);
+}
+
+// A root, its child, and a grandchild with no identity: the root's switch
+// reaches both below it, the child's reaches its own child, and each keeps its
+// own switch while a parent is off.
+static void a_switch_lands_and_reaches_the_children(voe_base_arena *arena)
+{
+	voe_ecs_world *world = parented_world_of(arena);
+	voe_ecs_type parents =
+		voe_ecs_component_type(world, &voe_scene_parent_key);
+	voe_ecs_entity root = authored(world, 1, "Root");
+	voe_ecs_entity child = authored(world, 2, "Child");
+	voe_ecs_entity grandchild = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &grandchild));
+	VOE_TEST_CHECK(voe_ecs_component_add(
+		world, parents, child, &(voe_scene_parent){ .parent = root }));
+	VOE_TEST_CHECK(voe_ecs_component_add(
+		world, parents, grandchild,
+		&(voe_scene_parent){ .parent = child }));
+	check_off(world, root, child, grandchild, false, false, false);
+
+	switch_to(world, root, true);
+	check_off(world, root, child, grandchild, true, true, true);
+
+	switch_to(world, child, true);
+	switch_to(world, root, false);
+	check_off(world, root, child, grandchild, false, true, true);
+
+	switch_to(world, child, false);
+	check_off(world, root, child, grandchild, false, false, false);
+}
+
+// No identity table: everything reads on. An identity and no parent table:
+// only the entity's own switch counts.
+static void a_world_without_tables_reads_on(voe_base_arena *arena)
+{
+	voe_ecs_world *bare = voe_ecs_world_new(
+		arena, (voe_ecs_limits){ .entities = IDENTITIES,
+					 .component_types = 1,
+					 .intent_types = 1 });
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity plain = { 0 };
+	voe_ecs_entity lamp = authored(world, 1, "Lamp");
+	voe_ecs_entity other = authored(world, 2, "Other");
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(bare, &plain));
+	VOE_TEST_CHECK(!voe_scene_identity_off(bare, plain));
+
+	VOE_TEST_CHECK(!voe_scene_identity_off(world, lamp));
+	switch_to(world, lamp, true);
+	VOE_TEST_CHECK(voe_scene_identity_off(world, lamp));
+	VOE_TEST_CHECK(!voe_scene_identity_off(world, other));
 }
 
 // The Scene list's fold rides the replace intent whole, like the name: true
@@ -380,6 +478,8 @@ int main(void)
 	an_intent_lands_only_when_the_system_runs(arena);
 	an_intent_for_an_unauthored_entity_is_dropped(arena);
 	a_fold_lands_and_unfolds_through_the_replace(arena);
+	a_switch_lands_and_reaches_the_children(arena);
+	a_world_without_tables_reads_on(arena);
 
 	an_unterminated_name_arrives_cut(arena);
 	a_quiet_drain(arena);

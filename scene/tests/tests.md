@@ -11,8 +11,9 @@ module's promises from outside. None of them needs a window or a graphics card.
 - `prefab.c` — that both prefab tables register, queued rows read back once
   applied, the part table is runtime-only and the prefab table is not, and it
   has no replace and no menu.
-- `identity.c` — that a name, id and fold change only through a drained intent, the drain cuts an
-  unterminated name and puts back a replaced id, and the field list marks the id read-only.
+- `identity.c` — that a name, id, fold and switch change only through a drained intent, the
+  drain cuts an unterminated name and puts back a replaced id, the id is read-only, and a switch
+  reaches the children and reads on without the tables.
 - `camera.c` — what registration tells a tool, that the view of a pose is its
   inverse with roll kept and none when scaled to nothing, and that a whole-lens
   intent applies a good lens and keeps the row over a bad one.

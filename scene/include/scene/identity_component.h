@@ -1,5 +1,5 @@
-// Who a thing is: a 64-bit id, a name and whether its Scene list row is folded,
-// on the entities a person authored.
+// Who a thing is: a 64-bit id, a name, whether its Scene list row is folded and
+// whether it is switched off, on the entities a person authored.
 // Read by anyone, const; written only through scene/identity_system.h.
 //
 // THE COMPONENT IS OPTIONAL AND ITS PRESENCE IS THE MEANING. An entity with an
@@ -30,6 +30,11 @@
 // undone and copied with the identity, with no table for one bit (0302). It goes
 // through the replace intent like the name, and the drain corrects nothing about
 // it. A file without it reads as false: unfolded.
+//
+// OFF SAYS THE ENTITY IS AS IF IT WERE NOT THERE (0427), and its children with
+// it, each keeping its own switch for when the parent comes back on. It lives
+// here for the reason folded does (0302). False is on, so a file without the
+// key reads on, and the drain corrects nothing about it.
 //
 // WHAT THE DRAIN SETTLES, AND WHY EACH IS A CORRECTION RATHER THAN A REFUSAL
 // (ADR-0138 — correct where one nearest valid value exists):
@@ -65,7 +70,8 @@
 #define VOE_SCENE_IDENTITY_FIELDS(F, F_READ_ONLY)         \
 	F_READ_ONLY(uint64_t, id, UINT64)                 \
 	F(char, name, CHAR, VOE_SCENE_IDENTITY_NAME)      \
-	F(bool, folded, BOOL)
+	F(bool, folded, BOOL)                             \
+	F(bool, off, BOOL)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_scene_identity, VOE_SCENE_IDENTITY_FIELDS)
 
@@ -83,3 +89,10 @@ const voe_scene_identity *voe_scene_identity_get(const voe_ecs_world *world,
 uint32_t voe_scene_identity_count(const voe_ecs_world *world);
 const voe_scene_identity *voe_scene_identity_rows(const voe_ecs_world *world);
 const voe_ecs_entity *voe_scene_identity_entities(const voe_ecs_world *world);
+
+// True when the entity's own `off` or any ancestor's is set. Ancestors are
+// walked through the parent table up to VOE_SCENE_PARENT_DEPTH_MAX links, and an
+// ancestor with no identity is passed through. False for a dead entity, one with
+// no identity anywhere up its chain, or a world that never registered the
+// identity table. The one question every system asks of a row's owner (0428).
+bool voe_scene_identity_off(const voe_ecs_world *world, voe_ecs_entity entity);

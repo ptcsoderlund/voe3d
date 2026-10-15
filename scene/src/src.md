@@ -15,7 +15,8 @@ it. Nothing here names a GPU resource, a file or a graphics API.
   one transform intent; nothing that drains.
 - `prefab_component.c` — the two keys and the two reads.
 - `prefab_system.c` — registration of both tables; nothing that drains.
-- `identity_component.c` — the key and the reads, and nothing that writes.
+- `identity_component.c` — the key and the reads, the switch read through the
+  ancestors among them, and nothing that writes.
 - `identity_system.c` — registration, creation, the drain that settles what it
   applies, and the one line a run of corrections writes to stderr.
 - `camera_component.c` — the key, the reads, and the view as the inverse of a
