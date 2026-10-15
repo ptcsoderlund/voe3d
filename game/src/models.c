@@ -104,14 +104,14 @@ static bool make_levels_folders(const char *folder, const char *levels,
 }
 
 // The levels file of `folder`'s `path`, whose bytes are `glb`, on scratch with
-// its count in `*size`: the one in the Cache when it fits `glb`, else made and
-// written, `*made` then true. A failed write is a line on stderr, and the
-// levels just made are handed back still. NULL, `error` set, only when `glb`
-// will not parse.
+// its count in `*size`: the one in the Cache when it fits `glb` and `remake`
+// is false, else made and written, `*made` then true. A failed write is a line
+// on stderr, and the levels just made are handed back still. NULL, `error`
+// set, only when `glb` will not parse.
 static const uint8_t *levels_for(const char *folder, const char *path,
 				 const uint8_t *glb, size_t glb_size,
-				 voe_base_arena *scratch, size_t *size,
-				 bool *made, voe_base_error *error)
+				 bool remake, voe_base_arena *scratch,
+				 size_t *size, bool *made, voe_base_error *error)
 {
 	size_t length = strlen(path);
 	char *name = voe_base_arena_push(scratch, length + sizeof(".levels"));
@@ -127,7 +127,7 @@ static const uint8_t *levels_for(const char *folder, const char *path,
 	memcpy(name + length, ".levels", sizeof(".levels"));
 	file = voe_platform_path_join(scratch, levels, name);
 	*made = false;
-	if (voe_platform_file_exists(file))
+	if (!remake && voe_platform_file_exists(file))
 		bytes = voe_platform_file_read(file, scratch, size, NULL);
 	if (bytes != NULL && voe_3d_model_levels_read(scratch, bytes, *size,
 						      glb, glb_size, &read))
@@ -143,7 +143,7 @@ static const uint8_t *levels_for(const char *folder, const char *path,
 }
 
 bool voe_game_models_prepare(const char *folder, const char *path,
-			     voe_base_arena *scratch, bool *made,
+			     voe_base_arena *scratch, bool remake, bool *made,
 			     voe_base_error *error)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
@@ -159,8 +159,8 @@ bool voe_game_models_prepare(const char *folder, const char *path,
 	glb = voe_platform_file_read(voe_platform_path_join(scratch, folder,
 							    path),
 				     scratch, &glb_size, error);
-	ready = glb != NULL && levels_for(folder, path, glb, glb_size, scratch,
-					  &size, made, error) != NULL;
+	ready = glb != NULL && levels_for(folder, path, glb, glb_size, remake,
+					  scratch, &size, made, error) != NULL;
 	voe_base_arena_rewind(scratch, mark);
 	return ready;
 }
@@ -198,8 +198,9 @@ static bool load_changed(voe_3d_models *models, voe_render_device *device,
 			voe_3d_models_fail(models, path, 0);
 		// A `.glb` that will not parse fails the load the same way.
 		if (bytes != NULL && is_glb(path))
-			levels = levels_for(folder, path, bytes, size, scratch,
-					    &levels_size, &made, &unmade);
+			levels = levels_for(folder, path, bytes, size, false,
+					    scratch, &levels_size, &made,
+					    &unmade);
 		loaded = bytes != NULL &&
 			 voe_3d_models_load_levelled(models, device, path,
 						     stamp, bytes, size, levels,

@@ -16,12 +16,12 @@
 // a picture (0298 point 5); with any emitter the soft dot is loaded at "" if
 // the store lacks it, a failure counted with first "".
 //
-// LEVELS (0426 point 2): a `.glb` path, in any case, loads with its levels file
-// `<folder>/Cache/levels/<path>.levels`, made first when missing or stale, in
-// update and watch alike, so a re-export or a hand-copied file is made where it
-// is loaded. The write is atomic, its folders made as needed; a failed one is
-// a line on stderr, and the levels just made are still drawn. `Cache/` may be
-// deleted at any time. _prepare makes the file alone, for the editor's import.
+// LEVELS (0426 point 2): a `.glb` path, any case, loads with its levels file
+// `<folder>/Cache/levels/<path>.levels`, made when missing or stale, in update
+// and watch alike. The write is atomic, its folders made as needed; a failed
+// one is a line on stderr, the levels made still drawn. `Cache/` may go any
+// time. _prepare makes the file alone: kept when fresh for the editor's
+// import, made again for its Make levels (0429).
 //
 // PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the
 // distinct paths the call will read are counted first, then "Loading models"
@@ -115,12 +115,14 @@ voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 			  const voe_game_parts *parts, voe_base_arena *scratch);
 
 // Reads `<folder>/<path>` and its levels file, making and writing that when
-// missing or stale, `made` saying so. False, `error` set, only when the `.glb`
-// will not read or parse; a write that fails is a line on stderr and true.
-// Scratch rewound to where it stood. See the header.
+// missing or stale, `made` saying so. `remake` false keeps a fresh file; true
+// makes and writes it whatever is there, `made` then true whenever the `.glb`
+// reads and parses. False, `error` set, only when the `.glb` will not read or
+// parse; a write that fails is a line on stderr and true. Scratch rewound to
+// where it stood. See the header.
 [[nodiscard]] bool voe_game_models_prepare(const char *folder, const char *path,
-					   voe_base_arena *scratch, bool *made,
-					   voe_base_error *error);
+					   voe_base_arena *scratch, bool remake,
+					   bool *made, voe_base_error *error);
 
 // Reads and loads again every entry whose file's stamp changed, landscapes
 // and materials aside. See the header.

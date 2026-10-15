@@ -41,8 +41,8 @@
 //
 // THE LEVELS, on a ninth world and store: an update leaves the `.glb`'s levels
 // file in the folder's Cache, fitting the `.glb`; a prepare then makes none;
-// the file made stale, a prepare makes it again, fitting; a missing `.glb`
-// will not prepare.
+// the file made stale, a prepare makes it again, fitting; a remake on the
+// fresh file makes it again, fitting; a missing `.glb` will not prepare.
 //
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
@@ -653,21 +653,28 @@ static void check_levels(voe_ecs_world *world, voe_render_device *device,
 	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
 
 	// ---- prepare with the file there: none made
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, &made,
-					       &error));
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, false,
+					       &made, &error));
 	VOE_TEST_CHECK(!made);
 
 	// ---- the file stale: made again, fitting
 	VOE_TEST_CHECK(voe_platform_file_write(LEVELS_ON_DISK, STALE,
 					       sizeof(STALE) - 1, NULL));
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, &made,
-					       &error));
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, false,
+					       &made, &error));
+	VOE_TEST_CHECK(made);
+	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
+
+	// ---- a remake on the fresh file: made again, fitting
+	made = false;
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, true,
+					       &made, &error));
 	VOE_TEST_CHECK(made);
 	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
 
 	// ---- a missing `.glb`: false
-	VOE_TEST_CHECK(!voe_game_models_prepare(FOLDER, MISSING, scratch, &made,
-						&error));
+	VOE_TEST_CHECK(!voe_game_models_prepare(FOLDER, MISSING, scratch, false,
+						&made, &error));
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
