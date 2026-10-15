@@ -1974,6 +1974,14 @@ void voe_render_frame_clear_depth(voe_render_device *device);
 [[nodiscard]] uint32_t
 voe_render_frame_draw_count(const voe_render_device *device);
 
+// How many triangles the open recording draws — or, once _end has run, how many
+// the frame just submitted drew, read as the draw count is. Reset by every
+// _begin. Every mesh draw adds its index count ÷ 3 × the instances it records,
+// a point shadow's or a capture's faces included, in every pass, solid and
+// blended; element draws add nothing (ADR-0425 point 7).
+[[nodiscard]] uint64_t
+voe_render_frame_triangle_count(const voe_render_device *device);
+
 // ---------------------------------------------------------------- elements
 
 // Puts one element into this frame's own buffer, to be drawn by the call below.
