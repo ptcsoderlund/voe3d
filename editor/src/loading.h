@@ -1,6 +1,6 @@
-// The editor's two works for a splash wait (game/starting.h, 0370 point 4):
-// the start and a scene load, each a context of pointers the caller fills and a
-// work function it hands to voe_game_starting_wait.
+// The editor's three works for a splash wait (game/starting.h, 0370 point 4):
+// the start, a scene load and an import's prepare, each a context the caller
+// fills and a work function it hands to voe_game_starting_wait.
 //
 //     voe_editor_loading_start start = { .device = gpu, .scratch = worker,
 //             .log = &log, .session = &session, .models = models,
@@ -14,6 +14,8 @@
 // ("Uploading shapes") and the project's models read with the wait's progress.
 // A LOAD is voe_editor_session_load ("Loading scene") and the models read the
 // same way. The project is opened before the window, so the start has none.
+// A PREPARE ("Preparing <file>") makes an imported `.glb`'s levels file
+// through voe_game_models_prepare (0426 point 3), no device in it.
 //
 // WHAT THE WORKER OWNS. During the wait the worker owns everything its context
 // names: the session and its project, the scene, the model store, the shapes
@@ -31,6 +33,7 @@
 #include "scene.h"
 #include "session.h"
 
+#include <3d/model_component.h>
 #include <3d/shape_system.h>
 
 #include <app/start_log.h>
@@ -64,6 +67,19 @@ typedef struct {
 	voe_editor_models *models;
 } voe_editor_loading_load;
 
+// "Preparing " and a model path's file name, its terminator included.
+#define VOE_EDITOR_LOADING_PHASE (VOE_3D_MODEL_PATH + 16)
+
+// An import's prepare, the one `session->prepare_due` asks for: `path` under
+// `folder`, as game/models.h takes them. `phase` is the work's own, written
+// by it and pointed at by the progress while the wait runs.
+typedef struct {
+	const char *folder;
+	const char *path;
+	voe_base_arena *scratch;
+	char phase[VOE_EDITOR_LOADING_PHASE];
+} voe_editor_loading_prepare;
+
 // A voe_game_starting_work on a voe_editor_loading_start. False once stopped,
 // on a prepare that failed, or with `failed` set on a refused upload.
 [[nodiscard]] bool voe_editor_loading_start_work(void *context,
@@ -73,3 +89,9 @@ typedef struct {
 // session's notice, not a false; false only once stopped.
 [[nodiscard]] bool voe_editor_loading_load_work(void *context,
 						voe_game_progress *progress);
+
+// A voe_game_starting_work on a voe_editor_loading_prepare. A file that will
+// not prepare is one line on stderr, not a false: the model fails where it
+// loads, as any broken file does. False only once stopped.
+[[nodiscard]] bool voe_editor_loading_prepare_work(void *context,
+						   voe_game_progress *progress);

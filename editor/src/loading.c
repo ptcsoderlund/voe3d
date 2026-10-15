@@ -1,4 +1,4 @@
-// The two works loading.h names, each run once on a splash wait's worker in
+// The three works loading.h names, each run once on a splash wait's worker in
 // the worker's own scratch, which is rewound before it returns.
 #include "loading.h"
 
@@ -6,8 +6,14 @@
 
 #include <base/assert.h>
 #include <base/error.h>
+#include <base/report.h>
 
+#include <game/models.h>
 #include <game/starting.h>
+
+#include <platform/path.h>
+
+#include <stdio.h>
 
 bool voe_editor_loading_start_work(void *context, voe_game_progress *progress)
 {
@@ -62,5 +68,28 @@ bool voe_editor_loading_load_work(void *context, voe_game_progress *progress)
 	voe_editor_models_update(load->models, load->session, load->device,
 				 load->scratch, 0.0, progress);
 	voe_base_arena_clear(load->scratch);
+	return !voe_game_progress_stopped(progress);
+}
+
+bool voe_editor_loading_prepare_work(void *context, voe_game_progress *progress)
+{
+	voe_editor_loading_prepare *prepare = context;
+	voe_base_error error = VOE_BASE_OK;
+	bool made = false;
+
+	VOE_BASE_ASSERT(prepare != NULL && prepare->scratch != NULL,
+			"a prepare's work with no scratch");
+	VOE_BASE_ASSERT(prepare->folder != NULL && prepare->path != NULL,
+			"a prepare's work with no folder or path");
+	snprintf(prepare->phase, sizeof prepare->phase, "Preparing %s",
+		 voe_platform_path_name(prepare->path));
+	voe_game_progress_set(progress, prepare->phase, 0, 0);
+	if (voe_game_progress_stopped(progress))
+		return false;
+	if (!voe_game_models_prepare(prepare->folder, prepare->path,
+				     prepare->scratch, &made, &error))
+		VOE_BASE_ERROR("editor", "%s: its levels were not made: %s",
+			       prepare->path, voe_base_error_string(error));
+	voe_base_arena_clear(prepare->scratch);
 	return !voe_game_progress_stopped(progress);
 }

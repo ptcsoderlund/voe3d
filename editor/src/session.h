@@ -69,6 +69,8 @@
 #include "scene.h"
 #include "ship.h"
 
+#include <3d/model_component.h>
+
 #include <stdint.h>
 
 // The longest folder Open's Confirm carries to the load, its terminator
@@ -131,6 +133,11 @@ typedef struct voe_editor_session {
 	// folder, copied out of the browser; empty is NEW's untitled project.
 	bool load_due;
 	char load_folder[VOE_EDITOR_SESSION_FOLDER];
+	// An import of a `.glb` asked for its levels made, which main.c does
+	// next frame behind the splash and then clears. `prepare_path` is the
+	// copy's `Assets/...` path (voe_editor_assets_import).
+	bool prepare_due;
+	char prepare_path[VOE_3D_MODEL_PATH];
 } voe_editor_session;
 
 // Carries out command, or refuses it once — see the header above. `scene` is
@@ -197,7 +204,8 @@ void voe_editor_session_prefab_open(voe_editor_session *session,
 // are browser.c's own to do, given session->notice to write a failure into;
 // Cancel hides the browser and nothing else. IMPORT_FILE copies the pressed
 // file into the Assets panel's shown folder (voe_editor_assets_import, a
-// failure in the notice), reads `models`' materials and parts again, refreshes
+// failure in the notice), a `.glb` setting `prepare_due` and `prepare_path` so
+// main.c prepares its levels, reads `models`' materials and parts again, refreshes
 // the open material (scene.h) and hides the browser. CONFIRM IS THIS FILE'S OWN IN
 // BOTH MODES, the same shape session_do's other commands have. In OPEN mode:
 // browser->target copied into `load_folder`, `load_due` set and the browser

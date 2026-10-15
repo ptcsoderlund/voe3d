@@ -725,19 +725,24 @@ static bool assets_made(const char *project, voe_base_arena *scratch,
 
 void voe_editor_assets_import(voe_editor_assets *assets,
 			      const char *project_folder, const char *source,
-			      voe_editor_notice *why)
+			      voe_editor_notice *why,
+			      char imported[VOE_3D_MODEL_PATH])
 {
 	voe_base_arena *scratch;
 	const char *shown;
 	const char *target;
+	const char *relative;
 	const uint8_t *bytes;
 	size_t count;
+	int length;
 
 	VOE_BASE_ASSERT(assets != NULL && assets->arena != NULL,
 			"importing into an Assets panel never listed");
 	VOE_BASE_ASSERT(project_folder != NULL && source != NULL,
 			"importing with no project folder or no file");
-	VOE_BASE_ASSERT(why != NULL, "importing with nowhere to say why");
+	VOE_BASE_ASSERT(why != NULL && imported != NULL,
+			"importing with nowhere to say why or where");
+	imported[0] = '\0';
 
 	// The shown folder is only this project's when it was listed for it.
 	shown = same_folder(project_folder, assets->project) &&
@@ -772,15 +777,17 @@ void voe_editor_assets_import(voe_editor_assets *assets,
 		voe_editor_notice_from_report(why, target);
 		goto destroy_scratch;
 	}
+	relative = voe_editor_assets_join(
+		scratch, ASSETS_FOLDER,
+		voe_editor_assets_join(scratch, shown,
+				       voe_platform_path_name(source)));
+	length = snprintf(imported, VOE_3D_MODEL_PATH, "%s", relative);
+	if (length < 0 || length >= VOE_3D_MODEL_PATH)
+		imported[0] = '\0';
 	// A false has said why; the `.glb` itself is in place either way.
 	if (name_ends(source, ".glb"))
-		(void)voe_editor_model_import(
-			project_folder,
-			voe_editor_assets_join(
-				scratch, ASSETS_FOLDER,
-				voe_editor_assets_join(scratch, shown,
-						       voe_platform_path_name(source))),
-			scratch, why);
+		(void)voe_editor_model_import(project_folder, relative, scratch,
+					      why);
 	relist(assets, project_folder, shown, NULL, false);
 destroy_scratch:
 	voe_base_arena_destroy(scratch);

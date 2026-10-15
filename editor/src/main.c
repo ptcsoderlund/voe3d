@@ -442,6 +442,24 @@ int main(int argc, char *argv[])
 		// once rather than once per view: every view is lit the same.
 		voe_render_light light = { 0 };
 
+		// AN IMPORTED MODEL'S LEVELS MADE BEHIND THE SPLASH (loading.h),
+		// before any load replaces the project it was imported into.
+		if (session.prepare_due) {
+			voe_editor_loading_prepare prepare = {
+				.folder = session.project->folder,
+				.path = session.prepare_path,
+				.scratch = worker_scratch };
+			if (!voe_game_starting_wait(app, ui, scratch,
+						    splash_held ? &splash : NULL,
+						    voe_editor_loading_prepare_work,
+						    &prepare)) {
+				status = options.capture != NULL ? 1 : 0;
+				break;
+			}
+			voe_base_arena_clear(scratch);
+			session.prepare_due = false;
+		}
+
 		// NEW OR OPEN'S LOAD ON A WORKER BEHIND THE SPLASH (loading.h);
 		// a false wait ends the program as the start's does.
 		if (session.load_due) {

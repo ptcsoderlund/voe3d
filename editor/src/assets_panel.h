@@ -63,6 +63,8 @@
 #include "assets_menu.h"
 #include "browser.h"
 
+#include <3d/model_component.h>
+
 #include <base/arena.h>
 
 #include <math/float2.h>
@@ -275,10 +277,14 @@ void voe_editor_assets_delete_begin(voe_editor_assets *assets);
 // first when it is missing, then lists again. A failure is said in why,
 // naming the file, and changes nothing else. A `.glb` copied has its
 // materials and parts written beside it (model_import.h), a failure of
-// theirs said in why too; the caller reads the materials again.
+// theirs said in why too; the caller reads the materials again. `imported`
+// is set to the copy's project-relative path, `Assets/...` with `/` between,
+// as model_import.h is given it, once the write succeeds; "" when the copy
+// failed or the path does not fit.
 void voe_editor_assets_import(voe_editor_assets *assets,
 			      const char *project_folder, const char *source,
-			      voe_editor_notice *why);
+			      voe_editor_notice *why,
+			      char imported[VOE_3D_MODEL_PATH]);
 
 // Frees the arena, when one was made. Called once, at shutdown.
 void voe_editor_assets_destroy(voe_editor_assets *assets);

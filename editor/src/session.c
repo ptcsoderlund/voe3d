@@ -20,6 +20,7 @@
 
 #include <scene/identity_component.h>
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -540,9 +541,27 @@ void voe_editor_session_prefab_open(voe_editor_session *session,
 	session->prefab_opened = true;
 }
 
-// The file at `source` imported into the Assets panel, then the materials and
-// parts read again and the open material refreshed, the import's own writes
-// among them. A failure is the notice.
+// Whether `path` ends `.glb`, in any case: a model whose levels are made.
+static bool session_names_model(const char *path)
+{
+	static const char ending[] = ".glb";
+	const size_t tail = sizeof ending - 1;
+	size_t length;
+
+	VOE_BASE_ASSERT(path != NULL, "asking whether no path is a model");
+	length = strlen(path);
+	if (length < tail)
+		return false;
+	for (size_t i = 0; i < tail; i++)
+		if (tolower((unsigned char)path[length - tail + i]) != ending[i])
+			return false;
+	return true;
+}
+
+// The file at `source` imported into the Assets panel, a copied `.glb` left
+// due for its levels, then the materials and parts read again and the open
+// material refreshed, the import's own writes among them. A failure is the
+// notice.
 static void session_import(voe_editor_session *session, voe_editor_scene *scene,
 			   voe_editor_models *models, const char *source)
 {
@@ -553,7 +572,9 @@ static void session_import(voe_editor_session *session, voe_editor_scene *scene,
 	VOE_BASE_ASSERT(models != NULL && source != NULL,
 			"importing with no store or no file");
 	voe_editor_assets_import(&scene->assets, session->project->folder,
-				 source, &session->notice);
+				 source, &session->notice,
+				 session->prepare_path);
+	session->prepare_due = session_names_model(session->prepare_path);
 	scratch = voe_base_arena_new(SESSION_SCRATCH);
 	voe_editor_models_materials_read(models, session->project->folder,
 					 scratch);
