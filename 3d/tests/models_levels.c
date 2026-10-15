@@ -70,9 +70,11 @@ static files make_files(voe_base_arena *arena)
 	out.glb = sphere_glb(arena, RINGS, SEGMENTS, false, &out.glb_size);
 	out.own = sphere_glb(arena, RINGS, SEGMENTS, true, &out.own_size);
 	out.levels = voe_3d_model_levels_make(arena, out.glb, out.glb_size,
+					      VOE_ASSETS_LEVELS_DEFAULT,
 					      &out.levels_size, &error);
 	out.other_levels = voe_3d_model_levels_make(
-		arena, other, other_size, &out.other_levels_size, &error);
+		arena, other, other_size, VOE_ASSETS_LEVELS_DEFAULT,
+		&out.other_levels_size, &error);
 	VOE_TEST_CHECK(out.levels != NULL && out.other_levels != NULL);
 	return out;
 }

@@ -10,6 +10,7 @@
 //     if (!voe_3d_model_levels_read(arena, file, file_size, glb, glb_size,
 //                                   &levels)) {     // missing or stale
 //             file = voe_3d_model_levels_make(arena, glb, glb_size,
+//                                             VOE_ASSETS_LEVELS_DEFAULT,
 //                                             &file_size, &error);
 //             if (file == NULL)
 //                     ... // the store's load fails the same way
@@ -17,23 +18,29 @@
 //     }
 //     voe_base_arena_rewind(arena, mark);  // the caller's, as everything here
 //
-// THE LEVELS (0425 point 1). Level 0 is the file as baked; levels 1 to 3 aim at
-// a half, a quarter and an eighth of level 0's triangles, each part simplified
-// on its own and always from level 0, until it reaches its target or a collapse
-// would cost more than a quarter of the model's bounding radius (the farthest
-// baked vertex from its box's centre). A level's error is the largest of its
-// parts', in model metres. A level holding more than three quarters of the
-// previous level's triangles ends the list: it and the ones after are dropped.
+// THE LEVELS (0425 point 1, 0430 points 2 and 3). Level 0 is the file as baked;
+// `levels.count` (1 to 4) is how many there are at most, level 0 included. Each
+// part is simplified on its own and always from level 0, until it reaches its
+// target or a collapse would cost more than the strength's share of the model's
+// bounding radius (the farthest baked vertex from its box's centre). Normals
+// within the strength's angle share a side. Gentle: 0°, each level aiming at
+// half the one before, a quarter of the radius; medium: 60°, half, a quarter;
+// strong: 180°, a quarter, half. A level's error is the largest of its parts',
+// in model metres. A level holding more than three quarters of the previous
+// level's triangles ends the list: it and the ones after are dropped.
 //
 // A FILE WITH ITS OWN LEVELS IS NEVER SIMPLIFIED (0425 point 4): a node named
 // `_LOD1` to `_LOD3` anywhere makes a file of one level, `own` set, no parts.
 //
 // THE LAYOUT, native-endian, every field a uint32_t but the hash:
 //
-//     magic "VOEL" | version 1 | FNV-1a 64 of the .glb (uint64_t)
+//     magic "VOEL" | version 2 | FNV-1a 64 of the .glb (uint64_t)
 //     own | level count | part count
 //     per made level k >= 1: its error (float), then per part
 //         its index count | that many indices into level 0's baked part
+//
+// Version 1 files, made before the strength, are stale (0430 point 7). The file
+// records neither the count nor the strength it was made with.
 //
 // STALE IS NEVER AN ERROR (0426 point 1): a file whose magic, version or hash
 // differs, a count past its limit (levels, parts, whole triangles), an error
@@ -52,6 +59,7 @@
 
 #include <3d/models.h>
 
+#include <assets/parts.h>
 #include <base/arena.h>
 #include <base/error.h>
 
@@ -81,14 +89,16 @@ typedef struct {
 // FNV-1a 64 of `size` bytes.
 uint64_t voe_3d_model_levels_hash(const uint8_t *bytes, size_t size);
 
-// Parses `glb`, bakes level 0, makes its levels and writes the file's bytes,
-// returned with their count in `*size`, all on `arena`. The bytes are the
-// return and not an out-parameter, since rule 6 allows no `**`. NULL with
-// `error` set as the store's load would fail: MALFORMED or UNSUPPORTED as the
-// reader says, UNSUPPORTED or REFUSED as the bake says.
+// Parses `glb`, bakes level 0, makes at most `levels.count` levels in all, as
+// hard as `levels.strength`, and writes the file's bytes, returned with their
+// count in `*size`, all on `arena`. The bytes are the return and not an
+// out-parameter, since rule 6 allows no `**`. NULL with `error` set as the
+// store's load would fail: MALFORMED or UNSUPPORTED as the reader says,
+// UNSUPPORTED or REFUSED as the bake says.
 [[nodiscard]] const uint8_t *
 voe_3d_model_levels_make(voe_base_arena *arena, const uint8_t *glb,
-			 size_t glb_size, size_t *size, voe_base_error *error);
+			 size_t glb_size, voe_assets_levels levels, size_t *size,
+			 voe_base_error *error);
 
 // Reads a levels file made for `glb` into `out`, its indices copied onto
 // `arena`. False when the file is stale, `out` then not to be read.

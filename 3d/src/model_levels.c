@@ -8,8 +8,9 @@
 // triangles summed, and only then held against three quarters of the level
 // before. A dropped level's indices are given back to the arena at once.
 //
-// A PART'S TARGET IS ITS OWN TRIANGLES SHIFTED, so every part keeps its share of
-// the model and a small part may reach nought triangles, which draws nothing at
+// A PART'S TARGET IS ITS OWN TRIANGLES SHIFTED, level k's by k times the
+// strength's shift (1 a half per level, 2 a quarter), so every part keeps its
+// share of the model and a small part may reach nought triangles, which draws nothing at
 // that level; the radius bound usually stops it first.
 //
 // THE FILE IS WRITTEN AND READ WITH memcpy at a byte offset, since nothing in it
@@ -27,9 +28,25 @@
 #include <string.h>
 
 #define MAGIC "VOEL"
-#define VERSION 1u
+#define VERSION 2u
 // Magic, version, hash, own, level count, part count.
 #define HEAD_BYTES (4 + 4 + 8 + 4 + 4 + 4)
+
+static_assert(VOE_ASSETS_LEVELS == VOE_3D_MODEL_LEVELS,
+	      "a parts file's level count is the store's");
+
+// How hard each level cuts, by strength (0430 point 2): the normals' angle
+// that still shares a side, the target's shift per level, and the radius
+// divided by this is the most a collapse may cost.
+static const struct strength {
+	float degrees;
+	uint32_t shift;
+	float radius_divisor;
+} STRENGTHS[] = {
+	[VOE_ASSETS_LEVELS_GENTLE] = { 0.0f, 1, 4.0f },
+	[VOE_ASSETS_LEVELS_MEDIUM] = { 60.0f, 1, 4.0f },
+	[VOE_ASSETS_LEVELS_STRONG] = { 180.0f, 2, 2.0f },
+};
 
 struct writer {
 	uint8_t *bytes;
@@ -87,13 +104,16 @@ static float radius_of(const voe_3d_model_bake *bake)
 // Level k of every part, from level 0, into `levels`; false when it holds more
 // than three quarters of `previous` triangles, its indices then given back.
 static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
-			   uint32_t k, float max_error, uint64_t *previous,
+			   uint32_t k, const struct strength *strength,
+			   float max_error, uint64_t *previous,
 			   voe_3d_model_levels *levels)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	const uint32_t shift = k * strength->shift;
 	uint64_t triangles = 0;
 	float error = 0.0f;
 
+	VOE_BASE_ASSERT(shift < 32, "a level shifted past its triangles");
 	for (uint32_t p = 0; p < bake->part_count; p++) {
 		const voe_3d_model_bake_part *part = &bake->parts[p];
 		uint32_t *out = voe_base_arena_push(
@@ -102,8 +122,8 @@ static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
 		uint32_t count = voe_3d_simplify(
 			arena, bake->vertices + part->first_vertex,
 			part->vertex_count, bake->indices + part->first_index,
-			part->index_count, (part->index_count / 3 >> k) * 3,
-			max_error, 0.0f, out, &part_error);
+			part->index_count, (part->index_count / 3 >> shift) * 3,
+			max_error, strength->degrees, out, &part_error);
 
 		levels->indices[k][p] = out;
 		levels->index_counts[k][p] = count;
@@ -125,14 +145,17 @@ static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
 
 static void simplify_levels(voe_base_arena *arena,
 			    const voe_3d_model_bake *bake,
+			    voe_assets_levels asked,
 			    voe_3d_model_levels *levels)
 {
-	const float max_error = radius_of(bake) / 4.0f;
+	const struct strength *strength = &STRENGTHS[asked.strength];
+	const float max_error = radius_of(bake) / strength->radius_divisor;
 	uint64_t previous = bake->index_count / 3;
 
 	levels->part_count = bake->part_count;
-	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS && previous > 0; k++) {
-		if (!simplify_level(arena, bake, k, max_error, &previous, levels))
+	for (uint32_t k = 1; k < asked.count && previous > 0; k++) {
+		if (!simplify_level(arena, bake, k, strength, max_error,
+				    &previous, levels))
 			break;
 		levels->level_count = k + 1;
 	}
@@ -189,25 +212,30 @@ static const uint8_t *write_file(voe_base_arena *arena,
 
 const uint8_t *voe_3d_model_levels_make(voe_base_arena *arena,
 					const uint8_t *glb, size_t glb_size,
-					size_t *size, voe_base_error *error)
+					voe_assets_levels levels, size_t *size,
+					voe_base_error *error)
 {
-	voe_3d_model_levels levels = { .level_count = 1 };
+	voe_3d_model_levels made = { .level_count = 1 };
 	voe_assets_model model;
 	voe_3d_model_bake bake;
 
 	VOE_BASE_ASSERT(arena != NULL, "making levels without an arena");
 	VOE_BASE_ASSERT(glb != NULL && size != NULL, "making levels of nothing");
+	VOE_BASE_ASSERT(levels.count >= 1 && levels.count <= VOE_ASSETS_LEVELS,
+			"a level count out of range");
+	VOE_BASE_ASSERT(levels.strength <= VOE_ASSETS_LEVELS_STRONG,
+			"a level strength out of range");
 
 	if (!voe_assets_model_read_glb(glb, glb_size, arena, &model, error))
 		return NULL;
 	if (voe_3d_model_bake_levels(&model) > 1) {
-		levels.own = true;
+		made.own = true;
 	} else {
 		if (!voe_3d_model_bake_create(arena, &model, 0, &bake, error))
 			return NULL;
-		simplify_levels(arena, &bake, &levels);
+		simplify_levels(arena, &bake, levels, &made);
 	}
-	return write_file(arena, &levels, voe_3d_model_levels_hash(glb, glb_size),
+	return write_file(arena, &made, voe_3d_model_levels_hash(glb, glb_size),
 			  size);
 }
 
