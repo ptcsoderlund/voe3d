@@ -257,7 +257,8 @@ Sampler2D voe_render_textures[1024];
 // twenty-eight bytes, the four uints after them fill to a hundred and
 // forty-four, the colour to a hundred and sixty, the water's two float4s to a
 // hundred and ninety-two, the terrain's two to two hundred and twenty-four and
-// the layers' two uint4s end it at two hundred and fifty-six, so every layout rule
+// the layers' two uint4s to two hundred and fifty-six, and the dither and its
+// three reserved words end it at two hundred and seventy-two, so every layout rule
 // a structured buffer might be given puts every member in the same place. The
 // colour is linear and multiplies the shading record's base colour factor,
 // alpha included.
@@ -295,6 +296,13 @@ struct voe_render_object {
 	// read only when `heights` and `paint_a` are not nought.
 	uint4 layers_low;
 	uint4 layers_high;
+	// The share of pixels the draw keeps (ADR-0432 point 5), 0 whole; see
+	// voe_render_object in render/device.h. Three scalars after it, not a
+	// uint3, for the padding reason above.
+	float dither;
+	uint reserved0;
+	uint reserved1;
+	uint reserved2;
 };
 
 // Set 0, binding 2: this frame's records, one per draw. Read by both stages —

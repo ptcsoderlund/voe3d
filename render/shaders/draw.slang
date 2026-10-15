@@ -169,6 +169,7 @@
 //              what averaging took. Approximate, not exact coverage. A
 //              distance-field record keeps its cut unscaled.
 //   blended  — alpha exactly as computed, and the pass it is drawn in blends.
+// Beside them an object's `dither` discards the pixels its 4 × 4 pattern drops.
 //
 // THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
 // OUTPUTS PREMULTIPLIED COLOUR. That is the engine's contract, it is stated in
@@ -339,6 +340,18 @@ float4 voe_render_premultiplied(float3 colour, float coverage)
 float voe_render_median(float3 field)
 {
 	return max(min(field.r, field.g), min(max(field.r, field.g), field.b));
+}
+
+// The pixel's threshold in the 4 × 4 ordered (Bayer) pattern, (index + 0.5) ÷ 16:
+// sixteen distinct values in 0..1, so a share d keeps exactly 16 d of every
+// sixteen pixels and −d the rest (ADR-0432 point 5).
+float voe_render_dither_threshold(float2 pixel)
+{
+	static const uint bayer[16] = { 0, 8, 2, 10, 12, 4, 14, 6,
+					3, 11, 1, 9, 15, 7, 13, 5 };
+	uint2 at = uint2(pixel) & 3u;
+
+	return (float(bayer[at.y * 4 + at.x]) + 0.5) / 16.0;
 }
 
 // Slot 0, the white pixel: voe_render_texture in render/device.h.
@@ -532,6 +545,17 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 		coverage = 1.0;
 	} else if (shading.alpha_mode != VOE_RENDER_ALPHA_BLENDED) {
 		coverage = 1.0;
+	}
+
+	// The object's share of the pixels, 0 whole (ADR-0432 point 5): d keeps
+	// a threshold under d, −d one at or above d, so the two cover each pixel
+	// once. Here for the reason the cut-out's discard is.
+	if (object.dither != 0.0) {
+		float threshold =
+			voe_render_dither_threshold(vertex.position.xy);
+		if (object.dither > 0.0 ? threshold >= object.dither :
+					  threshold < -object.dither)
+			discard;
 	}
 
 	// An unlit material, which is text and will be the user interface: the
