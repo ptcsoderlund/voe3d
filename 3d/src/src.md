@@ -171,3 +171,6 @@ here is included from outside the folder — `include/3d/` is the whole public s
   kept and borders held, for a model's levels; internal.
 - `simplify.c` — the weld, the plane sums and a heap of stamped collapses popped cheapest first,
   each refused past 90° of turn.
+- `model_levels.c` — a `.glb`'s levels file: the FNV-1a hash, level 0 baked and each level
+  simplified part by part under a quarter of the radius until one keeps over three quarters, and
+  the bytes written and read back, any stale field refused.

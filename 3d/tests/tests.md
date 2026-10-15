@@ -149,3 +149,8 @@ again, or to find where a claim that has started failing is written down.
   fresh build and the pyramid's box. Needs no graphics card.
 - `simplify.c` — a flat grid to an eighth at no error with its corners, a sphere to a half facing
   out, the sphere held by a tiny limit, and a uv seam's positions kept. Needs no graphics card.
+- `model_levels.c` — a sphere's levels file made and read: three levels or more, each at most three
+  quarters of the last, errors rising; stale after a changed `.glb`, a cut and a new version; own
+  levels read as one; FNV-1a of "a"; no `.glb` MALFORMED. Needs no graphics card.
+- `model_glb.inc` — a UV sphere's `.glb` built on an arena, with a second "Ball_LOD1" root when
+  asked.

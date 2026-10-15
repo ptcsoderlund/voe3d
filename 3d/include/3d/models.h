@@ -79,6 +79,8 @@
 // How many files the store holds, and how many materials one file may use.
 #define VOE_3D_MODELS 128
 #define VOE_3D_MODEL_PARTS 16
+// Levels one model may have, level 0 the file as it is (0425 point 1).
+#define VOE_3D_MODEL_LEVELS 4
 
 // The device room the store's models are given, which a program adds to its
 // own capacities: 2 M vertices, 6 M indices, 512 geometries, four parts for each
