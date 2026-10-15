@@ -35,7 +35,7 @@ belongs to.
 - `model.c` — a hand-built `.glb` in and its arrays out, two textures over
   one picture, COLOR_0 in each stored form, material and image names, sides,
   unlit, emission strength and repeat read or defaulted, a long name cut at a
-  character, and one byte of a working file changed at a time.
+  character, node names, and one byte of a working file changed at a time.
 - `model_material.c` — built glTF materials, no file, to their `.material`
   values: opaque, MASK, BLEND, unlit, double-sided, emission and repeat; and
   the ORM picture from metal-roughness alone, with a larger occlusion picture,

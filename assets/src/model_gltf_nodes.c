@@ -1,5 +1,5 @@
-// glTF's node tree, read into the arrays in assets/model.h: each node's mesh and
-// local matrix, its children, and the roots — the default scene's nodes, or
+// glTF's node tree, read into the arrays in assets/model.h: each node's name,
+// mesh and local matrix, its children, and the roots — the default scene's nodes, or
 // every node nothing claims. Called by model_gltf.c through model_gltf_read.h
 // after the meshes, whose count a node's mesh index is checked against.
 //
@@ -79,6 +79,8 @@ bool voe_assets_gltf_read_nodes(struct gltf *gltf, voe_assets_model *model)
 		if (node == VOE_ASSETS_JSON_NONE)
 			return voe_assets_gltf_malformed(
 				gltf, "a node that is not an object");
+		if (!voe_assets_gltf_read_name(gltf, node, &nodes[i].name))
+			return false;
 
 		nodes[i].mesh = VOE_ASSETS_MODEL_NONE;
 		if (voe_assets_json_member(gltf->json, node, "mesh") !=

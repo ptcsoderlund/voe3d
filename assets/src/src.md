@@ -57,7 +57,7 @@ of them is internal to this folder rather than reachable from outside it.
   images. Its header says why a texture resolves to an image.
 - `model_gltf_meshes.c` — attributes, primitives and meshes. Its header says
   why triangle lists only and why an unindexed primitive is given indices.
-- `model_gltf_nodes.c` — the node matrices and the node tree. Its header says
+- `model_gltf_nodes.c` — the node names and matrices and the node tree. Its header says
   how the tree is proven a tree without recursion.
 - `model_material.c` — a glTF material to `.material` values, and its ORM
   picture merged from occlusion and metal-roughness at the nearest texel.

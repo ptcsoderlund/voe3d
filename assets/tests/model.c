@@ -9,7 +9,8 @@
 // its vertex count. These are assembled to hold exactly those. The COLOR_0
 // files are the exception: one unindexed triangle each, assembled here at run
 // time from readable JSON, because they differ only in the colour accessor, and
-// so are the material files, around a picture encoded here.
+// so are the material files, around a picture encoded here, and the node-name
+// files.
 //
 // THE REFUSALS ARE HALF THE POINT AND THEY ARE TWO DIFFERENT ANSWERS.
 // MALFORMED is a broken file: nothing will read it. UNSUPPORTED is a file that
@@ -417,6 +418,46 @@ static void a_material_carries_what_import_writes(voe_base_arena *arena)
 	}
 }
 
+// A `.glb` of no meshes and the nodes `nodes` (a JSON array's inside) into
+// `out`, its size returned.
+static size_t nodes_glb(uint8_t *out, size_t capacity, const char *nodes)
+{
+	static const uint8_t bin[4] = { 0 };
+	char json[512];
+
+	snprintf(json, sizeof(json),
+		 "{\"asset\":{\"version\":\"2.0\"},"
+		 "\"buffers\":[{\"byteLength\":4}],\"nodes\":[%s]}",
+		 nodes);
+	return assemble_glb(out, capacity, json, bin, sizeof(bin));
+}
+
+// A child named "Trunk_LOD1" under a root with no name reads both back, as
+// Blender's levels are read from them (0425); a name that is a number is refused.
+static void a_node_keeps_its_name(voe_base_arena *arena)
+{
+	static uint8_t file[1024];
+	voe_assets_model model = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	size_t size;
+
+	size = nodes_glb(file, sizeof(file),
+			 "{\"children\":[1]},{\"name\":\"Trunk_LOD1\"}");
+	VOE_TEST_CHECK(voe_assets_model_read_glb(file, size, arena, &model,
+						 &error));
+	if (model.node_count == 2) {
+		VOE_TEST_CHECK(strcmp(model.nodes[0].name.text, "") == 0);
+		VOE_TEST_CHECK(strcmp(model.nodes[1].name.text, "Trunk_LOD1") ==
+			       0);
+	} else {
+		VOE_TEST_CHECK(false);
+	}
+
+	size = nodes_glb(file, sizeof(file), "{\"name\":7}");
+	refuses("a node whose name is a number", file, size,
+		VOE_BASE_ERROR_MALFORMED);
+}
+
 // A file that is fine and that this reader will not read. Each one prints what
 // it was, which is the difference between "no" and "export it differently".
 static void well_formed_files_this_reader_refuses(void)
@@ -501,6 +542,7 @@ int main(void)
 	a_file_comes_back_as_its_arrays(arena);
 	a_primitive_carries_its_vertex_colours(arena);
 	a_material_carries_what_import_writes(arena);
+	a_node_keeps_its_name(arena);
 	well_formed_files_this_reader_refuses();
 	broken_containers_are_malformed();
 

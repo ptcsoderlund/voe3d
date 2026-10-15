@@ -100,8 +100,8 @@ static bool read_texture_reference(struct gltf *gltf, uint32_t object,
 // not fit is cut back past any continuation byte, so it ends on a whole UTF-8
 // character (0247); the walk back is at most three bytes on valid text and at
 // most the name's length on anything else.
-static bool read_name(struct gltf *gltf, uint32_t object,
-		      voe_assets_model_name *out)
+bool voe_assets_gltf_read_name(struct gltf *gltf, uint32_t object,
+			       voe_assets_model_name *out)
 {
 	uint32_t token = voe_assets_json_member(gltf->json, object, "name");
 	const voe_assets_json_token *text;
@@ -354,7 +354,8 @@ bool voe_assets_gltf_read_materials(struct gltf *gltf, voe_assets_model *model)
 					    &materials[i].occlusion_image) ||
 		    !read_texture_reference(gltf, material, "emissiveTexture",
 					    &materials[i].emissive_image) ||
-		    !read_name(gltf, material, &materials[i].name) ||
+		    !voe_assets_gltf_read_name(gltf, material,
+					       &materials[i].name) ||
 		    !read_double_sided(gltf, material,
 				       &materials[i].double_sided) ||
 		    !read_material_extensions(gltf, material, &materials[i]))
@@ -421,7 +422,7 @@ bool voe_assets_gltf_read_images(struct gltf *gltf, voe_assets_model *model)
 		if (image == VOE_ASSETS_JSON_NONE)
 			return voe_assets_gltf_malformed(
 				gltf, "an image that is not an object");
-		if (!read_name(gltf, image, &names[i]))
+		if (!voe_assets_gltf_read_name(gltf, image, &names[i]))
 			return false;
 
 		// The same refusal a buffer with a URI gets, and the same
