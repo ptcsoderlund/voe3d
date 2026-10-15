@@ -558,24 +558,27 @@ static bool session_names_model(const char *path)
 	return true;
 }
 
-// The file at `source` imported into the Assets panel, a copied `.glb` left
-// due for its levels, then the materials and parts read again and the open
-// material refreshed, the import's own writes among them. A failure is the
-// notice.
+// The file at `source` imported into the Assets panel, a copied `.glb`
+// opening the levels question (levels_ask.h), then the materials and parts
+// read again and the open material refreshed, the import's own writes among
+// them. A failure is the notice.
 static void session_import(voe_editor_session *session, voe_editor_scene *scene,
 			   voe_editor_models *models, const char *source)
 {
 	voe_base_arena *scratch;
+	char imported[VOE_3D_MODEL_PATH];
 
 	VOE_BASE_ASSERT(session->project->folder != NULL,
 			"importing into a project with no folder");
 	VOE_BASE_ASSERT(models != NULL && source != NULL,
 			"importing with no store or no file");
 	voe_editor_assets_import(&scene->assets, session->project->folder,
-				 source, &session->notice,
-				 session->prepare_path);
-	session->prepare_due = session_names_model(session->prepare_path);
+				 source, &session->notice, imported);
 	scratch = voe_base_arena_new(SESSION_SCRATCH);
+	if (session_names_model(imported))
+		voe_editor_levels_ask_open(&session->levels_asking,
+					   session->project->folder, imported,
+					   scratch);
 	voe_editor_models_materials_read(models, session->project->folder,
 					 scratch);
 	voe_base_arena_destroy(scratch);

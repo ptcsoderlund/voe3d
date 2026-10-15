@@ -15,14 +15,17 @@
 // after the panels list and read here after the panel: Rename, Delete, Folder,
 // Landscape and Material begin on the panel, Duplicate goes through assets_manage.h,
 // and Import textures through model_import.h, the tables read again after.
-// Make levels asks the session's prepare, which main.c runs behind the splash
-// next frame (0429). Escape closing it first, and the dock's covers, are
-// interface.c's.
+// Make levels asks first: it opens the session's levels question
+// (levels_ask.h), drawn by interface.c and read here after the Delete one —
+// Make saves the levels and asks the session's prepare, which main.c runs
+// behind the splash next frame (0429, 0430). Escape closing the menu first,
+// and the dock's covers, are interface.c's.
 #include "interface_assets.h"
 
 #include "assets_ask.h"
 #include "assets_manage.h"
 #include "assets_menu.h"
+#include "levels_ask.h"
 #include "model_import.h"
 #include "notice.h"
 
@@ -178,10 +181,10 @@ static void voe_editor_interface_assets_textures_do(voe_editor_session *session,
 	voe_editor_assets_list_due(&scene->assets);
 }
 
-// Make levels on `path`, relative to `Assets/` (0429): its `Assets/...` path
-// copied into the session with `prepare_due` and `prepare_remake` set, for
-// main.c's splash wait next frame. A path too long for VOE_3D_MODEL_PATH does
-// nothing, as no model of that path can be in the store.
+// Make levels on `path`, relative to `Assets/` (0429, 0430 point 6): the
+// levels question opened on its `Assets/...` path, whose Make asks the
+// prepare. A path too long for VOE_3D_MODEL_PATH does nothing, as no model of
+// that path can be in the store.
 static void voe_editor_interface_assets_levels_do(voe_editor_session *session,
 						  voe_base_arena *arena,
 						  const char *path)
@@ -190,15 +193,48 @@ static void voe_editor_interface_assets_levels_do(voe_editor_session *session,
 
 	VOE_BASE_ASSERT(session != NULL && arena != NULL && path != NULL,
 			"Make levels with no session, scratch or path");
+	VOE_BASE_ASSERT(session->project->folder != NULL,
+			"Make levels in a project with no folder");
 	joined = voe_editor_assets_join(arena, "Assets", path);
 	if (strlen(joined) >= sizeof session->prepare_path)
 		return;
-	snprintf(session->prepare_path, sizeof session->prepare_path, "%s",
-		 joined);
-	session->prepare_due = true;
-	session->prepare_remake = true;
-	VOE_BASE_ASSERT(session->prepare_path[0] != '\0',
-			"Make levels asked with no path");
+	voe_editor_levels_ask_open(&session->levels_asking,
+				   session->project->folder, joined, arena);
+	VOE_BASE_ASSERT(session->levels_asking.open,
+			"Make levels left no question open");
+}
+
+// The levels question as it was drawn answered: Make saves the model's levels
+// and asks the prepare with remake for main.c's splash next frame, a save
+// that failed said in the notice; Make, Cancel or a press outside closes it.
+static void voe_editor_interface_assets_levels_answer(
+	voe_ui_context *ui, voe_base_arena *arena,
+	const voe_editor_dock_root *root, voe_editor_session *session)
+{
+	voe_editor_levels_ask *ask = &session->levels_asking;
+	voe_editor_levels_ask_answer answer;
+
+	VOE_BASE_ASSERT(ui != NULL && arena != NULL && root != NULL,
+			"answering the levels question with no frame, scratch or root");
+	VOE_BASE_ASSERT(session != NULL, "answering the levels question with no session");
+	answer = voe_editor_levels_ask_read(ui, ask, root->pointer.down,
+					    root->pointer.at);
+	if (answer == VOE_EDITOR_LEVELS_ASK_MAKE) {
+		if (session->project->folder != NULL &&
+		    voe_editor_levels_ask_save(ask, session->project->folder,
+					       arena)) {
+			snprintf(session->prepare_path,
+				 sizeof session->prepare_path, "%s", ask->path);
+			session->prepare_due = true;
+			session->prepare_remake = true;
+		} else {
+			voe_editor_notice_set(&session->notice,
+					      "%s: its levels could not be saved",
+					      ask->path);
+		}
+	}
+	if (answer != VOE_EDITOR_LEVELS_ASK_NONE)
+		voe_editor_levels_ask_close(ask);
 }
 
 // A fired row of the Assets menu carried out on the selected row or the shown
@@ -252,7 +288,7 @@ void voe_editor_interface_assets_read(
 	voe_editor_preferences *preferences,
 	voe_editor_project_panel *project_panel,
 	voe_editor_landscape_panel *landscape_panel, bool over_assets,
-	bool menuing, bool asking)
+	bool menuing, bool asking, bool levels_asking)
 {
 	// A landscape Create made this frame, `Assets/...`.
 	char made[VOE_SCENE_PREFAB_PATH];
@@ -306,6 +342,9 @@ void voe_editor_interface_assets_read(
 		if (answer != VOE_EDITOR_ASSETS_ASK_NONE)
 			voe_editor_assets_ask_close(&session->asking);
 	}
+	if (levels_asking)
+		voe_editor_interface_assets_levels_answer(ui, arena, root,
+							  session);
 	if (scene->assets.deleting[0] != '\0') {
 		if (!session->asking.open)
 			voe_editor_assets_ask_open(&session->asking,

@@ -341,6 +341,18 @@
 // button's border and fill, four, and "Delete" and "Cancel", twelve.
 // 50649 + 658 = 51307 elements. No scroll area: five stands.
 //
+// THE LEVELS QUESTION (levels_ask.h, ADR-0430) ADDS TWENTY-FIVE NODES, counted
+// on top as the Delete question is, and added to the last paragraph's sums so
+// the ones between keep theirs: the panel, one; its title, one; the Levels and
+// Strength rows and their two labels, four; nine buttons, 1 to 4, Gentle,
+// Medium, Strong, Make and Cancel, each a button and a label, eighteen; the
+// button row, one. 2563 + 25 = 2588 nodes. AND 204 ELEMENTS: the panel's
+// border and fill, two; the title cut at its kept room, VOE_3D_MODEL_PATH
+// (128) and "Levels of " less the zero, 138; "Levels" and "Strength",
+// fourteen; each button's border and fill, eighteen; and "1" to "4", "Gentle",
+// "Medium", "Strong", "Make" and "Cancel", thirty-two. 51508 + 204 = 51712
+// elements. No scroll area: five stands.
+//
 // THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) ADDS TWELVE NODES: the
 // panel's own column round what it draws, one; and at most a row's menu, its
 // anchored column and panel, two, and Rename, Duplicate and Delete, each a
@@ -367,8 +379,8 @@
 // "Enabled", seven; the button's border and fill, two; and "Off", its longer
 // label, three. 2559 + 4 = 2563 nodes, 51496 + 12 = 51508 elements. No scroll
 // area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2563
-#define VOE_EDITOR_INTERFACE_ELEMENTS 51508
+#define VOE_EDITOR_INTERFACE_NODES 2588
+#define VOE_EDITOR_INTERFACE_ELEMENTS 51712
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

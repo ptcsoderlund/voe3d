@@ -126,7 +126,7 @@ carries it out.
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
 - `session.h` — the project being worked on, its Play, Refresh, Ship and open prefab, the Errors
-  panel shown from the build log, the armed command that makes Close, New, Open and Back refuse
+  panel shown from the build log, the Delete and levels questions, the armed command that makes Close, New, Open and Back refuse
   once over unsaved work, and the `saved` flag a written Save leaves for main.c.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
@@ -241,13 +241,15 @@ carries it out.
   written through `settings.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
   from the window's height, the top bar above each root's dock tree, the browser, Preferences,
-  Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
+  Project, Errors, the frame breakdown, the Delete and levels questions or the colour picker over
+  it, and one draw command per root.
 - `interface.c` — one `ui` frame per root: the dock walk, the draws over the dock, and the one read
   of its clicks as calls, in order, into the two below.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
-  row, Delete question and a fired prefab, landscape or material opened.
+  row, Delete and levels questions and a fired prefab, landscape or material opened.
 - `interface_assets.c` — the Assets panel's requests and menu rows carried out, Make levels
-  asking the prepare, and the Delete question answered.
+  opening the levels question, and the Delete and levels questions answered, Make's asking the
+  prepare.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
 - `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,

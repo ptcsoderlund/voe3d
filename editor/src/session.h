@@ -62,6 +62,7 @@
 #include "assets_ask.h"
 #include "browser.h"
 #include "errors.h"
+#include "levels_ask.h"
 #include "notice.h"
 #include "play.h"
 #include "project.h"
@@ -118,6 +119,9 @@ typedef struct voe_editor_session {
 	// The Assets panel's Delete question (assets_ask.h), opened and
 	// answered by interface.c, closed first by Escape (frame_commands.c).
 	voe_editor_assets_ask asking;
+	// The levels question (levels_ask.h), opened by a `.glb`'s import here
+	// and by Make levels, drawn and answered by interface.c as `asking` is.
+	voe_editor_levels_ask levels_asking;
 	// A different project is in session->project, set by whichever call
 	// put it there and cleared by whoever acts on it.
 	bool replaced;
@@ -133,10 +137,10 @@ typedef struct voe_editor_session {
 	// folder, copied out of the browser; empty is NEW's untitled project.
 	bool load_due;
 	char load_folder[VOE_EDITOR_SESSION_FOLDER];
-	// An import of a `.glb` asked for its levels made, or Make levels did,
-	// which also sets `prepare_remake`; main.c makes them next frame behind
-	// the splash and then clears both. `prepare_path` is the model's
-	// `Assets/...` path (voe_editor_assets_import, interface_assets.c).
+	// The levels question's Make asked for a model's levels made, always
+	// with `prepare_remake`; main.c makes them next frame behind the splash
+	// and then clears both. `prepare_path` is the model's `Assets/...` path,
+	// copied from the question (interface_assets.c).
 	bool prepare_due;
 	bool prepare_remake;
 	char prepare_path[VOE_3D_MODEL_PATH];
@@ -206,8 +210,9 @@ void voe_editor_session_prefab_open(voe_editor_session *session,
 // are browser.c's own to do, given session->notice to write a failure into;
 // Cancel hides the browser and nothing else. IMPORT_FILE copies the pressed
 // file into the Assets panel's shown folder (voe_editor_assets_import, a
-// failure in the notice), a `.glb` setting `prepare_due` and `prepare_path` so
-// main.c prepares its levels, reads `models`' materials and parts again, refreshes
+// failure in the notice), a `.glb` opening the levels question
+// (`levels_asking`) in place of setting `prepare_due`, reads `models`'
+// materials and parts again, refreshes
 // the open material (scene.h) and hides the browser. CONFIRM IS THIS FILE'S OWN IN
 // BOTH MODES, the same shape session_do's other commands have. In OPEN mode:
 // browser->target copied into `load_folder`, `load_due` set and the browser
