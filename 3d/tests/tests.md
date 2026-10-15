@@ -145,3 +145,5 @@ again, or to find where a claim that has started failing is written down.
 - `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
   once, neighbours within a level, within capacity, bounding their heights; an update equal to a
   fresh build and the pyramid's box. Needs no graphics card.
+- `simplify.c` — a flat grid to an eighth at no error with its corners, a sphere to a half facing
+  out, the sphere held by a tiny limit, and a uv seam's positions kept. Needs no graphics card.

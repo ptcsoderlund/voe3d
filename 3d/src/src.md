@@ -165,3 +165,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   heights or, painting, on a layer's weights.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
+- `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, seams
+  kept and borders held, for a model's levels; internal.
+- `simplify.c` — the weld, the plane sums and a heap of stamped collapses popped cheapest first,
+  each refused past 90° of turn.
