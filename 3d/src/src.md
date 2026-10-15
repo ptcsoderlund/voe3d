@@ -91,8 +91,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and glow and the haze's top above the eye in the sky, the frame's pass camera, and the run that draws meshes, landscapes and panels into the open frame.
 - `draw_models.h` — the model rows' walk, its part count for the blended group's room and the
   entry and landscape test the landscape walk shares; internal.
-- `draw_models.c` — each model row's parts at the camera's level, solid drawn now and blended or
-  fading ones held, a faded-out row and a landscape skipped.
+- `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
+  the level before in its band, and blended or fading ones held, a faded-out row and a landscape
+  skipped.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended, and why one eye chooses the same nodes in every pass; internal.
 - `draw_terrain.c` — the eye taken into the grid's space, the nodes selected on scratch or, in

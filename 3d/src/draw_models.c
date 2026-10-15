@@ -10,6 +10,14 @@
 // 2). A landscape row is skipped here: draw_system.c draws it by
 // draw_terrain.c's nodes.
 //
+// A ROW IN A LEVEL'S BAND DISSOLVES (0432 point 3): a part drawn now is drawn
+// twice, the chosen level on `shown` of its pixels through the object's
+// `dither` and the level before on the rest through −`shown`, each skipped
+// where its level lacks the part. Only these at-once draws dissolve (0432
+// point 4): a held part is drawn whole at the chosen level, so the held
+// groups, sized for one entry a part, keep their size, and two blended
+// levels would need a sort between them that dither does without.
+//
 // It holds nothing between frames: every row's entry is looked up in the
 // store each frame, and a held part is the group's, given back by _run's
 // rewind. The walk is linear in the model table, as every walk in
@@ -103,6 +111,25 @@ static struct voe_3d_deferred model_part_entry(const voe_3d_model_part *piece,
 	return entry;
 }
 
+// Part `part` of `model` at `level` drawn now, solid, keeping `dither`'s share
+// of its pixels (render/device.h); true and nothing drawn where the level lacks
+// the part.
+static bool draw_part_now(voe_render_device *device, const voe_3d_frame *frame,
+			  const voe_3d_model_entry *model, uint32_t part,
+			  uint32_t level, const voe_scene_transform *drawn,
+			  float dither)
+{
+	voe_3d_model_part piece = voe_3d_draw_group_part_worn(frame->models,
+							      model, part, level);
+	struct voe_3d_deferred entry;
+
+	if (piece.geometry.generation == 0)
+		return true;
+	entry = model_part_entry(&piece, drawn, false, 0.0f, frame->eye);
+	entry.mesh.object.dither = dither;
+	return voe_3d_draw_group_mesh_draw(device, &entry, false);
+}
+
 // A row's fade is read once: at or above 1 nothing is drawn, between 0 and 1
 // every part is held blended, at or below 0 or not a number as a solid row
 // (0336 point 3).
@@ -122,7 +149,8 @@ bool voe_3d_draw_models(voe_ecs_world *world, voe_render_device *device,
 	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
 		const voe_3d_model_entry *model;
 		voe_scene_transform drawn;
-		uint32_t level;
+		voe_3d_model_level_choice choice;
+		bool dissolving;
 		float fade = rows[row].fade;
 		// False for a NaN as for nought, so either draws as ever.
 		bool fading = fade > 0.0f && fade < 1.0f;
@@ -135,23 +163,36 @@ bool voe_3d_draw_models(voe_ecs_world *world, voe_render_device *device,
 		    voe_3d_draw_models_is_landscape(frame->models, model))
 			continue;
 		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
-		level = voe_3d_model_level(model, &drawn, frame->eye, &frame->view);
+		choice = voe_3d_model_level_choose(model, &drawn, frame->eye,
+						   &frame->view);
+		dissolving = !fading && choice.shown < 1.0f;
+		VOE_BASE_ASSERT(!dissolving || choice.level >= 1,
+				"level 0 dissolving into no level before it");
 		for (uint32_t part = 0; part < model->part_count; part++) {
-			// Its own record, or the one its parts file names.
+			// Its own record, or the one its parts file names; the
+			// material is the same at every level.
 			voe_3d_model_part piece = voe_3d_draw_group_part_worn(
-				frame->models, model, part, level);
-			struct voe_3d_deferred entry = model_part_entry(
-				&piece, &drawn, fading, fade, frame->eye);
+				frame->models, model, part, choice.level);
 
-			if (piece.geometry.generation == 0)
-				continue;
 			if (fading ||
-			    piece.material.alpha_mode == VOE_RENDER_ALPHA_BLENDED)
-				voe_3d_draw_group_hold(world_blended, entry,
-						       entry.mesh.object.world,
-						       frame->view.view);
-			else if (!voe_3d_draw_group_mesh_draw(device, &entry,
-							      false))
+			    piece.material.alpha_mode == VOE_RENDER_ALPHA_BLENDED) {
+				struct voe_3d_deferred entry = model_part_entry(
+					&piece, &drawn, fading, fade, frame->eye);
+
+				if (piece.geometry.generation != 0)
+					voe_3d_draw_group_hold(
+						world_blended, entry,
+						entry.mesh.object.world,
+						frame->view.view);
+				continue;
+			}
+			if (!draw_part_now(device, frame, model, part,
+					   choice.level, &drawn,
+					   dissolving ? choice.shown : 0.0f))
+				return false;
+			if (dissolving &&
+			    !draw_part_now(device, frame, model, part,
+					   choice.level - 1, &drawn, -choice.shown))
 				return false;
 		}
 	}

@@ -10,6 +10,14 @@
 // 3. The sphere loaded with NULL levels, 400 m away: over four times check 2's
 //    count. A model without levels is drawn whole at any distance.
 //
+// The dissolve (ADR-0432 points 3 and 4), its distances from the loaded
+// sphere's levels[1].bound and the lens's P[1][1] as model_levels.c works them:
+// 4. Where s is midway through level 1's band: C4, level 1 and level 0 drawn.
+// 5. Where s is just below the band's low end: C5, level 1 alone, and C4 − C5
+//    at least the sphere's level-0 triangles.
+// 6. Case 4's distance with the row's fade 0.5: at most C5, since a held row
+//    is drawn whole at its level and not dissolved.
+//
 // Radius 1 on the camera's axis, so both distances are in view; the far plane
 // is past 400 m. Nothing bounces, so no capture adds its last level.
 //
@@ -22,6 +30,7 @@
 #include <3d/model_levels.h>
 #include <3d/models.h>
 #include <3d/panel_component.h>
+#include <3d/projection.h>
 #include <3d/shadow_cascades.h>
 #include <base/arena.h>
 #include <base/error.h>
@@ -63,10 +72,14 @@ static const voe_render_capacities CAPACITIES = {
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
 };
 
+static const voe_scene_camera LENS = { .fov_y = 1.0471976f,
+					.near_plane = 0.1f,
+					.far_plane = 1000.0f };
+
 // The camera at the origin looking down −Z, the sun, and one model row
-// wearing `path` `distance` metres before the camera.
+// wearing `path` `distance` metres before the camera at `fade`.
 static voe_ecs_world *a_world(voe_base_arena *arena, const char *path,
-			      double distance)
+			      double distance, float fade)
 {
 	voe_ecs_limits limits = {
 		.entities = 4,
@@ -77,7 +90,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const char *path,
 	};
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 	voe_ecs_entity entity = { 0 };
-	voe_3d_model row = { .cast_shadows = true };
+	voe_3d_model row = { .cast_shadows = true, .fade = fade };
 
 	voe_scene_transform_register(world, 4);
 	voe_scene_camera_register(world, 1);
@@ -92,11 +105,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const char *path,
 		world, entity,
 		(voe_scene_transform){ .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 				       .scale = { 1.0f, 1.0f, 1.0f } }));
-	VOE_TEST_CHECK(voe_scene_camera_add(
-		world, entity,
-		(voe_scene_camera){ .fov_y = 1.0471976f,
-				    .near_plane = 0.1f,
-				    .far_plane = 1000.0f }));
+	VOE_TEST_CHECK(voe_scene_camera_add(world, entity, LENS));
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(
@@ -122,12 +131,13 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const char *path,
 	return world;
 }
 
-// One whole frame of `path` `distance` metres away: the triangles it drew.
+// One whole frame of `path` `distance` metres away at `fade`: the triangles it
+// drew.
 static uint64_t triangles(voe_base_arena *arena, voe_render_device *device,
 			  const voe_3d_models *models, const char *path,
-			  double distance)
+			  double distance, float fade)
 {
-	voe_ecs_world *world = a_world(arena, path, distance);
+	voe_ecs_world *world = a_world(arena, path, distance, fade);
 	voe_platform_size size = { SIDE, SIDE };
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_render_pass_camera camera;
@@ -149,8 +159,8 @@ static uint64_t triangles(voe_base_arena *arena, voe_render_device *device,
 	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
 	count = voe_render_frame_triangle_count(device);
-	printf("%s at %.0f m: %llu triangles\n", path, distance,
-	       (unsigned long long)count);
+	printf("%s at %.2f m, fade %.1f: %llu triangles\n", path, distance,
+	       fade, (unsigned long long)count);
 	return count;
 }
 
@@ -178,14 +188,49 @@ static void draws_use_the_level(voe_base_arena *arena,
 				voe_render_device *device,
 				const voe_3d_models *models)
 {
-	uint64_t near = triangles(arena, device, models, LEVELLED, 3.0);
-	uint64_t far = triangles(arena, device, models, LEVELLED, 400.0);
-	uint64_t whole = triangles(arena, device, models, PLAIN, 400.0);
+	uint64_t near = triangles(arena, device, models, LEVELLED, 3.0, 0.0f);
+	uint64_t far = triangles(arena, device, models, LEVELLED, 400.0, 0.0f);
+	uint64_t whole = triangles(arena, device, models, PLAIN, 400.0, 0.0f);
 
 	VOE_TEST_CHECK(near > 0);
 	VOE_TEST_CHECK(far > 0);
 	VOE_TEST_CHECK(far * 4 < near);
 	VOE_TEST_CHECK(whole > far * 4);
+}
+
+// 4 to 6: the distance at which s is a given value is radius × P[1][1] ÷ s,
+// the sphere's centre being the origin of its row.
+static void a_band_dissolves(voe_base_arena *arena, voe_render_device *device,
+			     const voe_3d_models *models)
+{
+	const voe_3d_model_entry *ball = voe_3d_models_find(models, LEVELLED);
+	const double focal = voe_3d_projection(LENS, 1.0f).m[1][1];
+	const uint64_t level_0 = SEGMENTS * (RINGS - 1) * 2;
+	double top;
+	double low;
+	uint64_t c4;
+	uint64_t c5;
+	uint64_t c6;
+
+	VOE_TEST_CHECK(ball != NULL && ball->level_count >= 2);
+	if (ball == NULL || ball->level_count < 2)
+		return;
+	top = ball->levels[1].bound;
+	low = 0.8 * top;
+	if (ball->level_count > 2 && ball->levels[2].bound > low)
+		low = ball->levels[2].bound;
+	// Below the band and still level 1's.
+	VOE_TEST_CHECK(ball->level_count == 2 ||
+		       0.99 * low > ball->levels[2].bound);
+	c4 = triangles(arena, device, models, LEVELLED,
+		       ball->radius * focal / (0.5 * (top + low)), 0.0f);
+	c5 = triangles(arena, device, models, LEVELLED,
+		       ball->radius * focal / (0.99 * low), 0.0f);
+	c6 = triangles(arena, device, models, LEVELLED,
+		       ball->radius * focal / (0.5 * (top + low)), 0.5f);
+	VOE_TEST_CHECK(c5 > 0);
+	VOE_TEST_CHECK(c4 >= c5 + level_0);
+	VOE_TEST_CHECK(c6 <= c5);
 }
 
 int main(void)
@@ -210,6 +255,7 @@ int main(void)
 	load_spheres(arena, device, models);
 
 	draws_use_the_level(arena, device, models);
+	a_band_dissolves(arena, device, models);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
