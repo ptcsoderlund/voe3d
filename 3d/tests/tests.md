@@ -136,6 +136,9 @@ again, or to find where a claim that has started failing is written down.
   blended twin and none leaked, its glTF source and the `wears` a parts set fills and a reload
   empties, pictures and the uncounted dot, and a model drawn only with the store. Skips without a
   card.
+- `models_levels.c` — a sphere loaded with its levels file: three levels or more, live, bounds
+  non-increasing, its radius; NULL or another file's levels load level 0 alone; a `Ball_LOD1`
+  sphere's own level at bound 0.5; reloads and clears leaking no level. Skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget. Skips without a card.
 - `models_material.c` — a `.material` with four maps loaded as one part with a live record and

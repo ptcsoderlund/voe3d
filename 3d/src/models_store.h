@@ -11,10 +11,16 @@
 // THE GRID IS 33 × 33 VERTICES at x, z in 0..1, normals up, uv = xz, y 0 but
 // the last row's 1, so its box is a unit cube; the shader ignores y. Made at
 // the first landscape load, given back by _clear.
+//
+// A `.glb`'S LEVELS ARE models_levels.c's: models.c calls them after the parts
+// and frees them wherever it frees the parts.
 #pragma once
+
+#include "model_bake.h"
 
 #include <3d/landscape.h>
 #include <3d/models.h>
+#include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <render/device.h>
@@ -104,3 +110,29 @@ bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
 // `error` REFUSED, when the device has no room.
 bool voe_3d_models_twin(voe_render_device *device, voe_3d_model_part *part,
 			voe_base_error *error);
+
+// `entry`'s centre and radius from its level-0 `bake`: the box's centre and the
+// farthest vertex from it; untouched for a bake with no vertices.
+void voe_3d_models_sphere(const voe_3d_model_bake *bake,
+			  voe_3d_model_entry *entry);
+
+// `entry`'s levels after its level-0 parts, baked as `bake`: `model`'s own,
+// else the made ones of `levels`, a levels file read against `glb`; level 0
+// alone for NULL `levels` or a stale file. False, `error` set as the device or
+// a level's bake says, what it made left in `entry` for _levels_free.
+bool voe_3d_models_levels_upload(voe_render_device *device,
+				 voe_base_arena *scratch,
+				 const voe_assets_model *model,
+				 const voe_3d_model_bake *bake,
+				 const uint8_t *glb, size_t glb_size,
+				 const uint8_t *levels, size_t levels_size,
+				 voe_3d_model_entry *entry,
+				 voe_base_error *error);
+
+// The geometries of `entry`'s levels 1 and on given back; level 0's are its
+// parts'. Touches no device when there are none.
+void voe_3d_models_levels_free(voe_render_device *device,
+			       const voe_3d_model_entry *entry);
+
+// levels[0] made the parts' own geometries.
+void voe_3d_models_levels_mirror(voe_3d_model_entry *entry);

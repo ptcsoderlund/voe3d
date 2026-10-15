@@ -18,18 +18,21 @@
 // A PART WEARS what its model's parts file names for its glTF `source` once
 // _parts_set gives it (0404, 0420); a load leaves `wears` empty, the file's own.
 //
-// A FAILED ENTRY IS KEPT at the stamp it failed at, `loaded` false and no parts,
-// so a caller asking each frame for a broken file does not parse it each frame.
+// A `.glb` HAS LEVELS (0425 points 3, 4, 6; 0426): own levels baked per level and
+// joined to level 0's parts by material, the bound 2^-k; made ones, from a levels
+// file, uploaded compacted to the vertices they use, the bound 0.002 × radius ÷
+// error (infinite for error nought), bounds made non-increasing; freed with the
+// parts.
 //
-// THE MEMORY IS THE STORE'S (rule 11's exception), given back by _destroy,
-// which frees nothing on the card: a program keeping its device calls _clear.
+// A FAILED ENTRY IS KEPT at its stamp, `loaded` false and no parts, so a broken
+// file asked for each frame is not parsed each frame. A PATH LOADED AGAIN
+// REPLACES ITSELF (ADR-0277 point 5): success swaps in new parts and frees the
+// old; failure keeps the old at the new stamp. Ids change with each load.
 //
-// A PATH LOADED AGAIN REPLACES ITSELF (ADR-0277 point 5): success swaps in new
-// parts and frees the old; failure keeps the old at the new stamp. A part's ids
-// change with each load.
-//
-// THE STORE IS CHANGED ONLY BETWEEN FRAMES: every upload and free waits for the
-// card to go idle; the _frame calls alone run inside one, writing what exists.
+// THE MEMORY IS THE STORE'S (rule 11's exception), given back by _destroy, which
+// frees nothing on the card: a program keeping its device calls _clear. THE STORE
+// IS CHANGED ONLY BETWEEN FRAMES: every upload and free waits for the card to go
+// idle; the _frame calls alone run inside one, writing what exists.
 //
 // PICTURES SHARE THE STORE (ADR-0298 point 5): a `.png`, `.jpg` or `.jpeg` path
 // has two BLENDED parts on the store's one quad, 0 lit and 1 unlit, the glow,
@@ -47,17 +50,16 @@
 // copy, a heights texture and a min/max pyramid; its shape is empty, the pick
 // and bounds meeting the heights. A brush or _put updates the pyramid, grows
 // the dirty rect and marks it edited; _landscape_frame writes the dirt inside a
-// frame, a budget a frame: an upload between frames would stutter a drag.
-//
-// ITS PAINT TOO (0402 points 1, 3, 4): layer paths and both planes, all layer 0
+// frame, a budget a frame: an upload between frames would stutter a drag. ITS
+// PAINT TOO (0402 points 1, 3, 4): layer paths and both planes, all layer 0
 // when given none, as two RGBA8 DATA textures FIELD-sampled (bilinear, one
 // level, weights not a picture to mip); its own dirt, one budget for both.
 //
 // A `.material` IS AN ENTRY WITH NO SHAPE (0399 points 4, 5): one part with no
-// geometry holding its record, its blended twin and its own maps. It shares the
-// store because reload, rename, clear and the twin already live here. A map
-// two materials name is uploaded twice. _material_set marks it; _material_frame
-// rewrites the records inside a frame, so a drag needs no upload.
+// geometry holding its record, its blended twin and its own maps, here because
+// reload, rename, clear and the twin already live here. A map two materials
+// name is uploaded twice. _material_set marks it; _material_frame rewrites the
+// records inside a frame, so a drag needs no upload.
 #pragma once
 
 #include <3d/landscape.h>
@@ -70,6 +72,7 @@
 #include <assets/parts.h>
 #include <base/arena.h>
 #include <base/error.h>
+#include <math/float3.h>
 #include <render/device.h>
 
 #include <stdbool.h>
@@ -83,14 +86,17 @@
 #define VOE_3D_MODEL_LEVELS 4
 
 // The device room the store's models are given, which a program adds to its
-// own capacities: 2 M vertices, 6 M indices, 512 geometries, four parts for each
-// of the VOE_3D_MODELS files, and one geometry more each for the pictures' quad
-// and the landscapes' shared grid; 1024 shading records, two for each of those
-// parts (its own and its blended twin), and one more for the water. Each
-// landscape also takes three textures: its heights and two paint planes.
-#define VOE_3D_MODELS_VERTICES (1u << 21)
-#define VOE_3D_MODELS_INDICES (3u << 21)
-#define VOE_3D_MODELS_GEOMETRIES 514
+// own capacities: 2050 geometries, four parts for each of the VOE_3D_MODELS
+// files at each of VOE_3D_MODEL_LEVELS levels, and one geometry more each for
+// the pictures' quad and the landscapes' shared grid; 3 M vertices and 9 M
+// indices, level 0's 2 M and 6 M and the levels' under seven eighths more,
+// since they aim at a half, a quarter and an eighth (0425 point 6); 1024
+// shading records, two for each of those parts (its own and its blended twin),
+// and one more for the water. Each landscape also takes three textures: its
+// heights and two paint planes.
+#define VOE_3D_MODELS_VERTICES (3u << 20)
+#define VOE_3D_MODELS_INDICES (9u << 20)
+#define VOE_3D_MODELS_GEOMETRIES 2050
 #define VOE_3D_MODELS_SHADINGS 1025
 
 // Nodes one landscape draws in one pass at most (0396 point 4), which a
@@ -117,6 +123,14 @@ typedef struct {
 	char wears[VOE_ASSETS_MATERIAL_PATH];
 } voe_3d_model_part;
 
+// One level of a model: the geometry each level-0 part draws at it, a zeroed id
+// (generation 0 is never handed out) where the level lacks the part, and the
+// screen size `s` it is drawn under (0425 point 3).
+typedef struct {
+	voe_render_geometry geometries[VOE_3D_MODEL_PARTS];
+	float bound;
+} voe_3d_model_level_parts;
+
 // One file: loaded with its parts, or failed with none.
 typedef struct {
 	const char *path;
@@ -136,6 +150,17 @@ typedef struct {
 	bool edited;
 	// A loaded `.material`: one part with no geometry, no shape.
 	bool material;
+	// Level 0 mirrors the parts' geometries under an infinite bound, so a
+	// draw reads levels[k] for any k below `level_count`, which is 1 for
+	// every entry without levels: pictures, landscapes and materials too.
+	voe_3d_model_level_parts levels[VOE_3D_MODEL_LEVELS];
+	uint32_t level_count;
+	// The levels are the file's own `_LOD<n>` nodes, not made ones.
+	bool levels_own;
+	// The model-space bounding sphere: its box's centre and the farthest
+	// level-0 vertex from it; nought for a non-`.glb`.
+	voe_math_float3 centre;
+	float radius;
 } voe_3d_model_entry;
 
 // One map's file bytes, read by the caller; a size of 0 is no map.
@@ -170,11 +195,21 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 // nested past VOE_3D_IMPORT_MAX_DEPTH, REFUSED when the device or the store has
 // no room. What a failed load had put on the card is given back. A path already
 // held is replaced when this load succeeds and kept, at `stamp`, when it fails.
+// The same as _load_levelled with NULL levels.
 [[nodiscard]] bool voe_3d_models_load(voe_3d_models *models,
 				      voe_render_device *device,
 				      const char *path, uint64_t stamp,
 				      const uint8_t *bytes, size_t size,
 				      voe_base_error *error);
+
+// _load, a `.glb` with levels: its own when its nodes name them, else the made
+// ones `levels` holds, a levels file (3d/model_levels.h) read against `bytes`.
+// NULL `levels`, a stale file or one naming an index past its part loads level
+// 0 alone, never a failure; REFUSED when the device has no room for a level.
+[[nodiscard]] bool voe_3d_models_load_levelled(
+	voe_3d_models *models, voe_render_device *device, const char *path,
+	uint64_t stamp, const uint8_t *bytes, size_t size, const uint8_t *levels,
+	size_t levels_size, voe_base_error *error);
 
 // `landscape`'s grid copied into `path`'s entry with its layers and paint (all
 // layer 0 when NULL), uploaded as its heights texture and two paint textures,
