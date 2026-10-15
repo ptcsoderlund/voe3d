@@ -3,8 +3,8 @@
 // the frame the loop has opened.
 //
 // IT WALKS THE MESH, MODEL AND PANEL TABLES AND LOOKS THE OTHER COMPONENTS UP
-// BY ENTITY; a model row's parts come from the frame's store, the particles
-// are draw_particles.c's and the water draw_water.c's. That is what
+// BY ENTITY; the model rows are draw_models.c's, the particles
+// draw_particles.c's and the water draw_water.c's. That is what
 // a flat-table ECS with no archetypes costs and it is the trade this engine
 // took: each walk is linear and each lookup is one load (ecs/component.h). If
 // that ever measures slow it is a later card with a number attached, and nothing
@@ -20,26 +20,23 @@
 // depth clear, over every table; the outline with the collider's lines, and the
 // move gizmo, each sit behind a depth clear of their own. The held-back groups
 // are draw_group.c's and the marker, outline, collider and gizmo
-// draw_marks.c's; this file walks and orders them. A model row at fade 1 or
-// more is not drawn, and one between 0 and 1 is held blended (0336 point 3);
-// each at the level the camera chooses for it (0425 point 5).
+// draw_marks.c's; this file walks and orders them.
 // A landscape row is draw_terrain.c's nodes, its solid draws inside the pass's
 // "terrain" span, at most VOE_3D_LANDSCAPES_DRAWN a frame (0396, 0388).
 // A mesh or model part whose worn material is double-sided is drawn two-sided,
 // solid or held, through draw_group.c's mesh draw (0421 point 2).
 #include "draw_group.h"
 #include "draw_marks.h"
+#include "draw_models.h"
 #include "draw_particles.h"
 #include "draw_terrain.h"
 #include "draw_water.h"
-#include "models_store.h"
 
 #include <3d/draw_system.h>
 #include <3d/normal_matrix.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
-#include <3d/model_levels.h>
 #include <3d/models.h>
 #include <3d/panel_component.h>
 #include <3d/projection.h>
@@ -308,144 +305,6 @@ static bool range_is_this_frame_s(voe_3d_panel panel, uint32_t submitted)
 	return panel.first <= submitted && panel.count <= submitted - panel.first;
 }
 
-// The loaded entry a model row draws from, NULL when it draws nothing: no
-// store, no transform, or a path the store lacks or failed on.
-static const voe_3d_model_entry *drawn_model(const voe_ecs_world *world,
-					    const voe_3d_models *models,
-					    uint32_t row)
-{
-	const voe_3d_model_entry *entry;
-
-	VOE_BASE_ASSERT(row < voe_3d_model_count(world), "a model row past the table");
-	if (models == NULL ||
-	    voe_scene_transform_get(world, voe_3d_model_entities(world)[row]) == NULL)
-		return NULL;
-	entry = voe_3d_models_find(models, voe_3d_model_rows(world)[row].path);
-	if (entry == NULL || !entry->loaded)
-		return NULL;
-	VOE_BASE_ASSERT(entry->part_count <= VOE_3D_MODEL_PARTS,
-			"a model with more parts than the store holds");
-	return entry;
-}
-
-// Whether a loaded entry is a landscape, drawn by draw_terrain.c's nodes.
-static bool is_landscape(const voe_3d_models *models,
-			 const voe_3d_model_entry *entry)
-{
-	voe_3d_models_terrain terrain;
-
-	VOE_BASE_ASSERT(models != NULL && entry != NULL,
-			"asking a landscape of no store or entry");
-	VOE_BASE_ASSERT(entry->loaded, "asking a landscape of an unloaded entry");
-	return voe_3d_models_terrain_of(models, entry, &terrain);
-}
-
-// Every loaded part of every model row, which the world's blended group is
-// sized for as it is for every mesh and panel, a fading row's held parts
-// among them, and VOE_3D_LANDSCAPE_NODES for a landscape row. Nought with no
-// store.
-static uint32_t model_part_count(const voe_ecs_world *world,
-				 const voe_3d_models *models)
-{
-	uint32_t parts = 0;
-
-	VOE_BASE_ASSERT(world != NULL, "counting parts in no world");
-	if (models == NULL)
-		return 0;
-	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
-		const voe_3d_model_entry *entry = drawn_model(world, models, row);
-
-		if (entry != NULL)
-			parts += is_landscape(models, entry) ?
-					 VOE_3D_LANDSCAPE_NODES :
-					 entry->part_count;
-	}
-	VOE_BASE_ASSERT(parts <= voe_3d_model_count(world) * VOE_3D_LANDSCAPE_NODES,
-			"more parts than the rows can wear");
-	return parts;
-}
-
-// One part's held or drawn entry: white, since a model has no shape
-// (ADR-0191), or with `fading` its `faded` record at alpha 1 − fade (0336).
-static struct voe_3d_deferred model_part_entry(const voe_3d_model_part *piece,
-					       const voe_scene_transform *drawn,
-					       bool fading, float fade,
-					       voe_math_double3 eye)
-{
-	voe_3d_material material = piece->material;
-	struct voe_3d_deferred entry = { .panel = false };
-
-	VOE_BASE_ASSERT(!fading || (fade > 0.0f && fade < 1.0f),
-			"a fading part outside 0 and 1");
-	if (fading)
-		material.shading = piece->faded;
-	entry.mesh.geometry = piece->geometry;
-	entry.mesh.object = voe_3d_draw_group_object_of(drawn, &material, NULL, NULL,
-							eye);
-	entry.mesh.two_sided = material.double_sided;
-	if (fading)
-		entry.mesh.object.colour.w = 1.0f - fade;
-	VOE_BASE_ASSERT(entry.mesh.object.colour.w > 0.0f,
-			"a drawn part with no alpha");
-	return entry;
-}
-
-// Each model row's parts, as the mesh walk does a world-layer mesh: solid ones
-// drawn now, blended ones held in `world_blended`. A row's fade is read once:
-// at or above 1 nothing is drawn, between 0 and 1 every part is held blended,
-// at or below 0 or not a number as above (0336 point 3). False when a draw is
-// refused, which stops this walk only.
-static bool draw_models(voe_ecs_world *world, voe_render_device *device,
-			const voe_3d_frame *frame,
-			struct voe_3d_draw_group *world_blended)
-{
-	const voe_ecs_entity *owners;
-	const voe_3d_model *rows;
-
-	VOE_BASE_ASSERT(world != NULL && frame != NULL && world_blended != NULL,
-			"drawing models with no world, frame or group");
-	if (frame->models == NULL)
-		return true;
-	owners = voe_3d_model_entities(world);
-	rows = voe_3d_model_rows(world);
-	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
-		const voe_3d_model_entry *model;
-		voe_scene_transform drawn;
-		uint32_t level;
-		float fade = rows[row].fade;
-		// False for a NaN as for nought, so either draws as ever.
-		bool fading = fade > 0.0f && fade < 1.0f;
-
-		if (fade >= 1.0f ||
-		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
-			continue;
-		model = drawn_model(world, frame->models, row);
-		if (model == NULL || is_landscape(frame->models, model))
-			continue;
-		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
-		level = voe_3d_model_level(model, &drawn, frame->eye, &frame->view);
-		for (uint32_t part = 0; part < model->part_count; part++) {
-			// Its own record, or the one its parts file names.
-			voe_3d_model_part piece = voe_3d_draw_group_part_worn(
-				frame->models, model, part, level);
-			struct voe_3d_deferred entry = model_part_entry(
-				&piece, &drawn, fading, fade, frame->eye);
-
-			if (piece.geometry.generation == 0)
-				continue;
-			if (fading ||
-			    piece.material.alpha_mode == VOE_RENDER_ALPHA_BLENDED)
-				voe_3d_draw_group_hold(world_blended, entry,
-						       entry.mesh.object.world,
-						       frame->view.view);
-			else if (!voe_3d_draw_group_mesh_draw(device, &entry,
-							      false))
-				return false;
-		}
-	}
-	return true;
-}
-
 // Each landscape row's nodes (0396 points 3, 4 and 6): a fading row's held in
 // `world_blended`, the rest drawn solid inside one "terrain" span, opened at
 // the first solid row so a frame of none times nothing (0388). Rows past
@@ -476,8 +335,9 @@ static void draw_landscapes(voe_ecs_world *world, voe_render_device *device,
 		if (fade >= 1.0f ||
 		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
-		model = drawn_model(world, frame->models, row);
-		if (model == NULL || !is_landscape(frame->models, model))
+		model = voe_3d_draw_models_entry(world, frame->models, row);
+		if (model == NULL ||
+		    !voe_3d_draw_models_is_landscape(frame->models, model))
 			continue;
 		if (drawn++ == VOE_3D_LANDSCAPES_DRAWN) {
 			if (!told)
@@ -615,7 +475,8 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// group a thing lands in is not known until both walks have finished —
 	// the same bound voe_3d_draw_group_new explains.
 	world_blended = voe_3d_draw_group_new(
-		arena, count + panel_count + model_part_count(world, frame.models) +
+		arena, count + panel_count +
+			       voe_3d_draw_models_part_count(world, frame.models) +
 			       voe_3d_draw_particles_count(world, frame.models) +
 			       voe_3d_draw_water_count(world, frame.models),
 		true);
@@ -679,7 +540,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 
 	// The model rows' parts, world layer only (0277 point 3); a refused
 	// draw stops this walk and not the frame.
-	(void)draw_models(world, device, &frame, &world_blended);
+	(void)voe_3d_draw_models(world, device, &frame, &world_blended);
 	// The landscape rows' nodes, inside the "terrain" span (0396, 0388).
 	draw_landscapes(world, device, arena, &frame, &world_blended);
 	// Every live particle, held blended in the world (0298 point 6).
