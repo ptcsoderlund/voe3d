@@ -349,8 +349,13 @@
 // ELEMENTS: the panel's border and fill, two; each button's, six; and
 // "Rename", "Duplicate" and "Delete", twenty-one — Create's and Folder's
 // come to twenty-one. 51307 + 29 = 51336 elements. No scroll area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2550
-#define VOE_EDITOR_INTERFACE_ELEMENTS 51336
+//
+// THE FRAME BREAKDOWN'S TRIANGLES ROW (frame_breakdown.h, ADR-0425) ADDS THREE
+// NODES, the row and its two labels, and TWENTY-NINE ELEMENTS: "Triangles",
+// nine, and at most twenty digits. 2550 + 3 = 2553 nodes, 51336 + 29 = 51365
+// elements. No scroll area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2553
+#define VOE_EDITOR_INTERFACE_ELEMENTS 51365
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

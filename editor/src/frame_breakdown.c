@@ -6,6 +6,7 @@
 
 #include <base/assert.h>
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -74,6 +75,9 @@ void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
 		milliseconds_write(breakdown->milliseconds[i],
 				   breakdown->passes[i].seconds);
 	milliseconds_write(breakdown->total_milliseconds, total);
+	breakdown->triangles = voe_render_frame_triangle_count(gpu);
+	(void)snprintf(breakdown->triangles_label, VOE_EDITOR_FRAME_TRIANGLES,
+		       "%" PRIu64, breakdown->triangles);
 	VOE_BASE_ASSERT(breakdown->count <= VOE_EDITOR_FRAME_PASSES,
 			"more passes kept than there is room for");
 }
@@ -124,6 +128,7 @@ void voe_editor_frame_breakdown_draw(voe_ui_context *ui,
 			row_draw(ui, breakdown->passes[i].name,
 				 breakdown->milliseconds[i]);
 		row_draw(ui, "Total", breakdown->total_milliseconds);
+		row_draw(ui, "Triangles", breakdown->triangles_label);
 	}
 
 	voe_ui_end(ui); // panel
