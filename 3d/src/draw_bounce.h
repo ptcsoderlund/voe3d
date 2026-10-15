@@ -70,8 +70,8 @@ uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
 
 // Every caster a capture draws, as voe_3d_bounce_stale marks them: world-layer
 // meshes with a casting material and a transform, then, with `frame->models`,
-// model rows with a transform and a casting part, the frame's `hidden` left
-// out. Each goes to `visit` with `context`, its mesh's geometry, and its
+// model rows with a transform and a casting part, the frame's `hidden` and
+// what is switched off left out. Each goes to `visit` with `context`, its mesh's geometry, and its
 // model's entry or NULL; the walk stops when `visit` returns false.
 void voe_3d_bounce_walk(const voe_ecs_world *world, const voe_3d_frame *frame,
 			bool (*visit)(void *context, voe_ecs_entity entity,

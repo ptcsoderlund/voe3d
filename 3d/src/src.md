@@ -115,8 +115,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   nodes, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
-  or in table order, the record a mesh is drawn with, and a double-sided mesh drawn between two
-  two-sided calls.
+  or in table order, the record a mesh is drawn with, a double-sided mesh drawn between two
+  two-sided calls, and the left-out test: the frame's hidden entity or a switched-off owner.
 - `draw_material.h` — the loaded material a shape's or model part's worn path names in the frame's
   store, for its record; internal.
 - `draw_material.c` — the empty path refused, then the store's linear find.

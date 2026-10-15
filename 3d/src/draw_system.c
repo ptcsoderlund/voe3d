@@ -408,7 +408,7 @@ static bool draw_models(voe_ecs_world *world, voe_render_device *device,
 		bool fading = fade > 0.0f && fade < 1.0f;
 
 		if (fade >= 1.0f ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
 		model = drawn_model(world, frame->models, row);
 		if (model == NULL || is_landscape(frame->models, model))
@@ -465,7 +465,7 @@ static void draw_landscapes(voe_ecs_world *world, voe_render_device *device,
 		float fade = voe_3d_model_rows(world)[row].fade;
 
 		if (fade >= 1.0f ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
 		model = drawn_model(world, frame->models, row);
 		if (model == NULL || !is_landscape(frame->models, model))
@@ -626,7 +626,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		// pay for the components it would have been drawn with. It
 		// reaches no group either — no matrix, no depth key, no sort
 		// slot.
-		if (voe_3d_draw_group_is_the_same_entity(owners[row], frame.hidden))
+		if (voe_3d_draw_group_left_out(world, owners[row], frame.hidden))
 			continue;
 
 		transform = voe_scene_transform_get(world, owners[row]);
@@ -693,7 +693,7 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 		// The same hiding rule as the mesh table's, in the same place
 		// and for the same reason: a pass hides an entity, whichever
 		// table draws it, and it is tested before the lookup.
-		if (voe_3d_draw_group_is_the_same_entity(panel_owners[row], frame.hidden))
+		if (voe_3d_draw_group_left_out(world, panel_owners[row], frame.hidden))
 			continue;
 
 		transform = voe_scene_transform_get(world, panel_owners[row]);

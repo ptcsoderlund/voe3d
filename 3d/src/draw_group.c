@@ -11,6 +11,7 @@
 #include <3d/depth_sort.h>
 #include <3d/normal_matrix.h>
 #include <base/assert.h>
+#include <scene/identity_component.h>
 
 // Whether two entity ids name the same entity. A zeroed id — which is what a
 // frame that hides nothing carries — never matches a live one, because
@@ -19,6 +20,17 @@
 bool voe_3d_draw_group_is_the_same_entity(voe_ecs_entity a, voe_ecs_entity b)
 {
 	return a.index == b.index && a.generation == b.generation;
+}
+
+// The one test a draw makes of a row's owner: true when it is the frame's
+// `hidden` or switched off, itself or through an ancestor (0427). The switch is
+// asked here, every frame, and not kept: one read walks the parents (0428 point
+// 2), so a cached copy would be state to keep in step with every reparent.
+bool voe_3d_draw_group_left_out(const voe_ecs_world *world,
+				voe_ecs_entity owner, voe_ecs_entity hidden)
+{
+	return voe_3d_draw_group_is_the_same_entity(owner, hidden) ||
+	       voe_scene_identity_off(world, owner);
 }
 
 // The view-space depth of an object's origin, which is the key the blended pass

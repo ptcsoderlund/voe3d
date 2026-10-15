@@ -37,7 +37,8 @@ uint32_t voe_3d_draw_water_count(const voe_ecs_world *world,
 				 const voe_3d_models *models);
 
 // Holds one draw per water with a transform and a waves row in
-// `world_blended`, the frame's hidden entity left out; how many it held.
+// `world_blended`, the frame's hidden entity and what is switched off left out;
+// how many it held.
 uint32_t voe_3d_draw_water_hold(const voe_ecs_world *world,
 				const voe_3d_frame *frame,
 				struct voe_3d_draw_group *world_blended);

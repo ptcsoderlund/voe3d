@@ -310,7 +310,7 @@ static bool walk_models(const voe_ecs_world *world, const voe_3d_frame *frame,
 
 	VOE_BASE_ASSERT(frame->models != NULL, "casting models from no store");
 	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
-		if (voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden) ||
+		if (voe_3d_draw_group_left_out(world, owners[row], frame->hidden) ||
 		    voe_scene_transform_get(world, owners[row]) == NULL ||
 		    !model_casts(frame, &rows[row]))
 			continue;
@@ -336,7 +336,7 @@ void voe_3d_bounce_walk(const voe_ecs_world *world, const voe_3d_frame *frame,
 		const voe_3d_material *material;
 
 		if (meshes[row].layer != VOE_3D_LAYER_WORLD ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
 		material = voe_3d_material_get(world, owners[row]);
 		if (material == NULL || !voe_3d_draw_casts(material) ||
@@ -381,7 +381,7 @@ static void box_models(const voe_ecs_world *world,
 		voe_scene_transform placed;
 
 		if (!rows[row].cast_shadows ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden) ||
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden) ||
 		    voe_scene_transform_get(world, owners[row]) == NULL)
 			continue;
 		model = voe_3d_models_find(frame->models, rows[row].path);
@@ -413,7 +413,7 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 		voe_scene_transform placed;
 
 		if (meshes[row].layer != VOE_3D_LAYER_WORLD ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
 		material = voe_3d_material_get(world, owners[row]);
 		shape = has_shapes ? voe_ecs_component_get(world, shapes,

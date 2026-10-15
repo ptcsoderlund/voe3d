@@ -134,7 +134,7 @@ void voe_3d_draw_particles_hold(const voe_ecs_world *world,
 		const voe_3d_model_entry *picture;
 		const voe_3d_model_part *part;
 
-		if (voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+		if (voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
 		emitter = voe_3d_emitter_get(world, owners[row]);
 		if (emitter == NULL)

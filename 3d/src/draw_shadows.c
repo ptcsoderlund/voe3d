@@ -15,9 +15,10 @@
 // solid in the sun; opaque or cutout, because nothing see-through casts, and a
 // cutout casts as solid since the depth-only pipeline has no fragment stage to
 // discard with. Panels and the editor's marks cast nothing, and the frame's
-// `hidden` is left out here as in _run. A model part in the frame's store casts
-// by the same rule, its material the part's or the one its row's `materials`
-// names (0399 point 6), in the world layer as every part is.
+// `hidden` and what is switched off are left out here as in _run. A model
+// part in the frame's store casts by the same rule, its material the part's or
+// the one its row's `materials` names (0399 point 6), in the world layer as
+// every part is.
 // The ground casts by nodes: a landscape draws those the view's eye chooses,
 // the bounce's passes taking it coarse (0397).
 //
@@ -119,7 +120,7 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 
 		// A gone row casts nothing; a fading one casts as ever (0336).
 		if (!rows[row].cast_shadows || rows[row].fade >= 1.0f ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden) ||
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden) ||
 		    voe_scene_transform_get(world, owners[row]) == NULL)
 			continue;
 		model = voe_3d_models_find(frame->models, rows[row].path);
@@ -187,7 +188,7 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 		voe_scene_transform drawn;
 
 		if (meshes[row].layer != VOE_3D_LAYER_WORLD ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
 		material = voe_3d_material_get(world, owners[row]);
 		shape = has_shapes ? voe_ecs_component_get(world, shapes,

@@ -29,7 +29,8 @@ uint32_t voe_3d_draw_particles_count(const voe_ecs_world *world,
 				     const voe_3d_models *models);
 
 // Holds one draw per live particle whose emitter's picture `frame->models` has
-// loaded in `world_blended`, the frame's hidden entity's particles left out.
+// loaded in `world_blended`, the frame's hidden entity's particles and what is
+// switched off left out.
 void voe_3d_draw_particles_hold(const voe_ecs_world *world,
 				const voe_3d_frame *frame,
 				struct voe_3d_draw_group *world_blended);
