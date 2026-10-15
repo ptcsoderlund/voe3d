@@ -20,7 +20,9 @@
 // `<folder>/Cache/levels/<path>.levels`, made when missing or stale, in update
 // and watch alike. The write is atomic, its folders made as needed; a failed
 // one is a line on stderr, the levels made still drawn. `Cache/` may go any
-// time. _prepare makes the file alone: kept when fresh for the editor's
+// time. The file is made with the count and strength of the `.parts` beside
+// the `.glb`, the defaults when none (0430 point 5), so a shipped game, which
+// has none, uses the files it ships. _prepare makes the file alone: kept when fresh for the editor's
 // import, made again for its Make levels (0429).
 //
 // PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the

@@ -10,7 +10,7 @@
 // world has no emitter, so no dot is loaded.
 //
 // THE PICTURES, on a second world and store: an emitter naming a 1x1 PNG,
-// inline bytes since `game` does not link `assets`, loads a picture entry at
+// inline bytes, loads a picture entry at
 // its path and the dot at ""; a second emitter naming a missing file is one
 // failure, named.
 //
@@ -42,7 +42,10 @@
 // THE LEVELS, on a ninth world and store: an update leaves the `.glb`'s levels
 // file in the folder's Cache, fitting the `.glb`; a prepare then makes none;
 // the file made stale, a prepare makes it again, fitting; a remake on the
-// fresh file makes it again, fitting; a missing `.glb` will not prepare.
+// fresh file makes it again, fitting; a missing `.glb` will not prepare. Then
+// a flat 8 × 8 grid, `grid.glb`, prepared with remake: with no `grid.parts`
+// three levels or more; with one saying `count=2`, two; with `count=9`, which
+// will not parse, three or more again.
 //
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
@@ -95,6 +98,10 @@
 #define CACHE_ON_DISK FOLDER "/Cache"
 #define LEVELS_FOLDER_ON_DISK CACHE_ON_DISK "/levels"
 #define LEVELS_ON_DISK LEVELS_FOLDER_ON_DISK "/" GOOD ".levels"
+#define GRID "grid.glb"
+#define GRID_ON_DISK FOLDER "/" GRID
+#define GRID_PARTS_ON_DISK FOLDER "/grid.parts"
+#define GRID_LEVELS_ON_DISK LEVELS_FOLDER_ON_DISK "/" GRID ".levels"
 
 // Room for the triangle twice over a reload, the pictures' quad, and the
 // shadings of the triangle, the picture and the dot, plus two blended twins:
@@ -204,25 +211,83 @@ static void put_u32(uint8_t *at, uint32_t value)
 		at[i] = (uint8_t)(value >> (8 * i));
 }
 
-// The `.glb` into `out`, its length returned: a 12-byte header, the JSON
-// chunk padded with spaces to four bytes, then the BIN chunk.
-static uint32_t glb_build(uint8_t *out, size_t room)
+// A `.glb` of `text` and `bin` into `out`, its length returned: a 12-byte
+// header, the JSON chunk padded with spaces to four bytes, then the BIN chunk,
+// whose size is a multiple of four.
+static uint32_t glb_pack(uint8_t *out, size_t room, const char *text,
+			 const void *bin, uint32_t bin_size)
 {
-	uint32_t json = (uint32_t)(sizeof(JSON) - 1 + 3) & ~3u;
-	uint32_t total = 12 + 8 + json + 8 + (uint32_t)sizeof(TRIANGLE);
+	uint32_t length = (uint32_t)strlen(text);
+	uint32_t json = (length + 3) & ~3u;
+	uint32_t total = 12 + 8 + json + 8 + bin_size;
 
 	VOE_TEST_CHECK(total <= room);
+	if (total > room)
+		return 0;
 	put_u32(out, 0x46546C67u);
 	put_u32(out + 4, 2);
 	put_u32(out + 8, total);
 	put_u32(out + 12, json);
 	put_u32(out + 16, 0x4E4F534Au);
 	memset(out + 20, ' ', json);
-	memcpy(out + 20, JSON, sizeof(JSON) - 1);
-	put_u32(out + 20 + json, (uint32_t)sizeof(TRIANGLE));
+	memcpy(out + 20, text, length);
+	put_u32(out + 20 + json, bin_size);
 	put_u32(out + 24 + json, 0x004E4942u);
-	memcpy(out + 28 + json, TRIANGLE, sizeof(TRIANGLE));
+	memcpy(out + 28 + json, bin, bin_size);
 	return total;
+}
+
+// The one-triangle `.glb` into `out`, its length returned.
+static uint32_t glb_build(uint8_t *out, size_t room)
+{
+	return glb_pack(out, room, JSON, TRIANGLE, (uint32_t)sizeof(TRIANGLE));
+}
+
+// A flat grid of GRID_QUADS × GRID_QUADS unit quads in the plane z = 0: 81
+// positions, then 384 32-bit indices in their own buffer view.
+#define GRID_QUADS 8
+#define GRID_POINTS ((GRID_QUADS + 1) * (GRID_QUADS + 1))
+#define GRID_INDICES (GRID_QUADS * GRID_QUADS * 6)
+static const char GRID_JSON[] =
+	"{\"asset\":{\"version\":\"2.0\"},\"nodes\":[{\"mesh\":0}],"
+	"\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0},"
+	"\"indices\":1}]}],"
+	"\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":81,"
+	"\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[8,8,0]},"
+	"{\"bufferView\":1,\"componentType\":5125,\"count\":384,"
+	"\"type\":\"SCALAR\"}],"
+	"\"bufferViews\":[{\"buffer\":0,\"byteLength\":972},"
+	"{\"buffer\":0,\"byteOffset\":972,\"byteLength\":1536}],"
+	"\"buffers\":[{\"byteLength\":2508}]}";
+
+// The grid's `.glb` into `out`, its length returned.
+static uint32_t grid_build(uint8_t *out, size_t room)
+{
+	struct {
+		float positions[GRID_POINTS * 3];
+		uint32_t indices[GRID_INDICES];
+	} bin;
+	uint32_t at = 0;
+
+	static_assert(sizeof(bin) == 2508, "the grid's BIN as its JSON says");
+	for (uint32_t i = 0; i < GRID_POINTS; i++) {
+		bin.positions[i * 3] = (float)(i % (GRID_QUADS + 1));
+		bin.positions[i * 3 + 1] = (float)(i / (GRID_QUADS + 1));
+		bin.positions[i * 3 + 2] = 0.0f;
+	}
+	for (uint32_t y = 0; y < GRID_QUADS; y++) {
+		for (uint32_t x = 0; x < GRID_QUADS; x++) {
+			uint32_t corner = y * (GRID_QUADS + 1) + x;
+			uint32_t quad[6] = { corner, corner + 1,
+					     corner + GRID_QUADS + 2, corner,
+					     corner + GRID_QUADS + 2,
+					     corner + GRID_QUADS + 1 };
+
+			memcpy(bin.indices + at, quad, sizeof(quad));
+			at += 6;
+		}
+	}
+	return glb_pack(out, room, GRID_JSON, &bin, (uint32_t)sizeof(bin));
 }
 
 // A new thing at the origin.
@@ -634,6 +699,67 @@ static bool levels_fit(voe_base_arena *scratch, const uint8_t *glb,
 	return fits;
 }
 
+// The grid's levels file on disk read against `grid`: its level count, 0
+// when it will not read.
+static uint32_t grid_levels(voe_base_arena *scratch, const uint8_t *grid,
+			    uint32_t size)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+	voe_3d_model_levels levels = { 0 };
+	size_t count = 0;
+	const uint8_t *bytes = voe_platform_file_read(GRID_LEVELS_ON_DISK,
+						      scratch, &count, NULL);
+	bool fits = bytes != NULL &&
+		    voe_3d_model_levels_read(scratch, bytes, count, grid, size,
+					     &levels);
+
+	voe_base_arena_rewind(scratch, mark);
+	return fits ? levels.level_count : 0;
+}
+
+// The grid prepared, remade, with `parts` as its parts file (NULL for none):
+// true and made, its level count returned; 0 when it would not prepare.
+static uint32_t grid_prepared(voe_base_arena *scratch, const uint8_t *grid,
+			      uint32_t size, const char *parts)
+{
+	voe_base_error error = VOE_BASE_OK;
+	bool made = false;
+	bool ready;
+
+	if (parts != NULL)
+		VOE_TEST_CHECK(voe_platform_file_write(
+			GRID_PARTS_ON_DISK, (const uint8_t *)parts,
+			strlen(parts), NULL));
+	ready = voe_game_models_prepare(FOLDER, GRID, scratch, true, &made,
+					&error);
+	VOE_TEST_CHECK(ready);
+	VOE_TEST_CHECK(made);
+	return ready ? grid_levels(scratch, grid, size) : 0;
+}
+
+// The grid's levels as its parts file says: the defaults with none, its
+// count, and the defaults again for a count past the limit.
+static void check_levels_asked(voe_base_arena *scratch)
+{
+	static uint8_t grid[4096];
+	uint32_t size = grid_build(grid, sizeof(grid));
+
+	VOE_TEST_CHECK(voe_platform_file_write(GRID_ON_DISK, grid, size, NULL));
+
+	// ---- no parts file: the default count, 3 or more
+	remove(GRID_PARTS_ON_DISK);
+	VOE_TEST_CHECK(grid_prepared(scratch, grid, size, NULL) >= 3);
+
+	// ---- `count=2`: two levels
+	VOE_TEST_CHECK_INT(grid_prepared(scratch, grid, size,
+					 "[Parts]\n[Levels]\ncount=2\n"),
+			   2);
+
+	// ---- `count=9` will not parse: the default again
+	VOE_TEST_CHECK(grid_prepared(scratch, grid, size,
+				     "[Parts]\n[Levels]\ncount=9\n") >= 3);
+}
+
 static void check_levels(voe_ecs_world *world, voe_render_device *device,
 			 voe_base_arena *scratch, const uint8_t *glb,
 			 uint32_t size)
@@ -676,6 +802,7 @@ static void check_levels(voe_ecs_world *world, voe_render_device *device,
 	VOE_TEST_CHECK(!voe_game_models_prepare(FOLDER, MISSING, scratch, false,
 						&made, &error));
 
+	check_levels_asked(scratch);
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
 }
@@ -689,6 +816,9 @@ static void remove_files(void)
 	remove(MATERIAL_ON_DISK);
 	remove(ASSETS_ON_DISK);
 	remove(LEVELS_ON_DISK);
+	remove(GRID_ON_DISK);
+	remove(GRID_PARTS_ON_DISK);
+	remove(GRID_LEVELS_ON_DISK);
 	remove(LEVELS_FOLDER_ON_DISK);
 	remove(CACHE_ON_DISK);
 	remove(FOLDER);

@@ -9,13 +9,17 @@
 // its layer paths copied and its paint widened to both planes there too, and
 // the watch passes over every landscape and material entry. A `.glb` loads
 // with its levels file, `<folder>/Cache/levels/<path>.levels`, read on scratch
-// or made there and written, its folders made first when absent.
+// or made there and written, its folders made first when absent; made with
+// the `[Levels]` of the `.parts` beside the `.glb`, the defaults when there is
+// none or it will not parse.
 #include <game/models.h>
 
 #include <3d/emitter_component.h>
 #include <3d/model_component.h>
 #include <3d/model_levels.h>
 #include <3d/water_component.h>
+
+#include <assets/parts.h>
 
 #include <base/assert.h>
 #include <base/error.h>
@@ -103,6 +107,36 @@ static bool make_levels_folders(const char *folder, const char *levels,
 	return made;
 }
 
+// The `[Levels]` of the `.parts` beside `folder`'s `.glb` `path` (0430 point
+// 5): the defaults, silently, when there is no such file, and when it will not
+// parse, the parts reader having said why. Scratch rewound.
+static voe_assets_levels levels_asked(const char *folder, const char *path,
+				      voe_base_arena *scratch)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+	// A prepare of a path not ending `.glb` looks beside it whole.
+	size_t stem = strlen(path) - (is_glb(path) ? sizeof(".glb") - 1 : 0);
+	char *name = voe_base_arena_push(scratch, stem + sizeof(".parts"));
+	voe_assets_levels levels = VOE_ASSETS_LEVELS_DEFAULT;
+	voe_assets_parts parts;
+	const char *file;
+	const uint8_t *text = NULL;
+	size_t size = 0;
+
+	VOE_BASE_ASSERT(folder != NULL, "asking levels in no folder");
+	VOE_BASE_ASSERT(name != NULL, "no room for a path");
+	memcpy(name, path, stem);
+	memcpy(name + stem, ".parts", sizeof(".parts"));
+	file = voe_platform_path_join(scratch, folder, name);
+	if (voe_platform_file_exists(file))
+		text = voe_platform_file_read(file, scratch, &size, NULL);
+	if (text != NULL &&
+	    voe_assets_parts_read((const char *)text, size, &parts, NULL))
+		levels = parts.levels;
+	voe_base_arena_rewind(scratch, mark);
+	return levels;
+}
+
 // The levels file of `folder`'s `path`, whose bytes are `glb`, on scratch with
 // its count in `*size`: the one in the Cache when it fits `glb` and `remake`
 // is false, else made and written, `*made` then true. A failed write is a line
@@ -132,7 +166,9 @@ static const uint8_t *levels_for(const char *folder, const char *path,
 	if (bytes != NULL && voe_3d_model_levels_read(scratch, bytes, *size,
 						      glb, glb_size, &read))
 		return bytes;
-	bytes = voe_3d_model_levels_make(scratch, glb, glb_size, size, error);
+	bytes = voe_3d_model_levels_make(scratch, glb, glb_size,
+					 levels_asked(folder, path, scratch),
+					 size, error);
 	if (bytes == NULL)
 		return NULL;
 	*made = true;
