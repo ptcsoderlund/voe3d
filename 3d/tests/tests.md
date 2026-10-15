@@ -130,10 +130,8 @@ again, or to find where a claim that has started failing is written down.
   says, every field named with its kind, and a replace queued. Needs no graphics card.
 - `water_system.c` — a waves row after one run, the clock stepped and wrapped at 60 s, a replace's
   colour, and a removed water's row gone. Needs no graphics card.
-- `model_bake.c` — that a baked primitive's vertex colours become their complements, red as
-  0/65535/65535/0 and grey about 32767, and one without colours stays zeroed; and that `_LOD<n>`
-  node names make 3 levels, each baked alone, an unnamed child inheriting and level 7 left out,
-  while a tree without them counts 1. Needs no graphics card.
+- `model_bake.c` — that the bake carries a file's vertex colours as complements and bakes one
+  `_LOD<n>` level of a file's own at a time. Needs no graphics card.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
   blended twin and none leaked, its glTF source and the `wears` a parts set fills and a reload
   empties, pictures and the uncounted dot, and a model drawn only with the store. Skips without a
@@ -154,9 +152,7 @@ again, or to find where a claim that has started failing is written down.
   fresh build and the pyramid's box. Needs no graphics card.
 - `simplify.c` — a flat grid to an eighth at no error with its corners, a sphere to a half facing
   out, the sphere held by a tiny limit, and a uv seam's positions kept. Needs no graphics card.
-- `model_levels.c` — a sphere's levels file made and read: three levels or more, each at most three
-  quarters of the last, errors rising; stale after a changed `.glb`, a cut and a new version; own
-  levels read as one; FNV-1a of "a"; no `.glb` MALFORMED; a view's level by `s` against the
-  bounds, level 0 with the eye inside. Needs no graphics card.
+- `model_levels.c` — that a sphere's levels file is made and read back, goes stale when its `.glb`
+  or version changes, and chooses a view's level by its screen size. Needs no graphics card.
 - `model_glb.inc` — a UV sphere's `.glb` built on an arena, with a second "Ball_LOD1" root when
   asked.

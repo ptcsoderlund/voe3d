@@ -2,6 +2,7 @@
 // two primitives on one material, the first with colours (opaque red, then
 // half-grey) and the second without, bakes into one part whose first vertices
 // carry the colours' complements and whose last carry zeros, opaque white.
+// Red's complement is 0/65535/65535/0.
 //
 // Grey 0.5 is (1 − 0.5) × 65535 = 32767.5, which rounds to 32768; the check
 // allows one either side.
@@ -9,8 +10,8 @@
 // The bake takes one level of a file's own: a root "Tree" with children
 // "Tree_LOD1", "Leaves_lod2" (over an unnamed child, which inherits level 2) and
 // "Twig_LOD7" counts 3 levels, bakes the root alone at level 0, one part at
-// level 1 and materials 1 then 0 at level 2; a tree with no suffix counts 1 and
-// bakes every node at level 0.
+// level 1 and materials 1 then 0 at level 2, level 7 left out; a tree with no
+// suffix counts 1 and bakes every node at level 0.
 //
 // It reads the internal bake through model_bake.h. Needs no graphics card.
 #include "../src/model_bake.h"
