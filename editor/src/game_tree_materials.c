@@ -20,7 +20,8 @@
 //                     { "Assets/wall.glb", { .count = 2, .materials = {
 //                             "Assets/brick.material",
 //                             "",
-//                       } } },
+//                       },
+//                       .levels = { .count = 4, .strength = VOE_ASSETS_LEVELS_MEDIUM } } },
 //             },
 //             1,
 //     };
@@ -131,6 +132,16 @@ static const char *material_entry(voe_base_arena *arena, const char *path,
 	return out;
 }
 
+// The enumerator's name for strength, as the cooked text spells it.
+static const char *strength_name(voe_assets_levels_strength strength)
+{
+	VOE_BASE_ASSERT(strength <= VOE_ASSETS_LEVELS_STRONG, "a strength past the three");
+	if (strength == VOE_ASSETS_LEVELS_GENTLE)
+		return "VOE_ASSETS_LEVELS_GENTLE";
+	return strength == VOE_ASSETS_LEVELS_MEDIUM ? "VOE_ASSETS_LEVELS_MEDIUM"
+						    : "VOE_ASSETS_LEVELS_STRONG";
+}
+
 // One table entry for the parts file at Assets/path holding p, named by the
 // `.glb` beside it, in arena.
 static const char *parts_entry(voe_base_arena *arena, const char *path,
@@ -149,11 +160,13 @@ static const char *parts_entry(voe_base_arena *arena, const char *path,
 			arena, "%s\t\t\t\"%s\",\n", names,
 			voe_editor_game_tree_c_string(arena, p->materials[i]));
 	return voe_editor_game_tree_format(
-		arena, "\t\t{ \"%s\", { .count = %u, .materials = {\n%s\t\t  } } },\n",
+		arena,
+		"\t\t{ \"%s\", { .count = %u, .materials = {\n%s\t\t  },\n"
+		"\t\t  .levels = { .count = %u, .strength = %s } } },\n",
 		voe_editor_game_tree_c_string(
 			arena, voe_editor_game_tree_format(arena, "Assets/%.*s.glb",
 							   (int)stem, path)),
-		p->count, names);
+		p->count, names, p->levels.count, strength_name(p->levels.strength));
 }
 
 // The definition of name, a table of type whose rows are row, holding entries.
