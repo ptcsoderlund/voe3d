@@ -20,16 +20,22 @@
 //     ... voe_ui_frame_end ...
 //     answer = voe_editor_levels_ask_read(ui, &ask, pointer_down, at);
 //     if (answer == VOE_EDITOR_LEVELS_ASK_MAKE &&
-//         voe_editor_levels_ask_save(&ask, project_folder, scratch))
-//             ... prepare with remake ...
+//         voe_editor_levels_ask_save(&ask, project_folder, scratch)) {
+//             if (voe_editor_levels_ask_swaps_only(&ask))
+//                     ... reload the model, no splash ...
+//             else
+//                     ... prepare with remake ...
+//     }
 //
 // THE VALUES SHOWN ARE THE MODEL'S OWN: on opening, the `.parts` beside the
 // `.glb` (assets/parts.h) is read for its `[Levels]`, quietly, and none, or
 // one that will not read, shows the defaults. A press on a count or strength,
 // or a share or swap set, only changes the shown values; Make's save writes them back into that
 // `.parts`, every material line and the shares and swaps it held kept.
-// Nothing here prepares a model or closes
-// the question: the caller carries out the answer.
+// Nothing here prepares a model or closes the question: the caller carries
+// out the answer. A Make that changed only swaps on a fresh levels file is
+// answered by a reload, the game's loader patching the swaps in (0436 point
+// 8); any other Make by a prepare with remake.
 //
 // Constraints. A save refuses a `.parts` that is there but will not read,
 // rather than write over its materials with an empty file. The path is cut at
@@ -58,6 +64,8 @@ typedef struct {
 	char path[VOE_3D_MODEL_PATH];
 	// The values shown and chosen, written by Make's save.
 	voe_assets_levels levels;
+	// The levels as opening read them, which a swap-only Make is told by.
+	voe_assets_levels opened;
 	// Each level's triangles, the first `known` of them read on opening, 0
 	// when the `.glb` would not read; `own` and `fresh` as
 	// voe_game_models_levels_triangles says.
@@ -110,6 +118,10 @@ void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 voe_editor_levels_ask_answer
 voe_editor_levels_ask_read(const voe_ui_context *ui, voe_editor_levels_ask *ask,
 			   bool pointer_down, voe_math_float2 at);
+
+// Whether Make needs no levels made: the levels file is `fresh` and either
+// `own`, or the count, strength and shares are as `opened` had them.
+bool voe_editor_levels_ask_swaps_only(const voe_editor_levels_ask *ask);
 
 // The `.parts` read (none: an empty one naming no material), its levels set to
 // `ask->levels` and written back. False with a line on stderr when it is there

@@ -143,6 +143,9 @@ typedef struct voe_editor_session {
 	// and then clears both. `prepare_path` is the model's `Assets/...` path,
 	// copied from the question (interface_assets.c).
 	bool prepare_due;
+	// Make changed only swaps on a fresh levels file: main.c loads the model
+	// at `prepare_path` again next frame, no levels made, and clears it.
+	bool reload_due;
 	bool prepare_remake;
 	char prepare_path[VOE_3D_MODEL_PATH];
 } voe_editor_session;

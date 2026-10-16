@@ -209,7 +209,8 @@ carries it out.
   the read of its buttons and a press outside afterwards.
 - `levels_ask.h` — the question a model's levels ask: LODs 1 to 6 and Gentle, Medium or Strong,
   read from its `.parts` and lit, a row per LOD with its share, swap and triangles, with Make and
-  Cancel, as an anchored panel; Make's save writes them into the `.parts`.
+  Cancel, as an anchored panel; Make's save writes them into the `.parts`, and whether only swaps
+  changed on a fresh levels file says a reload is enough.
 - `levels_ask.c` — the open with its quiet `.parts` read and triangle count, the panel's one frame
   of `ui` calls with its LOD rows, the read of its buttons, share and swap boxes and a press
   outside, and the save into the `.parts`.
@@ -248,7 +249,7 @@ carries it out.
   row, Delete and levels questions and a fired prefab, landscape or material opened.
 - `interface_assets.c` — the Assets panel's requests and menu rows carried out, Make LODs
   opening the levels question, and the Delete and levels questions answered, Make's asking the
-  prepare.
+  prepare or, for swaps alone, a reload.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
 - `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,

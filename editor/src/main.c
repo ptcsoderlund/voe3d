@@ -465,6 +465,15 @@ int main(int argc, char *argv[])
 			session.prepare_remake = false;
 		}
 
+		// A MAKE THAT CHANGED ONLY SWAPS needs no splash: the levels file
+		// is fresh, and the game's loader patches the new swaps into it
+		// on this reload, twenty bytes and no levels made (0436 point 8).
+		if (session.reload_due) {
+			voe_editor_models_reload(models, &session, gpu,
+						 session.prepare_path, scratch);
+			session.reload_due = false;
+		}
+
 		// NEW OR OPEN'S LOAD ON A WORKER BEHIND THE SPLASH (loading.h);
 		// a false wait ends the program as the start's does.
 		if (session.load_due) {

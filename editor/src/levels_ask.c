@@ -109,6 +109,7 @@ void voe_editor_levels_ask_open(voe_editor_levels_ask *ask,
 	full = voe_platform_path_join(scratch, project_folder, parts_path);
 	if (voe_platform_file_exists(full) && parts_loaded(full, scratch, &there))
 		ask->levels = there.levels;
+	ask->opened = ask->levels;
 	ask->known = voe_game_models_levels_triangles(project_folder, ask->path,
 						      scratch, ask->triangles,
 						      &ask->own, &ask->fresh);
@@ -332,6 +333,27 @@ voe_editor_levels_ask_read(const voe_ui_context *ui, voe_editor_levels_ask *ask,
 		    voe_ui_node_visible(ui, ask->panel), at))
 		return VOE_EDITOR_LEVELS_ASK_CANCEL;
 	return VOE_EDITOR_LEVELS_ASK_NONE;
+}
+
+// Own levels are not cut by the shares, so only their swaps can differ; made
+// ones keep their file while count, strength and every share are unchanged.
+bool voe_editor_levels_ask_swaps_only(const voe_editor_levels_ask *ask)
+{
+	const voe_assets_levels *now;
+	const voe_assets_levels *was;
+	bool same;
+
+	VOE_BASE_ASSERT(ask != NULL, "asking whether no question changed swaps");
+	if (!ask->fresh)
+		return false;
+	if (ask->own)
+		return true;
+	now = &ask->levels;
+	was = &ask->opened;
+	same = now->count == was->count && now->strength == was->strength;
+	for (uint32_t k = 1; same && k < VOE_ASSETS_LEVELS; k++)
+		same = now->shares[k] == was->shares[k];
+	return same;
 }
 
 bool voe_editor_levels_ask_save(const voe_editor_levels_ask *ask,

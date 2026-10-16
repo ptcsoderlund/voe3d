@@ -18,7 +18,7 @@
 // Make LODs asks first: it opens the session's levels question
 // (levels_ask.h), drawn by interface.c and read here after the Delete one —
 // Make saves the levels and asks the session's prepare, which main.c runs
-// behind the splash next frame (0429, 0430). Escape closing the menu first,
+// behind the splash next frame (0429, 0430), or for swaps alone a reload. Escape closing the menu first,
 // and the dock's covers, are interface.c's.
 #include "interface_assets.h"
 
@@ -205,8 +205,10 @@ static void voe_editor_interface_assets_levels_do(voe_editor_session *session,
 }
 
 // The levels question as it was drawn answered: Make saves the model's levels
-// and asks the prepare with remake for main.c's splash next frame, a save
-// that failed said in the notice; Make, Cancel or a press outside closes it.
+// and asks main.c, next frame, for a reload with no splash when only swaps
+// changed on a fresh levels file (`reload_due`), else the prepare with remake
+// behind the splash (`prepare_due`), a save that failed said in the notice;
+// Make, Cancel or a press outside closes it.
 static void voe_editor_interface_assets_levels_answer(
 	voe_ui_context *ui, voe_base_arena *arena,
 	const voe_editor_dock_root *root, voe_editor_session *session)
@@ -225,8 +227,12 @@ static void voe_editor_interface_assets_levels_answer(
 					       arena)) {
 			snprintf(session->prepare_path,
 				 sizeof session->prepare_path, "%s", ask->path);
-			session->prepare_due = true;
-			session->prepare_remake = true;
+			if (voe_editor_levels_ask_swaps_only(ask)) {
+				session->reload_due = true;
+			} else {
+				session->prepare_due = true;
+				session->prepare_remake = true;
+			}
 		} else {
 			voe_editor_notice_set(&session->notice,
 					      "%s: its LODs could not be saved",
