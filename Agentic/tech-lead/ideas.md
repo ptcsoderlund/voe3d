@@ -119,3 +119,10 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   Inspector shows whatever was pressed last, an entity or an Assets file, alike; a `.glb` shows its LOD
   settings there instead of in a question; Re-import on a `.glb` rewrites its materials and parts from the
   file. Draft kept out of 089, which settled on Make LODs and the question.
+
+- **A player's Detail / Draw distance setting** (sponsor, 2026-10-16). One more multiplier over every LOD's swap
+  (0435) and over a "hidden past" size, so a low setting swaps and hides sooner while keeping the author's order.
+  Switch distances in metres were weighed and dropped for 0435's per-LOD multiplier.
+
+- **No meshlets, no Nanite-style detail** (sponsor, 2026-10-16). Rejected: this engine offers performance and
+  neither is performant yet. Do not propose it.
