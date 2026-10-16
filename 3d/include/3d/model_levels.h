@@ -27,7 +27,10 @@
 // side. Both are fixed (0437). A level's error is the largest of
 // its parts', in model metres. A level not below the one before in triangles
 // ends the list: it and the ones after are dropped. Level k swaps in at its own
-// `levels.swaps[k]` times the distance its error allows (0436 point 4).
+// `levels.swaps[k]` times the distance its error allows (0436 point 4), not
+// times the level before's. One that lands at or nearer than the level before
+// is pushed out to it (0435 point 2), and of two at one distance the later is
+// drawn: the earlier never shows. Swaps 1 1 1 2 1 most often skip level 4.
 //
 // A FILE WITH ITS OWN LEVELS (0435 point 3, 0436 point 6): a node named `_LOD1`
 // to `_LOD5` anywhere makes the file `own`, never simplified, no parts; each

@@ -27,7 +27,9 @@
 // written: the edges and collapse limit it set are now fixed in `3d` (0437).
 // `share<N>` is level N's triangles in percent of level 0's, in (0, 100), each
 // below the one before; `swap<N>` multiplies the distance level N's error
-// allows, 0.1 to 10. N is 1 to 5, counted from zero as level indices are
+// allows, 0.1 to 10, not level N-1's: a level landing at or nearer than the
+// one before swaps in with it and hides it (`3d/model_levels.h`, THE LEVELS).
+// N is 1 to 5, counted from zero as level indices are
 // (0434). The old word
 // `swap="near|normal|far|farther"` still reads, as 0.5, 1, 2 or 4 for every
 // `swap<N>` absent, but is never written.
