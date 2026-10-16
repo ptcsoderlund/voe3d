@@ -11,7 +11,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, tables, intent and structural queues; a type's menu, unsaid row, former names.
 - **platform** — OS-aware: window, input, pads, files, trash, clock, process, env, sound.
-- **scene** — transform (double, relative, lag), parent, prefab, lens, lights, blockers, sky, haze, picture.
+- **scene** — transform, parent, prefab, lens, lights, blockers, sky, haze, picture; off switch.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts, landscapes, materials, sectioned text to CPU data; JSON.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
@@ -20,7 +20,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — meshes, models, materials, painted landscapes, shapes, particles, water; picks, markers.
+- **3d** — meshes, models and LODs, materials, landscapes, shapes, particles, water; picks, markers.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash worker.
@@ -57,3 +57,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0348, 0349, 0351–0355, 0358, 0359, 0361–0364, 0370, 0371 — Blocks; moon; GPU ms; mips; splash; F.
 - 0374–0381, 0384–0388, 0392, 0395–0401, 0403, 0404, 0420–0421 — Loghouse; bindless; 60 fps; models.
 - 0405, 0406, 0411, 0413–0416, 0418, 0423 — Sky, Haze, Picture; only lights light; env via platform.
+- 0425, 0427–0430, 0432–0437 — LODs: made, chosen by error on screen, dissolved; the off switch.

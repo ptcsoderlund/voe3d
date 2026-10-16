@@ -56,7 +56,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   through ADR-0118's asynchronous tier, which today keeps physics shapes synchronous; streaming
   collision near the player needs that revisited. Builds on 0250's double positions (sponsor,
   2026-09-25).
-- **LOD streaming** (sponsor, 2026-09-25; the levels themselves are work order 089): only the
+- **LOD streaming** (sponsor, 2026-09-25; the levels themselves came in 089): only the
   levels near the one on screen (current ±1) sit in VRAM, the rest on disk, loaded ahead through
   ADR-0118's asynchronous tier. Recommended shape: the lowest level of every model always stays
   loaded, so a teleport shows something coarse rather than nothing; loading is prioritised by
