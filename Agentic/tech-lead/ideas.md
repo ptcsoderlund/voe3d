@@ -109,3 +109,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **Height fog on surfaces** (sponsor, 2026-10-13, 0418). Haze that pools in valleys and leaves hilltops clear,
   using the Haze row's height for the ground as well as the sky. Kept out of 087, where the height only veils
   the sky.
+
+- **Texture streaming** (sponsor, 2026-10-15, asked beside 0429: "If texture streaming helps, we need that as
+  well."). Loading only the mip levels a texture is seen at, so far models cost less texture memory and load
+  time. It does not lower triangles, so it is not part of 089; weigh it after 092 (compressed textures) once a
+  forest of real models shows whether memory or load time hurts.
