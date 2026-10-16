@@ -30,9 +30,10 @@ belongs to.
   round-tripped field for field and written again byte for byte, and each bad
   value refused MALFORMED.
 - `parts.c` — three entries with the middle one empty and levels with their
-  swap round-tripped and written again byte for byte, an empty section read as
-  count 0, absent levels read as defaults, and bad keys, paths, levels and
-  swaps refused MALFORMED.
+  shares and swaps round-tripped and written again byte for byte, an empty
+  section read as count 0, absent levels read as defaults, the old swap word
+  filling only absent swaps, and bad keys, paths, levels, shares and swaps
+  refused MALFORMED.
 - `model.c` — a hand-built `.glb` read back into its arrays, its fields read
   or defaulted, and a working file corrupted a byte at a time.
 - `model_material.c` — built glTF materials, no file, to their `.material`
