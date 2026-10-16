@@ -10,7 +10,6 @@
 //
 //     [Levels]
 //     count=6
-//     strength="medium"
 //     share1=50
 //     ...
 //     share5=3
@@ -23,12 +22,13 @@
 // "" for none, when the part draws with the glTF material itself.
 //
 // `[Levels]` (ADR 0430, 0436) is optional; each key absent reads as its
-// default. `count` is the levels in all, level 0 included, 1 to 6 (0433);
-// `strength` now only sets how far apart normals may be and still share a
-// side and how far a collapse may move (0435 point 1). `share<N>` is level N's
-// triangles in percent of level 0's, in (0, 100), each below the one before;
-// `swap<N>` multiplies the distance level N's error allows, 0.1 to 10. N is 1
-// to 5, counted from zero as level indices are (0434). The old word
+// default. `count` is the levels in all, level 0 included, 1 to 6 (0433).
+// An old `strength` key is read and ignored whatever its value, and never
+// written: the edges and collapse limit it set are now fixed in `3d` (0437).
+// `share<N>` is level N's triangles in percent of level 0's, in (0, 100), each
+// below the one before; `swap<N>` multiplies the distance level N's error
+// allows, 0.1 to 10. N is 1 to 5, counted from zero as level indices are
+// (0434). The old word
 // `swap="near|normal|far|farther"` still reads, as 0.5, 1, 2 or 4 for every
 // `swap<N>` absent, but is never written.
 //
@@ -56,14 +56,6 @@
 // VOE_3D_MODEL_LEVELS.
 #define VOE_ASSETS_LEVELS 6
 
-// How hard each level cuts (0430 point 2), written `gentle`, `medium`,
-// `strong`.
-typedef enum {
-	VOE_ASSETS_LEVELS_GENTLE,
-	VOE_ASSETS_LEVELS_MEDIUM,
-	VOE_ASSETS_LEVELS_STRONG
-} voe_assets_levels_strength;
-
 // The least and the most a level's swap multiplier may be.
 #define VOE_ASSETS_LEVELS_SWAP_LEAST 0.1f
 #define VOE_ASSETS_LEVELS_SWAP_MOST 10.0f
@@ -71,8 +63,6 @@ typedef enum {
 typedef struct {
 	// Levels in all, level 0 included: 1 to VOE_ASSETS_LEVELS.
 	uint32_t count;
-	// How hard each level after level 0 cuts.
-	voe_assets_levels_strength strength;
 	// Each level's triangles in percent of level 0's, by level index;
 	// index 0 is always 100.
 	float shares[VOE_ASSETS_LEVELS];
@@ -84,7 +74,6 @@ typedef struct {
 // What a `[Levels]` section, or a key of it, absent reads as.
 #define VOE_ASSETS_LEVELS_DEFAULT                                   \
 	((voe_assets_levels){ .count = 6,                           \
-			      .strength = VOE_ASSETS_LEVELS_MEDIUM,     \
 			      .shares = { 100, 50, 25, 12, 6, 3 },      \
 			      .swaps = { 1, 1, 1, 1, 1, 1 } })
 
@@ -102,11 +91,11 @@ typedef struct {
 // the text reads as "". MALFORMED for text the sectioned reader refuses, no
 // `[Parts]` section, a key that is not `material<N>` with N below
 // VOE_ASSETS_PARTS, a path of VOE_ASSETS_MATERIAL_PATH bytes or more, a
-// `count` outside 1 to VOE_ASSETS_LEVELS, a `strength` not one of the three
-// words, a `swap` not one of the four, a `share<N>` or `swap<N>` that is not
-// one number or is out of its range, shares not each below the one before,
-// any other key in `[Levels]`, or any section but those two. A line on
-// stderr names what. `out` untouched on failure; `error` may be NULL.
+// `count` outside 1 to VOE_ASSETS_LEVELS, a `swap` not one of the four words,
+// a `share<N>` or `swap<N>` that is not one number or is out of its range,
+// shares not each below the one before, any other key in `[Levels]` but
+// `strength`, or any section but those two. A line on stderr names what.
+// `out` untouched on failure; `error` may be NULL.
 [[nodiscard]] bool voe_assets_parts_read(const char *text, size_t size,
 					 voe_assets_parts *out,
 					 voe_base_error *error);
@@ -115,9 +104,8 @@ typedef struct {
 // `count`, paths quoted, then always `[Levels]` after `[Parts]`;
 // NUL-terminated, `size` not counting the NUL, on `arena`. Cannot fail; asserts
 // `count` is at most VOE_ASSETS_PARTS, each path is NUL-terminated in its room
-// and holds no line break, the levels' count is 1 to VOE_ASSETS_LEVELS, its
-// strength one of three, and shares and swaps 1 to 5 in range, the shares in
-// order. Numbers are written `%g`: six digits, enough for the tenths the panel
+// and holds no line break, the levels' count is 1 to VOE_ASSETS_LEVELS, and
+// shares and swaps 1 to 5 in range, the shares in order. Numbers are written `%g`: six digits, enough for the tenths the panel
 // sets.
 voe_assets_material_text voe_assets_parts_write(const voe_assets_parts *parts,
 						voe_base_arena *arena);

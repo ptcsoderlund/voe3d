@@ -10,10 +10,11 @@
 // reader takes them back (0149), so any path returns as it went.
 //
 // `[LEVELS]` IS READ THE SAME WAY, after the defaults are filled, its count a
-// whole number, its strength a quoted word, its shares and swaps one number
-// each, and always written back. The old swap word is kept aside until every
-// key is read, so it fills only the swaps whose own key was absent whatever
-// the order, and the shares' order is checked last.
+// whole number, its shares and swaps one number each, and always written back;
+// an old `strength` key is read and ignored whatever its value, and never
+// written (0437). The old swap word is kept aside until every key is read, so
+// it fills only the swaps whose own key was absent whatever the order, and the
+// shares' order is checked last.
 #include <assets/parts.h>
 #include <assets/sectioned.h>
 
@@ -27,9 +28,6 @@
 
 // One escaped path: every byte doubled at worst, two quotes and a NUL.
 #define QUOTED_PATH (2 * VOE_ASSETS_MATERIAL_PATH + 3)
-
-// Each strength's word, in the enum's order.
-static const char *const strength_words[] = { "gentle", "medium", "strong" };
 
 // The old swap words (0432 point 1) and the multiplier each reads as.
 static const char *const swap_words[] = { "near", "normal", "far",
@@ -161,8 +159,9 @@ static bool read_level_number(const voe_assets_sectioned_key *key, bool share,
 }
 
 // One `[Levels]` key into `levels`: `count` a single digit 1 to
-// VOE_ASSETS_LEVELS, `strength` one of the three words, `share<N>` and
-// `swap<N>` a number each, and the old `swap` word, one of four, into `seen`.
+// VOE_ASSETS_LEVELS, `share<N>` and `swap<N>` a number each, the old `swap`
+// word, one of four, into `seen`, and an old `strength` key, whatever its
+// value, accepted and ignored (0437 point 3).
 static bool read_level_key(const voe_assets_sectioned_key *key,
 			   voe_assets_levels *levels, struct levels_seen *seen,
 			   voe_base_error *error)
@@ -199,15 +198,9 @@ static bool read_level_key(const voe_assets_sectioned_key *key,
 	}
 	if (strcmp(key->name, "strength") != 0)
 		return refuse(error, key->name,
-			      "not count, strength, share1 to share5, swap1 to "
-			      "swap5 or swap");
-	for (uint32_t i = 0; i < 3; i++) {
-		if (strcmp(key->value, strength_words[i]) == 0) {
-			levels->strength = (voe_assets_levels_strength)i;
-			return true;
-		}
-	}
-	return refuse(error, key->name, "not gentle, medium or strong");
+			      "not count, share1 to share5, swap1 to swap5 or "
+			      "swap");
+	return true;
 }
 
 // The optional `[Levels]` over the defaults already in `parts`, and no
@@ -312,9 +305,8 @@ static size_t print_parts(char *buffer, size_t room,
 	}
 	written = snprintf(buffer == NULL ? NULL : buffer + at,
 			   buffer == NULL ? 0 : room - at,
-			   "\n[Levels]\ncount=%u\nstrength=\"%s\"\n",
-			   (unsigned)parts->levels.count,
-			   strength_words[parts->levels.strength]);
+			   "\n[Levels]\ncount=%u\n",
+			   (unsigned)parts->levels.count);
 	VOE_BASE_ASSERT(written > 0, "printing parts failed");
 	at += (size_t)written;
 	// share1 to share5, then swap1 to swap5.
@@ -348,8 +340,6 @@ voe_assets_material_text voe_assets_parts_write(const voe_assets_parts *parts,
 	VOE_BASE_ASSERT(parts->levels.count >= 1 &&
 				parts->levels.count <= VOE_ASSETS_LEVELS,
 			"writing a levels count out of range");
-	VOE_BASE_ASSERT(parts->levels.strength <= VOE_ASSETS_LEVELS_STRONG,
-			"writing a strength that is not one of three");
 	for (uint32_t i = 1; i < VOE_ASSETS_LEVELS; i++)
 		VOE_BASE_ASSERT(share_in_range(parts->levels.shares[i]) &&
 					swap_in_range(parts->levels.swaps[i]),
