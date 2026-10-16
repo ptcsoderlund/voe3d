@@ -13,8 +13,8 @@
 // takes this row's horizon hue but none of its brightness or strength (0416
 // point 3).
 //
-// THE FIRST ROW IN TABLE ORDER IS THE ONE DRAWN. A world holds at most one by
-// the caller's capacity; a second row, if a caller allows one, is ignored.
+// THE FIRST ROW IN TABLE ORDER WHOSE ENTITY IS ON IS DRAWN (0440); an off row
+// is as no row (0427). A later row on, if a caller allows one, is ignored.
 //
 // THE FIELDS (0412 point 6), every number finite:
 //   zenith, horizon, ground — linear colours, drawn as authored, as base
@@ -60,7 +60,8 @@ const voe_scene_sky *voe_scene_sky_get(const voe_ecs_world *world,
 				       voe_ecs_entity entity);
 
 // The table, for the system that hands the sky to the GPU. rows[i] belongs to
-// entities[i], and both are `count` long; rows[0] is the sky drawn.
+// entities[i], and both are `count` long. The sky drawn is the first row whose
+// entity voe_scene_identity_off says is on (0440); an off row is as no row.
 uint32_t voe_scene_sky_count(const voe_ecs_world *world);
 const voe_scene_sky *voe_scene_sky_rows(const voe_ecs_world *world);
 const voe_ecs_entity *voe_scene_sky_entities(const voe_ecs_world *world);
