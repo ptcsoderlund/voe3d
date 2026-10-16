@@ -181,3 +181,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `model_levels.c` — a `.glb`'s levels file: the FNV-1a hash, level 0 baked and each level
   simplified part by part under a quarter of the radius until one keeps over three quarters, and
   the bytes written and read back, any stale field refused.
+- `measure.h` — how far apart two bakes are, both ways, vertex to nearest triangle, for an own
+  level's error; internal.
+- `measure.c` — each way's triangles in a grid of about one a cell, searched ring by ring out
+  from each vertex, and Ericson's closest point on a triangle.

@@ -160,5 +160,8 @@ again, or to find where a claim that has started failing is written down.
 - `model_levels.c` — a sphere's levels file made and read back as asked, going stale when its
   `.glb` or version changes, and a view's level and pixel share chosen by its screen size; needs no
   graphics card.
+- `measure.c` — that two hand-built bakes measure 0 alike, a lift's height apart, √2 for a big
+  quad's far corner either way, and 0.5 for one vertex lifted in a 32 × 32 grid. Needs no
+  graphics card.
 - `model_glb.inc` — a UV sphere's `.glb` built on an arena, with a second "Ball_LOD1" root when
   asked.
