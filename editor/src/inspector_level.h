@@ -1,7 +1,8 @@
-// The Inspector's Level section, after Layers, on a thing whose model row names
-// a loaded model (0425 point 7): a "Level" heading as Layers' is, then per view
-// in use one row, "View <n>: <k> of <count>, made" or "..., own", or
-// "View <n>: 1 of 1" for a model without levels. It shows what is drawn, so it
+// The Inspector's LOD section, after Layers, on a thing whose model row names
+// a loaded model (0425 point 7): a "LOD" heading as Layers' is (0433), then per
+// view in use one row, "View <n>: LOD <k> of <count>, made" or "..., own", k
+// from 0, the full model, or "View <n>: LOD 0 of 1" for a model without
+// levels. It shows what is drawn, so it
 // asks voe_3d_model_level (3d/model_levels.h), the very function the draws
 // choose with, with the view's own pass camera and eye and the thing's world
 // place; a picture, landscape or material gets no section.
@@ -16,7 +17,7 @@
 // Constraints: nothing here allocates; nothing is read back after the frame.
 // At most VOE_EDITOR_INSPECTOR_LEVEL_NODES nodes (the panel, its heading and a
 // label per view) and VOE_EDITOR_INSPECTOR_LEVEL_ELEMENTS elements (the panel's
-// border and fill, "Level"'s five and each label at most its buffer less its
+// border and fill, "LOD"'s three and each label at most its buffer less its
 // zero), counted in interface.h.
 #pragma once
 
@@ -33,7 +34,7 @@
 
 #define VOE_EDITOR_INSPECTOR_LEVEL_NODES (2 + VOE_EDITOR_VIEWS)
 #define VOE_EDITOR_INSPECTOR_LEVEL_ELEMENTS \
-	(2 + 5 + VOE_EDITOR_VIEWS * (VOE_EDITOR_INSPECTOR_LEVEL_LABEL - 1))
+	(2 + 3 + VOE_EDITOR_VIEWS * (VOE_EDITOR_INSPECTOR_LEVEL_LABEL - 1))
 
 // Each view's label as last drawn.
 typedef struct {

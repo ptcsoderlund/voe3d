@@ -278,10 +278,10 @@ carries it out.
   material's file name choosing it to paint, and the add row a dropped material lands on.
 - `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
   read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
-- `inspector_level.h` — the Inspector's Level section after Layers: per view in use, the level it
+- `inspector_level.h` — the Inspector's LOD section after Layers: per view in use, the LOD it
   draws of a loaded model, of how many, made or own, asked with the draws' own function.
-- `inspector_level.c` — the worn loaded model found, the section's one frame of `ui` calls, each
-  view's label formatted into its kept buffer.
+- `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,
+  each view's label formatted into its kept buffer.
 - `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour and Emission
   swatches, Strength clamped 0–1000, Roughness and Metal sliders (greyed and unread while ORMmap is
   set), Repeat clamped 0.01–1000, Cutout, One side and Both sides, and the four map rows with ×.

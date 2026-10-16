@@ -324,7 +324,7 @@ typedef struct {
 	// reason every other control here is.
 	voe_editor_dropdown_row rows[VOE_EDITOR_DROPDOWN_ROWS];
 	uint32_t row_count;
-	// The Level section's labels, kept for the reason every label's text
+	// The LOD section's labels, kept for the reason every label's text
 	// is (inspector_level.h).
 	voe_editor_inspector_level level;
 } voe_editor_inspector;
@@ -359,7 +359,7 @@ bool voe_editor_inspector_is_part(const voe_ecs_world *world,
 // the sections, a thing that wears a landscape gets `sculpt`'s Sculpt section
 // (inspector_sculpt.h) and, its grid loaded in `store`, the Layers section
 // (inspector_layers.h); after Layers, a thing whose model is loaded in `store`
-// gets the Level section, the level each of `views` draws
+// gets the LOD section, the level each of `views` draws
 // (inspector_level.h). While `material_open` is not "", `material`'s section
 // is drawn in place of all of it into `controls` (inspector_material.h), and
 // no entity is recorded, so no entity's edit is read.

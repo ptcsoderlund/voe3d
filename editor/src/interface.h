@@ -358,7 +358,7 @@
 // less the zero, 136; "LODs", "Strength" and "Swap", sixteen; each button's
 // border and fill, thirty; and "1" to "6", "Gentle", "Medium", "Strong",
 // "Near", "Normal", "Far", "Farther", "Make" and "Cancel", fifty-four.
-// 51508 + 238 = 51746 elements. No scroll area: five stands.
+// 51506 + 238 = 51744 elements. No scroll area: five stands.
 //
 // THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) ADDS TWELVE NODES: the
 // panel's own column round what it draws, one; and at most a row's menu, its
@@ -374,20 +374,20 @@
 // nine, and at most twenty digits. 2550 + 3 = 2553 nodes, 51336 + 29 = 51365
 // elements. No scroll area: five stands.
 //
-// THE INSPECTOR'S LEVEL SECTION (inspector_level.h, ADR-0425) ADDS SIX NODES,
-// its panel, the "Level" heading and a label for each of VOE_EDITOR_VIEWS (4)
-// views, and 131 ELEMENTS: the panel's border and fill, two; "Level", five;
+// THE INSPECTOR'S LOD SECTION (inspector_level.h, ADR-0425, 0433) ADDS SIX
+// NODES, its panel, the "LOD" heading and a label for each of VOE_EDITOR_VIEWS
+// (4) views, and 129 ELEMENTS: the panel's border and fill, two; "LOD", three;
 // each label at most its 32-byte buffer less the zero, thirty-one apiece,
-// 124. 2553 + 6 = 2559 nodes, 51365 + 131 = 51496 elements. No scroll area:
+// 124. 2553 + 6 = 2559 nodes, 51365 + 129 = 51494 elements. No scroll area:
 // five stands.
 //
 // THE INSPECTOR'S ENABLED ROW (inspector.h, ADR-0427) ADDS FOUR NODES, the
 // row, the "Enabled" label, the button and its label, and TWELVE ELEMENTS:
 // "Enabled", seven; the button's border and fill, two; and "Off", its longer
-// label, three. 2559 + 4 = 2563 nodes, 51496 + 12 = 51508 elements. No scroll
+// label, three. 2559 + 4 = 2563 nodes, 51494 + 12 = 51506 elements. No scroll
 // area: five stands.
 #define VOE_EDITOR_INTERFACE_NODES 2602
-#define VOE_EDITOR_INTERFACE_ELEMENTS 51746
+#define VOE_EDITOR_INTERFACE_ELEMENTS 51744
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
