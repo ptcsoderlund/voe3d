@@ -1,7 +1,8 @@
 // The draw system: the camera, or a default one at the origin when it is off,
 // the first light, the first on sky row and Haze
 // row, the first on picture row, the pass camera a frame opens with, the matrices each object is drawn with, and one draw per drawable into
-// the frame the loop has opened.
+// the frame the loop has opened. The sky carries each light's disc and glow and
+// the haze's top above the eye.
 //
 // IT WALKS THE MESH, MODEL AND PANEL TABLES AND LOOKS THE OTHER COMPONENTS UP
 // BY ENTITY; the model rows are draw_models.c's, the particles
