@@ -1,8 +1,6 @@
 // The question a model's levels ask (ADR 0430 point 6, 0436 point 8): a panel
-// "LODs of <file>" with how many LODs the model has in all, 1 to 6 (0433), and
-// the Strength that sets how edges soften and how far a collapse may go,
-// Gentle, Medium or Strong (0435 point 1), the chosen two lit; then, in the
-// Swap row's old place, a row per LOD from LOD 2 on; then Make and Cancel, as
+// "LODs of <file>" with how many LODs the model has in all, 1 to 6 (0433), the
+// chosen one lit; then a row per LOD from LOD 2 on; then Make and Cancel, as
 // an anchored panel over the dock below the bar, drawn and read the way
 // assets_ask.h's Delete question is.
 //
@@ -12,8 +10,8 @@
 // later ones at or above it are pushed down a tenth below the one before. The
 // swap multiplies the distance its error allows, a number box in tenths, ×0.1
 // to ×10. The triangles are the file's, as voe_game_models_levels_triangles
-// counts them, "—" when not known. A model's own levels hide the LODs and
-// Strength rows and show each share as a label, measured against LOD 1.
+// counts them, "—" when not known. A model's own levels hide the LODs row and
+// show each share as a label, measured against LOD 1.
 //
 //     voe_editor_levels_ask_open(&ask, project_folder, "Assets/a.glb", scratch);
 //     voe_editor_levels_ask_draw(ui, &ask, top);
@@ -29,9 +27,9 @@
 //
 // THE VALUES SHOWN ARE THE MODEL'S OWN: on opening, the `.parts` beside the
 // `.glb` (assets/parts.h) is read for its `[Levels]`, quietly, and none, or
-// one that will not read, shows the defaults. A press on a count or strength,
-// or a share or swap set, only changes the shown values; Make's save writes them back into that
-// `.parts`, every material line and the shares and swaps it held kept.
+// one that will not read, shows the defaults. A press on a count, or a share
+// or swap set, only changes the shown values; Make's save writes them back
+// into that `.parts`, every material line and the shares and swaps it held kept.
 // Nothing here prepares a model or closes the question: the caller carries
 // out the answer. A Make that changed only swaps on a fresh levels file is
 // answered by a reload, the game's loader patching the swaps in (0436 point
@@ -53,9 +51,6 @@
 #include <ui/widgets.h>
 
 #include <stdbool.h>
-
-// The strengths offered, in voe_assets_levels_strength's order.
-#define VOE_EDITOR_LEVELS_ASK_STRENGTHS 3
 
 // Zeroed is a question never asked.
 typedef struct {
@@ -83,7 +78,6 @@ typedef struct {
 	char row_triangles[VOE_ASSETS_LEVELS][sizeof "4294967295"];
 	voe_ui_node panel;
 	voe_ui_node count_buttons[VOE_ASSETS_LEVELS];
-	voe_ui_node strength_buttons[VOE_EDITOR_LEVELS_ASK_STRENGTHS];
 	voe_ui_node share_boxes[VOE_ASSETS_LEVELS];
 	voe_ui_node swap_boxes[VOE_ASSETS_LEVELS];
 	voe_ui_node make_button;
@@ -106,21 +100,21 @@ void voe_editor_levels_ask_open(voe_editor_levels_ask *ask,
 void voe_editor_levels_ask_close(voe_editor_levels_ask *ask);
 
 // Draws the question centred across the surface, `top` below its top, over the
-// dock, its LODs and Strength rows unless the levels are own, a row per LOD
+// dock, its LODs row unless the levels are own, a row per LOD
 // from LOD 2 on, and Make and Cancel, and records its nodes. Asserts when it
 // is not open.
 void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 				float top);
 
-// After voe_ui_frame_end: a fired count or strength, or a LOD row's changed
-// share or swap box, sets `ask->levels` and is NONE; Make or Cancel fired, or a `pointer_down` at `at` outside the panel,
-// which is a Cancel; NONE otherwise.
+// After voe_ui_frame_end: a fired count, or a LOD row's changed share or swap
+// box, sets `ask->levels` and is NONE; Make or Cancel fired, or a
+// `pointer_down` at `at` outside the panel, which is a Cancel; NONE otherwise.
 voe_editor_levels_ask_answer
 voe_editor_levels_ask_read(const voe_ui_context *ui, voe_editor_levels_ask *ask,
 			   bool pointer_down, voe_math_float2 at);
 
 // Whether Make needs no levels made: the levels file is `fresh` and either
-// `own`, or the count, strength and shares are as `opened` had them.
+// `own`, or the count and shares are as `opened` had them.
 bool voe_editor_levels_ask_swaps_only(const voe_editor_levels_ask *ask);
 
 // The `.parts` read (none: an empty one naming no material), its levels set to

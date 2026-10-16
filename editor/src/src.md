@@ -207,7 +207,7 @@ carries it out.
   four users and "and N more" walked once on opening, Delete and Cancel, as an anchored panel.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
-- `levels_ask.h` — the anchored panel a model's LODs ask: its count, strength and a row per LOD
+- `levels_ask.h` — the anchored panel a model's LODs ask: its count and a row per LOD
   with share, swap and triangles read from the `.parts`, with Make and Cancel; Make saves into the
   `.parts` and says whether a reload is enough.
 - `levels_ask.c` — the open with its quiet `.parts` read and triangle count, the panel's one frame

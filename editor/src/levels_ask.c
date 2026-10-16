@@ -1,6 +1,6 @@
 // The levels question's open with its one quiet read of the `.parts` and
 // count of the triangles, its one frame of `ui` calls with the chosen count
-// and strength lit as inspector_sculpt.c lights its chosen kind and a row per
+// lit as inspector_sculpt.c lights its chosen kind and a row per
 // LOD of its name, share, swap and triangles, the read of its buttons, its
 // share and swap boxes and a press outside it afterwards, and Make's save into
 // the `.parts`. See the header for what is shown and what a save refuses.
@@ -33,10 +33,6 @@ static_assert(VOE_ASSETS_LEVELS == VOE_3D_MODEL_LEVELS,
 
 static const char *const COUNT_NAMES[VOE_ASSETS_LEVELS] = {
 	"1", "2", "3", "4", "5", "6"
-};
-
-static const char *const STRENGTH_NAMES[VOE_EDITOR_LEVELS_ASK_STRENGTHS] = {
-	"Gentle", "Medium", "Strong"
 };
 
 // `c` in lower case when it is an ASCII capital.
@@ -97,8 +93,6 @@ void voe_editor_levels_ask_open(voe_editor_levels_ask *ask,
 		ask->share_boxes[i] = VOE_UI_NODE_NONE;
 		ask->swap_boxes[i] = VOE_UI_NODE_NONE;
 	}
-	for (uint32_t i = 0; i < VOE_EDITOR_LEVELS_ASK_STRENGTHS; i++)
-		ask->strength_buttons[i] = VOE_UI_NODE_NONE;
 	snprintf(ask->path, sizeof ask->path, "%s", path);
 	name = strrchr(ask->path, '/');
 	name = name != NULL ? name + 1 : ask->path;
@@ -213,17 +207,6 @@ void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 			voe_ui_end(ui);
 		}
 		voe_ui_end(ui); // LODs row
-
-		voe_ui_row_begin(ui, row);
-		voe_ui_label(ui, "Strength");
-		for (uint32_t i = 0; i < VOE_EDITOR_LEVELS_ASK_STRENGTHS; i++) {
-			ask->strength_buttons[i] = voe_ui_choice_begin(
-				ui, "levels_ask_strength", i,
-				(uint32_t)ask->levels.strength == i);
-			voe_ui_label(ui, STRENGTH_NAMES[i]);
-			voe_ui_end(ui);
-		}
-		voe_ui_end(ui); // Strength row
 	}
 
 	// A row not drawn this frame, the count lowered, is read as none.
@@ -312,9 +295,6 @@ voe_editor_levels_ask_read(const voe_ui_context *ui, voe_editor_levels_ask *ask,
 	for (uint32_t i = 0; i < VOE_ASSETS_LEVELS; i++)
 		if (fired(ui, ask->count_buttons[i]))
 			ask->levels.count = i + 1;
-	for (uint32_t i = 0; i < VOE_EDITOR_LEVELS_ASK_STRENGTHS; i++)
-		if (fired(ui, ask->strength_buttons[i]))
-			ask->levels.strength = (voe_assets_levels_strength)i;
 	for (uint32_t k = 1; k < VOE_ASSETS_LEVELS; k++) {
 		if (box_changed(ui, ask->share_boxes[k], &value))
 			share_set(&ask->levels, k, value);
@@ -336,7 +316,7 @@ voe_editor_levels_ask_read(const voe_ui_context *ui, voe_editor_levels_ask *ask,
 }
 
 // Own levels are not cut by the shares, so only their swaps can differ; made
-// ones keep their file while count, strength and every share are unchanged.
+// ones keep their file while the count and every share are unchanged.
 bool voe_editor_levels_ask_swaps_only(const voe_editor_levels_ask *ask)
 {
 	const voe_assets_levels *now;
@@ -350,7 +330,7 @@ bool voe_editor_levels_ask_swaps_only(const voe_editor_levels_ask *ask)
 		return true;
 	now = &ask->levels;
 	was = &ask->opened;
-	same = now->count == was->count && now->strength == was->strength;
+	same = now->count == was->count;
 	for (uint32_t k = 1; same && k < VOE_ASSETS_LEVELS; k++)
 		same = now->shares[k] == was->shares[k];
 	return same;

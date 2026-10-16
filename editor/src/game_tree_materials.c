@@ -21,7 +21,7 @@
 //                             "Assets/brick.material",
 //                             "",
 //                       },
-//                       .levels = { .count = 4, .strength = VOE_ASSETS_LEVELS_MEDIUM,
+//                       .levels = { .count = 4,
 //                         .shares = { 0x1.9p+6f, 0x1.9p+5f, ... },
 //                         .swaps = { 0x1p+0f, 0x1p+0f, ... } } } },
 //             },
@@ -134,16 +134,6 @@ static const char *material_entry(voe_base_arena *arena, const char *path,
 	return out;
 }
 
-// The enumerator's name for strength, as the cooked text spells it.
-static const char *strength_name(voe_assets_levels_strength strength)
-{
-	VOE_BASE_ASSERT(strength <= VOE_ASSETS_LEVELS_STRONG, "a strength past the three");
-	if (strength == VOE_ASSETS_LEVELS_GENTLE)
-		return "VOE_ASSETS_LEVELS_GENTLE";
-	return strength == VOE_ASSETS_LEVELS_MEDIUM ? "VOE_ASSETS_LEVELS_MEDIUM"
-						    : "VOE_ASSETS_LEVELS_STRONG";
-}
-
 // values' VOE_ASSETS_LEVELS floats as a brace list, each `%a` with an `f`.
 static const char *levels_floats(voe_base_arena *arena, const float *values)
 {
@@ -176,13 +166,13 @@ static const char *parts_entry(voe_base_arena *arena, const char *path,
 	return voe_editor_game_tree_format(
 		arena,
 		"\t\t{ \"%s\", { .count = %u, .materials = {\n%s\t\t  },\n"
-		"\t\t  .levels = { .count = %u, .strength = %s,\n"
+		"\t\t  .levels = { .count = %u,\n"
 		"\t\t    .shares = %s,\n"
 		"\t\t    .swaps = %s } } },\n",
 		voe_editor_game_tree_c_string(
 			arena, voe_editor_game_tree_format(arena, "Assets/%.*s.glb",
 							   (int)stem, path)),
-		p->count, names, p->levels.count, strength_name(p->levels.strength),
+		p->count, names, p->levels.count,
 		levels_floats(arena, p->levels.shares),
 		levels_floats(arena, p->levels.swaps));
 }
