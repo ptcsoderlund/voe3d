@@ -8,7 +8,8 @@
 // written in the frame, landscapes written on Save and read again, and one
 // reshaped, written at once and loaded again at the next update; an edited
 // material set live, or loaded again at the next update when a map changed,
-// as is every held material a read of the tables found new or changed.
+// as is every held material a read of the tables found new or changed. A read
+// that fails is said in the session's notice.
 #include "models.h"
 
 #include <base/assert.h>
