@@ -208,10 +208,11 @@ carries it out.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
 - `levels_ask.h` — the question a model's levels ask: LODs 1 to 6 and Gentle, Medium or Strong,
-  read from its `.parts` and lit, with Make and Cancel, as an anchored panel; Make's save writes
-  them, the shares and swaps the `.parts` held kept.
-- `levels_ask.c` — the open with its quiet `.parts` read, the panel's one frame of `ui` calls, the
-  read of its buttons and a press outside, and the save into the `.parts`.
+  read from its `.parts` and lit, a row per LOD with its share, swap and triangles, with Make and
+  Cancel, as an anchored panel; Make's save writes them into the `.parts`.
+- `levels_ask.c` — the open with its quiet `.parts` read and triangle count, the panel's one frame
+  of `ui` calls with its LOD rows, the read of its buttons, share and swap boxes and a press
+  outside, and the save into the `.parts`.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
   folder row or Up, a new thing or copy placed in a scene view, a swap, a shape's material, a filled
   map or a set landscape layer over the Inspector, a material over a model and elsewhere nothing.
