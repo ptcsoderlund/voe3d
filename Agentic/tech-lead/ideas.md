@@ -114,3 +114,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   well."). Loading only the mip levels a texture is seen at, so far models cost less texture memory and load
   time. It does not lower triangles, so it is not part of 089; weigh it after 092 (compressed textures) once a
   forest of real models shows whether memory or load time hurts.
+
+- **A contextual Inspector and Re-import** (sponsor, 2026-10-15, set aside when 089 was accepted as built). The
+  Inspector shows whatever was pressed last, an entity or an Assets file, alike; a `.glb` shows its LOD
+  settings there instead of in a question; Re-import on a `.glb` rewrites its materials and parts from the
+  file. Draft kept out of 089, which settled on Make LODs and the question.
