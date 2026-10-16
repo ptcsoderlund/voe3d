@@ -1,6 +1,7 @@
 // The emitter system's run: the two drains, the particles rows added and
 // dropped, the births and the step that moves and kills. See
-// 3d/emitter_system.h for what a run does and in which order.
+// 3d/emitter_system.h for what a run does and in which order. An off emitter
+// has no row (0441 point 1), so it spawns, moves and draws nothing.
 //
 // A PARTICLES ROW IS CHANGED AS A COPY, set back whole: the table hands out no
 // writable row. About two kilobytes an emitter a step, which has not mattered;
@@ -18,6 +19,7 @@
 
 #include <math/float4x4.h>
 
+#include <scene/identity_component.h>
 #include <scene/transform_component.h>
 
 #include <inttypes.h>
@@ -143,8 +145,11 @@ static void drain_controls(voe_ecs_world *world)
 	voe_ecs_intent_clear(world, queue);
 }
 
-// Drops the rows whose emitter is gone, walking back so a swapped-in row has
-// been seen, then adds one to each emitter lacking it.
+// Drops the rows whose emitter is gone or off, walking back so a swapped-in
+// row has been seen, then adds one to each emitter on and lacking it. An off
+// emitter is as a removed one (0441 point 1): switched on, it starts as a newly
+// added emitter, and a row drain_controls made for it this run goes, its burst
+// lost.
 static void add_and_drop_rows(voe_ecs_world *world)
 {
 	voe_ecs_type particles = particles_type(world);
@@ -154,12 +159,14 @@ static void add_and_drop_rows(voe_ecs_world *world)
 	uint32_t emitter_count = voe_3d_emitter_count(world);
 
 	for (uint32_t i = voe_ecs_component_count(world, particles); i > 0; i--)
-		if (voe_3d_emitter_get(world, owners[i - 1]) == NULL)
+		if (voe_3d_emitter_get(world, owners[i - 1]) == NULL ||
+		    voe_scene_identity_off(world, owners[i - 1]))
 			(void)voe_ecs_component_remove(world, particles,
 						       owners[i - 1]);
 
 	for (uint32_t i = 0; i < emitter_count; i++)
-		(void)row_of(world, entities[i], &emitters[i]);
+		if (!voe_scene_identity_off(world, entities[i]))
+			(void)row_of(world, entities[i], &emitters[i]);
 }
 
 // The row's next number in [0, 1), from a 32-bit xorshift.
@@ -294,9 +301,13 @@ void voe_3d_emitter_system_run(voe_ecs_world *world, float seconds)
 	entities = voe_3d_emitter_entities(world);
 	count = voe_3d_emitter_count(world);
 	for (uint32_t i = 0; i < count; i++) {
-		voe_3d_particles row =
-			*voe_3d_particles_get(world, entities[i]);
+		const voe_3d_particles *own =
+			voe_3d_particles_get(world, entities[i]);
+		voe_3d_particles row;
 
+		if (own == NULL)
+			continue;
+		row = *own;
 		spawn(world, entities[i], &emitters[i], &row, seconds);
 		integrate(&emitters[i], &row, seconds);
 		(void)voe_ecs_component_set(world, particles, entities[i], &row);

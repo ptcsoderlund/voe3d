@@ -11,11 +11,15 @@
 //   dropped; a texture with no NUL is ended and reported, as the model's
 //   (3d/model_component.h), the first of a run named and the rest counted;
 // - it drains the controls: play sets playing and adds the row's burst, stop
-//   clears playing, burst adds `count`, or the row's burst when it is 0;
+//   clears playing, burst adds `count`, or the row's burst when it is 0; play
+//   and stop still set `playing` on an off emitter (0441 point 1);
 // - it adds a particles row to each emitter lacking one and drops the rows whose
 //   emitter is gone, as the shape system adds its rows (3d/shape_system.h), so a
 //   removed emitter's row is gone after the next run; a new row whose emitter
-//   plays takes the burst;
+//   plays takes the burst. An emitter whose entity is off
+//   (voe_scene_identity_off) is as a removed one: its row is dropped and none
+//   added while off, a burst asked meanwhile lost, so switched on it starts as
+//   a newly added emitter;
 // - it spawns `rate x seconds` particles, the fraction carried in the debt, plus
 //   the pending burst, up to VOE_3D_EMITTER_PARTICLES live; what does not fit is
 //   dropped. Each is born at the offset through the entity's world matrix, with

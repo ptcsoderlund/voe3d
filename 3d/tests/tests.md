@@ -132,7 +132,8 @@ again, or to find where a claim that has started failing is written down.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,
-  death after life, the cap of 64 and a removed emitter's row gone. Needs no graphics card.
+  death after life, the cap of 64, a removed emitter's row gone, and an off emitter gone and new
+  again. Needs no graphics card.
 - `water_component.c` — both tables registered, the waves runtime-only, the default row as 0305
   says, every field named with its kind, and a replace queued. Needs no graphics card.
 - `water_system.c` — a waves row after one run, the clock stepped and wrapped at 60 s, a replace's
