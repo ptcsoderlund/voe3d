@@ -156,8 +156,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   parts set; pictures on the quad, the dot and the water apart.
 - `models_store.h` — the store's internal table and the helpers the store's files share.
 - `models_levels.c` — a `.glb`'s levels beside its parts: own levels baked and joined by
-  material, or a levels file's checked and each part's used vertices gathered; the sphere, the
-  level-0 mirror and the free.
+  material, or a levels file's checked and each part's used vertices gathered, each bounded by
+  the file's error and swap; the sphere, the level-0 mirror and the free.
 - `models_landscape.c` — a landscape's grid copied with its layers and paint, uploaded as heights,
   paint and a pyramid on the shared grid; brushes and puts growing its dirt, which the frame
   writes a budget at a time.
@@ -179,8 +179,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   popped cheapest first, a seam line's re-pointed by side and a soft position's onto the kept
   vertex, each refused past 90° of turn.
 - `model_levels.c` — a `.glb`'s levels file: the FNV-1a hash, level 0 baked and each level
-  simplified part by part to its share until one is not below the one before, and the bytes
-  written and read back, any stale field refused, or their swaps patched in place.
+  simplified part by part to its share until one is not below the one before, or each own
+  level baked and measured against it, and the bytes written and read back, any stale field
+  refused, or their swaps patched in place; each level's triangles.
 - `measure.h` — how far apart two bakes are, both ways, vertex to nearest triangle, for an own
   level's error; internal.
 - `measure.c` — each way's triangles in a grid of about one a cell, searched ring by ring out

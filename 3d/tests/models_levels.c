@@ -14,6 +14,9 @@
 // 5. After a clear, the sphere loaded with a levels file made with swaps 2:
 //    `levels[1].bound` half, within 1e-6 relative, that of the sphere loaded
 //    with the defaults' file.
+// 6. After a clear, 3's sphere loaded with its made file: `level_count` 2,
+//    `levels[1].bound` 0.002 × radius ÷ the file's `errors[1]` within 1e-6
+//    relative; with `swaps[1]` 2 in its file, half that.
 //
 // THE DEVICE HOLDS SIXTEEN GEOMETRIES: two copies of the levelled sphere at
 // VOE_3D_MODEL_LEVELS levels at most, the two plain ones and the own one's two. A clear or replace
@@ -51,7 +54,8 @@ static const voe_render_capacities CAPACITIES = {
 };
 
 // The files the claims load: the sphere, its levels, its levels made with
-// swaps 2, another sphere's levels and the sphere with its own level.
+// swaps 2, another sphere's levels, and the sphere with its own level with
+// its levels made at the defaults and with swaps 2.
 typedef struct {
 	const uint8_t *glb;
 	size_t glb_size;
@@ -63,6 +67,10 @@ typedef struct {
 	size_t other_levels_size;
 	const uint8_t *own;
 	size_t own_size;
+	const uint8_t *own_levels;
+	size_t own_levels_size;
+	const uint8_t *own_far_levels;
+	size_t own_far_levels_size;
 } files;
 
 static files make_files(voe_base_arena *arena)
@@ -86,8 +94,15 @@ static files make_files(voe_base_arena *arena)
 	out.other_levels = voe_3d_model_levels_make(
 		arena, other, other_size, VOE_ASSETS_LEVELS_DEFAULT,
 		&out.other_levels_size, &error);
+	out.own_levels = voe_3d_model_levels_make(arena, out.own, out.own_size,
+						  VOE_ASSETS_LEVELS_DEFAULT,
+						  &out.own_levels_size, &error);
+	out.own_far_levels = voe_3d_model_levels_make(
+		arena, out.own, out.own_size, far, &out.own_far_levels_size,
+		&error);
 	VOE_TEST_CHECK(out.levels != NULL && out.far_levels != NULL &&
-		       out.other_levels != NULL);
+		       out.other_levels != NULL && out.own_levels != NULL &&
+		       out.own_far_levels != NULL);
 	return out;
 }
 
@@ -179,6 +194,42 @@ static void check_swap(voe_3d_models *models, voe_render_device *device,
 	VOE_TEST_CHECK(fabsf(far->levels[1].bound - half) <= 1e-6f * half);
 }
 
+// `path`'s level 1 bound against 0.002 × radius ÷ `levels`' error ÷ `swap`.
+static void check_measured(voe_base_arena *arena, const voe_3d_models *models,
+			   const char *path, const files *f,
+			   const uint8_t *levels, size_t levels_size,
+			   float swap)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, path);
+	voe_3d_model_levels read = {};
+	float bound;
+
+	VOE_TEST_CHECK(voe_3d_model_levels_read(arena, levels, levels_size,
+						f->own, f->own_size, &read));
+	VOE_TEST_CHECK(entry != NULL && entry->loaded);
+	if (entry == NULL || !entry->loaded || read.level_count < 2)
+		return;
+	VOE_TEST_CHECK_INT(entry->level_count, 2);
+	bound = 0.002f * entry->radius / read.errors[1] / swap;
+	VOE_TEST_CHECK(isfinite(bound) && bound > 0.0f);
+	VOE_TEST_CHECK(fabsf(entry->levels[1].bound - bound) <= 1e-6f * bound);
+}
+
+// 3's sphere loaded with its two made files side by side.
+static void check_own_measured(voe_base_arena *arena, voe_3d_models *models,
+			       voe_render_device *device, const files *f)
+{
+	VOE_TEST_CHECK(load(models, device, "Assets/own.glb", f->own,
+			    f->own_size, f->own_levels, f->own_levels_size));
+	VOE_TEST_CHECK(load(models, device, "Assets/own_far.glb", f->own,
+			    f->own_size, f->own_far_levels,
+			    f->own_far_levels_size));
+	check_measured(arena, models, "Assets/own.glb", f, f->own_levels,
+		       f->own_levels_size, 1.0f);
+	check_measured(arena, models, "Assets/own_far.glb", f,
+		       f->own_far_levels, f->own_far_levels_size, 2.0f);
+}
+
 // All four loaded; false when any load was.
 static bool load_all(voe_3d_models *models, voe_render_device *device,
 		     const files *f)
@@ -235,6 +286,10 @@ int main(void)
 	// 5
 	voe_3d_models_clear(models, device);
 	check_swap(models, device, &f);
+
+	// 6
+	voe_3d_models_clear(models, device);
+	check_own_measured(arena, models, device, &f);
 
 	voe_3d_models_destroy(models);
 	voe_render_device_destroy(device);

@@ -30,14 +30,16 @@
 // ends the list: it and the ones after are dropped. Level k swaps in at its own
 // `levels.swaps[k]` times the distance its error allows (0436 point 4).
 //
-// A FILE WITH ITS OWN LEVELS IS NEVER SIMPLIFIED (0425 point 4): a node named
-// `_LOD1` to `_LOD5` anywhere makes a file of one level, `own` set, no parts.
+// A FILE WITH ITS OWN LEVELS (0435 point 3, 0436 point 6): a node named `_LOD1`
+// to `_LOD5` anywhere makes the file `own`, never simplified, no parts; each
+// own level is baked and measured both ways against level 0 and stored with
+// its error, one whose bake fails or holds no triangle ending the list.
 //
 // THE LAYOUT, native-endian, every field a uint32_t but the hash and floats:
 //
 //     magic "VOEL" | version 5 | FNV-1a 64 of the .glb (uint64_t)
 //     own | level count | part count | swaps of levels 1 to 5 (5 floats)
-//     per made level k >= 1: its error (float), then per part
+//     per level k >= 1: its error (float), then per part (none when own)
 //         its index count | that many indices into level 0's baked part
 //
 // STALE IS NEVER AN ERROR (0426 point 1): a file whose magic, version or hash
@@ -71,11 +73,11 @@
 #include <stdint.h>
 
 typedef struct {
-	// The file has its own levels and was not simplified.
+	// The file has its own levels, measured and not simplified.
 	bool own;
-	// Levels including level 0: 1 when own or none was made.
+	// Levels including level 0, made or own: 1 when none was kept.
 	uint32_t level_count;
-	// Level 0's baked parts; 0 when own.
+	// Level 0's baked parts; 0 when own, whose levels hold no indices.
 	uint32_t part_count;
 	// Each level's error in model metres; level 0's nought.
 	float errors[VOE_3D_MODEL_LEVELS];
@@ -122,6 +124,18 @@ voe_3d_model_levels_make(voe_base_arena *arena, const uint8_t *glb,
 // VOE_ASSETS_LEVELS_SWAP_LEAST to _MOST.
 void voe_3d_model_levels_swaps_set(uint8_t *bytes, size_t size,
 				   const float swaps[VOE_3D_MODEL_LEVELS]);
+
+// Each level's triangles into `triangles`, for the LODs panel: how many levels
+// it wrote, 0 when `glb` will not parse or bake. `*own` whether the `.glb` has
+// its own levels, `*fresh` whether `levels` read as a fresh file of it. Own:
+// each own level's bake, ending as _make ends. Made: level 0's bake, then a
+// fresh file's index counts ÷ 3 per level; level 0 alone when `levels` is NULL
+// or stale. Everything on `arena`, the caller rewinding.
+uint32_t voe_3d_model_levels_triangles(voe_base_arena *arena,
+				       const uint8_t *glb, size_t glb_size,
+				       const uint8_t *levels, size_t levels_size,
+				       uint32_t triangles[VOE_3D_MODEL_LEVELS],
+				       bool *own, bool *fresh);
 
 // A view's choice of a model's level.
 typedef struct {

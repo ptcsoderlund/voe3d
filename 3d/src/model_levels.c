@@ -1,8 +1,12 @@
 // The levels file made and read (3d/model_levels.h): a `.glb` parsed, baked at
-// level 0 and simplified a part at a time into the file's bytes, and those
-// bytes read back field by field against the `.glb` they were made from; and a
-// view's level of a loaded model, walked from the top over bounds made
+// level 0 and simplified a part at a time into the file's bytes, or its own
+// levels baked and measured against level 0, and those bytes read back field
+// by field against the `.glb` they were made from; each level's triangles; and
+// a view's level of a loaded model, walked from the top over bounds made
 // non-increasing at load, with its share of the pixels in its band.
+//
+// AN OWN LEVEL IS BAKED AND GIVEN BACK ONE AT A TIME, so making the file holds
+// level 0 and one own level at most; its error is measure.h's.
 //
 // A LEVEL IS MADE WHOLE BEFORE IT IS JUDGED: every part simplified, its
 // triangles summed, and only then held against the level before: one not below
@@ -19,6 +23,7 @@
 // allows, a file made on one machine read on the same kind.
 #include <3d/model_levels.h>
 
+#include "measure.h"
 #include "model_bake.h"
 #include "simplify.h"
 
@@ -169,6 +174,39 @@ static void simplify_levels(voe_base_arena *arena,
 	}
 }
 
+// `model`'s own levels after level 0, `zero`, each baked in turn until one
+// fails or holds no triangle, as an own level matching no part ends the
+// store's list: its triangles into `triangles`, and its error against `zero`
+// into `errors` when not NULL. How many levels, level 0 included.
+static uint32_t own_levels(voe_base_arena *arena, const voe_assets_model *model,
+			   const voe_3d_model_bake *zero,
+			   uint32_t triangles[VOE_3D_MODEL_LEVELS],
+			   float errors[VOE_3D_MODEL_LEVELS])
+{
+	const uint32_t own = voe_3d_model_bake_levels(model);
+	uint32_t count = 1;
+
+	triangles[0] = zero->index_count / 3;
+	for (uint32_t k = 1;
+	     k < own && k < VOE_3D_MODEL_LEVELS && zero->index_count > 0; k++) {
+		const struct voe_base_arena_mark mark =
+			voe_base_arena_mark(arena);
+		voe_3d_model_bake bake;
+
+		if (!voe_3d_model_bake_create(arena, model, k, &bake, NULL) ||
+		    bake.index_count == 0) {
+			voe_base_arena_rewind(arena, mark);
+			break;
+		}
+		triangles[k] = bake.index_count / 3;
+		if (errors != NULL)
+			errors[k] = voe_3d_measure_apart(arena, zero, &bake);
+		voe_base_arena_rewind(arena, mark);
+		count = k + 1;
+	}
+	return count;
+}
+
 static void put(struct writer *writer, const void *value, size_t size)
 {
 	memcpy(writer->bytes + writer->at, value, size);
@@ -241,13 +279,16 @@ const uint8_t *voe_3d_model_levels_make(voe_base_arena *arena,
 		VOE_BASE_ASSERT(made.swaps[k] >= VOE_ASSETS_LEVELS_SWAP_LEAST &&
 					made.swaps[k] <= VOE_ASSETS_LEVELS_SWAP_MOST,
 				"a level swap out of range");
-	if (!voe_assets_model_read_glb(glb, glb_size, arena, &model, error))
+	if (!voe_assets_model_read_glb(glb, glb_size, arena, &model, error) ||
+	    !voe_3d_model_bake_create(arena, &model, 0, &bake, error))
 		return NULL;
 	if (voe_3d_model_bake_levels(&model) > 1) {
+		uint32_t triangles[VOE_3D_MODEL_LEVELS];
+
 		made.own = true;
+		made.level_count =
+			own_levels(arena, &model, &bake, triangles, made.errors);
 	} else {
-		if (!voe_3d_model_bake_create(arena, &model, 0, &bake, error))
-			return NULL;
 		simplify_levels(arena, &bake, levels, &made);
 	}
 	return write_file(arena, &made, voe_3d_model_levels_hash(glb, glb_size),
@@ -297,7 +338,7 @@ static bool take_head(struct reader *reader, uint64_t glb_hash,
 	return out->level_count >= 1 &&
 	       out->level_count <= VOE_3D_MODEL_LEVELS &&
 	       out->part_count <= VOE_3D_MODEL_PARTS &&
-	       (!out->own || (out->level_count == 1 && out->part_count == 0));
+	       (!out->own || out->part_count == 0);
 }
 
 bool voe_3d_model_levels_read(voe_base_arena *arena, const uint8_t *bytes,
@@ -353,6 +394,45 @@ void voe_3d_model_levels_swaps_set(uint8_t *bytes, size_t size,
 					swaps[k] <= VOE_ASSETS_LEVELS_SWAP_MOST,
 				"a level swap out of range");
 	memcpy(bytes + SWAPS_AT, &swaps[1], SWAPS_BYTES);
+}
+
+uint32_t voe_3d_model_levels_triangles(voe_base_arena *arena,
+				       const uint8_t *glb, size_t glb_size,
+				       const uint8_t *levels, size_t levels_size,
+				       uint32_t triangles[VOE_3D_MODEL_LEVELS],
+				       bool *own, bool *fresh)
+{
+	voe_3d_model_levels read = {};
+	voe_assets_model model;
+	voe_3d_model_bake zero;
+
+	VOE_BASE_ASSERT(arena != NULL && glb != NULL,
+			"counting the triangles of nothing");
+	VOE_BASE_ASSERT(triangles != NULL && own != NULL && fresh != NULL,
+			"counting triangles into nothing");
+
+	*own = false;
+	*fresh = levels != NULL &&
+		 voe_3d_model_levels_read(arena, levels, levels_size, glb,
+					  glb_size, &read);
+	if (!voe_assets_model_read_glb(glb, glb_size, arena, &model, NULL) ||
+	    !voe_3d_model_bake_create(arena, &model, 0, &zero, NULL))
+		return 0;
+	if (voe_3d_model_bake_levels(&model) > 1) {
+		*own = true;
+		return own_levels(arena, &model, &zero, triangles, NULL);
+	}
+	triangles[0] = zero.index_count / 3;
+	if (!*fresh || read.own)
+		return 1;
+	for (uint32_t k = 1; k < read.level_count; k++) {
+		uint64_t indices = 0;
+
+		for (uint32_t p = 0; p < read.part_count; p++)
+			indices += read.index_counts[k][p];
+		triangles[k] = (uint32_t)(indices / 3);
+	}
+	return read.level_count;
 }
 
 // Level k's share of the pixels at `s`, from its band (0432 point 3): the

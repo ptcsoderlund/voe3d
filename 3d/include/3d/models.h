@@ -16,12 +16,12 @@
 // and normals, every primitive of one material joined into one part, at most
 // VOE_3D_MODEL_PARTS, so a model is a handful of draws. The file's tree is lost.
 //
-// A `.glb` HAS LEVELS (0425 points 3, 4, 6; 0426; 0432): own levels baked per
-// level and joined to level 0's parts by material, the bound 2^-k; made ones,
-// from a levels file, uploaded compacted to the vertices they use, the bound
-// 0.002 × radius ÷ error (infinite for error nought); each ÷ the level's swap
-// in the file (0436), 1 with no fresh file, then made non-increasing; freed
-// with the parts.
+// A `.glb` HAS LEVELS (0425 points 3, 4, 6; 0426; 0432; 0436): own levels
+// baked per level and joined to level 0's parts by material; made ones, from a
+// levels file, uploaded compacted to the vertices they use. Each bound is
+// 0.002 × radius ÷ the file's error (infinite for error nought) ÷ the level's
+// swap, an own level's 2^-k only without a fresh file; then made
+// non-increasing; freed with the parts.
 //
 // A FAILED ENTRY IS KEPT at its stamp, `loaded` false and no parts, so a broken
 // file asked for each frame is not parsed each frame. A PATH LOADED AGAIN

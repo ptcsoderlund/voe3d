@@ -142,7 +142,8 @@ again, or to find where a claim that has started failing is written down.
   empties, pictures and the uncounted dot, and a model drawn only with the store. Skips without a
   card.
 - `models_levels.c` — the store loading a sphere with its levels file, with its own `_LOD1` levels
-  and with a far swap, leaking no level across reloads and clears; skips without a card.
+  bounded by 2^-k alone and by their measured error with their file, and with a far swap, leaking
+  no level across reloads and clears; skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget. Skips without a card.
 - `models_material.c` — a `.material` with four maps loaded as one part with a live record and
@@ -157,11 +158,11 @@ again, or to find where a claim that has started failing is written down.
 - `simplify.c` — a flat grid to an eighth at no error with its corners, a sphere to a half facing
   out, the sphere held by a tiny limit, a uv seam moving along its line untorn, and a faceted
   cylinder cut along its seam lines at angle 0 and further softened at 180. Needs no graphics card.
-- `model_levels.c` — a sphere's levels file made and read back as asked, going stale when its
-  `.glb` or version changes, and a view's level and pixel share chosen by its screen size; needs no
-  graphics card.
+- `model_levels.c` — a sphere's levels file made and read back as asked, its own levels measured,
+  going stale when its `.glb` or version changes, each level's triangles counted, and a view's level
+  and pixel share chosen by its screen size; needs no graphics card.
 - `measure.c` — that two hand-built bakes measure 0 alike, a lift's height apart, √2 for a big
   quad's far corner either way, and 0.5 for one vertex lifted in a 32 × 32 grid. Needs no
   graphics card.
-- `model_glb.inc` — a UV sphere's `.glb` built on an arena, with a second "Ball_LOD1" root when
-  asked.
+- `model_glb.inc` — a UV sphere's `.glb` built on an arena, with a second "Ball_LOD1" root wearing
+  half its triangles when asked.

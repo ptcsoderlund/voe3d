@@ -13,8 +13,10 @@
 // THE FILE is what `assets` reads (assets/include/assets/model.h): a JSON chunk
 // padded with spaces, then a BIN chunk of positions, normals and indices; one
 // mesh of one primitive wearing one empty material, one root node "Ball". With
-// `own_level`, a second root "Ball_LOD1" wears the same mesh, which makes a file
-// with its own levels. Little-endian, as glTF is; written on a little-endian
+// `own_level`, a second root "Ball_LOD1" wears a second mesh, the same vertices
+// with the first half of the indices (half the segments, a half shell), which
+// makes a file with its own levels, fewer triangles and an error against level
+// 0. Little-endian, as glTF is; written on a little-endian
 // machine, as every machine the engine builds for is.
 
 #define SPHERE_GLB_PI 3.14159265358979323846f
@@ -71,10 +73,16 @@ static const uint8_t *sphere_glb(voe_base_arena *arena, uint32_t rings,
 	const size_t floats = (size_t)vertex_count * 3 * sizeof(float);
 	const size_t bin = 2 * floats + (size_t)index_count * sizeof(uint32_t);
 	float *positions = voe_base_arena_push(arena, floats);
-	char json[1024];
+	char json[1536];
+	char half[96] = "";
 	size_t json_size;
 	uint8_t *file;
 
+	if (own_level)
+		(void)snprintf(half, sizeof(half),
+			       ",{\"bufferView\":2,\"componentType\":5125,"
+			       "\"count\":%u,\"type\":\"SCALAR\"}",
+			       index_count / 2);
 	positions[1] = 1.0f;
 	positions[(vertex_count - 1) * 3 + 1] = -1.0f;
 	for (uint32_t r = 1; r < rings; r++) {
@@ -96,21 +104,25 @@ static const uint8_t *sphere_glb(voe_base_arena *arena, uint32_t rings,
 		"\"scenes\":[{\"nodes\":%s}],"
 		"\"nodes\":[{\"name\":\"Ball\",\"mesh\":0}%s],"
 		"\"meshes\":[{\"primitives\":[{\"attributes\":"
-		"{\"POSITION\":0,\"NORMAL\":1},\"indices\":2,\"material\":0}]}],"
+		"{\"POSITION\":0,\"NORMAL\":1},\"indices\":2,\"material\":0}]}%s],"
 		"\"materials\":[{}],"
 		"\"accessors\":["
 		"{\"bufferView\":0,\"componentType\":5126,\"count\":%u,\"type\":\"VEC3\"},"
 		"{\"bufferView\":1,\"componentType\":5126,\"count\":%u,\"type\":\"VEC3\"},"
-		"{\"bufferView\":2,\"componentType\":5125,\"count\":%u,\"type\":\"SCALAR\"}],"
+		"{\"bufferView\":2,\"componentType\":5125,\"count\":%u,\"type\":\"SCALAR\"}%s],"
 		"\"bufferViews\":["
 		"{\"buffer\":0,\"byteOffset\":0,\"byteLength\":%zu},"
 		"{\"buffer\":0,\"byteOffset\":%zu,\"byteLength\":%zu},"
 		"{\"buffer\":0,\"byteOffset\":%zu,\"byteLength\":%zu}],"
 		"\"buffers\":[{\"byteLength\":%zu}]}",
 		own_level ? "[0,1]" : "[0]",
-		own_level ? ",{\"name\":\"Ball_LOD1\",\"mesh\":0}" : "",
-		vertex_count, vertex_count,
-		index_count, floats, floats, floats, 2 * floats,
+		own_level ? ",{\"name\":\"Ball_LOD1\",\"mesh\":1}" : "",
+		own_level ? ",{\"primitives\":[{\"attributes\":"
+			    "{\"POSITION\":0,\"NORMAL\":1},\"indices\":3,"
+			    "\"material\":0}]}" :
+			    "",
+		vertex_count, vertex_count, index_count, half, floats, floats,
+		floats, 2 * floats,
 		(size_t)index_count * sizeof(uint32_t), bin);
 	while (json_size % 4 != 0)
 		json[json_size++] = ' ';

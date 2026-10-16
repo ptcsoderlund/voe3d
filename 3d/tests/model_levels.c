@@ -7,7 +7,8 @@
 //    non-decreasing.
 // 2. That file read against the `.glb` with one byte changed, cut by 4 bytes,
 //    and with its version changed: each false, stale.
-// 3. The sphere with a second root "Ball_LOD1": its file reads `own`, one level.
+// 3. The sphere with a second root "Ball_LOD1": its file reads `own`, 2 levels,
+//    `errors[1]` finite and above nought.
 // 4. The hash of "a" is FNV-1a 64's, 0xaf63dc4c8601ec8c.
 // 5. Making levels of bytes that are no `.glb`: NULL, MALFORMED.
 // 6. The sphere made with count 2: at most 2 levels read; with count 1:
@@ -33,6 +34,12 @@
 // 16. 1's sphere, made with VOE_ASSETS_LEVELS_DEFAULT: `level_count` above 4.
 // 17. The defaults' file with swap 3 on level 2 set by _swaps_set: still read,
 //     `swaps[2]` 3, its indices and errors unchanged.
+// 18. _triangles of 3's sphere: 2, `own`, each above nought and level 1's
+//     below level 0's; `fresh` false with NULL levels, true with its file.
+// 19. _triangles of 1's sphere with the defaults' file: its `level_count`,
+//     level 0 the sphere's triangles, level k its index counts' sum ÷ 3, not
+//     `own`; with NULL levels, 1.
+// 20. _triangles of bytes that are no `.glb`: 0.
 #include <3d/model_levels.h>
 #include <3d/projection.h>
 
@@ -82,6 +89,30 @@ static void swaps_patched(voe_base_arena *arena, const uint8_t *file,
 	}
 }
 
+// 19 on the defaults' `file` and its read `levels`.
+static void made_triangles(voe_base_arena *arena, const uint8_t *glb,
+			   size_t glb_size, const uint8_t *file, size_t size,
+			   const voe_3d_model_levels *levels)
+{
+	uint32_t triangles[VOE_3D_MODEL_LEVELS] = {};
+	bool own = true;
+	bool fresh = false;
+	const uint32_t count = voe_3d_model_levels_triangles(
+		arena, glb, glb_size, file, size, triangles, &own, &fresh);
+
+	VOE_TEST_CHECK_INT(count, levels->level_count);
+	VOE_TEST_CHECK(!own);
+	VOE_TEST_CHECK(fresh);
+	VOE_TEST_CHECK_INT(triangles[0], TRIANGLES);
+	for (uint32_t k = 1; k < count && k < VOE_3D_MODEL_LEVELS; k++)
+		VOE_TEST_CHECK_INT(triangles[k], levels->index_counts[k][0] / 3);
+	VOE_TEST_CHECK_INT(voe_3d_model_levels_triangles(arena, glb, glb_size,
+							 NULL, 0, triangles,
+							 &own, &fresh),
+			   1);
+	VOE_TEST_CHECK(!fresh);
+}
+
 static void sphere_levels(voe_base_arena *arena)
 {
 	size_t glb_size;
@@ -112,6 +143,7 @@ static void sphere_levels(voe_base_arena *arena)
 		VOE_TEST_CHECK(levels.errors[k] >= levels.errors[k - 1]);
 		previous = triangles;
 	}
+	made_triangles(arena, glb, glb_size, file, size, &levels);
 
 	// 2: stale three ways.
 	changed = voe_base_arena_push(arena, glb_size);
@@ -200,6 +232,9 @@ static void own_levels(voe_base_arena *arena)
 	const uint8_t *file = voe_3d_model_levels_make(
 		arena, glb, glb_size, VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
 	voe_3d_model_levels levels = {};
+	uint32_t triangles[VOE_3D_MODEL_LEVELS] = {};
+	bool own = false;
+	bool fresh = true;
 
 	VOE_TEST_CHECK(file != NULL);
 	if (file == NULL)
@@ -207,7 +242,23 @@ static void own_levels(voe_base_arena *arena)
 	VOE_TEST_CHECK(voe_3d_model_levels_read(arena, file, size, glb, glb_size,
 						&levels));
 	VOE_TEST_CHECK(levels.own);
-	VOE_TEST_CHECK_INT(levels.level_count, 1);
+	VOE_TEST_CHECK_INT(levels.level_count, 2);
+	VOE_TEST_CHECK(isfinite(levels.errors[1]) && levels.errors[1] > 0.0f);
+
+	// 18
+	VOE_TEST_CHECK_INT(voe_3d_model_levels_triangles(arena, glb, glb_size,
+							 NULL, 0, triangles,
+							 &own, &fresh),
+			   2);
+	VOE_TEST_CHECK(own);
+	VOE_TEST_CHECK(!fresh);
+	VOE_TEST_CHECK(triangles[1] > 0 && triangles[1] < triangles[0]);
+	VOE_TEST_CHECK_INT(voe_3d_model_levels_triangles(arena, glb, glb_size,
+							 file, size, triangles,
+							 &own, &fresh),
+			   2);
+	VOE_TEST_CHECK(own);
+	VOE_TEST_CHECK(fresh);
 }
 
 static void not_a_glb(voe_base_arena *arena)
@@ -215,7 +266,15 @@ static void not_a_glb(voe_base_arena *arena)
 	static const char text[] = "not a model at all, only words";
 	voe_base_error error = VOE_BASE_OK;
 	size_t size = 0;
+	uint32_t triangles[VOE_3D_MODEL_LEVELS] = {};
+	bool own = false;
+	bool fresh = false;
 
+	// 20
+	VOE_TEST_CHECK_INT(voe_3d_model_levels_triangles(
+				   arena, (const uint8_t *)text, sizeof(text),
+				   NULL, 0, triangles, &own, &fresh),
+			   0);
 	VOE_TEST_CHECK(voe_3d_model_levels_make(arena, (const uint8_t *)text,
 						sizeof(text),
 						VOE_ASSETS_LEVELS_DEFAULT,

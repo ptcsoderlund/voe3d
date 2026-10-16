@@ -15,9 +15,10 @@
 // saying false, a part count not the bake's, or any index at or past its part's
 // vertices, all found before anything is uploaded.
 //
-// EVERY BOUND OF LEVEL 1 ON IS ÷ ITS OWN LEVEL'S SWAP IN THE FILE (0436 point
-// 4), before they are made non-increasing: 1 with no fresh file, an own
-// `.glb`'s file read for the swaps alone.
+// A LEVEL'S BOUND IS 0.002 × RADIUS ÷ ITS ERROR ÷ ITS SWAP IN THE FILE (0436
+// points 4, 6), infinite for error nought, then made non-increasing: a made
+// level's always, an own level's when the fresh file is own and counts the
+// bake's own levels. Otherwise an own level's bound is 2^-k, its swap 1.
 //
 // AN OWN LEVEL MATCHING NO PART ENDS THE LIST: it would draw nothing, and the
 // levels after it are farther still.
@@ -33,8 +34,18 @@
 #include <math.h>
 #include <string.h>
 
-// A made level's error kept under this share of half the screen (0425 point 3).
+// A level's error kept under this share of half the screen (0425 point 3).
 #define SCREEN_ERROR 0.002f
+
+// Level k's bound from `read`'s error and swap, infinite for error nought.
+static float error_bound(const voe_3d_model_entry *entry,
+			 const voe_3d_model_levels *read, uint32_t k)
+{
+	const float made = read->errors[k];
+
+	return made > 0.0f ? SCREEN_ERROR * entry->radius / made / read->swaps[k] :
+			     INFINITY;
+}
 
 void voe_3d_models_sphere(const voe_3d_model_bake *bake,
 			  voe_3d_model_entry *entry)
@@ -127,20 +138,24 @@ static bool upload_own_level(voe_render_device *device, voe_base_arena *scratch,
 	return true;
 }
 
+// The own levels, bounded by `measured`'s errors and swaps, or by 2^-k when it
+// is NULL.
 static bool upload_own(voe_render_device *device, voe_base_arena *scratch,
 		       const voe_assets_model *model,
 		       const voe_3d_model_bake *zero, uint32_t count,
-		       const float swaps[VOE_3D_MODEL_LEVELS],
+		       const voe_3d_model_levels *measured,
 		       voe_3d_model_entry *entry, voe_base_error *error)
 {
 	entry->levels_own = true;
 	for (uint32_t k = 1; k < count && k < VOE_3D_MODEL_LEVELS; k++) {
+		const float bound = measured != NULL ?
+					    error_bound(entry, measured, k) :
+					    ldexpf(1.0f, -(int)k);
 		uint32_t matched = 0;
 
 		entry->level_count = k + 1;
 		entry->levels[k].bound =
-			fminf(ldexpf(1.0f, -(int)k) / swaps[k],
-			      entry->levels[k - 1].bound);
+			fminf(bound, entry->levels[k - 1].bound);
 		if (!upload_own_level(device, scratch, model, zero, k, entry,
 				      &matched, error))
 			return false;
@@ -210,13 +225,9 @@ static bool upload_made(voe_render_device *device, voe_base_arena *scratch,
 			voe_3d_model_entry *entry, voe_base_error *error)
 {
 	for (uint32_t k = 1; k < read->level_count; k++) {
-		const float made = read->errors[k];
-		const float bound = made > 0.0f ? SCREEN_ERROR * entry->radius /
-							  made / read->swaps[k] :
-						  INFINITY;
-
 		entry->level_count = k + 1;
-		entry->levels[k].bound = fminf(bound, entry->levels[k - 1].bound);
+		entry->levels[k].bound = fminf(error_bound(entry, read, k),
+					       entry->levels[k - 1].bound);
 		for (uint32_t p = 0; p < read->part_count; p++) {
 			if (read->index_counts[k][p] > 0 &&
 			    !upload_made_part(device, scratch, bake, read, k, p,
@@ -237,9 +248,8 @@ bool voe_3d_models_levels_upload(voe_render_device *device,
 				 voe_3d_model_entry *entry,
 				 voe_base_error *error)
 {
-	static const float NO_SWAPS[VOE_3D_MODEL_LEVELS] = { 1, 1, 1, 1, 1, 1 };
 	const uint32_t own = voe_3d_model_bake_levels(model);
-	voe_3d_model_levels read;
+	voe_3d_model_levels read = {};
 	bool fresh;
 
 	VOE_BASE_ASSERT(device != NULL && scratch != NULL,
@@ -253,7 +263,10 @@ bool voe_3d_models_levels_upload(voe_render_device *device,
 					 glb_size, &read);
 	if (own > 1)
 		return upload_own(device, scratch, model, bake, own,
-				  fresh ? read.swaps : NO_SWAPS, entry, error);
+				  fresh && read.own && read.level_count == own ?
+					  &read :
+					  NULL,
+				  entry, error);
 	if (!fresh || !fits(&read, bake))
 		return true;
 	return upload_made(device, scratch, bake, &read, entry, error);
