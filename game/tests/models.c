@@ -113,14 +113,14 @@
 // VOE_3D_LANDSCAPE_NODE_QUADS² quads, its ground and its twin, and the
 // heights texture, which takes a texture slot and no capacity. Then a
 // material's record and twin, with no geometry, and a second one's. The
-// reload case's store alone holds the most geometries: the grid's four levels
-// and the two it reloads to, at once.
+// reload case's store alone holds the most geometries: the grid's levels, up
+// to VOE_3D_MODEL_LEVELS, and the two it reloads to, at once.
 #define GRID_SIDE (VOE_3D_LANDSCAPE_NODE_QUADS + 1)
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 16 + GRID_SIDE * GRID_SIDE,
 	.indices = 16 + VOE_3D_LANDSCAPE_NODE_QUADS *
 				VOE_3D_LANDSCAPE_NODE_QUADS * 6,
-	.geometries = 4 + 2,
+	.geometries = VOE_3D_MODEL_LEVELS + 2,
 	.objects = 1,
 	.shadings = 10 + 2 + 2 + 2,
 	.passes = 1,
