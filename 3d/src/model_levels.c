@@ -20,7 +20,9 @@
 //
 // THE FILE IS WRITTEN AND READ WITH memcpy at a byte offset, since nothing in it
 // is aligned past four bytes and the hash sits at eight: native-endian, as 0426
-// allows, a file made on one machine read on the same kind.
+// allows, a file made on one machine read on the same kind. The hash is 64-bit
+// FNV-1a over the `.glb`'s bytes; the swaps sit at a fixed offset, so they are
+// patched in place without the file being made again.
 #include <3d/model_levels.h>
 
 #include "measure.h"

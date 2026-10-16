@@ -178,10 +178,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `simplify.c` — the weld, each vertex's side, the plane sums and a heap of stamped collapses
   popped cheapest first, a seam line's re-pointed by side and a soft position's onto the kept
   vertex, each refused past 90° of turn.
-- `model_levels.c` — a `.glb`'s levels file: the FNV-1a hash, level 0 baked and each level
-  simplified part by part to its share until one is not below the one before, or each own
-  level baked and measured against it, and the bytes written and read back, any stale field
-  refused, or their swaps patched in place; each level's triangles.
+- `model_levels.c` — a `.glb`'s levels file made (level 0 baked, each level simplified to its
+  share, or own levels baked and measured), written and read back with stale fields refused,
+  its swaps patched in place, and each level's triangles.
 - `measure.h` — how far apart two bakes are, both ways, vertex to nearest triangle, for an own
   level's error; internal.
 - `measure.c` — each way's triangles in a grid of about one a cell, searched ring by ring out
