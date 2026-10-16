@@ -1,8 +1,8 @@
 // The LOD section's one frame of `ui` calls. See the header for what each row
 // says and why it asks the draws' own function.
 //
-// A row's LOD is shown counted from zero, the full model LOD 0 (0433), so a
-// model without levels reads "LOD 0 of 1" and the farthest of six "LOD 5 of 6".
+// A row's LOD is shown counted from one, the full model LOD 1 (0434), so a
+// model without levels reads "LOD 1 of 1" and the farthest of six "LOD 6 of 6".
 #include "inspector_level.h"
 
 #include "themes.h"
@@ -89,11 +89,11 @@ void voe_editor_inspector_level_draw(voe_ui_context *ui,
 		if (model->level_count == 1)
 			written = snprintf(level->labels[v],
 					   VOE_EDITOR_INSPECTOR_LEVEL_LABEL,
-					   "View %u: LOD 0 of 1", v + 1);
+					   "View %u: LOD 1 of 1", v + 1);
 		else
 			written = snprintf(level->labels[v],
 					   VOE_EDITOR_INSPECTOR_LEVEL_LABEL,
-					   "View %u: LOD %u of %u, %s", v + 1, k,
+					   "View %u: LOD %u of %u, %s", v + 1, k + 1,
 					   model->level_count,
 					   model->levels_own ? "own" : "made");
 		VOE_BASE_ASSERT(written > 0 &&

@@ -1,8 +1,8 @@
 // The Inspector's LOD section, after Layers, on a thing whose model row names
 // a loaded model (0425 point 7): a "LOD" heading as Layers' is (0433), then per
 // view in use one row, "View <n>: LOD <k> of <count>, made" or "..., own", k
-// from 0, the full model, or "View <n>: LOD 0 of 1" for a model without
-// levels. It shows what is drawn, so it
+// counted from one, the full model LOD 1 (0434), or "View <n>: LOD 1 of 1" for
+// a model without levels. It shows what is drawn, so it
 // asks voe_3d_model_level (3d/model_levels.h), the very function the draws
 // choose with, with the view's own pass camera and eye and the thing's world
 // place; a picture, landscape or material gets no section.
