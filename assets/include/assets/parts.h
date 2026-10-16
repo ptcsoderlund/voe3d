@@ -9,7 +9,7 @@
 //     material2="Assets/tree-leaves.material"
 //
 //     [Levels]
-//     count=4
+//     count=6
 //     strength="medium"
 //     swap="normal"
 //
@@ -18,10 +18,11 @@
 // "" for none, when the part draws with the glTF material itself.
 //
 // `[Levels]` (ADR 0430) is optional, and each key absent reads as its default.
-// `count` is how many levels the model has in all, level 0 included; `strength`
-// is how hard each level cuts: how far apart normals may be and still share a
-// side, how much each level aims to keep, and how far a collapse may move;
-// `swap` is how far away the levels swap in (0432 point 1).
+// `count` is how many levels the model has in all, level 0 included, 1 to 6
+// and 6 by default (0433); `strength` is how hard each level cuts: how far
+// apart normals may be and still share a side, how much each level aims to
+// keep, and how far a collapse may move; `swap` is how far away the levels
+// swap in (0432 point 1).
 //
 // KEYS ARE INDICES, NOT NAMES. Sectioned text refuses a repeated key, and glTF
 // names repeat and hold any byte; an index is unique and always a legal key. A
@@ -45,7 +46,7 @@
 
 // The most levels a model has in all, level 0 included; equal to `3d`'s
 // VOE_3D_MODEL_LEVELS.
-#define VOE_ASSETS_LEVELS 4
+#define VOE_ASSETS_LEVELS 6
 
 // How hard each level cuts (0430 point 2), written `gentle`, `medium`,
 // `strong`.
@@ -76,7 +77,7 @@ typedef struct {
 
 // What a `[Levels]` section, or a key of it, absent reads as.
 #define VOE_ASSETS_LEVELS_DEFAULT                            \
-	((voe_assets_levels){ 4, VOE_ASSETS_LEVELS_MEDIUM, \
+	((voe_assets_levels){ 6, VOE_ASSETS_LEVELS_MEDIUM, \
 			      VOE_ASSETS_LEVELS_SWAP_NORMAL })
 
 typedef struct {

@@ -1,11 +1,12 @@
 // The parts file: three entries with the middle one empty and levels 2,
 // STRONG, SWAP_FAR round-trip through write and read and are written again
 // byte for byte; an empty `[Parts]` reads as count 0; no `[Levels]` reads the
-// default levels, swap NORMAL included, one with only `strength="gentle"`
-// reads count 4, GENTLE, and one with only `swap="farther"` reads count 4,
-// MEDIUM, SWAP_FARTHER; and a key past material31, a key that is not
-// `material<N>`, an over-long path, no `[Parts]`, text that is not sectioned,
-// `count=0`, `count=5`, `strength="hard"`, `swap="soon"`, `colour=1` in
+// default levels, count 6 and swap NORMAL included, one with only
+// `strength="gentle"` reads count 6, GENTLE, one with only `swap="farther"`
+// reads count 6, MEDIUM, SWAP_FARTHER, and `count=6` reads count 6; and a key
+// past material31, a key that is not `material<N>`, an over-long path, no
+// `[Parts]`, text that is not sectioned, `count=0`, `count=7`,
+// `strength="hard"`, `swap="soon"`, `colour=1` in
 // `[Levels]` and another section are refused MALFORMED with `out` left as it
 // was.
 #include <assets/parts.h>
@@ -86,7 +87,7 @@ static void an_empty_section_reads_count_zero(voe_base_arena *arena)
 
 	VOE_TEST_CHECK(read_text("[Parts]\n", &out, NULL));
 	VOE_TEST_CHECK_INT(out.count, 0);
-	VOE_TEST_CHECK(strcmp(text.text, "[Parts]\n\n[Levels]\ncount=4\n"
+	VOE_TEST_CHECK(strcmp(text.text, "[Parts]\n\n[Levels]\ncount=6\n"
 					 "strength=\"medium\"\n"
 					 "swap=\"normal\"\n") == 0);
 }
@@ -96,20 +97,23 @@ static void absent_levels_read_as_defaults(void)
 	voe_assets_parts out = { 0 };
 
 	VOE_TEST_CHECK(read_text("[Parts]\nmaterial0=\"\"\n", &out, NULL));
-	VOE_TEST_CHECK_INT(out.levels.count, 4);
+	VOE_TEST_CHECK_INT(out.levels.count, 6);
 	VOE_TEST_CHECK_INT(out.levels.strength, VOE_ASSETS_LEVELS_MEDIUM);
 	VOE_TEST_CHECK_INT(out.levels.swap, VOE_ASSETS_LEVELS_SWAP_NORMAL);
 
 	VOE_TEST_CHECK(read_text("[Parts]\n[Levels]\nstrength=\"gentle\"\n",
 				 &out, NULL));
-	VOE_TEST_CHECK_INT(out.levels.count, 4);
+	VOE_TEST_CHECK_INT(out.levels.count, 6);
 	VOE_TEST_CHECK_INT(out.levels.strength, VOE_ASSETS_LEVELS_GENTLE);
 
 	VOE_TEST_CHECK(read_text("[Parts]\n[Levels]\nswap=\"farther\"\n",
 				 &out, NULL));
-	VOE_TEST_CHECK_INT(out.levels.count, 4);
+	VOE_TEST_CHECK_INT(out.levels.count, 6);
 	VOE_TEST_CHECK_INT(out.levels.strength, VOE_ASSETS_LEVELS_MEDIUM);
 	VOE_TEST_CHECK_INT(out.levels.swap, VOE_ASSETS_LEVELS_SWAP_FARTHER);
+
+	VOE_TEST_CHECK(read_text("[Parts]\n[Levels]\ncount=6\n", &out, NULL));
+	VOE_TEST_CHECK_INT(out.levels.count, 6);
 }
 
 static void bad_keys_and_paths_are_malformed(void)
@@ -127,7 +131,7 @@ static void bad_keys_and_paths_are_malformed(void)
 	malformed(text);
 
 	malformed("[Parts]\n[Levels]\ncount=0\n");
-	malformed("[Parts]\n[Levels]\ncount=5\n");
+	malformed("[Parts]\n[Levels]\ncount=7\n");
 	malformed("[Parts]\n[Levels]\nstrength=\"hard\"\n");
 	malformed("[Parts]\n[Levels]\nswap=\"soon\"\n");
 	malformed("[Parts]\n[Levels]\ncolour=1\n");

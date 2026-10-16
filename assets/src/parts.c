@@ -101,7 +101,7 @@ static bool read_level_key(const voe_assets_sectioned_key *key,
 		if (key->value[0] < '1' ||
 		    key->value[0] > '0' + VOE_ASSETS_LEVELS ||
 		    key->value[1] != '\0')
-			return refuse(error, key->name, "not 1 to 4");
+			return refuse(error, key->name, "not 1 to 6");
 		levels->count = (uint32_t)(key->value[0] - '0');
 		return true;
 	}
