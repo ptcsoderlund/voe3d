@@ -1,6 +1,6 @@
 // The menu the right button opens over the Assets panel (0377 point 2, 0378
 // point 8). Over a row it holds Rename, Duplicate and Delete, and over a
-// `.glb`'s row Import textures and Make levels after them (0403, 0404, 0429);
+// `.glb`'s row Import textures and Make LODs after them (0403, 0404, 0429, 0433);
 // over the empty part under the rows it holds Create, which opens a submenu
 // beside it holding
 // the kinds a person can make there: Folder, Landscape (0379), then Material
@@ -41,7 +41,7 @@
 #include <stdint.h>
 
 // A row's menu: Rename, Duplicate, Delete and, over a `.glb`, Import textures
-// and Make levels (0429).
+// and Make LODs (0429, 0433).
 #define VOE_EDITOR_ASSETS_MENU_ROWS 5
 // Create's submenu: Folder, Landscape and Material.
 #define VOE_EDITOR_ASSETS_MENU_KINDS 3
@@ -84,7 +84,7 @@ typedef struct {
 } voe_editor_assets_menu;
 
 // Opens the menu at `at`, a row's menu when `on_row`, Import textures and Make
-// levels (0429) in it when `glb`, else Create, its submenu shut and its widths
+// LODs (0429, 0433) in it when `glb`, else Create, its submenu shut and its widths
 // measured afresh.
 void voe_editor_assets_menu_open(voe_editor_assets_menu *menu,
 				 voe_math_float2 at, bool on_row, bool glb);

@@ -25,7 +25,9 @@
 // A `.parts` path's room: the `.glb`'s, its ending two bytes longer.
 #define PARTS_PATH (VOE_3D_MODEL_PATH + sizeof PARTS_ENDING - sizeof GLB_ENDING)
 
-static const char *const COUNT_NAMES[VOE_ASSETS_LEVELS] = { "1", "2", "3", "4" };
+static const char *const COUNT_NAMES[VOE_ASSETS_LEVELS] = {
+	"1", "2", "3", "4", "5", "6"
+};
 
 static const char *const STRENGTH_NAMES[VOE_EDITOR_LEVELS_ASK_STRENGTHS] = {
 	"Gentle", "Medium", "Strong"
@@ -97,7 +99,7 @@ void voe_editor_levels_ask_open(voe_editor_levels_ask *ask,
 	snprintf(ask->path, sizeof ask->path, "%s", path);
 	name = strrchr(ask->path, '/');
 	name = name != NULL ? name + 1 : ask->path;
-	snprintf(ask->title, sizeof ask->title, "Levels of %s", name);
+	snprintf(ask->title, sizeof ask->title, "LODs of %s", name);
 
 	parts_path_of(ask->path, parts_path);
 	mark = voe_base_arena_mark(scratch);
@@ -139,14 +141,14 @@ void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 	voe_ui_label(ui, ask->title);
 
 	voe_ui_row_begin(ui, row);
-	voe_ui_label(ui, "Levels");
+	voe_ui_label(ui, "LODs");
 	for (uint32_t i = 0; i < VOE_ASSETS_LEVELS; i++) {
 		ask->count_buttons[i] = voe_ui_choice_begin(
 			ui, "levels_ask_count", i, ask->levels.count == i + 1);
 		voe_ui_label(ui, COUNT_NAMES[i]);
 		voe_ui_end(ui);
 	}
-	voe_ui_end(ui); // Levels row
+	voe_ui_end(ui); // LODs row
 
 	voe_ui_row_begin(ui, row);
 	voe_ui_label(ui, "Strength");

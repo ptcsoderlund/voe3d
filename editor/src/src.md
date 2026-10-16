@@ -9,7 +9,7 @@ carries it out.
   frame breakdown's timings each frame and writing, saving and reverting landscapes.
 - `loading.h` — the start's, a New or Open load's and an import's prepare works for a splash wait:
   shaders with the editor's pipeline cache, shapes and models, the scene and its models, or an
-  imported model's levels file, made again for Make levels, and what the worker owns.
+  imported model's levels file, made again for Make LODs, and what the worker owns.
 - `loading.c` — the three works, each step after a stop check, in the worker's own scratch.
 - `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
   time so a missing copy shows the plain screen, kept by the caller until the device closes.
@@ -199,7 +199,7 @@ carries it out.
   checked before the first write, then the materials and the parts, or the PNGs and the dressed
   materials, written.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
-  over a row and Import textures and Make levels over a `.glb`'s, Create with its Folder, Landscape and Material
+  over a row and Import textures and Make LODs over a `.glb`'s, Create with its Folder, Landscape and Material
   submenu over the empty part, anchored at the pointer.
 - `assets_menu.c` — the menu's one frame of `ui` calls, the read of its rows with its own closing,
   and where it and the submenu go next frame.
@@ -207,7 +207,7 @@ carries it out.
   four users and "and N more" walked once on opening, Delete and Cancel, as an anchored panel.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
-- `levels_ask.h` — the question a model's levels ask: Levels 1 to 4, Gentle, Medium or Strong and
+- `levels_ask.h` — the question a model's levels ask: LODs 1 to 6, Gentle, Medium or Strong and
   a Swap of Near to Farther, read from its `.parts` and lit, with Make and Cancel, as an anchored
   panel; Make's save writes them.
 - `levels_ask.c` — the open with its quiet `.parts` read, the panel's one frame of `ui` calls with
@@ -245,7 +245,7 @@ carries it out.
   of its clicks as calls, in order, into the two below.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
   row, Delete and levels questions and a fired prefab, landscape or material opened.
-- `interface_assets.c` — the Assets panel's requests and menu rows carried out, Make levels
+- `interface_assets.c` — the Assets panel's requests and menu rows carried out, Make LODs
   opening the levels question, and the Delete and levels questions answered, Make's asking the
   prepare.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,

@@ -1,5 +1,5 @@
-// The question a model's levels ask (ADR 0430 point 6): a panel "Levels of
-// <file>" with how many levels the model has in all, 1 to 4, how hard each
+// The question a model's levels ask (ADR 0430 point 6): a panel "LODs of
+// <file>" with how many LODs the model has in all, 1 to 6 (0433), how hard each
 // cuts, Gentle, Medium or Strong (0430 points 2 and 3), and how far away they
 // swap in, Near, Normal, Far or Farther, at 1/2, 1, 2 or 4 times the distance
 // (0432 point 1), the chosen three lit, then Make and Cancel, as an anchored
@@ -52,7 +52,7 @@ typedef struct {
 	// The values shown and chosen, written by Make's save.
 	voe_assets_levels levels;
 	// Kept here because a label's text is drawn after the call that made it.
-	char title[VOE_3D_MODEL_PATH + sizeof "Levels of "];
+	char title[VOE_3D_MODEL_PATH + sizeof "LODs of "];
 	voe_ui_node panel;
 	voe_ui_node count_buttons[VOE_ASSETS_LEVELS];
 	voe_ui_node strength_buttons[VOE_EDITOR_LEVELS_ASK_STRENGTHS];
@@ -76,7 +76,7 @@ void voe_editor_levels_ask_open(voe_editor_levels_ask *ask,
 void voe_editor_levels_ask_close(voe_editor_levels_ask *ask);
 
 // Draws the question centred across the surface, `top` below its top, over the
-// dock, its Levels, Strength and Swap rows, and records its nodes. Asserts
+// dock, its LODs, Strength and Swap rows, and records its nodes. Asserts
 // when it is not open.
 void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 				float top);

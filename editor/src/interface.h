@@ -347,18 +347,18 @@
 // button's border and fill, four, and "Delete" and "Cancel", twelve.
 // 50649 + 658 = 51307 elements. No scroll area: five stands.
 //
-// THE LEVELS QUESTION (levels_ask.h, ADR-0430, 0432) ADDS THIRTY-FIVE NODES,
-// counted on top as the Delete question is, and added to the last paragraph's
-// sums so the ones between keep theirs: the panel, one; its title, one; the
-// Levels, Strength and Swap rows and their three labels, six; thirteen
-// buttons, 1 to 4, Gentle, Medium, Strong, Near, Normal, Far, Farther, Make and
-// Cancel, each a button and a label, twenty-six; the button row, one.
-// 2563 + 35 = 2598 nodes. AND 236 ELEMENTS: the panel's border and fill, two;
-// the title cut at its kept room, VOE_3D_MODEL_PATH (128) and "Levels of "
-// less the zero, 138; "Levels", "Strength" and "Swap", eighteen; each button's
-// border and fill, twenty-six; and "1" to "4", "Gentle", "Medium", "Strong",
-// "Near", "Normal", "Far", "Farther", "Make" and "Cancel", fifty-two.
-// 51508 + 236 = 51744 elements. No scroll area: five stands.
+// THE LEVELS QUESTION (levels_ask.h, ADR-0430, 0432, 0433) ADDS THIRTY-NINE
+// NODES, counted on top as the Delete question is, and added to the last
+// paragraph's sums so the ones between keep theirs: the panel, one; its title,
+// one; the LODs, Strength and Swap rows and their three labels, six; fifteen
+// buttons, 1 to 6, Gentle, Medium, Strong, Near, Normal, Far, Farther, Make and
+// Cancel, each a button and a label, thirty; the button row, one.
+// 2563 + 39 = 2602 nodes. AND 238 ELEMENTS: the panel's border and fill, two;
+// the title cut at its kept room, VOE_3D_MODEL_PATH (128) and "LODs of "
+// less the zero, 136; "LODs", "Strength" and "Swap", sixteen; each button's
+// border and fill, thirty; and "1" to "6", "Gentle", "Medium", "Strong",
+// "Near", "Normal", "Far", "Farther", "Make" and "Cancel", fifty-four.
+// 51508 + 238 = 51746 elements. No scroll area: five stands.
 //
 // THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) ADDS TWELVE NODES: the
 // panel's own column round what it draws, one; and at most a row's menu, its
@@ -386,8 +386,8 @@
 // "Enabled", seven; the button's border and fill, two; and "Off", its longer
 // label, three. 2559 + 4 = 2563 nodes, 51496 + 12 = 51508 elements. No scroll
 // area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2598
-#define VOE_EDITOR_INTERFACE_ELEMENTS 51744
+#define VOE_EDITOR_INTERFACE_NODES 2602
+#define VOE_EDITOR_INTERFACE_ELEMENTS 51746
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

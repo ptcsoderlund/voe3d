@@ -18,7 +18,7 @@
 #define MENU_PAD (1.0f * VOE_EDITOR_SPACING)
 
 static const char *const ROW_NAMES[VOE_EDITOR_ASSETS_MENU_ROWS] = {
-	"Rename", "Duplicate", "Delete", "Import textures", "Make levels"
+	"Rename", "Duplicate", "Delete", "Import textures", "Make LODs"
 };
 static const voe_editor_assets_menu_item ROW_ITEMS[VOE_EDITOR_ASSETS_MENU_ROWS] = {
 	VOE_EDITOR_ASSETS_MENU_RENAME, VOE_EDITOR_ASSETS_MENU_DUPLICATE,
@@ -48,7 +48,7 @@ void voe_editor_assets_menu_open(voe_editor_assets_menu *menu,
 	VOE_BASE_ASSERT(!menu->create_open, "a menu opened with Create's list up");
 }
 
-// A row's menu's rows: Import textures and Make levels, the last two, only
+// A row's menu's rows: Import textures and Make LODs, the last two, only
 // over a `.glb`.
 static uint32_t row_count(const voe_editor_assets_menu *menu)
 {

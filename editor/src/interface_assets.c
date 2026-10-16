@@ -15,7 +15,7 @@
 // after the panels list and read here after the panel: Rename, Delete, Folder,
 // Landscape and Material begin on the panel, Duplicate goes through assets_manage.h,
 // and Import textures through model_import.h, the tables read again after.
-// Make levels asks first: it opens the session's levels question
+// Make LODs asks first: it opens the session's levels question
 // (levels_ask.h), drawn by interface.c and read here after the Delete one —
 // Make saves the levels and asks the session's prepare, which main.c runs
 // behind the splash next frame (0429, 0430). Escape closing the menu first,
@@ -181,7 +181,7 @@ static void voe_editor_interface_assets_textures_do(voe_editor_session *session,
 	voe_editor_assets_list_due(&scene->assets);
 }
 
-// Make levels on `path`, relative to `Assets/` (0429, 0430 point 6): the
+// Make LODs on `path`, relative to `Assets/` (0429, 0430 point 6): the
 // levels question opened on its `Assets/...` path, whose Make asks the
 // prepare. A path too long for VOE_3D_MODEL_PATH does nothing, as no model of
 // that path can be in the store.
@@ -229,7 +229,7 @@ static void voe_editor_interface_assets_levels_answer(
 			session->prepare_remake = true;
 		} else {
 			voe_editor_notice_set(&session->notice,
-					      "%s: its levels could not be saved",
+					      "%s: its LODs could not be saved",
 					      ask->path);
 		}
 	}
