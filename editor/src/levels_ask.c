@@ -1,9 +1,10 @@
 // The levels question's open with its one quiet read of the `.parts` and
 // count of the triangles, its one frame of `ui` calls with the chosen count
-// lit as inspector_sculpt.c lights its chosen kind and a row per
-// LOD of its name, share, swap and triangles, the read of its buttons, its
-// share and swap boxes and a press outside it afterwards, and Make's save into
-// the `.parts`. See the header for what is shown and what a save refuses.
+// lit as inspector_sculpt.c lights its chosen kind, a header row over a row per
+// LOD of its name, share, swap and triangles in fixed-width cells, and the swap
+// line under them; the read of its buttons, its share and swap boxes and a
+// press outside it afterwards, and Make's save into the `.parts`. See the
+// header for what is shown and what a save refuses.
 #include "levels_ask.h"
 
 #include "inspector_place.h"
@@ -24,6 +25,17 @@ static_assert(VOE_ASSETS_LEVELS == VOE_3D_MODEL_LEVELS,
 // The same plate, padding and gap assets_ask.c's panel uses. Millimetres.
 #define ASK_PAD (3.0f * VOE_EDITOR_SPACING)
 #define ASK_GAP (2.0f * VOE_EDITOR_SPACING)
+
+// The LOD columns' widths, millimetres at 100 % text: each the wider of its
+// header and its buffer's longest value in levels_ask.h.
+#define NAME_WIDE 12.0f      // "LOD 6"
+#define SHARE_WIDE 26.0f     // "Triangles kept", "4.29497e+11 %"
+#define SWAP_WIDE 24.0f      // "Swap distance", "×0.123457"
+#define TRIANGLES_WIDE 20.0f // "4294967295", "Triangles"
+
+#define SWAP_LINE \
+	"×2 swaps a LOD in twice as far away and looks better, ×0.5 twice " \
+	"as close and saves triangles."
 
 #define GLB_ENDING ".glb"
 #define PARTS_ENDING ".parts"
@@ -123,8 +135,43 @@ void voe_editor_levels_ask_close(voe_editor_levels_ask *ask)
 	VOE_BASE_ASSERT(!ask->open, "a levels question left open");
 }
 
+// Opens a cell `wide` millimetres across in a row, so a label or number box,
+// which takes no size of its own, keeps its column's width. Closed by
+// voe_ui_end.
+static void cell_begin(voe_ui_context *ui, float wide)
+{
+	VOE_BASE_ASSERT(ui != NULL, "a cell in no interface");
+	VOE_BASE_ASSERT(wide > 0.0f, "a cell with no width");
+	voe_ui_row_begin(ui, (voe_ui_container){
+				     .across = VOE_UI_ACROSS_CENTER,
+				     .size = { .along = { VOE_UI_SIZE_FIXED,
+							  wide } } });
+}
+
+// The header row over the LOD rows: nothing over the names, then what each
+// later column holds.
+static void draw_header_row(voe_ui_context *ui, voe_ui_container row)
+{
+	VOE_BASE_ASSERT(ui != NULL, "drawing a header row into no interface");
+	VOE_BASE_ASSERT(row.gap > 0.0f, "a header row with no gap");
+	voe_ui_row_begin(ui, row);
+	cell_begin(ui, NAME_WIDE);
+	voe_ui_end(ui); // name cell
+	cell_begin(ui, SHARE_WIDE);
+	voe_ui_label(ui, "Triangles kept");
+	voe_ui_end(ui); // share cell
+	cell_begin(ui, SWAP_WIDE);
+	voe_ui_label(ui, "Swap distance");
+	voe_ui_end(ui); // swap cell
+	cell_begin(ui, TRIANGLES_WIDE);
+	voe_ui_label(ui, "Triangles");
+	voe_ui_end(ui); // triangles cell
+	voe_ui_end(ui); // header row
+}
+
 // LOD k + 1's row: its name, its share as a number box or, on own levels, a
-// label of its triangles against LOD 1's, its swap box and its triangles.
+// label of its triangles against LOD 1's, its swap box and its triangles,
+// each in its column's cell.
 static void draw_level_row(voe_ui_context *ui, voe_editor_levels_ask *ask,
 			   uint32_t k, voe_ui_container row)
 {
@@ -143,7 +190,10 @@ static void draw_level_row(voe_ui_context *ui, voe_editor_levels_ask *ask,
 		snprintf(ask->row_triangles[k], sizeof ask->row_triangles[k],
 			 "—");
 	voe_ui_row_begin(ui, row);
+	cell_begin(ui, NAME_WIDE);
 	voe_ui_label(ui, ask->row_names[k]);
+	voe_ui_end(ui); // name cell
+	cell_begin(ui, SHARE_WIDE);
 	if (ask->own) {
 		if (ask->triangles[0] > 0)
 			snprintf(ask->row_shares[k], sizeof ask->row_shares[k],
@@ -162,13 +212,18 @@ static void draw_level_row(voe_ui_context *ui, voe_editor_levels_ask *ask,
 		voe_ui_label(ui, ask->row_shares[k]);
 		voe_ui_end(ui); // share
 	}
+	voe_ui_end(ui); // share cell
 	snprintf(ask->row_swaps[k], sizeof ask->row_swaps[k], "×%g",
 		 (double)levels->swaps[k]);
+	cell_begin(ui, SWAP_WIDE);
 	ask->swap_boxes[k] = voe_ui_number_begin(ui, "swap", k, levels->swaps[k],
 						 0.1);
 	voe_ui_label(ui, ask->row_swaps[k]);
 	voe_ui_end(ui); // swap
+	voe_ui_end(ui); // swap cell
+	cell_begin(ui, TRIANGLES_WIDE);
 	voe_ui_label(ui, ask->row_triangles[k]);
+	voe_ui_end(ui); // triangles cell
 	voe_ui_end(ui); // LOD row
 	VOE_BASE_ASSERT(ask->row_names[k][0] != '\0' &&
 				ask->row_triangles[k][0] != '\0',
@@ -215,8 +270,12 @@ void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 		ask->swap_boxes[k] = VOE_UI_NODE_NONE;
 	}
 	rows = ask->own ? ask->known : ask->levels.count;
+	if (rows > 1)
+		draw_header_row(ui, row);
 	for (uint32_t k = 1; k < rows; k++)
 		draw_level_row(ui, ask, k, row);
+	if (rows > 1)
+		voe_ui_label_role(ui, SWAP_LINE, VOE_UI_TEXT_ROLE_SECONDARY);
 
 	voe_ui_row_begin(ui, (voe_ui_container){ .gap = ASK_GAP });
 	ask->make_button = voe_ui_button_begin(ui, "levels_ask_make", 0);

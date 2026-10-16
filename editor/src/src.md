@@ -211,8 +211,8 @@ carries it out.
   with share, swap and triangles read from the `.parts`, with Make and Cancel; Make saves into the
   `.parts` and says whether a reload is enough.
 - `levels_ask.c` — the open with its quiet `.parts` read and triangle count, the panel's one frame
-  of `ui` calls with its LOD rows, the read of its buttons, share and swap boxes and a press
-  outside, and the save into the `.parts`.
+  of `ui` calls with its column headers, LOD rows and swap line, the read of its buttons, boxes and
+  a press outside, and the save into the `.parts`.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
   folder row or Up, a new thing or copy placed in a scene view, a swap, a shape's material, a filled
   map or a set landscape layer over the Inspector, a material over a model and elsewhere nothing.

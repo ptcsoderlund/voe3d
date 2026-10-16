@@ -348,20 +348,23 @@
 // 50649 + 658 = 51307 elements. No scroll area: five stands.
 //
 // THE LEVELS QUESTION (levels_ask.h, ADR-0430, 0433, 0436, 0437) ADDS
-// FIFTY-SIX NODES, counted on top as the Delete question is, and added to the
+// EIGHTY-FIVE NODES, counted on top as the Delete question is, and added to the
 // last paragraph's sums so the ones between keep theirs: the panel, one; its
 // title, one; the LODs row and its label, two; eight buttons, 1 to 6, Make and
-// Cancel, each a button and a label, sixteen; the button row, one; and at most
-// five LOD rows, each the row, its name label, the share and swap number boxes
-// each with its figure and its triangles label, seven apiece, thirty-five.
-// 2563 + 56 = 2619 nodes. AND 643 ELEMENTS: the panel's border and fill, two;
+// Cancel, each a button and a label, sixteen; the button row, one; the header
+// row, its four cells and three labels, eight; at most five LOD rows, each the
+// row, its four cells, its name label, the share and swap number boxes each
+// with its figure and its triangles label, eleven apiece, fifty-five; and the
+// swap line's label, one. 2563 + 85 = 2648 nodes. AND 753 ELEMENTS: the
+// headers' 13, 12 and 9 characters and the swap line's 76, their spaces
+// drawing nothing, 110; the panel's border and fill, two;
 // the title cut at its kept room, VOE_3D_MODEL_PATH (128) and "LODs of " less
 // the zero, 136; "LODs", four; each button's border and fill, sixteen; "1" to
 // "6", "Make" and "Cancel", sixteen; each LOD row's texts at their buffers'
 // sizes less the zero, the name five, the share thirteen, the swap ten and the
 // triangles ten, and each box's one fill (no border), two, forty apiece, 200;
 // and, while one box is open for typing, a caret, VOE_UI_FIELD_CAPACITY (256)
-// typed characters and "not a number", 269. 51506 + 643 = 52149 elements. No
+// typed characters and "not a number", 269. 51506 + 753 = 52259 elements. No
 // scroll area: five stands.
 //
 // THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) ADDS TWELVE NODES: the
@@ -390,8 +393,8 @@
 // "Enabled", seven; the button's border and fill, two; and "Off", its longer
 // label, three. 2559 + 4 = 2563 nodes, 51494 + 12 = 51506 elements. No scroll
 // area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2619
-#define VOE_EDITOR_INTERFACE_ELEMENTS 52149
+#define VOE_EDITOR_INTERFACE_NODES 2648
+#define VOE_EDITOR_INTERFACE_ELEMENTS 52259
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

@@ -11,7 +11,9 @@
 // swap multiplies the distance its error allows, a number box in tenths, ×0.1
 // to ×10. The triangles are the file's, as voe_game_models_levels_triangles
 // counts them, "—" when not known. A model's own levels hide the LODs row and
-// show each share as a label, measured against LOD 1.
+// show each share as a label, measured against LOD 1. The columns have headers,
+// "Triangles kept", "Swap distance" and "Triangles", each column one fixed
+// width; a line under the rows explains the swap (0437 points 5, 6).
 //
 //     voe_editor_levels_ask_open(&ask, project_folder, "Assets/a.glb", scratch);
 //     voe_editor_levels_ask_draw(ui, &ask, top);
@@ -37,7 +39,9 @@
 //
 // Constraints. A save refuses a `.parts` that is there but will not read,
 // rather than write over its materials with an empty file. The path is cut at
-// VOE_3D_MODEL_PATH bytes, as session.h's `prepare_path` holds it.
+// VOE_3D_MODEL_PATH bytes, as session.h's `prepare_path` holds it. The column
+// widths are millimetres sized at 100 % text, so a larger text size sticks out
+// of them; measuring the cells last frame, as assets_menu.c does, would lift it.
 #pragma once
 
 #include <3d/model_component.h>
@@ -100,9 +104,9 @@ void voe_editor_levels_ask_open(voe_editor_levels_ask *ask,
 void voe_editor_levels_ask_close(voe_editor_levels_ask *ask);
 
 // Draws the question centred across the surface, `top` below its top, over the
-// dock, its LODs row unless the levels are own, a row per LOD
-// from LOD 2 on, and Make and Cancel, and records its nodes. Asserts when it
-// is not open.
+// dock, its LODs row unless the levels are own, a header row, a row per LOD
+// from LOD 2 on and the swap line when there is a LOD row, and Make and
+// Cancel, and records its nodes. Asserts when it is not open.
 void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 				float top);
 
