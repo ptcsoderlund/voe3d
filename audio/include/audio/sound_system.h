@@ -19,6 +19,8 @@
 // - with a mixer only: the listener is the first camera whose entity has a
 //   transform, at its world position, its local +X and -Z turned by the world
 //   rotation, tan(fov_y / 2) * aspect wide (audio/place.h); none without one;
+//   an off camera (itself or through a parent) is heard as a default camera
+//   at the origin looking down -Z, where the frame then looks (0441);
 // - each row: a one-shot whose voice ended clears playing; restart, or playing
 //   with no live voice, starts one (held, loop, volume, pitch, placed at the
 //   world position when the entity has a transform); not playing stops it;

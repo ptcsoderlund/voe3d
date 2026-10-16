@@ -2,7 +2,8 @@
 // tests/mixer.c does: a looping sound on a thing plays after a run; a camera
 // at the origin looking down -Z hears a thing at +X louder right; a stop
 // control silences it; switched off it has no live voice and still says
-// playing, and back on it plays; a one-shot run past its end stops playing; a thing
+// playing, and back on it plays; a camera switched off hears from the origin
+// and back on from where it stands; a one-shot run past its end stops playing; a thing
 // destroyed through the structural queue has its voice stopped by the next
 // run's sweep; and a run with no mixer applies a replace and starts nothing.
 //
@@ -91,16 +92,20 @@ static void switched(voe_ecs_world *world, voe_ecs_entity entity, bool off)
 	voe_scene_identity_system_run(world);
 }
 
-// A camera at the origin, unrotated, so looking down -Z, 90 degrees high.
-static void a_camera(voe_ecs_world *world)
+// A camera at where, unrotated, so looking down -Z, 90 degrees high, with an
+// identity so it can be switched.
+static voe_ecs_entity a_camera(voe_ecs_world *world, voe_math_double3 where)
 {
-	voe_ecs_entity entity;
+	voe_ecs_entity entity = { 0 };
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, (voe_scene_transform){
-		.rotation = { 0, 0, 0, 1 }, .scale = { 1, 1, 1 } }));
+		.position = where, .rotation = { 0, 0, 0, 1 }, .scale = { 1, 1, 1 } }));
 	VOE_TEST_CHECK(voe_scene_camera_add(world, entity, (voe_scene_camera){
 		.fov_y = PI / 2, .near_plane = 0.1f, .far_plane = 100 }));
+	VOE_TEST_CHECK(voe_scene_identity_add(world, entity, (voe_scene_identity){
+		.id = entity.index + 1, .name = "Camera" }));
+	return entity;
 }
 
 // A thing at where carrying path, playing.
@@ -135,7 +140,7 @@ static void a_loop_plays_louder_right_until_stopped(voe_base_arena *arena)
 	voe_ecs_entity thing;
 
 	write_wav("hum.wav", 100, 8192);
-	a_camera(world);
+	a_camera(world, (voe_math_double3){ 0 });
 	thing = a_thing(world, (voe_math_double3){ 3, 0, -3 }, "hum.wav", true);
 	voe_audio_sound_system_run(world, mixer, 1.0f);
 	VOE_TEST_CHECK(voe_audio_mixer_playing(mixer, voice_of(world, thing)));
@@ -162,7 +167,7 @@ static void an_off_loop_is_silent_and_comes_back(voe_base_arena *arena)
 	voe_audio_voice voice;
 
 	write_wav("hum.wav", 100, 8192);
-	a_camera(world);
+	a_camera(world, (voe_math_double3){ 0 });
 	thing = a_thing(world, (voe_math_double3){ 3, 0, -3 }, "hum.wav", true);
 	voe_audio_sound_system_run(world, mixer, 1.0f);
 	voice = voice_of(world, thing);
@@ -181,6 +186,34 @@ static void an_off_loop_is_silent_and_comes_back(voe_base_arena *arena)
 	voe_base_arena_clear(arena);
 }
 
+// A loop at (3, 0, -3) is left of a camera at (6, 0, 0) and right of the
+// origin, where an off camera hears from.
+static void an_off_camera_hears_from_the_origin(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_audio_mixer *mixer = voe_audio_mixer_new(FOLDER);
+	voe_ecs_entity camera;
+
+	write_wav("hum.wav", 100, 8192);
+	camera = a_camera(world, (voe_math_double3){ 6, 0, 0 });
+	(void)a_thing(world, (voe_math_double3){ 3, 0, -3 }, "hum.wav", true);
+	voe_audio_sound_system_run(world, mixer, 1.0f);
+	voe_audio_mixer_mix(mixer, out, FRAMES);
+	VOE_TEST_CHECK(out[2 * FRAMES - 2] > out[2 * FRAMES - 1]);
+
+	switched(world, camera, true);
+	voe_audio_sound_system_run(world, mixer, 1.0f);
+	voe_audio_mixer_mix(mixer, out, FRAMES);
+	VOE_TEST_CHECK(out[2 * FRAMES - 1] > out[2 * FRAMES - 2]);
+
+	switched(world, camera, false);
+	voe_audio_sound_system_run(world, mixer, 1.0f);
+	voe_audio_mixer_mix(mixer, out, FRAMES);
+	VOE_TEST_CHECK(out[2 * FRAMES - 2] > out[2 * FRAMES - 1]);
+	voe_audio_mixer_destroy(mixer);
+	voe_base_arena_clear(arena);
+}
+
 static void a_one_shot_past_its_end_is_not_playing(voe_base_arena *arena)
 {
 	voe_ecs_world *world = a_world(arena);
@@ -188,7 +221,7 @@ static void a_one_shot_past_its_end_is_not_playing(voe_base_arena *arena)
 	voe_ecs_entity thing;
 
 	write_wav("blip.wav", 10, 8192);
-	a_camera(world);
+	a_camera(world, (voe_math_double3){ 0 });
 	thing = a_thing(world, (voe_math_double3){ 0, 0, -3 }, "blip.wav", false);
 	voe_audio_sound_system_run(world, mixer, 1.0f);
 	VOE_TEST_CHECK(voe_audio_mixer_playing(mixer, voice_of(world, thing)));
@@ -208,7 +241,7 @@ static void a_destroyed_thing_is_swept(voe_base_arena *arena)
 	voe_audio_voice voice;
 
 	write_wav("hum.wav", 100, 8192);
-	a_camera(world);
+	a_camera(world, (voe_math_double3){ 0 });
 	thing = a_thing(world, (voe_math_double3){ 0, 0, -3 }, "hum.wav", true);
 	voe_audio_sound_system_run(world, mixer, 1.0f);
 	voice = voice_of(world, thing);
@@ -248,6 +281,7 @@ int main(void)
 		VOE_TEST_CHECK(error == VOE_BASE_ERROR_REFUSED);
 	a_loop_plays_louder_right_until_stopped(arena);
 	an_off_loop_is_silent_and_comes_back(arena);
+	an_off_camera_hears_from_the_origin(arena);
 	a_one_shot_past_its_end_is_not_playing(arena);
 	a_destroyed_thing_is_swept(arena);
 	no_mixer_applies_a_replace_and_starts_nothing(arena);
