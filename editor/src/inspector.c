@@ -428,12 +428,13 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 				      prefab != NULL ? prefab->path : "?"));
 	}
 
-	// No Enabled switch, Duplicate or Delete for the camera's entity: the
-	// scene's one camera is neither switched off, copied nor deleted
-	// (ADR-0218, 0428 point 8). A light's has all three: a copy is a second
-	// directional light (0357 point 5). The switch reads the identity's own
-	// `off`, not an ancestor's.
-	if (!part && voe_scene_camera_get(world, selected) == NULL) {
+	// The Enabled switch for any entity but a part, the camera's included;
+	// no Duplicate or Delete for the camera's entity: the scene's one
+	// camera is switched but neither copied nor deleted (ADR-0218, 0441).
+	// A light's has all three: a copy is a second directional light (0357
+	// point 5). The switch reads the identity's own `off`, not an
+	// ancestor's.
+	if (!part) {
 		const voe_scene_identity *identity =
 			voe_scene_identity_get(world, selected);
 
@@ -446,6 +447,8 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 								   : "On");
 		voe_ui_end(ui);
 		voe_ui_end(ui);
+	}
+	if (!part && voe_scene_camera_get(world, selected) == NULL) {
 		voe_ui_row_begin(ui,
 				 (voe_ui_container){ .gap = COMPONENT_GAP });
 		inspector->duplicate = voe_ui_button_begin(ui, "duplicate", 0);
