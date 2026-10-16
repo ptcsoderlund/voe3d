@@ -11,8 +11,11 @@
 // with its levels file, `<folder>/Cache/levels/<path>.levels`, read on scratch
 // or made there and written, its folders made first when absent; made with
 // the `[Levels]` of the `.parts` beside the `.glb`, the defaults when there is
-// none or it will not parse. One held path is loaded again on asking, its
-// stamp not asked.
+// none or it will not parse. A fresh file kept whose swaps differ from those of
+// a `.parts` that reads has them patched into a copy on scratch, written back
+// and handed on, not made again; with no `.parts` its own swaps stand. One held
+// path is loaded again on asking, its stamp not asked. The triangle counts of
+// a `.glb`'s levels are read for the LODs panel, nothing made or written.
 #include <game/models.h>
 
 #include <3d/emitter_component.h>
@@ -109,10 +112,11 @@ static bool make_levels_folders(const char *folder, const char *levels,
 }
 
 // The `[Levels]` of the `.parts` beside `folder`'s `.glb` `path` (0430 point
-// 5): the defaults, silently, when there is no such file, and when it will not
-// parse, the parts reader having said why. Scratch rewound.
+// 5), `*parted` whether that file was there and read: the defaults, silently,
+// when there is no such file, and when it will not parse, the parts reader
+// having said why. Scratch rewound.
 static voe_assets_levels levels_asked(const char *folder, const char *path,
-				      voe_base_arena *scratch)
+				      voe_base_arena *scratch, bool *parted)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	// A prepare of a path not ending `.glb` looks beside it whole.
@@ -125,51 +129,92 @@ static voe_assets_levels levels_asked(const char *folder, const char *path,
 	size_t size = 0;
 
 	VOE_BASE_ASSERT(folder != NULL, "asking levels in no folder");
-	VOE_BASE_ASSERT(name != NULL, "no room for a path");
+	VOE_BASE_ASSERT(name != NULL && parted != NULL, "no room or no parted");
 	memcpy(name, path, stem);
 	memcpy(name + stem, ".parts", sizeof(".parts"));
 	file = voe_platform_path_join(scratch, folder, name);
 	if (voe_platform_file_exists(file))
 		text = voe_platform_file_read(file, scratch, &size, NULL);
-	if (text != NULL &&
-	    voe_assets_parts_read((const char *)text, size, &parts, NULL))
+	*parted = text != NULL &&
+		  voe_assets_parts_read((const char *)text, size, &parts, NULL);
+	if (*parted)
 		levels = parts.levels;
 	voe_base_arena_rewind(scratch, mark);
 	return levels;
 }
 
+// `levels`, `folder`'s Cache/levels, joined with `path` and `.levels`.
+static const char *levels_file(const char *levels, const char *path,
+			       voe_base_arena *scratch)
+{
+	size_t length = strlen(path);
+	char *name = voe_base_arena_push(scratch, length + sizeof(".levels"));
+
+	VOE_BASE_ASSERT(name != NULL, "no room for a path");
+	memcpy(name, path, length);
+	memcpy(name + length, ".levels", sizeof(".levels"));
+	return voe_platform_path_join(scratch, levels, name);
+}
+
+// The fresh levels file `bytes`, whose swaps `read` holds, handed on as it is
+// unless `asked`'s swaps 1 to 5 differ (0436 point 7): then a copy on scratch
+// with them set, written back to `file`, a failed write a line on stderr.
+static const uint8_t *swaps_patched(const char *file, const char *path,
+				    const uint8_t *bytes, size_t size,
+				    const voe_3d_model_levels *read,
+				    const voe_assets_levels *asked,
+				    voe_base_arena *scratch)
+{
+	bool differ = false;
+	uint8_t *copy;
+
+	VOE_BASE_ASSERT(bytes != NULL && read != NULL && asked != NULL,
+			"patching no file");
+	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++)
+		differ = differ || read->swaps[k] != asked->swaps[k];
+	if (!differ)
+		return bytes;
+	copy = voe_base_arena_push(scratch, size);
+	VOE_BASE_ASSERT(copy != NULL, "no room for the levels");
+	memcpy(copy, bytes, size);
+	voe_3d_model_levels_swaps_set(copy, size, asked->swaps);
+	if (!voe_platform_file_write(file, copy, size, NULL))
+		VOE_BASE_ERROR("game", "could not write the levels of %s", path);
+	return copy;
+}
+
 // The levels file of `folder`'s `path`, whose bytes are `glb`, on scratch with
 // its count in `*size`: the one in the Cache when it fits `glb` and `remake`
-// is false, else made and written, `*made` then true. A failed write is a line
-// on stderr, and the levels just made are handed back still. NULL, `error`
-// set, only when `glb` will not parse.
+// is false, its swaps patched to a `.parts` that reads, else made and written,
+// `*made` then true. A failed write is a line on stderr, and the levels just
+// made or patched are handed back still. NULL, `error` set, only when `glb`
+// will not parse.
 static const uint8_t *levels_for(const char *folder, const char *path,
 				 const uint8_t *glb, size_t glb_size,
 				 bool remake, voe_base_arena *scratch,
 				 size_t *size, bool *made, voe_base_error *error)
 {
-	size_t length = strlen(path);
-	char *name = voe_base_arena_push(scratch, length + sizeof(".levels"));
 	const char *levels = voe_platform_path_join(scratch, folder,
 						    "Cache/levels");
-	const char *file;
+	const char *file = levels_file(levels, path, scratch);
 	const uint8_t *bytes = NULL;
 	voe_3d_model_levels read;
+	bool parted;
+	voe_assets_levels asked = levels_asked(folder, path, scratch, &parted);
 
 	VOE_BASE_ASSERT(glb != NULL && size != NULL, "no `.glb` or size");
 	VOE_BASE_ASSERT(made != NULL && error != NULL, "no made or error");
-	memcpy(name, path, length);
-	memcpy(name + length, ".levels", sizeof(".levels"));
-	file = voe_platform_path_join(scratch, levels, name);
 	*made = false;
 	if (!remake && voe_platform_file_exists(file))
 		bytes = voe_platform_file_read(file, scratch, size, NULL);
+	// A shipped game has no `.parts`: the file's own swaps stand.
 	if (bytes != NULL && voe_3d_model_levels_read(scratch, bytes, *size,
 						      glb, glb_size, &read))
-		return bytes;
-	bytes = voe_3d_model_levels_make(scratch, glb, glb_size,
-					 levels_asked(folder, path, scratch),
-					 size, error);
+		return parted ? swaps_patched(file, path, bytes, *size, &read,
+					      &asked, scratch) :
+				bytes;
+	bytes = voe_3d_model_levels_make(scratch, glb, glb_size, asked, size,
+					 error);
 	if (bytes == NULL)
 		return NULL;
 	*made = true;
@@ -177,6 +222,41 @@ static const uint8_t *levels_for(const char *folder, const char *path,
 	    !voe_platform_file_write(file, bytes, *size, NULL))
 		VOE_BASE_ERROR("game", "could not write the levels of %s", path);
 	return bytes;
+}
+
+uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
+					  voe_base_arena *scratch,
+					  uint32_t triangles[VOE_3D_MODEL_LEVELS],
+					  bool *own, bool *fresh)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+	const uint8_t *glb;
+	const uint8_t *levels = NULL;
+	const char *file;
+	size_t glb_size = 0;
+	size_t size = 0;
+	uint32_t count = 0;
+
+	VOE_BASE_ASSERT(folder != NULL && path != NULL && scratch != NULL,
+			"no folder, path or scratch");
+	VOE_BASE_ASSERT(triangles != NULL && own != NULL && fresh != NULL,
+			"no triangles, own or fresh");
+	*own = false;
+	*fresh = false;
+	glb = voe_platform_file_read(voe_platform_path_join(scratch, folder,
+							    path),
+				     scratch, &glb_size, NULL);
+	file = levels_file(voe_platform_path_join(scratch, folder,
+						  "Cache/levels"),
+			   path, scratch);
+	if (glb != NULL && voe_platform_file_exists(file))
+		levels = voe_platform_file_read(file, scratch, &size, NULL);
+	if (glb != NULL)
+		count = voe_3d_model_levels_triangles(scratch, glb, glb_size,
+						      levels, size, triangles,
+						      own, fresh);
+	voe_base_arena_rewind(scratch, mark);
+	return count;
 }
 
 bool voe_game_models_prepare(const char *folder, const char *path,

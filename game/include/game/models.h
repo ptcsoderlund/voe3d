@@ -20,9 +20,10 @@
 // `<folder>/Cache/levels/<path>.levels`, made when missing or stale, in update
 // and watch alike. The write is atomic, its folders made as needed; a failed
 // one is a line on stderr, the levels made still drawn. `Cache/` may go any
-// time. The file is made with the count, strength and swap of the `.parts`
-// beside the `.glb`, the defaults when none (0430 point 5, 0432 point 2), so a
-// shipped game, which has none, uses the files it ships.
+// time. The file is made with the count, strength, shares and swaps of the
+// `.parts` beside the `.glb`, the defaults when none (0430 point 5, 0436); a
+// fresh file whose swaps differ from the `.parts`' has them written in, not
+// made again (0435 point 4). A shipped game, with none, uses what it ships.
 //
 // PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the
 // distinct paths the call will read are counted first, then "Loading models"
@@ -123,6 +124,16 @@ voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 [[nodiscard]] bool voe_game_models_prepare(const char *folder, const char *path,
 					   voe_base_arena *scratch, bool remake,
 					   bool *made, voe_base_error *error);
+
+// Each level's triangles of `<folder>/<path>` into `triangles`, as
+// voe_3d_model_levels_triangles counts them with its levels file in the Cache
+// when there: how many levels it wrote, `*own` and `*fresh` as that call says;
+// 0 when the `.glb` will not read. Never makes or writes a file; scratch
+// rewound. For the editor's LODs panel (0435 point 4).
+uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
+					  voe_base_arena *scratch,
+					  uint32_t triangles[VOE_3D_MODEL_LEVELS],
+					  bool *own, bool *fresh);
 
 // A prepare rewrites only the levels file, which no stamp covers, so the
 // watch would keep drawing the levels it loaded (0431).

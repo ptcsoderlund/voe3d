@@ -9,5 +9,5 @@
 - `interface.c` — a 1280×720 surface is 240×135 mm; a run hands back a stand-in interface's answer and the asks it set, and a panel with a label and a button leaves element records. Skips without a graphics card.
 - `starting.c` — the starting frame, plain and with a splash in a wide and a tall window, read back, the wait around the shaders step leaving it prepared with its cache written and a refusing work's wait false, and the progress line. Skips without a graphics card.
 - `models.c` — the model loader on real files: models, pictures, water, progress, landscapes, materials, layers and parts; skips without a graphics card.
-- `models_levels.c` — a `.glb`'s levels file and the `.parts` count and swap it is made with, prepared and reloaded; skips without a graphics card.
+- `models_levels.c` — a `.glb`'s levels file and the `.parts` count and swaps it is made with, prepared and reloaded, its swaps patched without a remake, and its triangle counts per level; skips without a graphics card.
 - `glb_build.h` — the hand-built one-triangle `.glb` and the world helpers both model tests include.
