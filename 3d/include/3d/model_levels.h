@@ -42,13 +42,9 @@
 //         its index count | that many indices into level 0's baked part
 //
 // STALE IS NEVER AN ERROR (0426 point 1): a file whose magic, version or hash
-// differs (versions 1 to 3 predate the strength, the swap and six levels, 0430
-// point 7, 0432 point 2; 4 changes no field, only remakes the files made when
-// the default count was four, 0433), a count past its limit (levels, parts, whole triangles), an
-// error not finite and at least nought, a swap not finite and above nought,
-// bytes cut short or left over: _read says false and the file is made again.
-// An index is not checked against its part's vertices, which this file does not
-// know: the hash ties it to its `.glb`, and the store holds the vertex counts.
+// differs, a count past its limit (levels, parts, whole triangles), an error
+// not finite and at least nought, a swap not finite and above nought, bytes
+// cut short or left over: _read says false and the file is made again.
 //
 // THE CHOICE HAS NO STATE (0425 point 3), so every asker gets one answer. `s` =
 // world radius × |P[1][1]| ÷ the centre's clip w, the world radius the model's
@@ -98,17 +94,22 @@ uint64_t voe_3d_model_levels_hash(const uint8_t *bytes, size_t size);
 
 // Parses `glb`, bakes level 0, makes at most `levels.count` levels in all, as
 // hard as `levels.strength`, and writes the file's bytes with `levels.swap`'s
-// multiplier, returned with their count in `*size`, all on `arena`. The bytes are the return and not an
-// out-parameter, since rule 6 allows no `**`. NULL with `error` set as the
-// store's load would fail: MALFORMED or UNSUPPORTED as the reader says,
-// UNSUPPORTED or REFUSED as the bake says.
+// multiplier, returned with their count in `*size`, all on `arena`. The bytes
+// are the return and not an out-parameter, since rule 6 allows no `**`. NULL
+// with `error` set as the store's load would fail: MALFORMED or UNSUPPORTED as
+// the reader says, UNSUPPORTED or REFUSED as the bake says.
 [[nodiscard]] const uint8_t *
 voe_3d_model_levels_make(voe_base_arena *arena, const uint8_t *glb,
 			 size_t glb_size, voe_assets_levels levels, size_t *size,
 			 voe_base_error *error);
 
 // Reads a levels file made for `glb` into `out`, its indices copied onto
-// `arena`. False when the file is stale, `out` then not to be read.
+// `arena`. False when the file is stale, `out` then not to be read. Versions
+// 1 to 3 predate the strength, the swap and six levels (0430 point 7, 0432
+// point 2); 4 changes no field, only remakes the files made when the default
+// count was four (0433). An index is not checked against its part's vertices,
+// which this file does not know: the hash ties it to its `.glb`, and the store
+// holds the vertex counts.
 [[nodiscard]] bool voe_3d_model_levels_read(voe_base_arena *arena,
 					    const uint8_t *bytes, size_t size,
 					    const uint8_t *glb, size_t glb_size,
