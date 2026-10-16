@@ -19,8 +19,9 @@
 // A `.glb` HAS LEVELS (0425 points 3, 4, 6; 0426; 0432): own levels baked per
 // level and joined to level 0's parts by material, the bound 2^-k; made ones,
 // from a levels file, uploaded compacted to the vertices they use, the bound
-// 0.002 × radius ÷ error (infinite for error nought); each ÷ the file's swap,
-// 1 with no fresh file, then made non-increasing; freed with the parts.
+// 0.002 × radius ÷ error (infinite for error nought); each ÷ the level's swap
+// in the file (0436), 1 with no fresh file, then made non-increasing; freed
+// with the parts.
 //
 // A FAILED ENTRY IS KEPT at its stamp, `loaded` false and no parts, so a broken
 // file asked for each frame is not parsed each frame. A PATH LOADED AGAIN
@@ -121,7 +122,7 @@ typedef struct {
 
 // One level of a model: the geometry each level-0 part draws at it, a zeroed id
 // (generation 0 is never handed out) where the level lacks the part, and the
-// screen size `s` it is drawn under (0425 point 3), ÷ the file's swap (0432).
+// screen size `s` it is drawn under (0425 point 3), ÷ its swap (0436).
 typedef struct {
 	voe_render_geometry geometries[VOE_3D_MODEL_PARTS];
 	float bound;

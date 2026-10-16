@@ -2,9 +2,9 @@
 // graphics card:
 //
 // 1. A 64 × 32 sphere's levels made with the defaults, then read against the
-//    same `.glb`: at least 3 levels, each level's triangles at most three
-//    quarters of the one before (level 0's being the sphere's), errors above
-//    nought and non-decreasing.
+//    same `.glb`: at least 3 levels, each level's triangles fewer than the one
+//    before (level 0's being the sphere's), errors above nought and
+//    non-decreasing.
 // 2. That file read against the `.glb` with one byte changed, cut by 4 bytes,
 //    and with its version changed: each false, stale.
 // 3. The sphere with a second root "Ball_LOD1": its file reads `own`, one level.
@@ -12,9 +12,11 @@
 // 5. Making levels of bytes that are no `.glb`: NULL, MALFORMED.
 // 6. The sphere made with count 2: at most 2 levels read; with count 1:
 //    exactly 1.
-// 7. The sphere made strong: level 1 has fewer triangles than made medium.
-// 8. The defaults' file with its version field set to 1, to 2 and to 3: read
-//    false, stale.
+// 7. The sphere made with shares 80 and 10 for levels 1 and 2, count 3: level
+//    1's triangles within 10 % of 80 % of level 0's, level 2's at most 15 % of
+//    level 0's.
+// 8. The defaults' file with its version field set to 1, to 2, to 3 and to 4:
+//    read false, stale.
 // 9. A view's level of a hand-filled entry (radius 1, bounds infinite, 0.2,
 //    0.05) on the −z axis of a 60° projection, the distances from its P[1][1]:
 //    0 with the eye inside, 0 at 2 m, 1 where s is 0.1, 2 where s is 0.01, and
@@ -26,8 +28,11 @@
 //     showing 0.5 (within 0.05).
 // 13. The eye inside the sphere: level 0, whole.
 // 14. At each of 9's distances, voe_3d_model_level is the choice's level.
-// 15. The sphere made at SWAP_FAR: read gives `swap` 2; at the defaults, 1.
+// 15. The sphere made with swaps 1, 2, 0.5, 1, 1, 1: read gives them back; at
+//     the defaults, all 1.
 // 16. 1's sphere, made with VOE_ASSETS_LEVELS_DEFAULT: `level_count` above 4.
+// 17. The defaults' file with swap 3 on level 2 set by _swaps_set: still read,
+//     `swaps[2]` 3, its indices and errors unchanged.
 #include <3d/model_levels.h>
 #include <3d/projection.h>
 
@@ -46,6 +51,36 @@
 
 #define RINGS 32
 #define SEGMENTS 64
+#define TRIANGLES (SEGMENTS * (RINGS - 1) * 2)
+
+// 17 on the defaults' `file`, a copy of it patched.
+static void swaps_patched(voe_base_arena *arena, const uint8_t *file,
+			  size_t size, const uint8_t *glb, size_t glb_size)
+{
+	float swaps[VOE_3D_MODEL_LEVELS] = { 1, 1, 3, 1, 1, 1 };
+	uint8_t *patched = voe_base_arena_push(arena, size);
+	voe_3d_model_levels before = {};
+	voe_3d_model_levels after = {};
+
+	memcpy(patched, file, size);
+	voe_3d_model_levels_swaps_set(patched, size, swaps);
+	VOE_TEST_CHECK(voe_3d_model_levels_read(arena, file, size, glb, glb_size,
+						&before));
+	VOE_TEST_CHECK(voe_3d_model_levels_read(arena, patched, size, glb,
+						glb_size, &after));
+	VOE_TEST_CHECK(after.swaps[2] == 3.0f);
+	VOE_TEST_CHECK_INT(after.level_count, before.level_count);
+	VOE_TEST_CHECK_INT(after.part_count, before.part_count);
+	for (uint32_t k = 1; k < before.level_count; k++) {
+		const uint32_t count = before.index_counts[k][0];
+
+		VOE_TEST_CHECK(after.errors[k] == before.errors[k]);
+		VOE_TEST_CHECK_INT(after.index_counts[k][0], count);
+		VOE_TEST_CHECK(after.index_counts[k][0] != count ||
+			       memcmp(after.indices[k][0], before.indices[k][0],
+				      (size_t)count * sizeof(uint32_t)) == 0);
+	}
+}
 
 static void sphere_levels(voe_base_arena *arena)
 {
@@ -56,10 +91,7 @@ static void sphere_levels(voe_base_arena *arena)
 	const uint8_t *file = voe_3d_model_levels_make(
 		arena, glb, glb_size, VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
 	voe_3d_model_levels levels = {};
-	uint64_t previous = SEGMENTS * (RINGS - 1) * 2;
-	const uint32_t version_1 = 1;
-	const uint32_t version_2 = 2;
-	const uint32_t version_3 = 3;
+	uint64_t previous = TRIANGLES;
 	uint8_t *changed;
 
 	VOE_TEST_CHECK(file != NULL);
@@ -75,7 +107,7 @@ static void sphere_levels(voe_base_arena *arena)
 	for (uint32_t k = 1; k < levels.level_count; k++) {
 		const uint64_t triangles = levels.index_counts[k][0] / 3;
 
-		VOE_TEST_CHECK(triangles * 4 <= previous * 3);
+		VOE_TEST_CHECK(triangles < previous);
 		VOE_TEST_CHECK(levels.errors[k] > 0.0f);
 		VOE_TEST_CHECK(levels.errors[k] >= levels.errors[k - 1]);
 		previous = triangles;
@@ -96,17 +128,15 @@ static void sphere_levels(voe_base_arena *arena)
 						 glb_size, &levels));
 
 	// 8: files the earlier simplifier made, before and after the strength,
-	// and those made when the default was four levels.
+	// those made when the default was four levels, and those with one swap.
 	memcpy(changed, file, size);
-	memcpy(changed + 4, &version_1, sizeof(version_1));
-	VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size, glb,
-						 glb_size, &levels));
-	memcpy(changed + 4, &version_2, sizeof(version_2));
-	VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size, glb,
-						 glb_size, &levels));
-	memcpy(changed + 4, &version_3, sizeof(version_3));
-	VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size, glb,
-						 glb_size, &levels));
+	for (uint32_t version = 1; version <= 4; version++) {
+		memcpy(changed + 4, &version, sizeof(version));
+		VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size,
+							 glb, glb_size, &levels));
+	}
+
+	swaps_patched(arena, file, size, glb, glb_size);
 }
 
 // The sphere's levels made as `asked` and read back into `out`; false when
@@ -127,46 +157,38 @@ static bool sphere_made(voe_base_arena *arena, voe_assets_levels asked,
 
 static void levels_asked(voe_base_arena *arena)
 {
+	const float swaps[VOE_3D_MODEL_LEVELS] = { 1, 2, 0.5f, 1, 1, 1 };
 	voe_3d_model_levels levels = {};
-	voe_3d_model_levels medium = {};
+	voe_assets_levels asked = VOE_ASSETS_LEVELS_DEFAULT;
 
 	// 6
-	VOE_TEST_CHECK(sphere_made(arena,
-				   (voe_assets_levels){
-					   2, VOE_ASSETS_LEVELS_MEDIUM,
-					   VOE_ASSETS_LEVELS_SWAP_NORMAL },
-				   &levels));
+	asked.count = 2;
+	VOE_TEST_CHECK(sphere_made(arena, asked, &levels));
 	VOE_TEST_CHECK(levels.level_count <= 2);
-	VOE_TEST_CHECK(sphere_made(arena,
-				   (voe_assets_levels){
-					   1, VOE_ASSETS_LEVELS_MEDIUM,
-					   VOE_ASSETS_LEVELS_SWAP_NORMAL },
-				   &levels));
+	asked.count = 1;
+	VOE_TEST_CHECK(sphere_made(arena, asked, &levels));
 	VOE_TEST_CHECK_INT(levels.level_count, 1);
 
 	// 7
-	VOE_TEST_CHECK(sphere_made(arena,
-				   (voe_assets_levels){
-					   2, VOE_ASSETS_LEVELS_MEDIUM,
-					   VOE_ASSETS_LEVELS_SWAP_NORMAL },
-				   &medium));
-	VOE_TEST_CHECK(sphere_made(arena,
-				   (voe_assets_levels){
-					   2, VOE_ASSETS_LEVELS_STRONG,
-					   VOE_ASSETS_LEVELS_SWAP_NORMAL },
-				   &levels));
-	VOE_TEST_CHECK(medium.level_count == 2 && levels.level_count == 2);
-	VOE_TEST_CHECK(levels.index_counts[1][0] < medium.index_counts[1][0]);
+	asked = VOE_ASSETS_LEVELS_DEFAULT;
+	asked.count = 3;
+	asked.shares[1] = 80;
+	asked.shares[2] = 10;
+	VOE_TEST_CHECK(sphere_made(arena, asked, &levels));
+	VOE_TEST_CHECK_INT(levels.level_count, 3);
+	VOE_TEST_CHECK(fabs(levels.index_counts[1][0] / 3 - 0.8 * TRIANGLES) <=
+		       0.1 * 0.8 * TRIANGLES);
+	VOE_TEST_CHECK(levels.index_counts[2][0] / 3 <= 0.15 * TRIANGLES);
 
 	// 15
-	VOE_TEST_CHECK(sphere_made(arena,
-				   (voe_assets_levels){
-					   4, VOE_ASSETS_LEVELS_MEDIUM,
-					   VOE_ASSETS_LEVELS_SWAP_FAR },
-				   &levels));
-	VOE_TEST_CHECK(levels.swap == 2.0f);
+	asked = VOE_ASSETS_LEVELS_DEFAULT;
+	memcpy(asked.swaps, swaps, sizeof(swaps));
+	VOE_TEST_CHECK(sphere_made(arena, asked, &levels));
+	for (uint32_t k = 0; k < VOE_3D_MODEL_LEVELS; k++)
+		VOE_TEST_CHECK(levels.swaps[k] == swaps[k]);
 	VOE_TEST_CHECK(sphere_made(arena, VOE_ASSETS_LEVELS_DEFAULT, &levels));
-	VOE_TEST_CHECK(levels.swap == 1.0f);
+	for (uint32_t k = 0; k < VOE_3D_MODEL_LEVELS; k++)
+		VOE_TEST_CHECK(levels.swaps[k] == 1.0f);
 }
 
 static void own_levels(voe_base_arena *arena)

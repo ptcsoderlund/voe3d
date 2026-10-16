@@ -18,26 +18,25 @@
 //     }
 //     voe_base_arena_rewind(arena, mark);  // the caller's, as everything here
 //
-// THE LEVELS (0425 point 1, 0430 points 2 and 3). Level 0 is the file as baked;
-// `levels.count` (1 to 6) is how many there are at most, level 0 included. Each
-// part is simplified on its own and always from level 0, until it reaches its
-// target or a collapse would cost more than the strength's share of the model's
+// THE LEVELS (0425 point 1, 0430 point 3, 0436 point 5). Level 0 is the file as
+// baked; `levels.count` (1 to 6) is how many there are at most, level 0
+// included. Each part is simplified on its own and always from level 0, aiming
+// at its triangles × `levels.shares[k]` ÷ 100 rounded down, until it gets there
+// or a collapse would cost more than the strength's share of the model's
 // bounding radius (the farthest baked vertex from its box's centre). Normals
-// within the strength's angle share a side. Gentle: 0°, each level aiming at
-// half the one before, a quarter of the radius; medium: 60°, half, a quarter;
-// strong: 180°, a quarter, half. A level's error is the largest of its parts',
-// in model metres. A level holding more than three quarters of the previous
-// level's triangles ends the list: it and the ones after are dropped. Each
-// level swaps in at `levels.swap`'s ½, 1, 2 or 4 times the distance its error
-// allows (0432 point 1).
+// within the strength's angle share a side: gentle 0°, a quarter of the radius;
+// medium 60°, a quarter; strong 180°, a half. A level's error is the largest of
+// its parts', in model metres. A level not below the one before in triangles
+// ends the list: it and the ones after are dropped. Level k swaps in at its own
+// `levels.swaps[k]` times the distance its error allows (0436 point 4).
 //
 // A FILE WITH ITS OWN LEVELS IS NEVER SIMPLIFIED (0425 point 4): a node named
 // `_LOD1` to `_LOD5` anywhere makes a file of one level, `own` set, no parts.
 //
 // THE LAYOUT, native-endian, every field a uint32_t but the hash and floats:
 //
-//     magic "VOEL" | version 4 | FNV-1a 64 of the .glb (uint64_t)
-//     own | level count | part count | swap's distance multiplier (float)
+//     magic "VOEL" | version 5 | FNV-1a 64 of the .glb (uint64_t)
+//     own | level count | part count | swaps of levels 1 to 5 (5 floats)
 //     per made level k >= 1: its error (float), then per part
 //         its index count | that many indices into level 0's baked part
 //
@@ -80,9 +79,9 @@ typedef struct {
 	uint32_t part_count;
 	// Each level's error in model metres; level 0's nought.
 	float errors[VOE_3D_MODEL_LEVELS];
-	// How many times the distance its error allows each level after level
-	// 0 swaps in at: 0.5, 1, 2 or 4 (0432 point 1); own files carry it too.
-	float swap;
+	// How many times the distance its error allows level k swaps in at
+	// (0436 point 4); `swaps[0]` 1; own files carry them too.
+	float swaps[VOE_3D_MODEL_LEVELS];
 	// Level k's indices into level 0's part p, counted from the part's first
 	// vertex; level 0's are unused, the bake's own indices being level 0.
 	uint32_t *indices[VOE_3D_MODEL_LEVELS][VOE_3D_MODEL_PARTS];
@@ -92,9 +91,10 @@ typedef struct {
 // FNV-1a 64 of `size` bytes.
 uint64_t voe_3d_model_levels_hash(const uint8_t *bytes, size_t size);
 
-// Parses `glb`, bakes level 0, makes at most `levels.count` levels in all, as
-// hard as `levels.strength`, and writes the file's bytes with `levels.swap`'s
-// multiplier, returned with their count in `*size`, all on `arena`. The bytes
+// Parses `glb`, bakes level 0, makes at most `levels.count` levels in all, each
+// cut to its `levels.shares[k]` as hard as `levels.strength` allows, and writes
+// the file's bytes with `levels.swaps[1]` to `[5]`, each asserted within
+// VOE_ASSETS_LEVELS_SWAP_LEAST to _MOST, returned with their count in `*size`, all on `arena`. The bytes
 // are the return and not an out-parameter, since rule 6 allows no `**`. NULL
 // with `error` set as the store's load would fail: MALFORMED or UNSUPPORTED as
 // the reader says, UNSUPPORTED or REFUSED as the bake says.
@@ -106,14 +106,22 @@ voe_3d_model_levels_make(voe_base_arena *arena, const uint8_t *glb,
 // Reads a levels file made for `glb` into `out`, its indices copied onto
 // `arena`. False when the file is stale, `out` then not to be read. Versions
 // 1 to 3 predate the strength, the swap and six levels (0430 point 7, 0432
-// point 2); 4 changes no field, only remakes the files made when the default
-// count was four (0433). An index is not checked against its part's vertices,
+// point 2); 4 remade the files made when the default count was four (0433)
+// and had one swap (0436). An index is not checked against its part's vertices,
 // which this file does not know: the hash ties it to its `.glb`, and the store
 // holds the vertex counts.
 [[nodiscard]] bool voe_3d_model_levels_read(voe_base_arena *arena,
 					    const uint8_t *bytes, size_t size,
 					    const uint8_t *glb, size_t glb_size,
 					    voe_3d_model_levels *out);
+
+// Writes `swaps[1]` to `swaps[5]` into the head of the levels file `bytes`, of
+// `size` bytes, in place; `swaps[0]` is not read. The file stays fresh for its
+// `.glb`, which is how a change of swaps alone avoids a remake (0435 point 4).
+// Asserts the magic, version 5, room for the head, and each swap within
+// VOE_ASSETS_LEVELS_SWAP_LEAST to _MOST.
+void voe_3d_model_levels_swaps_set(uint8_t *bytes, size_t size,
+				   const float swaps[VOE_3D_MODEL_LEVELS]);
 
 // A view's choice of a model's level.
 typedef struct {

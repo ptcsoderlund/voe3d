@@ -5,13 +5,14 @@
 // non-increasing at load, with its share of the pixels in its band.
 //
 // A LEVEL IS MADE WHOLE BEFORE IT IS JUDGED: every part simplified, its
-// triangles summed, and only then held against three quarters of the level
-// before. A dropped level's indices are given back to the arena at once.
+// triangles summed, and only then held against the level before: one not below
+// it in triangles is dropped with the ones after (0436 point 5). A dropped
+// level's indices are given back to the arena at once.
 //
-// A PART'S TARGET IS ITS OWN TRIANGLES SHIFTED, level k's by k times the
-// strength's shift (1 a half per level, 2 a quarter), so every part keeps its
-// share of the model and a small part may reach nought triangles, which draws nothing at
-// that level; the radius bound usually stops it first.
+// A PART'S TARGET IS ITS OWN TRIANGLES × THE LEVEL'S SHARE ÷ 100, rounded down,
+// so every part keeps its share of the model and a small part may reach nought
+// triangles, which draws nothing at that level; the radius bound usually stops
+// it first.
 //
 // THE FILE IS WRITTEN AND READ WITH memcpy at a byte offset, since nothing in it
 // is aligned past four bytes and the hash sits at eight: native-endian, as 0426
@@ -28,37 +29,27 @@
 #include <string.h>
 
 #define MAGIC "VOEL"
-#define VERSION 4u
-// Magic, version, hash, own, level count, part count, swap.
-#define HEAD_BYTES (4 + 4 + 8 + 4 + 4 + 4 + 4)
+#define VERSION 5u
+// Magic, version, hash, own, level count, part count; then the swaps of levels
+// 1 to 5 at this fixed offset, so _swaps_set patches them in place.
+#define SWAPS_AT (4 + 4 + 8 + 4 + 4 + 4)
+#define SWAPS_BYTES ((VOE_3D_MODEL_LEVELS - 1) * sizeof(float))
+#define HEAD_BYTES (SWAPS_AT + SWAPS_BYTES)
 
 static_assert(VOE_ASSETS_LEVELS == VOE_3D_MODEL_LEVELS,
 	      "a parts file's level count is the store's");
 
-// How hard each level cuts, by strength (0430 point 2): the normals' angle
-// that still shares a side, the target's shift per level, and the radius
-// divided by this is the most a collapse may cost.
+// What strength sets now that each level's share sets its cut (0436 point 5):
+// the normals' angle that still shares a side, and the radius divided by this
+// is the most a collapse may cost.
 static const struct strength {
 	float degrees;
-	uint32_t shift;
 	float radius_divisor;
 } STRENGTHS[] = {
-	[VOE_ASSETS_LEVELS_GENTLE] = { 0.0f, 1, 4.0f },
-	[VOE_ASSETS_LEVELS_MEDIUM] = { 60.0f, 1, 4.0f },
-	[VOE_ASSETS_LEVELS_STRONG] = { 180.0f, 2, 2.0f },
+	[VOE_ASSETS_LEVELS_GENTLE] = { 0.0f, 4.0f },
+	[VOE_ASSETS_LEVELS_MEDIUM] = { 60.0f, 4.0f },
+	[VOE_ASSETS_LEVELS_STRONG] = { 180.0f, 2.0f },
 };
-
-// How many times the distance its error allows a level swaps in at, by swap
-// (0432 point 1).
-static const float SWAPS[] = {
-	[VOE_ASSETS_LEVELS_SWAP_NEAR] = 0.5f,
-	[VOE_ASSETS_LEVELS_SWAP_NORMAL] = 1.0f,
-	[VOE_ASSETS_LEVELS_SWAP_FAR] = 2.0f,
-	[VOE_ASSETS_LEVELS_SWAP_FARTHER] = 4.0f,
-};
-static_assert(sizeof(SWAPS) / sizeof(SWAPS[0]) ==
-		      VOE_ASSETS_LEVELS_SWAP_FARTHER + 1,
-	      "a swap without its multiplier");
 
 struct writer {
 	uint8_t *bytes;
@@ -113,29 +104,34 @@ static float radius_of(const voe_3d_model_bake *bake)
 	return most;
 }
 
-// Level k of every part, from level 0, into `levels`; false when it holds more
-// than three quarters of `previous` triangles, its indices then given back.
+// Level k of every part, from level 0, each part aiming at `share` percent of
+// its triangles, into `levels`; false when it holds no fewer than `previous`
+// triangles, its indices then given back.
 static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
-			   uint32_t k, const struct strength *strength,
-			   float max_error, uint64_t *previous,
-			   voe_3d_model_levels *levels)
+			   uint32_t k, float share,
+			   const struct strength *strength, float max_error,
+			   uint64_t *previous, voe_3d_model_levels *levels)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
-	const uint32_t shift = k * strength->shift;
 	uint64_t triangles = 0;
 	float error = 0.0f;
 
-	VOE_BASE_ASSERT(shift < 32, "a level shifted past its triangles");
+	VOE_BASE_ASSERT(share >= 0.0f && share <= 100.0f,
+			"a level's share out of range");
 	for (uint32_t p = 0; p < bake->part_count; p++) {
 		const voe_3d_model_bake_part *part = &bake->parts[p];
+		const uint32_t target =
+			(uint32_t)((double)(part->index_count / 3) * share /
+				   100.0) *
+			3;
 		uint32_t *out = voe_base_arena_push(
 			arena, (size_t)part->index_count * sizeof(*out));
 		float part_error = 0.0f;
 		uint32_t count = voe_3d_simplify(
 			arena, bake->vertices + part->first_vertex,
 			part->vertex_count, bake->indices + part->first_index,
-			part->index_count, (part->index_count / 3 >> shift) * 3,
-			max_error, strength->degrees, out, &part_error);
+			part->index_count, target, max_error, strength->degrees,
+			out, &part_error);
 
 		levels->indices[k][p] = out;
 		levels->index_counts[k][p] = count;
@@ -143,7 +139,7 @@ static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
 		error = fmaxf(error, part_error);
 	}
 
-	if (triangles * 4 > *previous * 3) {
+	if (triangles >= *previous) {
 		memset(levels->indices[k], 0, sizeof(levels->indices[k]));
 		memset(levels->index_counts[k], 0,
 		       sizeof(levels->index_counts[k]));
@@ -166,8 +162,8 @@ static void simplify_levels(voe_base_arena *arena,
 
 	levels->part_count = bake->part_count;
 	for (uint32_t k = 1; k < asked.count && previous > 0; k++) {
-		if (!simplify_level(arena, bake, k, strength, max_error,
-				    &previous, levels))
+		if (!simplify_level(arena, bake, k, asked.shares[k], strength,
+				    max_error, &previous, levels))
 			break;
 		levels->level_count = k + 1;
 	}
@@ -205,7 +201,7 @@ static const uint8_t *write_file(voe_base_arena *arena,
 	put_u32(&writer, levels->own ? 1 : 0);
 	put_u32(&writer, levels->level_count);
 	put_u32(&writer, levels->part_count);
-	put(&writer, &levels->swap, sizeof(float));
+	put(&writer, &levels->swaps[1], SWAPS_BYTES);
 	for (uint32_t k = 1; k < levels->level_count; k++) {
 		put(&writer, &levels->errors[k], sizeof(float));
 		for (uint32_t p = 0; p < levels->part_count; p++) {
@@ -238,10 +234,13 @@ const uint8_t *voe_3d_model_levels_make(voe_base_arena *arena,
 			"a level count out of range");
 	VOE_BASE_ASSERT(levels.strength <= VOE_ASSETS_LEVELS_STRONG,
 			"a level strength out of range");
-	VOE_BASE_ASSERT(levels.swap <= VOE_ASSETS_LEVELS_SWAP_FARTHER,
-			"a level swap out of range");
 
-	made.swap = SWAPS[levels.swap];
+	memcpy(made.swaps, levels.swaps, sizeof(made.swaps));
+	made.swaps[0] = 1.0f;
+	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++)
+		VOE_BASE_ASSERT(made.swaps[k] >= VOE_ASSETS_LEVELS_SWAP_LEAST &&
+					made.swaps[k] <= VOE_ASSETS_LEVELS_SWAP_MOST,
+				"a level swap out of range");
 	if (!voe_assets_model_read_glb(glb, glb_size, arena, &model, error))
 		return NULL;
 	if (voe_3d_model_bake_levels(&model) > 1) {
@@ -271,7 +270,7 @@ static bool take_u32(struct reader *reader, uint32_t *value)
 	return take(reader, value, sizeof(*value));
 }
 
-// The magic, version, hash, counts and swap, each within its limit.
+// The magic, version, hash, counts and swaps, each within its limit.
 static bool take_head(struct reader *reader, uint64_t glb_hash,
 		      voe_3d_model_levels *out)
 {
@@ -287,11 +286,15 @@ static bool take_head(struct reader *reader, uint64_t glb_hash,
 	    !take_u32(reader, &own) || own > 1 ||
 	    !take_u32(reader, &out->level_count) ||
 	    !take_u32(reader, &out->part_count) ||
-	    !take(reader, &out->swap, sizeof(float)))
+	    !take(reader, &out->swaps[1], SWAPS_BYTES))
 		return false;
 	out->own = own == 1;
-	return isfinite(out->swap) && out->swap > 0.0f &&
-	       out->level_count >= 1 &&
+	out->swaps[0] = 1.0f;
+	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++) {
+		if (!isfinite(out->swaps[k]) || out->swaps[k] <= 0.0f)
+			return false;
+	}
+	return out->level_count >= 1 &&
 	       out->level_count <= VOE_3D_MODEL_LEVELS &&
 	       out->part_count <= VOE_3D_MODEL_PARTS &&
 	       (!out->own || (out->level_count == 1 && out->part_count == 0));
@@ -332,6 +335,24 @@ bool voe_3d_model_levels_read(voe_base_arena *arena, const uint8_t *bytes,
 		}
 	}
 	return reader.at == reader.size;
+}
+
+void voe_3d_model_levels_swaps_set(uint8_t *bytes, size_t size,
+				   const float swaps[VOE_3D_MODEL_LEVELS])
+{
+	uint32_t version;
+
+	VOE_BASE_ASSERT(bytes != NULL && swaps != NULL,
+			"setting the swaps of nothing");
+	VOE_BASE_ASSERT(size >= HEAD_BYTES, "a levels file shorter than its head");
+	memcpy(&version, bytes + 4, sizeof(version));
+	VOE_BASE_ASSERT(memcmp(bytes, MAGIC, 4) == 0 && version == VERSION,
+			"setting the swaps of no version 5 levels file");
+	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++)
+		VOE_BASE_ASSERT(swaps[k] >= VOE_ASSETS_LEVELS_SWAP_LEAST &&
+					swaps[k] <= VOE_ASSETS_LEVELS_SWAP_MOST,
+				"a level swap out of range");
+	memcpy(bytes + SWAPS_AT, &swaps[1], SWAPS_BYTES);
 }
 
 // Level k's share of the pixels at `s`, from its band (0432 point 3): the
