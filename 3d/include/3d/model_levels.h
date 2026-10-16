@@ -22,10 +22,9 @@
 // baked; `levels.count` (1 to 6) is how many there are at most, level 0
 // included. Each part is simplified on its own and always from level 0, aiming
 // at its triangles × `levels.shares[k]` ÷ 100 rounded down, until it gets there
-// or a collapse would cost more than the strength's share of the model's
-// bounding radius (the farthest baked vertex from its box's centre). Normals
-// within the strength's angle share a side: gentle 0°, a quarter of the radius;
-// medium 60°, a quarter; strong 180°, a half. A level's error is the largest of
+// or a collapse would cost more than a quarter of the model's bounding radius
+// (the farthest baked vertex from its box's centre). Normals within 60° share a
+// side. Both are fixed (0437). A level's error is the largest of
 // its parts', in model metres. A level not below the one before in triangles
 // ends the list: it and the ones after are dropped. Level k swaps in at its own
 // `levels.swaps[k]` times the distance its error allows (0436 point 4).
@@ -94,8 +93,7 @@ typedef struct {
 uint64_t voe_3d_model_levels_hash(const uint8_t *bytes, size_t size);
 
 // Parses `glb`, bakes level 0, makes at most `levels.count` levels in all, each
-// cut to its `levels.shares[k]` as hard as `levels.strength` allows, and writes
-// the file's bytes with `levels.swaps[1]` to `[5]`, each asserted within
+// cut to its `levels.shares[k]`, and writes the file's bytes with `levels.swaps[1]` to `[5]`, each asserted within
 // VOE_ASSETS_LEVELS_SWAP_LEAST to _MOST, returned with their count in `*size`, all on `arena`. The bytes
 // are the return and not an out-parameter, since rule 6 allows no `**`. NULL
 // with `error` set as the store's load would fail: MALFORMED or UNSUPPORTED as

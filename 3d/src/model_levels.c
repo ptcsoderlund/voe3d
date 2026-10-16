@@ -46,17 +46,10 @@
 static_assert(VOE_ASSETS_LEVELS == VOE_3D_MODEL_LEVELS,
 	      "a parts file's level count is the store's");
 
-// What strength sets now that each level's share sets its cut (0436 point 5):
-// the normals' angle that still shares a side, and the radius divided by this
-// is the most a collapse may cost.
-static const struct strength {
-	float degrees;
-	float radius_divisor;
-} STRENGTHS[] = {
-	[VOE_ASSETS_LEVELS_GENTLE] = { 0.0f, 4.0f },
-	[VOE_ASSETS_LEVELS_MEDIUM] = { 60.0f, 4.0f },
-	[VOE_ASSETS_LEVELS_STRONG] = { 180.0f, 2.0f },
-};
+// Fixed, not a setting (0437 point 2): normals within this angle share a side,
+// and the bounding radius divided by this is the most a collapse may cost.
+#define SHARED_SIDE_DEGREES 60.0f
+#define COLLAPSE_RADIUS_DIVISOR 4.0f
 
 struct writer {
 	uint8_t *bytes;
@@ -115,8 +108,7 @@ static float radius_of(const voe_3d_model_bake *bake)
 // its triangles, into `levels`; false when it holds no fewer than `previous`
 // triangles, its indices then given back.
 static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
-			   uint32_t k, float share,
-			   const struct strength *strength, float max_error,
+			   uint32_t k, float share, float max_error,
 			   uint64_t *previous, voe_3d_model_levels *levels)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
@@ -137,8 +129,8 @@ static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
 		uint32_t count = voe_3d_simplify(
 			arena, bake->vertices + part->first_vertex,
 			part->vertex_count, bake->indices + part->first_index,
-			part->index_count, target, max_error, strength->degrees,
-			out, &part_error);
+			part->index_count, target, max_error,
+			SHARED_SIDE_DEGREES, out, &part_error);
 
 		levels->indices[k][p] = out;
 		levels->index_counts[k][p] = count;
@@ -163,14 +155,13 @@ static void simplify_levels(voe_base_arena *arena,
 			    voe_assets_levels asked,
 			    voe_3d_model_levels *levels)
 {
-	const struct strength *strength = &STRENGTHS[asked.strength];
-	const float max_error = radius_of(bake) / strength->radius_divisor;
+	const float max_error = radius_of(bake) / COLLAPSE_RADIUS_DIVISOR;
 	uint64_t previous = bake->index_count / 3;
 
 	levels->part_count = bake->part_count;
 	for (uint32_t k = 1; k < asked.count && previous > 0; k++) {
-		if (!simplify_level(arena, bake, k, asked.shares[k], strength,
-				    max_error, &previous, levels))
+		if (!simplify_level(arena, bake, k, asked.shares[k], max_error,
+				    &previous, levels))
 			break;
 		levels->level_count = k + 1;
 	}
@@ -272,8 +263,6 @@ const uint8_t *voe_3d_model_levels_make(voe_base_arena *arena,
 	VOE_BASE_ASSERT(glb != NULL && size != NULL, "making levels of nothing");
 	VOE_BASE_ASSERT(levels.count >= 1 && levels.count <= VOE_ASSETS_LEVELS,
 			"a level count out of range");
-	VOE_BASE_ASSERT(levels.strength <= VOE_ASSETS_LEVELS_STRONG,
-			"a level strength out of range");
 
 	memcpy(made.swaps, levels.swaps, sizeof(made.swaps));
 	made.swaps[0] = 1.0f;
