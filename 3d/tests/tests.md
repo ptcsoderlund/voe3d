@@ -87,6 +87,11 @@ again, or to find where a claim that has started failing is written down.
 - `sky.c` — that a frame's sky and picture are zeroed with no table or row and are the first rows,
   the haze and its top the Haze row's, each light's disc and glow carried, and a sky shows behind
   a lit slab. The picture skips without a graphics card.
+- `camera_switched_off.c` — that a camera off, itself or through a parent, frames from the
+  origin with the table's default row and no lag, and as itself when on (0441). Needs no
+  graphics card.
+- `sky_switched_off.c` — that a Sky, Haze or Picture row whose entity or parent is off is as no
+  row, back when on, and an off first Haze row gives the second's. Needs no graphics card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
   outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
@@ -130,7 +135,8 @@ again, or to find where a claim that has started failing is written down.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
   the particles runtime-only, and both submits taken. Needs no graphics card.
 - `emitter_system.c` — a rate's count over a second, a burst on a stopped emitter, stop, rise,
-  death after life, the cap of 64 and a removed emitter's row gone. Needs no graphics card.
+  death after life, the cap of 64, a removed emitter's row gone, and an off emitter gone and new
+  again. Needs no graphics card.
 - `water_component.c` — both tables registered, the waves runtime-only, the default row as 0305
   says, every field named with its kind, and a replace queued. Needs no graphics card.
 - `water_system.c` — a waves row after one run, the clock stepped and wrapped at 60 s, a replace's

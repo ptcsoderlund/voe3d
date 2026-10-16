@@ -8,7 +8,7 @@
 // out once, its derivation in a comment above it. The markers — cameras' boxes,
 // suns', point lights' and place markers' cubes — are tested as one group, and
 // its nearest hit wins over any mesh hit; the meshes are walked only when no
-// marker is met. An off entity is not met (0428), a camera aside.
+// marker is met. An off entity is not met (0428, 0441).
 #include <3d/camera_marker.h>
 #include <3d/landscape.h>
 #include <3d/model_component.h>
@@ -284,7 +284,7 @@ struct nearest_hit {
 
 // Keeps `entity` at `t` when it is the group's first hit or nearer than it.
 // An off entity is kept nowhere, so the one behind it is met (0428 point 7),
-// unless it has a camera row: cameras ignore the switch (point 8).
+// a camera too (0441 point 4).
 static void keep_nearer(const voe_ecs_world *world, struct nearest_hit *best,
 			voe_ecs_entity entity, float t)
 {
@@ -293,9 +293,7 @@ static void keep_nearer(const voe_ecs_world *world, struct nearest_hit *best,
 
 	if (best->entity.generation != 0 && t >= best->distance)
 		return;
-	if (voe_scene_identity_off(world, entity) &&
-	    !(has_store(world, &voe_scene_camera_key) &&
-	      voe_scene_camera_get(world, entity) != NULL))
+	if (voe_scene_identity_off(world, entity))
 		return;
 	best->entity = entity;
 	best->distance = t;

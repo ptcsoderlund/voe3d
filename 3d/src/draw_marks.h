@@ -39,6 +39,7 @@
 
 #include <stdbool.h>
 
+// The scene camera's mark; an off camera draws nothing (0441).
 void voe_3d_draw_marks_camera(const voe_ecs_world *world,
 			      voe_render_device *device, voe_base_arena *arena,
 			      voe_3d_frame frame);

@@ -349,8 +349,7 @@ void voe_editor_scene_switch(voe_editor_scene *scene)
 	voe_ecs_entity selected = voe_editor_scene_selected(scene);
 
 	if (selected.generation == 0 ||
-	    voe_editor_inspector_is_part(scene->world, selected, NULL) ||
-	    voe_scene_camera_get(scene->world, selected) != NULL)
+	    voe_editor_inspector_is_part(scene->world, selected, NULL))
 		return;
 	identity_flip(scene, selected, BIT_OFF);
 }

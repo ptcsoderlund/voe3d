@@ -9,8 +9,8 @@
 // and not the box picking nothing, and the entities skipped are all checkable
 // on a build box with no Vulkan, and so is a child hit at its world place as
 // its parent moves. So is what is off (0428): an off cube, or one under an off
-// parent, letting the one behind be met, an off sun's marker not met, and a
-// camera met under an off parent. A model's and a landscape's cases need one
+// parent, letting the one behind be met, and an off sun's or camera's marker
+// not met (0441). A model's and a landscape's cases need one
 // to load it.
 //
 // THE DRAWN HALF CANNOT BE DONE WITHOUT ONE, AND IT IS THE CHECK THAT MATTERS
@@ -146,8 +146,8 @@ static void authored(voe_ecs_world *world, voe_ecs_entity entity)
 		world, entity, (voe_scene_identity){ .id = entity.index }));
 }
 
-// The entity's switch set off through the identity intent.
-static void switch_off(voe_ecs_world *world, voe_ecs_entity entity)
+// The entity's switch set `off`, or on, through the identity intent.
+static void set_off(voe_ecs_world *world, voe_ecs_entity entity, bool off)
 {
 	const voe_scene_identity *read = voe_scene_identity_get(world, entity);
 	voe_scene_identity row;
@@ -156,27 +156,30 @@ static void switch_off(voe_ecs_world *world, voe_ecs_entity entity)
 	if (read == NULL)
 		return;
 	row = *read;
-	row.off = true;
+	row.off = off;
 	VOE_TEST_CHECK(voe_scene_identity_submit(
 		world, (voe_scene_identity_intent){ .entity = entity,
 						    .identity = row }));
 	voe_scene_identity_system_run(world);
 }
 
-// `child` placed under a new bare entity at the origin that is switched off,
-// the parent applied so the child stands where it stood.
-static void under_an_off_parent(voe_ecs_world *world, voe_ecs_entity child)
+// `child` placed under a new bare entity that is switched off, the parent
+// applied so the child stands where it stood; the parent returned. It stands
+// 5 m aside, so its place marker, once on, is off the centre ray.
+static voe_ecs_entity under_an_off_parent(voe_ecs_world *world,
+					  voe_ecs_entity child)
 {
 	voe_ecs_entity parent = { 0 };
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &parent));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, parent,
-					       at(0.0f, 0.0f, 0.0f)));
+					       at(5.0f, 0.0f, 0.0f)));
 	authored(world, parent);
-	switch_off(world, parent);
+	set_off(world, parent, true);
 	VOE_TEST_CHECK(voe_scene_parent_set(world, child, parent));
 	voe_ecs_structure_apply(world);
 	voe_scene_transform_system_run(world);
+	return parent;
 }
 
 // A grey cube with a transform at (x, y, z), authored.
@@ -416,7 +419,7 @@ static void an_off_cube_lets_the_one_behind_be_met(
 		VOE_TEST_CHECK_INT(
 			voe_3d_pick(world, geometries, NULL, ray, NULL).index,
 			near_cube.index);
-		switch_off(world, near_cube);
+		set_off(world, near_cube, true);
 		hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
 		VOE_TEST_CHECK_INT(hit.index, far_cube.index);
 		VOE_TEST_CHECK_INT(hit.generation, far_cube.generation);
@@ -428,7 +431,7 @@ static void an_off_cube_lets_the_one_behind_be_met(
 		voe_ecs_entity near_cube = add_a_cube(world, 0.0f, 0.0f, 2.0f);
 		voe_ecs_entity hit;
 
-		under_an_off_parent(world, near_cube);
+		(void)under_an_off_parent(world, near_cube);
 		hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
 		VOE_TEST_CHECK_INT(hit.index, far_cube.index);
 		VOE_TEST_CHECK_INT(hit.generation, far_cube.generation);
@@ -451,16 +454,18 @@ static void an_off_sun_marker_is_not_met(
 	float distance = -1.0f;
 	voe_ecs_entity hit;
 
-	switch_off(world, sun);
+	set_off(world, sun, true);
 	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
 	VOE_TEST_CHECK_INT(hit.index, cube.index);
 	VOE_TEST_CHECK_INT(hit.generation, cube.generation);
 	VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
 }
 
-// CAMERAS IGNORE THE SWITCH (0428 point 8). The camera in front of the cube,
-// as the camera's case sets it, under an off parent: still met, at 4.9 - 2.15.
-static void a_camera_is_met_under_an_off_parent(
+// An off camera is passed by as any off entity (0441 point 4). The camera in
+// front of the cube, as the camera's case sets it: under an off parent the cube
+// behind is met at 4.4; the parent on and the camera's own switch off, the cube
+// again; both on, the camera at 4.9 - 2.15.
+static void an_off_camera_is_not_met(
 	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
 {
 	voe_platform_size size = { WIDTH, HEIGHT };
@@ -470,11 +475,23 @@ static void a_camera_is_met_under_an_off_parent(
 	voe_ecs_world *world = a_world(arena);
 	voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
 	voe_ecs_entity camera = add_a_camera(world, 0.0f, 0.0f, 2.0f);
+	voe_ecs_entity parent = under_an_off_parent(world, camera);
 	float distance = -1.0f;
 	voe_ecs_entity hit;
 
-	(void)cube;
-	under_an_off_parent(world, camera);
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.index, cube.index);
+	VOE_TEST_CHECK_INT(hit.generation, cube.generation);
+	VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
+
+	set_off(world, parent, false);
+	set_off(world, camera, true);
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.index, cube.index);
+	VOE_TEST_CHECK_INT(hit.generation, cube.generation);
+	VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
+
+	set_off(world, camera, false);
 	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
 	VOE_TEST_CHECK_INT(hit.index, camera.index);
 	VOE_TEST_CHECK_INT(hit.generation, camera.generation);
@@ -1035,7 +1052,7 @@ int main(void)
 	a_sun_marker_wins_over_the_cube(arena, &geometries);
 	an_off_cube_lets_the_one_behind_be_met(arena, &geometries);
 	an_off_sun_marker_is_not_met(arena, &geometries);
-	a_camera_is_met_under_an_off_parent(arena, &geometries);
+	an_off_camera_is_not_met(arena, &geometries);
 	a_water_is_hit_on_its_plane_and_missed_beyond_it(arena, &geometries);
 	a_place_marker_wins_over_the_cube(arena, &geometries);
 	a_ray_through_the_frustum_s_corner_picks_nothing(arena, &geometries);

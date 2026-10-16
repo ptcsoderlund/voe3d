@@ -4,11 +4,11 @@
 // THESE ARE THE WHOLE PICTURE'S SETTINGS, NOT A CAMERA'S: the editor's views
 // have no camera row, and they are exposed by this row as the game is.
 //
-// NO ROW IS x1 AND CLIP, THE OLD PICTURE, so a world without one, a sky
+// NO ROW ON IS x1 AND CLIP, THE OLD PICTURE, so a world without one on, a sky
 // included, is drawn as it was before the row existed.
 //
-// THE FIRST ROW IN TABLE ORDER IS THE ONE USED. A world holds at most one by
-// the caller's capacity; a second row, if a caller allows one, is ignored.
+// THE FIRST ROW IN TABLE ORDER WHOSE ENTITY IS ON IS USED (0440); an off row
+// is as no row (0427). A later row on, if a caller allows one, is ignored.
 //
 // THE FIELDS, every number finite:
 //   exposure — stops, -VOE_SCENE_PICTURE_EXPOSURE_MAX to
@@ -68,7 +68,9 @@ const voe_scene_picture *voe_scene_picture_get(const voe_ecs_world *world,
 					       voe_ecs_entity entity);
 
 // The table, for the system that hands the picture to the GPU. rows[i]
-// belongs to entities[i], and both are `count` long; rows[0] is the one used.
+// belongs to entities[i], and both are `count` long. The one used is the first
+// row whose entity voe_scene_identity_off says is on (0440); an off row is as
+// no row.
 uint32_t voe_scene_picture_count(const voe_ecs_world *world);
 const voe_scene_picture *voe_scene_picture_rows(const voe_ecs_world *world);
 const voe_ecs_entity *voe_scene_picture_entities(const voe_ecs_world *world);

@@ -1,7 +1,8 @@
 // The sound system's run: the two drains, the voice rows added and dropped,
 // the listener from the camera, each row reconciled with its voice and the
 // sweep. See audio/sound_system.h for what a run does and in which order. An
-// off sound is stopped, not ended.
+// off sound is stopped, not ended. An off camera is heard as a default one at
+// the origin looking down -Z, where the frame then looks (0441 point 5).
 //
 // A ROW IS CHANGED AS A COPY, set back whole: the table hands out no writable
 // row, as in 3d/src/emitter_system.c.
@@ -149,6 +150,8 @@ static void add_and_drop_rows(voe_ecs_world *world)
 }
 
 // Hears from the first camera whose entity has a transform, or from nobody.
+// An off camera hears from where the frame then looks (0441 point 5): the
+// identity pose with the camera table's default row's field of view.
 static void listen(const voe_ecs_world *world, voe_audio_mixer *mixer, float aspect)
 {
 	const voe_scene_camera *cameras = voe_scene_camera_rows(world);
@@ -156,19 +159,26 @@ static void listen(const voe_ecs_world *world, voe_audio_mixer *mixer, float asp
 	const uint32_t count = voe_scene_camera_count(world);
 
 	for (uint32_t i = 0; i < count; i++) {
-		voe_scene_transform pose;
+		voe_scene_transform pose = { .rotation = { 0, 0, 0, 1 },
+					     .scale = { 1, 1, 1 } };
+		voe_scene_camera lens = cameras[i];
 		voe_math_float4x4 turn;
 		voe_audio_listener ear;
 
 		if (voe_scene_transform_get(world, entities[i]) == NULL)
 			continue;
-		pose = voe_scene_transform_world(world, entities[i]);
+		if (voe_scene_identity_off(world, entities[i]))
+			lens = *(const voe_scene_camera *)voe_ecs_component_default(
+				world,
+				voe_ecs_component_type(world, &voe_scene_camera_key));
+		else
+			pose = voe_scene_transform_world(world, entities[i]);
 		turn = voe_math_float4x4_from_quat(pose.rotation);
 		ear = voe_audio_listener_make(
 			pose.position,
 			voe_math_float4x4_transform_dir(turn, (voe_math_float3){ 1, 0, 0 }),
 			voe_math_float4x4_transform_dir(turn, (voe_math_float3){ 0, 0, -1 }),
-			tanf(cameras[i].fov_y * 0.5f) * aspect);
+			tanf(lens.fov_y * 0.5f) * aspect);
 		voe_audio_mixer_listen(mixer, &ear);
 		return;
 	}

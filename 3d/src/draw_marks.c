@@ -4,8 +4,8 @@
 // silhouette, a collider's and the selected blocker's lines and the gizmo's two
 // meshes, arrows or rings,
 // each as this frame's transient geometry and one or two draws, at the entity's
-// world place. An off entity is not met (0428): its sun, lamp, place and
-// blocker marks are left out, its outline, lines and gizmo kept. See
+// world place. An off entity is not met (0428, 0441): its camera, sun, lamp,
+// place and blocker marks are left out, its outline, lines and gizmo kept. See
 // draw_marks.h.
 //
 // All of them are in metres about the frame's eye already (ADR-0250), so every
@@ -50,8 +50,9 @@ static voe_render_object mark_object(voe_3d_material material,
 
 // The scene camera's marker as this frame's geometry and one draw, in world
 // metres about the eye like the outline's quads, so both matrices are the identity (0223).
-// A zeroed entity, a dead one, and one without a camera or a transform draw
-// nothing; so does a refused transient range, which render reports.
+// A zeroed entity, a dead one, an off one (0441 point 4), and one without a
+// camera or a transform draw nothing; so does a refused transient range, which
+// render reports.
 void voe_3d_draw_marks_camera(const voe_ecs_world *world,
 			      voe_render_device *device, voe_base_arena *arena,
 			      voe_3d_frame frame)
@@ -66,7 +67,8 @@ void voe_3d_draw_marks_camera(const voe_ecs_world *world,
 	VOE_BASE_ASSERT(device != NULL, "drawing a camera marker to no device");
 	VOE_BASE_ASSERT(arena != NULL, "a camera marker with no arena");
 
-	if (!voe_ecs_entity_alive(world, marker.entity))
+	if (!voe_ecs_entity_alive(world, marker.entity) ||
+	    voe_scene_identity_off(world, marker.entity))
 		return;
 	lens = voe_scene_camera_get(world, marker.entity);
 	if (lens == NULL || voe_scene_transform_get(world, marker.entity) == NULL)

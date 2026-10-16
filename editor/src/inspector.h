@@ -268,8 +268,9 @@ typedef struct {
 	uint32_t replaced;
 	// The Enabled row's switch and the Duplicate and Delete buttons as
 	// drawn this frame, VOE_UI_NODE_NONE when they were not: nothing
-	// selected, a prefab's part, or the camera's entity (ADR-0218). A
-	// light's entity has all three (0357 point 5).
+	// selected, a prefab's part, or, for Duplicate and Delete only, the
+	// camera's entity (ADR-0218, 0441). A light's entity has all three
+	// (0357 point 5).
 	voe_ui_node enabled;
 	voe_ui_node duplicate;
 	voe_ui_node remove;

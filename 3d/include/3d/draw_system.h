@@ -458,7 +458,10 @@ typedef struct {
 // loop passes the result to each. The camera is a lens and its pose is its
 // entity's transform (0222), which the camera needs and this asserts on; the two
 // become `view` through voe_3d_view (3d/projection.h), and a pose that sees
-// nothing sets `blind` instead. Neither the camera nor the projection moves
+// nothing sets `blind` instead. A camera that is off, itself or through a
+// parent, frames as a camera at the identity transform (the origin, unturned,
+// unit scale) with the camera table's default row, and no lag (0441); the
+// table still holds exactly one camera. Neither the camera nor the projection moves
 // out of this folder for that: what the loop holds is an answer, not a way of
 // computing one. Nothing in _run reads the camera table.
 //
@@ -506,8 +509,9 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 // light by handing its passes a different light (ADR-0287).
 voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 
-// The world's first sky row and first Haze row as a pass takes them (0412
-// points 1 and 6, 0417 point 1). From the sky row: `drawn` 1, its colours,
+// The world's first sky row and first Haze row whose entity is on as a pass
+// takes them (0412 points 1 and 6, 0417 point 1); a row that is off, itself or
+// through a parent, is as no row (0440). From the sky row: `drawn` 1, its colours,
 // horizon height and strength; `disc_size[i]` and `glow_size[i]` light row i's
 // for rows 0 to VOE_RENDER_DIRECTIONAL_LIGHTS − 1 in table order, as _light and
 // _lights hand them to the pass, 0 past the last row or with no light table.
@@ -521,9 +525,10 @@ voe_render_light voe_3d_draw_system_light(const voe_ecs_world *world);
 voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world,
 				      voe_math_double3 eye);
 
-// The world's first picture row as a pass takes it (0406 point 4): its
-// exposure and tone, the tone's 0 and 1 meaning render's; zeroed, x1 and Clip,
-// with no picture table or no row. Public for the same reason as _sky.
+// The world's first picture row whose entity is on as a pass takes it (0406
+// point 4): its exposure and tone, the tone's 0 and 1 meaning render's; zeroed,
+// x1 and Clip, with no picture table or no row, an off row, itself or through a
+// parent, being as no row (0440). Public for the same reason as _sky.
 voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world);
 
 // Fills `frame->points` from every point light whose entity has a transform

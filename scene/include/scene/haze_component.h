@@ -1,11 +1,11 @@
 // The haze: how far surfaces fade into the air (0414, 0416, 0417). Read by
 // anyone, const; written only through scene/haze_system.h.
 //
-// HAVING THE ROW IS HAZE ON. No row, no haze. It works with or without a sky
-// row; neither row needs the other.
+// HAVING THE ROW IS HAZE ON. No row on, no haze. It works with or without a
+// sky row; neither row needs the other.
 //
-// THE FIRST ROW IN TABLE ORDER IS THE ONE USED. A world holds at most one by
-// the caller's capacity; a second row, if a caller allows one, is ignored.
+// THE FIRST ROW IN TABLE ORDER WHOSE ENTITY IS ON IS USED (0440); an off row
+// is as no row (0427). A later row on, if a caller allows one, is ignored.
 //
 // THE FIELDS, `haze` and `start` finite and at least 0, `height` any finite:
 //   haze   — metres past `start` at which half of a surface's colour is haze;
@@ -53,7 +53,8 @@ const voe_scene_haze *voe_scene_haze_get(const voe_ecs_world *world,
 					 voe_ecs_entity entity);
 
 // The table, for the system that hands the haze to the GPU. rows[i] belongs to
-// entities[i], and both are `count` long; rows[0] is the one used.
+// entities[i], and both are `count` long. The one used is the first row whose
+// entity voe_scene_identity_off says is on (0440); an off row is as no row.
 uint32_t voe_scene_haze_count(const voe_ecs_world *world);
 const voe_scene_haze *voe_scene_haze_rows(const voe_ecs_world *world);
 const voe_ecs_entity *voe_scene_haze_entities(const voe_ecs_world *world);
