@@ -1,4 +1,5 @@
-// The draw system: the camera, the first light, the first on sky row and Haze
+// The draw system: the camera, or a default one at the origin when it is off,
+// the first light, the first on sky row and Haze
 // row, the first on picture row, the pass camera a frame opens with, the matrices each object is drawn with, and one draw per drawable into
 // the frame the loop has opened.
 //
@@ -43,6 +44,7 @@
 #include <3d/shape_component.h>
 #include <base/assert.h>
 #include <base/report.h>
+#include <ecs/component.h>
 #include <scene/camera_component.h>
 #include <scene/haze_component.h>
 #include <scene/identity_component.h>
@@ -219,6 +221,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame)
 // voe_3d_draw_system_light's, which is zeroed and draws black for none
 // (ADR-0287) — see voe_3d_draw_system_frame in 3d/draw_system.h for
 // why more than one of either is a mistake rather than a choice.
+// A camera that is off, itself or through a parent, frames as the table's
+// default row at the identity transform, with no lag (0441 point 3).
 voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 				      voe_platform_size size, float lag)
 {
@@ -240,14 +244,25 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	if (size.width > 0 && size.height > 0)
 		aspect = (float)size.width / (float)size.height;
 
-	lens = voe_scene_camera_rows(world)[0];
 	VOE_BASE_ASSERT(voe_scene_transform_get(world,
 					voe_scene_camera_entities(world)[0]) != NULL,
 			"a camera with no transform — the camera needs one (0222)");
-	// Where the camera was `lag` of a step ago, as everything it sees is
-	// drawn (0254).
-	pose = voe_scene_transform_between(world, voe_scene_camera_entities(world)[0],
-					   lag);
+	if (voe_scene_identity_off(world, voe_scene_camera_entities(world)[0])) {
+		const voe_scene_camera *fallback = voe_ecs_component_default(
+			world, voe_ecs_component_type(world, &voe_scene_camera_key));
+
+		VOE_BASE_ASSERT(fallback != NULL,
+				"a camera table with no default row (0441)");
+		lens = *fallback;
+		pose = (voe_scene_transform){ .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+					      .scale = { 1.0f, 1.0f, 1.0f } };
+	} else {
+		lens = voe_scene_camera_rows(world)[0];
+		// Where the camera was `lag` of a step ago, as everything it
+		// sees is drawn (0254).
+		pose = voe_scene_transform_between(
+			world, voe_scene_camera_entities(world)[0], lag);
+	}
 	// A pose that sees nothing leaves `view` zeroed and says so: _run draws
 	// no world for it (0223).
 	frame.view = (voe_render_view){ 0 };

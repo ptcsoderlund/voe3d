@@ -458,7 +458,10 @@ typedef struct {
 // loop passes the result to each. The camera is a lens and its pose is its
 // entity's transform (0222), which the camera needs and this asserts on; the two
 // become `view` through voe_3d_view (3d/projection.h), and a pose that sees
-// nothing sets `blind` instead. Neither the camera nor the projection moves
+// nothing sets `blind` instead. A camera that is off, itself or through a
+// parent, frames as a camera at the identity transform (the origin, unturned,
+// unit scale) with the camera table's default row, and no lag (0441); the
+// table still holds exactly one camera. Neither the camera nor the projection moves
 // out of this folder for that: what the loop holds is an answer, not a way of
 // computing one. Nothing in _run reads the camera table.
 //
