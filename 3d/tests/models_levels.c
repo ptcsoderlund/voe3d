@@ -15,8 +15,8 @@
 //    `levels[1].bound` half, within 1e-6 relative, that of the sphere loaded
 //    with the defaults' file.
 //
-// THE DEVICE HOLDS TWELVE GEOMETRIES: two copies of the levelled sphere at four
-// levels at most, the two plain ones and the own one's two. A clear or replace
+// THE DEVICE HOLDS SIXTEEN GEOMETRIES: two copies of the levelled sphere at
+// VOE_3D_MODEL_LEVELS levels at most, the two plain ones and the own one's two. A clear or replace
 // that leaked a level's geometry runs out within the three rounds of 4.
 //
 // IT SKIPS WHEN THERE IS NO GRAPHICS CARD, because a load uploads.
@@ -44,7 +44,7 @@
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 24 * 1024,
 	.indices = 128 * 1024,
-	.geometries = 2 * 4 + 2 + 2,
+	.geometries = 2 * VOE_3D_MODEL_LEVELS + 2 + 2,
 	.objects = 8,
 	.shadings = 16,
 	.passes = 1,

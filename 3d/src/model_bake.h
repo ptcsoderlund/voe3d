@@ -15,7 +15,8 @@
 // A NODE'S LEVEL IS TOLD BY ITS NAME (ADR-0425 point 4), as Blender exports
 // them: a name ending `_LOD<n>`, LOD in any case and n all digits, makes the
 // node and its subtree level n; a name without the suffix is its parent's
-// level, a root's level 0. A node of n above 3 is left out with its subtree.
+// level, a root's level 0. A node of n above 5 (VOE_3D_MODEL_LEVELS less one)
+// is left out with its subtree.
 // Only the asked level's primitives are baked. Matching a level's parts to
 // level 0's by material is the store's, not the bake's.
 //

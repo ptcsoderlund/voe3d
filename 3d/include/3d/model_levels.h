@@ -19,7 +19,7 @@
 //     voe_base_arena_rewind(arena, mark);  // the caller's, as everything here
 //
 // THE LEVELS (0425 point 1, 0430 points 2 and 3). Level 0 is the file as baked;
-// `levels.count` (1 to 4) is how many there are at most, level 0 included. Each
+// `levels.count` (1 to 6) is how many there are at most, level 0 included. Each
 // part is simplified on its own and always from level 0, until it reaches its
 // target or a collapse would cost more than the strength's share of the model's
 // bounding radius (the farthest baked vertex from its box's centre). Normals
@@ -32,18 +32,19 @@
 // allows (0432 point 1).
 //
 // A FILE WITH ITS OWN LEVELS IS NEVER SIMPLIFIED (0425 point 4): a node named
-// `_LOD1` to `_LOD3` anywhere makes a file of one level, `own` set, no parts.
+// `_LOD1` to `_LOD5` anywhere makes a file of one level, `own` set, no parts.
 //
 // THE LAYOUT, native-endian, every field a uint32_t but the hash and floats:
 //
-//     magic "VOEL" | version 3 | FNV-1a 64 of the .glb (uint64_t)
+//     magic "VOEL" | version 4 | FNV-1a 64 of the .glb (uint64_t)
 //     own | level count | part count | swap's distance multiplier (float)
 //     per made level k >= 1: its error (float), then per part
 //         its index count | that many indices into level 0's baked part
 //
 // STALE IS NEVER AN ERROR (0426 point 1): a file whose magic, version or hash
-// differs (versions 1 and 2 predate the strength and the swap, 0430 point 7,
-// 0432 point 2), a count past its limit (levels, parts, whole triangles), an
+// differs (versions 1 to 3 predate the strength, the swap and six levels, 0430
+// point 7, 0432 point 2; 4 changes no field, only remakes the files made when
+// the default count was four, 0433), a count past its limit (levels, parts, whole triangles), an
 // error not finite and at least nought, a swap not finite and above nought,
 // bytes cut short or left over: _read says false and the file is made again.
 // An index is not checked against its part's vertices, which this file does not

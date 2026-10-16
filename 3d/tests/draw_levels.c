@@ -60,12 +60,13 @@
 #define LEVELLED "Assets/ball.glb"
 #define PLAIN "Assets/plain.glb"
 
-// Two copies of the sphere, one with up to four levels; the sphere drawn once
-// into the view and once into each cascade; four shadow passes and the view's.
+// Two copies of the sphere, one with up to VOE_3D_MODEL_LEVELS levels, and one
+// spare; the sphere drawn once into the view and once into each cascade; four
+// shadow passes and the view's.
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 32 * 1024,
 	.indices = 128 * 1024,
-	.geometries = 8,
+	.geometries = VOE_3D_MODEL_LEVELS + 2,
 	.objects = 2 * (1 + VOE_RENDER_SHADOW_CASCADES),
 	.shadings = 16,
 	.passes = 1 + VOE_RENDER_SHADOW_CASCADES,

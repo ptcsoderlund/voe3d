@@ -36,8 +36,8 @@
 #include <math.h>
 #include <string.h>
 
-// The last own level a file may name: levels 0 to 3 (ADR-0425 point 1).
-#define HIGHEST_LEVEL 3
+// The last own level a file may name, the store's last (ADR-0425 point 1).
+#define HIGHEST_LEVEL (VOE_3D_MODEL_LEVELS - 1)
 
 // One drawn primitive where the walk put it, and the part it joins.
 struct placement {

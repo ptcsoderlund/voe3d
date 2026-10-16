@@ -78,20 +78,21 @@
 #define VOE_3D_MODELS 128
 #define VOE_3D_MODEL_PARTS 16
 // Levels one model may have, level 0 the file as it is (0425 point 1).
-#define VOE_3D_MODEL_LEVELS 4
+#define VOE_3D_MODEL_LEVELS 6
 
 // The device room the store's models are given, which a program adds to its
-// own capacities: 2050 geometries, four parts for each of the VOE_3D_MODELS
+// own capacities: 3074 geometries, four parts for each of the VOE_3D_MODELS
 // files at each of VOE_3D_MODEL_LEVELS levels, and one geometry more each for
 // the pictures' quad and the landscapes' shared grid; 3 M vertices and 9 M
-// indices, level 0's 2 M and 6 M and the levels' under seven eighths more,
-// since they aim at a half, a quarter and an eighth (0425 point 6); 1024
+// indices, level 0's 2 M and 6 M and the levels' under thirty-one
+// thirty-seconds more, since they aim at a half, a quarter and so on down to a
+// thirty-second (0425 point 6, 0433); 1024
 // shading records, two for each of those parts (its own and its blended twin),
 // and one more for the water. Each landscape also takes three textures: its
 // heights and two paint planes.
 #define VOE_3D_MODELS_VERTICES (3u << 20)
 #define VOE_3D_MODELS_INDICES (9u << 20)
-#define VOE_3D_MODELS_GEOMETRIES 2050
+#define VOE_3D_MODELS_GEOMETRIES 3074
 #define VOE_3D_MODELS_SHADINGS 1025
 
 // Nodes one landscape draws in one pass at most (0396 point 4), which a

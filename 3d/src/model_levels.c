@@ -28,7 +28,7 @@
 #include <string.h>
 
 #define MAGIC "VOEL"
-#define VERSION 3u
+#define VERSION 4u
 // Magic, version, hash, own, level count, part count, swap.
 #define HEAD_BYTES (4 + 4 + 8 + 4 + 4 + 4 + 4)
 

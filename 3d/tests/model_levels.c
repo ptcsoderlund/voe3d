@@ -13,8 +13,8 @@
 // 6. The sphere made with count 2: at most 2 levels read; with count 1:
 //    exactly 1.
 // 7. The sphere made strong: level 1 has fewer triangles than made medium.
-// 8. The defaults' file with its version field set to 1, and to 2: read false,
-//    stale.
+// 8. The defaults' file with its version field set to 1, to 2 and to 3: read
+//    false, stale.
 // 9. A view's level of a hand-filled entry (radius 1, bounds infinite, 0.2,
 //    0.05) on the −z axis of a 60° projection, the distances from its P[1][1]:
 //    0 with the eye inside, 0 at 2 m, 1 where s is 0.1, 2 where s is 0.01, and
@@ -27,6 +27,7 @@
 // 13. The eye inside the sphere: level 0, whole.
 // 14. At each of 9's distances, voe_3d_model_level is the choice's level.
 // 15. The sphere made at SWAP_FAR: read gives `swap` 2; at the defaults, 1.
+// 16. 1's sphere, made with VOE_ASSETS_LEVELS_DEFAULT: `level_count` above 4.
 #include <3d/model_levels.h>
 #include <3d/projection.h>
 
@@ -58,6 +59,7 @@ static void sphere_levels(voe_base_arena *arena)
 	uint64_t previous = SEGMENTS * (RINGS - 1) * 2;
 	const uint32_t version_1 = 1;
 	const uint32_t version_2 = 2;
+	const uint32_t version_3 = 3;
 	uint8_t *changed;
 
 	VOE_TEST_CHECK(file != NULL);
@@ -68,6 +70,8 @@ static void sphere_levels(voe_base_arena *arena)
 	VOE_TEST_CHECK(!levels.own);
 	VOE_TEST_CHECK_INT(levels.part_count, 1);
 	VOE_TEST_CHECK(levels.level_count >= 3);
+	// 16
+	VOE_TEST_CHECK(levels.level_count > 4);
 	for (uint32_t k = 1; k < levels.level_count; k++) {
 		const uint64_t triangles = levels.index_counts[k][0] / 3;
 
@@ -91,12 +95,16 @@ static void sphere_levels(voe_base_arena *arena)
 	VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size, glb,
 						 glb_size, &levels));
 
-	// 8: files the earlier simplifier made, before and after the strength.
+	// 8: files the earlier simplifier made, before and after the strength,
+	// and those made when the default was four levels.
 	memcpy(changed, file, size);
 	memcpy(changed + 4, &version_1, sizeof(version_1));
 	VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size, glb,
 						 glb_size, &levels));
 	memcpy(changed + 4, &version_2, sizeof(version_2));
+	VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size, glb,
+						 glb_size, &levels));
+	memcpy(changed + 4, &version_3, sizeof(version_3));
 	VOE_TEST_CHECK(!voe_3d_model_levels_read(arena, changed, size, glb,
 						 glb_size, &levels));
 }

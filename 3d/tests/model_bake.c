@@ -11,7 +11,9 @@
 // "Tree_LOD1", "Leaves_lod2" (over an unnamed child, which inherits level 2) and
 // "Twig_LOD7" counts 3 levels, bakes the root alone at level 0, one part at
 // level 1 and materials 1 then 0 at level 2, level 7 left out; a tree with no
-// suffix counts 1 and bakes every node at level 0.
+// suffix counts 1 and bakes every node at level 0. A root "Rock" with children
+// "Rock_LOD5" and "Twig_LOD7", one shared triangle each, counts 6: level 5 is
+// the last a file may name, level 7 still left out.
 //
 // It reads the internal bake through model_bake.h. Needs no graphics card.
 #include "../src/model_bake.h"
@@ -162,12 +164,44 @@ static void levels_are_told_by_names(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(bake.vertex_count, 6);
 }
 
+static void the_last_level_is_five(void)
+{
+	const voe_assets_primitive primitive = {
+		.positions = POSITIONS, .vertex_count = 3, .indices = INDICES,
+		.index_count = 3, .material = 0,
+	};
+	const voe_assets_mesh mesh = { .first_primitive = 0,
+				       .primitive_count = 1 };
+	const voe_assets_material material = { .base_colour = { 1, 1, 1, 1 } };
+	const uint32_t rock_children[2] = { 1, 2 };
+	const voe_assets_node nodes[3] = {
+		{ .local = voe_math_float4x4_identity(), .mesh = 0,
+		  .children = rock_children, .child_count = 2,
+		  .name = { "Rock" } },
+		{ .local = voe_math_float4x4_identity(), .mesh = 0,
+		  .name = { "Rock_LOD5" } },
+		{ .local = voe_math_float4x4_identity(), .mesh = 0,
+		  .name = { "Twig_LOD7" } },
+	};
+	const uint32_t root = 0;
+	const voe_assets_model model = {
+		.primitives = &primitive, .primitive_count = 1,
+		.meshes = &mesh, .mesh_count = 1,
+		.materials = &material, .material_count = 1,
+		.nodes = nodes, .node_count = 3,
+		.roots = &root, .root_count = 1,
+	};
+
+	VOE_TEST_CHECK_INT(voe_3d_model_bake_levels(&model), 6);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 
 	colours_become_complements(arena);
 	levels_are_told_by_names(arena);
+	the_last_level_is_five();
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }
