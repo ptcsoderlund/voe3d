@@ -22,7 +22,8 @@
 //                             "",
 //                       },
 //                       .levels = { .count = 4, .strength = VOE_ASSETS_LEVELS_MEDIUM,
-//                                   .swap = VOE_ASSETS_LEVELS_SWAP_NORMAL } } },
+//                         .shares = { 0x1.9p+6f, 0x1.9p+5f, ... },
+//                         .swaps = { 0x1p+0f, 0x1p+0f, ... } } } },
 //             },
 //             1,
 //     };
@@ -143,16 +144,16 @@ static const char *strength_name(voe_assets_levels_strength strength)
 						    : "VOE_ASSETS_LEVELS_STRONG";
 }
 
-// The enumerator's name for swap, as the cooked text spells it.
-static const char *swap_name(voe_assets_levels_swap swap)
+// values' VOE_ASSETS_LEVELS floats as a brace list, each `%a` with an `f`.
+static const char *levels_floats(voe_base_arena *arena, const float *values)
 {
-	static const char *const names[] = {
-		"VOE_ASSETS_LEVELS_SWAP_NEAR", "VOE_ASSETS_LEVELS_SWAP_NORMAL",
-		"VOE_ASSETS_LEVELS_SWAP_FAR", "VOE_ASSETS_LEVELS_SWAP_FARTHER"
-	};
+	const char *out = "{";
 
-	VOE_BASE_ASSERT(swap <= VOE_ASSETS_LEVELS_SWAP_FARTHER, "a swap past the four");
-	return names[swap];
+	VOE_BASE_ASSERT(values != NULL, "a list of no levels' floats");
+	for (uint32_t i = 0; i < VOE_ASSETS_LEVELS; i++)
+		out = voe_editor_game_tree_format(arena, "%s%s %af", out,
+						  i == 0 ? "" : ",", (double)values[i]);
+	return voe_editor_game_tree_format(arena, "%s }", out);
 }
 
 // One table entry for the parts file at Assets/path holding p, named by the
@@ -175,12 +176,15 @@ static const char *parts_entry(voe_base_arena *arena, const char *path,
 	return voe_editor_game_tree_format(
 		arena,
 		"\t\t{ \"%s\", { .count = %u, .materials = {\n%s\t\t  },\n"
-		"\t\t  .levels = { .count = %u, .strength = %s, .swap = %s } } },\n",
+		"\t\t  .levels = { .count = %u, .strength = %s,\n"
+		"\t\t    .shares = %s,\n"
+		"\t\t    .swaps = %s } } },\n",
 		voe_editor_game_tree_c_string(
 			arena, voe_editor_game_tree_format(arena, "Assets/%.*s.glb",
 							   (int)stem, path)),
 		p->count, names, p->levels.count, strength_name(p->levels.strength),
-		swap_name(p->levels.swap));
+		levels_floats(arena, p->levels.shares),
+		levels_floats(arena, p->levels.swaps));
 }
 
 // The definition of name, a table of type whose rows are row, holding entries.
