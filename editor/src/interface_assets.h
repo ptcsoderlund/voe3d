@@ -15,9 +15,10 @@
 // Import shows `browser`), its naming request through assets_manage.h, a made
 // or fired landscape opened in `landscape_panel` in place of `preferences` and
 // `project_panel`, the right-button menu's row when `menuing`, the Delete
-// question's answer when `asking` and a new question opened, then a fired
-// prefab opened (session.h). `over_assets` is whether the pointer is over the
-// Assets leaf. Scratch comes out of `arena`, which the caller rewinds.
+// question's answer when `asking` and a new question opened, the levels
+// question's (levels_ask.h) when `levels_asking`, then a fired prefab opened
+// (session.h). `over_assets` is whether the pointer is over the Assets leaf.
+// Scratch comes out of `arena`, which the caller rewinds.
 void voe_editor_interface_assets_read(
 	voe_ui_context *ui, voe_base_arena *arena,
 	const voe_editor_dock_root *root, voe_editor_scene *scene,
@@ -26,4 +27,4 @@ void voe_editor_interface_assets_read(
 	voe_editor_preferences *preferences,
 	voe_editor_project_panel *project_panel,
 	voe_editor_landscape_panel *landscape_panel, bool over_assets,
-	bool menuing, bool asking);
+	bool menuing, bool asking, bool levels_asking);

@@ -106,7 +106,9 @@ static voe_ui_node rim_begin(voe_ui_context *ui, voe_editor_scene *scene,
 }
 
 // `children` is whether the row has any, which gives it a fold button keyed
-// by the identity index, "+" folded and "-" open.
+// by the identity index, "+" folded and "-" open. Dimmed while held in a drag,
+// and when switched off, by its own `off` or an ancestor's, so a child under
+// an off parent greys too (0428 point 9); an off row still selects and drags.
 static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 		     uint32_t index, uint32_t depth, bool children)
 {
@@ -114,8 +116,9 @@ static void row_draw(voe_ui_context *ui, voe_editor_scene *scene,
 	const voe_scene_identity *rows = voe_scene_identity_rows(scene->world);
 	const voe_ecs_entity *entities =
 		voe_scene_identity_entities(scene->world);
-	const bool dim = scene->list_dragging &&
-			 same_entity(entities[index], scene->list_held);
+	const bool dim = (scene->list_dragging &&
+			  same_entity(entities[index], scene->list_held)) ||
+			 voe_scene_identity_off(scene->world, entities[index]);
 	const voe_scene_prefab *prefab =
 		voe_scene_prefab_get(scene->world, entities[index]);
 

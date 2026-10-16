@@ -2,10 +2,14 @@
 // tables and writes neither; physics/shape.h says what each kind's half means.
 // The shape stands at the entity's world place, its parents' included (0281):
 // the row is read only to tell whether there is a transform at all.
+// An entity switched off, itself or through a parent, has no shape (0428 point
+// 5): that is asked before the collider is read, and it is the one gate every
+// query, sweep and body move passes through.
 #include <base/assert.h>
 #include <ecs/component.h>
 #include <physics/collider_component.h>
 #include <physics/shape.h>
+#include <scene/identity_component.h>
 #include <scene/transform_component.h>
 
 #include <math.h>
@@ -21,6 +25,8 @@ bool voe_physics_shape_of(const voe_ecs_world *world, voe_ecs_entity entity,
 	VOE_BASE_DEBUG_ASSERT(world != NULL && out != NULL,
 			      "a shape out of no world, or into nowhere");
 
+	if (voe_scene_identity_off(world, entity))
+		return false;
 	collider = voe_physics_collider_get(world, entity);
 	if (collider == NULL || voe_scene_transform_get(world, entity) == NULL)
 		return false;

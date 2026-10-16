@@ -118,6 +118,11 @@ uint32_t voe_assets_gltf_object_at(struct gltf *gltf, uint32_t array,
 // Element `index` of an unsigned byte, short or int accessor, widened.
 uint32_t voe_assets_gltf_read_index(const struct view *view, uint32_t index);
 
+// An object's `name` into `out`, "" when absent, cut at a whole character
+// (0247); not a string is malformed. In model_gltf_materials.c.
+[[nodiscard]] bool voe_assets_gltf_read_name(struct gltf *gltf, uint32_t object,
+					     voe_assets_model_name *out);
+
 // The materials, with their textures resolved to images. In
 // model_gltf_materials.c.
 [[nodiscard]] bool voe_assets_gltf_read_materials(struct gltf *gltf,

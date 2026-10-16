@@ -1,5 +1,7 @@
 // A collider in the world: its kind, where its centre is, how it is turned and
 // how big it is once its transform's scale is applied. What a query tests.
+// A switched-off entity has no shape, so no query meets it and an off body is
+// not moved (0428).
 //
 //     voe_physics_shape shape;
 //     if (voe_physics_shape_of(world, entity, &shape)) { ... }
@@ -40,7 +42,7 @@ typedef struct {
 
 // The entity's collider in the world, written to *out. False, and *out left
 // alone, when it has no collider, no transform or a kind this build does not
-// know.
+// know, or is switched off, itself or through a parent (0428).
 [[nodiscard]] bool voe_physics_shape_of(const voe_ecs_world *world,
 					voe_ecs_entity entity,
 					voe_physics_shape *out);

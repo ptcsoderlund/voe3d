@@ -442,6 +442,38 @@ int main(int argc, char *argv[])
 		// once rather than once per view: every view is lit the same.
 		voe_render_light light = { 0 };
 
+		// AN IMPORTED MODEL'S LEVELS MADE BEHIND THE SPLASH (loading.h),
+		// before any load replaces the project it was imported into. The
+		// model is loaded again so its new levels draw at once (0431).
+		if (session.prepare_due) {
+			voe_editor_loading_prepare prepare = {
+				.folder = session.project->folder,
+				.path = session.prepare_path,
+				.scratch = worker_scratch,
+				.remake = session.prepare_remake };
+			if (!voe_game_starting_wait(app, ui, scratch,
+						    splash_held ? &splash : NULL,
+						    voe_editor_loading_prepare_work,
+						    &prepare)) {
+				status = options.capture != NULL ? 1 : 0;
+				break;
+			}
+			voe_base_arena_clear(scratch);
+			voe_editor_models_reload(models, &session, gpu,
+						 session.prepare_path, scratch);
+			session.prepare_due = false;
+			session.prepare_remake = false;
+		}
+
+		// A MAKE THAT CHANGED ONLY SWAPS needs no splash: the levels file
+		// is fresh, and the game's loader patches the new swaps into it
+		// on this reload, twenty bytes and no levels made (0436 point 8).
+		if (session.reload_due) {
+			voe_editor_models_reload(models, &session, gpu,
+						 session.prepare_path, scratch);
+			session.reload_due = false;
+		}
+
 		// NEW OR OPEN'S LOAD ON A WORKER BEHIND THE SPLASH (loading.h);
 		// a false wait ends the program as the start's does.
 		if (session.load_due) {

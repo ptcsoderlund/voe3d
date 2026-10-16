@@ -109,3 +109,20 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **Height fog on surfaces** (sponsor, 2026-10-13, 0418). Haze that pools in valleys and leaves hilltops clear,
   using the Haze row's height for the ground as well as the sky. Kept out of 087, where the height only veils
   the sky.
+
+- **Texture streaming** (sponsor, 2026-10-15, asked beside 0429: "If texture streaming helps, we need that as
+  well."). Loading only the mip levels a texture is seen at, so far models cost less texture memory and load
+  time. It does not lower triangles, so it is not part of 089; weigh it after 092 (compressed textures) once a
+  forest of real models shows whether memory or load time hurts.
+
+- **A contextual Inspector and Re-import** (sponsor, 2026-10-15, set aside when 089 was accepted as built). The
+  Inspector shows whatever was pressed last, an entity or an Assets file, alike; a `.glb` shows its LOD
+  settings there instead of in a question; Re-import on a `.glb` rewrites its materials and parts from the
+  file. Draft kept out of 089, which settled on Make LODs and the question.
+
+- **A player's Detail / Draw distance setting** (sponsor, 2026-10-16). One more multiplier over every LOD's swap
+  (0435) and over a "hidden past" size, so a low setting swaps and hides sooner while keeping the author's order.
+  Switch distances in metres were weighed and dropped for 0435's per-LOD multiplier.
+
+- **No meshlets, no Nanite-style detail** (sponsor, 2026-10-16). Rejected: this engine offers performance and
+  neither is performant yet. Do not propose it.

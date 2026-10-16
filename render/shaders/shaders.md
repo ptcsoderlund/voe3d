@@ -6,10 +6,10 @@ shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block with its sky, exposure and harmonics, the
   records, set 0's bindings and the push constant with its `plain` word, each matching its C struct;
-  the object record carries a landscape's paint and layers.
+  the object record carries a landscape's paint and layers and a draw's dither.
 - `draw.slang` — the mesh pipelines' seven entry points: placing, maps at the record's repeat, the
   vertex colour tinting the base, a painted landscape's layers, alpha with a far cut-out's coverage
-  scaled by level, the lit and unlit exits, hazed, exposed and tone mapped, the point-shadow vertex
+  scaled by level, a draw's dither keeping a share of its pixels, the lit and unlit exits, hazed, exposed and tone mapped, the point-shadow vertex
   stage, the capture pass's two and the sky's full-screen two, the sky or the clear colour veiled by
   the haze.
 - `tone.slangh` — haze, exposure and tone at every mesh exit: mixed by distance past the haze start

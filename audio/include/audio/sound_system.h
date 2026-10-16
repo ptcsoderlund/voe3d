@@ -22,7 +22,9 @@
 // - each row: a one-shot whose voice ended clears playing; restart, or playing
 //   with no live voice, starts one (held, loop, volume, pitch, placed at the
 //   world position when the entity has a transform); not playing stops it;
-//   else it is tuned and moved, which keeps it past the sweep;
+//   else it is tuned and moved, which keeps it past the sweep; an off entity's
+//   (scene/identity_component.h) is silent, its playing kept, and resumes
+//   from its start when switched on;
 // - then the mixer's sweep, so a voice whose thing is gone stops.
 //
 // A NULL MIXER ONLY DRAINS AND ADDS: the editor applies Inspector edits so and

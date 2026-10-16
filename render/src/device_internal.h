@@ -415,6 +415,9 @@ struct voe_render_device {
 	// interface in one draw" is a number somebody read rather than a claim
 	// somebody made.
 	uint32_t draw_commands;
+	// The triangles those mesh draws hold, index count ÷ 3 × instances, for
+	// voe_render_frame_triangle_count; reset and counted beside it.
+	uint64_t triangles;
 
 	// Which of the two pipelines the open recording last bound, so that a
 	// run of draws of one kind costs one bind and not one per draw. Set when

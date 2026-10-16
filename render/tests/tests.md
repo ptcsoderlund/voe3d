@@ -79,6 +79,8 @@ by reading the offscreen colour image back.
   seen at a low angle reads the same blend. Headless.
 - `cutout_far.c` — a cut-out of one-texel alpha stripes, cutoff 0.5: filling the picture about half
   its pixels drawn, and seen 16 pixels across, at level 4, at least a third still drawn. Headless.
+- `dither.c` — an object record's `dither` on an unlit quad filling the picture: 0 every pixel, 0.5
+  half, 0.5 then −0.5 in another colour each pixel exactly once, 0.25 a quarter. Headless.
 - `unshaded.c` — that `unshaded` draws a lit cube in its base colour and black without it, that a
   fill lifts a face the sun misses, and that a face the sun meets head-on or at N·L 0.5 reads the
   same with fill and without. Headless.

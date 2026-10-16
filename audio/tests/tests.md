@@ -12,4 +12,5 @@ plays are written by the test into a folder under its working directory.
 - `sound_component.c` — the default row and menu path, add, get and the
   table, both submits, and the voice row runtime-only.
 - `sound_system.c` — a loop heard louder on its side and stopped, a one-shot
-  ending, a destroyed thing swept, and a run with no mixer.
+  ending, a destroyed thing swept, a loop switched off and back, and a run with
+  no mixer.

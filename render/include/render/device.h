@@ -774,6 +774,15 @@ typedef struct {
 // none; `layers` the shading record indices of its layers 0–7. Both are read
 // only when `heights` and `paint[0]` are not nought. They grew the record from
 // 224 to 256 bytes.
+//
+// `dither` KEEPS A SHARE OF THE DRAW'S PIXELS (ADR-0432 point 5). 0 draws whole,
+// so a zeroed record is unchanged; d in (0, 1] keeps the pixels whose threshold
+// is under d, d in [−1, 0) those at or above −d, so d and −d drawn at one place
+// cover each pixel exactly once. The threshold is a 4 × 4 ordered pattern on the
+// screen. Read by the mesh fragment stage in every pipeline, not by the shadow,
+// point-shadow or capture passes. It is how a model's two levels dissolve into
+// each other across a band, with no blend and no state. It and its three
+// reserved words grew the record from 256 to 272 bytes.
 typedef struct {
 	voe_math_float4x4 world;
 	voe_math_float4x4 normal;
@@ -800,6 +809,10 @@ typedef struct {
 	voe_math_float4 terrain;
 	voe_math_float4 morph;
 	uint32_t layers[8];
+	float dither;
+	uint32_t reserved0;
+	uint32_t reserved1;
+	uint32_t reserved2;
 } voe_render_object;
 
 // What one element is. Two kinds, and the field exists so that adding the second
@@ -1973,6 +1986,14 @@ void voe_render_frame_clear_depth(voe_render_device *device);
 // it holds.
 [[nodiscard]] uint32_t
 voe_render_frame_draw_count(const voe_render_device *device);
+
+// How many triangles the open recording draws — or, once _end has run, how many
+// the frame just submitted drew, read as the draw count is. Reset by every
+// _begin. Every mesh draw adds its index count ÷ 3 × the instances it records,
+// a point shadow's or a capture's faces included, in every pass, solid and
+// blended; element draws add nothing (ADR-0425 point 7).
+[[nodiscard]] uint64_t
+voe_render_frame_triangle_count(const voe_render_device *device);
 
 // ---------------------------------------------------------------- elements
 

@@ -42,6 +42,7 @@
 #include "interface_assets.h"
 #include "interface_read.h"
 #include "landscape_panel.h"
+#include "levels_ask.h"
 #include "notice.h"
 #include "panels.h"
 #include "panels_menu.h"
@@ -195,6 +196,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// The Assets panel's Delete question, over all of those but
 		// the browser, whose showing closes it.
 		bool asking;
+		// The levels question (levels_ask.h), the same way.
+		bool levels_asking;
 		// The Panels list, closed by Escape or the browser showing.
 		bool menuing;
 		// The Assets panel's right-button menu (assets_menu.h).
@@ -211,12 +214,15 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 
 		if (covered)
 			voe_editor_scene_picker_close(scene);
-		if (browsing)
+		if (browsing) {
 			voe_editor_assets_ask_close(&session->asking);
+			voe_editor_levels_ask_close(&session->levels_asking);
+		}
 		asking = session->asking.open;
+		levels_asking = session->levels_asking.open;
 		// Any panel over the dock closes the Assets menu; Escape closes
 		// it first and goes no further.
-		if (covered || asking)
+		if (covered || asking || levels_asking)
 			voe_editor_assets_menu_close(&scene->assets.menu);
 		if (escape && scene->assets.menu.open) {
 			voe_editor_assets_menu_close(&scene->assets.menu);
@@ -237,7 +243,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		menuing = bar->menu.open;
 
 		below_bar.size.y -= voe_editor_topbar_high(bar, root->size.y);
-		if (covered || menuing || asking)
+		if (covered || menuing || asking || levels_asking)
 			below_bar.pointer.over = false;
 
 		// The tree lives in the arena only until its records have been
@@ -336,6 +342,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_assets_ask_draw(
 				ui, &session->asking,
 				voe_editor_topbar_high(bar, root->size.y));
+		if (levels_asking)
+			voe_editor_levels_ask_draw(
+				ui, &session->levels_asking,
+				voe_editor_topbar_high(bar, root->size.y));
 		// Its right edge PICKER_GAP short of the Inspector's content,
 		// its top PICKER_GAP under the bar; the column around it only
 		// carries the anchor, the picker being a panel of its own.
@@ -390,7 +400,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_interface_assets_read(
 			ui, arena, root, scene, undo, models, session, browser,
 			preferences, project_panel, landscape_panel,
-			over_assets, assets_menuing, asking);
+			over_assets, assets_menuing, asking, levels_asking);
 		voe_editor_views_rects_read(views, ui);
 		voe_editor_interface_commands_read(
 			ui, arena, root, &closes, scene, models, session, bar,

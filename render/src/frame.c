@@ -14,7 +14,8 @@
 // many passes the frame has opened, device->window_cleared whether one of them
 // cleared the window, device->object_count says how many objects have gone into
 // it, device->element_count says how many elements have been submitted to it,
-// device->draw_commands says how many draw commands it holds, device->bound says
+// device->draw_commands says how many draw commands it holds and
+// device->triangles how many triangles they draw, device->bound says
 // which pipeline it last bound, device->pools_bound whether the open pass has
 // bound a geometry pool pair yet and device->bound_transient which of the two it
 // last bound (both set by pass.c and draw.c), and device->image_index says which
@@ -394,6 +395,7 @@ static bool begin_frame(voe_render_device *device, voe_platform_size size,
 	// is a measurement of one frame and not a running total.
 	device->element_count = 0;
 	device->draw_commands = 0;
+	device->triangles = 0;
 	*drawing = true;
 	return true;
 }

@@ -7,9 +7,10 @@ carries it out.
 - `main.c` — opens the project, window and device, starts and loads scenes on a worker behind a
   live splash, and runs the loop until a close goes ahead or the picture is written, taking the
   frame breakdown's timings each frame and writing, saving and reverting landscapes.
-- `loading.h` — the start's and a New or Open load's works for a splash wait: shaders with the
-  editor's pipeline cache, shapes and models, or the scene and its models, and what the worker owns.
-- `loading.c` — the two works, each step after a stop check, in the worker's own scratch.
+- `loading.h` — the start's, a New or Open load's and an import's prepare works for a splash wait:
+  shaders with the editor's pipeline cache, shapes and models, the scene and its models, or an
+  imported model's levels file, made again for Make LODs, and what the worker owns.
+- `loading.c` — the three works, each step after a stop check, in the worker's own scratch.
 - `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
   time so a missing copy shows the plain screen, kept by the caller until the device closes.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
@@ -108,7 +109,7 @@ carries it out.
   `Assets/` path, size, cells, layers and paint.
 - `game_tree_materials.c` — materials.c's text: every `.material` and `.parts` read and parsed in a
   rewound scratch, then voe_game_materials_cooked with each one's `Assets/` path and values, floats
-  in hex, and voe_game_parts_cooked with each `.glb`'s path and its material paths.
+  in hex, and voe_game_parts_cooked with each `.glb`'s path, its material paths and its levels.
 - `play.h` — Play: the game tree written, configured and built as needed, then the game started as a
   program of its own, a second press ending it, and the label Play, Building or Stop.
 - `play.c` — the tree written and the first step started at the press, each ended step polled on
@@ -124,9 +125,8 @@ carries it out.
 - `ship.c` — the tree written and the first step started, each ended step polled on to the next,
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
-- `session.h` — the project being worked on, its Play, Refresh, Ship and open prefab, the Errors
-  panel shown from the build log, the armed command that makes Close, New, Open and Back refuse
-  once over unsaved work, and the `saved` flag a written Save leaves for main.c.
+- `session.h` — the project being worked on, the commands a person asks of it, and the
+  questions it holds.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, and what a browser action does to the session.
@@ -180,8 +180,8 @@ carries it out.
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
   drag parents, unparents or, onto the Assets panel, makes a prefab; a part never drags.
 - `scene_list.c` — the list's one frame of `ui` calls, walking the parent tree with a capped
-  stack, rows tightly padded in one gapless column, each in a rim wrapper, a copy's file name,
-  the drag's ghost refused or not, and the held row's drop.
+  stack, rows tightly padded in one gapless column, each in a rim wrapper, an off row greyed, a
+  copy's file name, the drag's ghost refused or not, and the held row's drop.
 - `drag_ghost.h` — the ghost every editor drag shows beside the pointer: a raised panel of the
   dragged thing's name, dimmed with "Can't drop here" when a release would drop nothing.
 - `drag_ghost.c` — the dim pushed when refused, the anchored panel, the name and the second line.
@@ -192,13 +192,14 @@ carries it out.
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
   fired row's path, Up and Import afterwards, and the import's copy.
 - `model_import.h` — what Import writes beside a `.glb`: one `<stem>-<name>.material` per glTF
-  material and `<stem>.parts` naming them, both overwritten every import (0403, 0420 point 3); and
+  material and `<stem>.parts` naming them, both overwritten every import, the levels kept (0403, 0420
+  point 3); and
   Import textures: its pictures as PNGs and the materials' four maps set to them.
 - `model_import.c` — the file read and parsed, each name cleaned and made unique, every path
   checked before the first write, then the materials and the parts, or the PNGs and the dressed
   materials, written.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
-  over a row and Import textures over a `.glb`'s, Create with its Folder, Landscape and Material
+  over a row and Import textures and Make LODs over a `.glb`'s, Create with its Folder, Landscape and Material
   submenu over the empty part, anchored at the pointer.
 - `assets_menu.c` — the menu's one frame of `ui` calls, the read of its rows with its own closing,
   and where it and the submenu go next frame.
@@ -206,6 +207,12 @@ carries it out.
   four users and "and N more" walked once on opening, Delete and Cancel, as an anchored panel.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
+- `levels_ask.h` — the anchored panel a model's LODs ask: its count and a row per LOD
+  with share, swap and triangles read from the `.parts`, with Make and Cancel; Make saves into the
+  `.parts` and says whether a reload is enough.
+- `levels_ask.c` — the open with its quiet `.parts` read and triangle count, the panel's one frame
+  of `ui` calls with its column headers, LOD rows and swap line, the read of its buttons, boxes and
+  a press outside, and the save into the `.parts`.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
   folder row or Up, a new thing or copy placed in a scene view, a swap, a shape's material, a filled
   map or a set landscape layer over the Inspector, a material over a model and elsewhere nothing.
@@ -233,16 +240,15 @@ carries it out.
   opens or closes a dock panel, Project, Errors or the frame breakdown, and whether one is open.
 - `panels.c` — the default tree's sizes filled in, read over and set back, and the same fields
   written through `settings.h`.
-- `interface.h` — the screen-filling surface, made in the theme it is handed: pixels per millimetre
-  from the window's height, the top bar above each root's dock tree, the browser, Preferences,
-  Project, Errors, the frame breakdown or the colour picker over it, and one draw command per root.
+- `interface.h` — the screen-filling surface, made in the theme it is handed, and its one draw
+  command per root.
 - `interface.c` — one `ui` frame per root: the dock walk, the draws over the dock, and the one read
   of its clicks as calls, in order, into the two below.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
-  row, Delete question and a fired prefab, landscape or material opened.
-- `interface_assets.c` — the request and menu row carried out, Import textures with the tables
-  read again, a made landscape's path, the Landscape panel opened, a material opened in the
-  Inspector with its before, the question answered and opened, and the open material following.
+  row, Delete and levels questions and a fired prefab, landscape or material opened.
+- `interface_assets.c` — the Assets panel's requests and menu rows carried out, Make LODs
+  opening the levels question, and the Delete and levels questions answered, Make's asking the
+  prepare or, for swaps alone, a reload.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
 - `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,
@@ -251,7 +257,7 @@ carries it out.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
-- `inspector.c` — the Duplicate and Delete row, each described component's heading, Remove and
+- `inspector.c` — the Enabled row's On or Off button, the Duplicate and Delete row, each described component's heading, Remove and
   "Needs" line, Add component, its menu and open list, a part read-only, the Sculpt and Layers
   sections on a landscape, or an open material's section instead.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
@@ -273,6 +279,10 @@ carries it out.
   material's file name choosing it to paint, and the add row a dropped material lands on.
 - `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
   read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
+- `inspector_level.h` — the Inspector's LOD section after Layers: per view in use, the LOD it
+  draws of a loaded model, of how many, made or own, asked with the draws' own function.
+- `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,
+  each view's label formatted into its kept buffer.
 - `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour and Emission
   swatches, Strength clamped 0–1000, Roughness and Metal sliders (greyed and unread while ORMmap is
   set), Repeat clamped 0.01–1000, Cutout, One side and Both sides, and the four map rows with ×.
@@ -288,7 +298,7 @@ carries it out.
 - `inspector_edit.c` — a dragged or typed number submitted as the component's replace intent, a
   rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
   bytes, and the picker's colour and the open list's choice submitted the same way.
-- `inspector_buttons.c` — the fired buttons carried out through scene.h and entities.h, and the
+- `inspector_buttons.c` — the fired buttons, Enabled's switch among them, carried out through scene.h and entities.h, and the
   open dropdown and Add component's lists and submenus opened, closed and placed each frame; none
   on a prefab's part.
 - `inspector_place.h` — the side-and-cap rule the open lists and submenus are placed by, and the
@@ -318,9 +328,9 @@ carries it out.
 - `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, lit by every
   light and kept out of the blockers, every place marked and blocker lined, the brush's rings with
   the gizmo hidden while brushing, stopping at the first refused pass.
-- `models.h` — the editor's one model store: loaded from the project folder, re-read once a second,
-  emptied on a different project, a broken file in the notice, the one place its landscapes' heights,
-  paint and layers and the project's materials are edited, and its models given their parts.
+- `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
+  or a prepared model on asking, emptied on a different project, a broken file in the notice, where
+  its landscapes and the project's materials are edited, and its models given their parts.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
@@ -329,15 +339,14 @@ carries it out.
   named by its `.glb`, read when the materials are.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
-- `models.c` — the store made, emptied on a new folder, filled, watched and re-read through
-  game/models.h with a failure's notice, and destroyed; its landscapes stamped, painted and put back,
-  its parts given, and its materials written and loaded again, those a read changed too.
+- `models.c` — the editor's one model store, made, filled, watched and re-read through
+  game/models.h, and its landscapes and materials edited and written back.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.
-- `scene.c` — the selection closing the open material, its follow of a move and refresh from its
-  row, Delete and Duplicate, the gizmo's switch, the colour picker and dropdown targets, the Scene
-  panel's rows and folds, asked after the frame has ended, and the reveal's unfold and scroll.
+- `scene.c` — the selection and its targets, the open material's close, follow and refresh,
+  Delete, Duplicate and the Inspector's switch, and the Scene panel's rows, asked after the frame
+  has ended.
 - `pick.h` — a left click in a scene view selects what is under the pointer, every placed thing on
   its mesh or its marker, a marker before a mesh, and a click on nothing clears the selection; the
   ray and what it meets are `3d`'s (ADR-0202, 0354).

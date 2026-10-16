@@ -1,4 +1,4 @@
-// What a fired button does: Duplicate, Delete, Remove, a swatch, a dropdown
+// What a fired button does: Enabled, Duplicate, Delete, Remove, a swatch, a dropdown
 // control, a row of the open list and Add component's rows, carried out
 // through scene.h and entities.h, and the open lists closed and placed. See
 // inspector_edit.h for when it runs and what closes each list.
@@ -135,6 +135,8 @@ void voe_editor_inspector_buttons_read(voe_editor_inspector *inspector,
 		voe_editor_scene_dropdown_close(scene);
 	}
 
+	if (!part && action_of(ui, inspector->enabled).fired)
+		voe_editor_scene_switch(scene);
 	if (!part && action_of(ui, inspector->duplicate).fired)
 		voe_editor_scene_duplicate(scene);
 	if (!part && action_of(ui, inspector->remove).fired)

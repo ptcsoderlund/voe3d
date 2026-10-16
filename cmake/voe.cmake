@@ -164,7 +164,9 @@ function(voe_allowed_deps folder out_var)
         # move (0253). text and ui for the project's interface drawn over the
         # world (0259); no theme, because a game reads no project text. audio
         # because the run owns the mixer its systems play sounds through (0265).
-        set(deps base math ecs scene physics platform render text ui 3d audio app)
+        # assets for the `[Levels]` of a `.parts` the loader reads when it makes
+        # a levels file (0430 point 5).
+        set(deps base math ecs scene physics platform assets render text ui 3d audio app)
     elseif(folder STREQUAL "dev")
         # dev may depend on anything, app included: it is the one program a
         # person runs to see the current state, so whatever exists is fair game.

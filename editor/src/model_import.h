@@ -13,7 +13,8 @@
 // made `_`, `material<N>` when it has none, and `-2`, `-3`… on a collision
 // within the file, compared in any case, since a case-blind disk would make
 // two of them one file. Then `<stem>.parts`, `material<N>` naming each by its
-// `Assets/…` path (assets/parts.h). The values are
+// `Assets/…` path (assets/parts.h), keeping the levels of the `.parts` there,
+// else the defaults (0430 point 4). The values are
 // voe_assets_model_material_values's: colour, roughness, metal, shader,
 // cut-out, both sides, emission, and no maps.
 //
@@ -51,7 +52,8 @@
 
 #include <stdbool.h>
 
-// Writes `glb`'s materials and parts beside it, `glb` the project-relative
+// Writes `glb`'s materials and parts beside it, the parts keeping the levels
+// of the one there, `glb` the project-relative
 // `Assets/…` path of a `.glb` already in `<project_folder>/`. True when every
 // file is written; false with `why` set. `scratch` is rewound.
 [[nodiscard]] bool voe_editor_model_import(const char *project_folder,

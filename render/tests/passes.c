@@ -31,6 +31,9 @@
 // A CAMERA CARRIES FURTHER LIGHTS (ADR-0357). Two after the first, one shadowed
 // on slot 1 of an array grown to two, open, draw and end on a device of its own.
 //
+// A FRAME COUNTS ITS TRIANGLES (ADR-0425 point 7). That one quad drawn is its six
+// indices ÷ 3, and the next begin puts the count back to nought.
+//
 // IDENTITY CAMERA, UNLIT RECORDS, AS tests/transient.c HAS THEM. A vertex is
 // already in clip space, so a quad from x = -1 to x = 0 is exactly the left
 // half, and its z is its depth: larger is nearer, under the GREATER test this
@@ -485,6 +488,11 @@ static void a_camera_carries_further_lights(voe_base_arena *arena)
 		voe_render_pass_end(device);
 		VOE_TEST_CHECK(voe_render_frame_end(device));
 		VOE_TEST_CHECK_INT(voe_render_frame_draw_count(device), 1);
+		VOE_TEST_CHECK_INT(voe_render_frame_triangle_count(device), 6 / 3);
+	}
+	if (open_frame(device)) {
+		VOE_TEST_CHECK_INT(voe_render_frame_triangle_count(device), 0);
+		VOE_TEST_CHECK(voe_render_frame_end(device));
 	}
 
 	voe_render_device_destroy(device);

@@ -19,6 +19,10 @@
 // A VERTEX COLOUR IS WRITTEN AS ITS COMPLEMENT, each channel clamped to 0–1 and
 // stored as (1 − c) × 65535 rounded, so a primitive without colours leaves the
 // field zeroed and draws white (ADR-0421 point 1).
+//
+// A NODE'S LEVEL RIDES THE WALK beside its matrix. A node of another level is
+// walked, since its children may name their own, but its mesh is not placed; a
+// node past HIGHEST_LEVEL is not walked further.
 #include "model_bake.h"
 
 #include <3d/import.h>
@@ -28,7 +32,12 @@
 #include <math/float3.h>
 #include <math/float4x4.h>
 
+#include <ctype.h>
 #include <math.h>
+#include <string.h>
+
+// The last own level a file may name, the store's last (ADR-0425 point 1).
+#define HIGHEST_LEVEL (VOE_3D_MODEL_LEVELS - 1)
 
 // One drawn primitive where the walk put it, and the part it joins.
 struct placement {
@@ -37,17 +46,21 @@ struct placement {
 	voe_math_float4x4 world;
 };
 
-// One frame of the walk: which node, where its parent put it, how deep it is.
+// One frame of the walk: which node, where its parent put it, how deep it is,
+// and its level.
 struct frame {
 	uint32_t node;
 	voe_math_float4x4 world;
 	uint32_t depth;
+	uint32_t level;
 };
 
-// What the walk carries: the list it writes and each part's counts so far,
-// wide, so a sum past a 32-bit count is seen rather than wrapped.
+// What the walk carries: the level asked, the list it writes and each part's
+// counts so far, wide, so a sum past a 32-bit count is seen rather than
+// wrapped.
 struct baking {
 	const voe_assets_model *model;
+	uint32_t level;
 	voe_3d_model_bake *out;
 	struct placement *placements;
 	size_t placement_count;
@@ -60,6 +73,28 @@ static bool refuse(voe_base_error *error, voe_base_error code)
 	if (error != NULL)
 		*error = code;
 	return false;
+}
+
+// The level a node's name gives it: n for a name ending `_LOD<n>`, LOD in any
+// case and n all digits, else `inherited`. The digits are read only while the
+// level is within HIGHEST_LEVEL, so a long run of them cannot wrap and still
+// reads as past it.
+static uint32_t level_of(const voe_assets_node *node, uint32_t inherited)
+{
+	const char *suffix = strrchr(node->name.text, '_');
+	uint32_t level = 0;
+	size_t digits;
+
+	if (suffix == NULL || tolower((unsigned char)suffix[1]) != 'l' ||
+	    tolower((unsigned char)suffix[2]) != 'o' ||
+	    tolower((unsigned char)suffix[3]) != 'd')
+		return inherited;
+	digits = strspn(suffix + 4, "0123456789");
+	if (digits == 0 || suffix[4 + digits] != '\0')
+		return inherited;
+	for (size_t d = 0; d < digits && level <= HIGHEST_LEVEL; d++)
+		level = level * 10 + (uint32_t)(suffix[4 + d] - '0');
+	return level;
 }
 
 // The part wearing `material`, added when it is new; VOE_3D_MODEL_PARTS when
@@ -136,6 +171,7 @@ static bool walk(struct baking *baking, voe_base_arena *arena,
 			.node = model->roots[i],
 			.world = model->nodes[model->roots[i]].local,
 			.depth = 1,
+			.level = level_of(&model->nodes[model->roots[i]], 0),
 		};
 	}
 
@@ -149,7 +185,9 @@ static bool walk(struct baking *baking, voe_base_arena *arena,
 				       VOE_3D_IMPORT_MAX_DEPTH);
 			return refuse(error, VOE_BASE_ERROR_UNSUPPORTED);
 		}
-		if (!place(baking, &frame, error))
+		if (frame.level > HIGHEST_LEVEL)
+			continue;
+		if (frame.level == baking->level && !place(baking, &frame, error))
 			return false;
 
 		// The parent's matrix on the left: the child's own transform is
@@ -162,6 +200,7 @@ static bool walk(struct baking *baking, voe_base_arena *arena,
 				.world = voe_math_float4x4_mul(
 					frame.world, model->nodes[child].local),
 				.depth = frame.depth + 1,
+				.level = level_of(&model->nodes[child], frame.level),
 			};
 		}
 	}
@@ -274,9 +313,10 @@ static void fill(voe_3d_model_bake *out, const voe_assets_model *model,
 }
 
 bool voe_3d_model_bake_create(voe_base_arena *arena, const voe_assets_model *model,
-		       voe_3d_model_bake *out, voe_base_error *error)
+			      uint32_t level, voe_3d_model_bake *out,
+			      voe_base_error *error)
 {
-	struct baking baking = { .model = model, .out = out };
+	struct baking baking = { .model = model, .level = level, .out = out };
 	uint32_t next_vertex[VOE_3D_MODEL_PARTS];
 	uint32_t next_index[VOE_3D_MODEL_PARTS];
 	size_t most = 0;
@@ -311,4 +351,50 @@ bool voe_3d_model_bake_create(voe_base_arena *arena, const voe_assets_model *mod
 		     &next_index[part]);
 	}
 	return true;
+}
+
+// The bake's walk without an arena to push its stack into: one cursor per
+// depth, each the next child to go down, so the room is the depth the bake
+// allows and nothing below it is counted.
+uint32_t voe_3d_model_bake_levels(const voe_assets_model *model)
+{
+	struct cursor {
+		uint32_t node;
+		uint32_t next_child;
+		uint32_t level;
+	} path[VOE_3D_IMPORT_MAX_DEPTH];
+	uint32_t highest = 0;
+
+	VOE_BASE_ASSERT(model != NULL, "counting the levels of nothing");
+
+	for (uint32_t r = 0; r < model->root_count; r++) {
+		uint32_t depth = 1;
+
+		path[0] = (struct cursor){
+			.node = model->roots[r],
+			.level = level_of(&model->nodes[model->roots[r]], 0),
+		};
+		while (depth > 0) {
+			struct cursor *at = &path[depth - 1];
+			const voe_assets_node *node = &model->nodes[at->node];
+			uint32_t child;
+
+			if (at->level <= HIGHEST_LEVEL && at->level > highest)
+				highest = at->level;
+			if (at->level > HIGHEST_LEVEL ||
+			    at->next_child == node->child_count ||
+			    depth == VOE_3D_IMPORT_MAX_DEPTH) {
+				depth--;
+				continue;
+			}
+			child = node->children[at->next_child++];
+			path[depth++] = (struct cursor){
+				.node = child,
+				.level = level_of(&model->nodes[child], at->level),
+			};
+		}
+	}
+
+	VOE_BASE_ASSERT(highest <= HIGHEST_LEVEL, "a level past the last");
+	return highest + 1;
 }

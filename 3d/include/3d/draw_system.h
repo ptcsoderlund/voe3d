@@ -317,7 +317,9 @@ typedef struct {
 	// handed out (ecs/world.h), so a caller that never sets this loses
 	// nothing. It is one entity and not a list or a mask on purpose: the
 	// case is the surface showing this pass's own target and there is one
-	// of those per target (ADR-0158, and the paragraph above).
+	// of those per target (ADR-0158, and the paragraph above). A
+	// switched-off owner is left out the same way, everywhere this is
+	// (0428).
 	voe_ecs_entity hidden;
 	// A PASS MAY OUTLINE ONE ENTITY, AND IT IS DRAWN AFTER EVERYTHING ELSE
 	// (ADR-0203). Last means after the overlay's own two groups, and
@@ -614,8 +616,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // open, it asserts.
 //
 // CASTERS ARE WORLD-LAYER, LIT, OPAQUE OR CUTOUT MESHES WITH A TRANSFORM, the
-// frame's `hidden` left out; a cutout casts as solid, and panels and marks cast
-// nothing. A model part in `frame->models` casts under the same rule, its
+// frame's `hidden` and switched-off owners left out (0428); a cutout casts as
+// solid, and panels and marks cast nothing. A model part in `frame->models` casts under the same rule, its
 // material the part's. A mesh whose shape, or a model whose row, has
 // `cast_shadows` false is no caster, though still drawn and shadowed; nor is a
 // model row with `fade` at or above 1, and a fading one casts as ever (0336). The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
@@ -717,7 +719,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // landscape rows a frame, the rest are not drawn, said once on stderr. The
 // device needs room for that many objects per landscape row per world pass.
 // THE ONE EXCEPTION IS THE FRAME'S `hidden`: the entity it
-// names is not drawn however complete it is, mesh, panel, model or particle.
+// names is not drawn however complete it is, mesh, panel, model or particle,
+// and a switched-off owner is left out the same way (0428).
 //
 // EACH LIVE PARTICLE IS ONE BLENDED DRAW FROM `frame.models` (ADR-0298 point
 // 6): its emitter's texture's picture entry, the soft dot at "" for an empty

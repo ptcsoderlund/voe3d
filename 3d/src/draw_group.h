@@ -114,7 +114,9 @@ voe_render_object voe_3d_draw_group_object_of(const voe_scene_transform *transfo
 					      voe_math_double3 eye);
 voe_3d_model_part voe_3d_draw_group_part_worn(const voe_3d_models *models,
 					      const voe_3d_model_entry *model,
-					      uint32_t part);
+					      uint32_t part, uint32_t level);
 bool voe_3d_draw_group_shape_type(const voe_ecs_world *world,
 				  voe_ecs_type *out);
 bool voe_3d_draw_group_is_the_same_entity(voe_ecs_entity a, voe_ecs_entity b);
+bool voe_3d_draw_group_left_out(const voe_ecs_world *world,
+				voe_ecs_entity owner, voe_ecs_entity hidden);

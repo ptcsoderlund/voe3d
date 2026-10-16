@@ -1,8 +1,8 @@
 // The scene reader: that a file becomes a world and goes back out as the same
 // bytes, that a world goes out and comes back as the same rows, that a file wrong
 // anywhere creates nothing, and that a section nobody registered survives the trip.
-// A folded row is saved and read back folded; a scene with no `folded` key loads
-// unfolded.
+// A folded row is saved and read back folded, a switched-off one off; a scene with
+// no `folded` or `off` key loads unfolded and on.
 //
 // A REFUSAL IS CHECKED BY THE WORLD HOLDING NO ENTITY AFTERWARDS, and every refused
 // file puts its fault after at least one good section, so a reader that created as
@@ -205,6 +205,7 @@ static const char *const canonical =
 	"[1]\n"
 	"name = \"Camera\"\n"
 	"folded = false\n"
+	"off = false\n"
 	"[1.voe_scene_camera]\n"
 	"fov_y = 1.25\n"
 	"near_plane = 0.1\n"
@@ -217,6 +218,7 @@ static const char *const canonical =
 	"[2]\n"
 	"name = \"Cube \\\"big\\\"\"\n"
 	"folded = false\n"
+	"off = false\n"
 	"[2.test_link]\n"
 	"target = 3\n"
 	"[2.voe_game_health]\n"
@@ -230,6 +232,7 @@ static const char *const canonical =
 	"[3]\n"
 	"name = \"Floor\"\n"
 	"folded = false\n"
+	"off = false\n"
 	"[3.test_link]\n"
 	"target = 0\n";
 
@@ -443,6 +446,7 @@ static void test_colour_round_trip(void)
 		   "[1]\n"
 		   "name = \"Cube\"\n"
 		   "folded = false\n"
+		   "off = false\n"
 		   "[1.test_tinted]\n"
 		   "colour = [0.25, 0.1, 1]\n"
 		   "weight = 0.5\n");
@@ -480,7 +484,8 @@ static void test_folded_round_trip(void)
 	CHECK_TEXT(out.text, out.size,
 		   "[1]\n"
 		   "name = \"Group\"\n"
-		   "folded = true\n");
+		   "folded = true\n"
+		   "off = false\n");
 
 	struct types second_types;
 	voe_ecs_world *second = world_of(arena, ENTITIES, &second_types);
@@ -513,6 +518,65 @@ static void test_no_folded_key(void)
 
 	VOE_TEST_CHECK(identity != NULL && !identity->folded &&
 		       strcmp(identity->name, "Old") == 0);
+
+	voe_base_arena_destroy(arena);
+}
+
+// A switched-off entity is saved as `off = true` and read back off (ADR-0428
+// point 1).
+static void test_off_round_trip(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	struct types types;
+	voe_ecs_world *first = world_of(arena, ENTITIES, &types);
+	voe_ecs_entity entity = { 0 };
+	voe_authoring_text out = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(first, &entity));
+	VOE_TEST_CHECK(voe_scene_identity_add(first, entity, (voe_scene_identity){
+		.id = 1, .name = "Lamp", .off = true }));
+	VOE_TEST_CHECK(voe_authoring_scene_write(first, NULL, arena, &out));
+	CHECK_TEXT(out.text, out.size,
+		   "[1]\n"
+		   "name = \"Lamp\"\n"
+		   "folded = false\n"
+		   "off = true\n");
+
+	struct types second_types;
+	voe_ecs_world *second = world_of(arena, ENTITIES, &second_types);
+	voe_authoring_kept kept = { 0 };
+
+	VOE_TEST_CHECK(out.text != NULL &&
+		       voe_authoring_scene_read(out.text, out.size, second, arena,
+						&kept));
+
+	const voe_scene_identity *back =
+		voe_scene_identity_get(second, entity_with_id(second, 1));
+
+	VOE_TEST_CHECK(back != NULL && back->off && !back->folded);
+
+	voe_base_arena_destroy(arena);
+}
+
+// A scene saved before 089 says nothing of the switch: every identity loads on.
+static void test_no_off_key(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	struct types types;
+	voe_ecs_world *world = world_of(arena, ENTITIES, &types);
+	voe_authoring_kept kept = { 0 };
+
+	VOE_TEST_CHECK(read_text("[1]\nname = \"Old\"\nfolded = true\n\n"
+				 "[2]\nname = \"Older\"\n",
+				 world, arena, &kept));
+
+	const voe_scene_identity *one =
+		voe_scene_identity_get(world, entity_with_id(world, 1));
+	const voe_scene_identity *two =
+		voe_scene_identity_get(world, entity_with_id(world, 2));
+
+	VOE_TEST_CHECK(one != NULL && !one->off && one->folded);
+	VOE_TEST_CHECK(two != NULL && !two->off);
 
 	voe_base_arena_destroy(arena);
 }
@@ -632,6 +696,7 @@ static void test_shapes_tolerated_spacing(void)
 		   "[1]\n"
 		   "name = \"a\"\n"
 		   "folded = false\n"
+		   "off = false\n"
 		   "[1.test_shapes]\n"
 		   "pair = [[1, 2, 3], [4, 5, 6]]\n"
 		   "points = [[0, 0, 0], [1, 2.5, -3]]\n"
@@ -703,9 +768,9 @@ static void test_file_order(void)
 				 world, arena, &kept));
 	VOE_TEST_CHECK(voe_authoring_scene_write(world, &kept, arena, &out));
 	CHECK_TEXT(out.text, out.size,
-		   "[1]\nname = \"a\"\nfolded = false\n\n"
-		   "[2]\nname = \"b\"\nfolded = false\n\n"
-		   "[3]\nname = \"c\"\nfolded = false\n[3.test_link]\ntarget = 1\n");
+		   "[1]\nname = \"a\"\nfolded = false\noff = false\n\n"
+		   "[2]\nname = \"b\"\nfolded = false\noff = false\n\n"
+		   "[3]\nname = \"c\"\nfolded = false\noff = false\n[3.test_link]\ntarget = 1\n");
 
 	voe_base_arena_destroy(arena);
 }
@@ -754,6 +819,7 @@ static const char *const shapes_canonical =
 	"[1]\n"
 	"name = \"A\"\n"
 	"folded = false\n"
+	"off = false\n"
 	"[1.test_shapes]\n"
 	"pair = [[1, 2, 3], [4, 5, 6]]\n"
 	"points = [[0, 0, 0], [1, 2.5, -3]]\n"
@@ -766,6 +832,7 @@ static const char *const shapes_canonical =
 	"[2]\n"
 	"name = \"B\"\n"
 	"folded = false\n"
+	"off = false\n"
 	"[2.test_shapes]\n"
 	"pair = [[1, 2, 3], [4, 5, 6]]\n"
 	"points = [[0, 0, 0], [1, 2.5, -3]]\n"
@@ -859,6 +926,8 @@ int main(void)
 	test_colour_round_trip();
 	test_folded_round_trip();
 	test_no_folded_key();
+	test_off_round_trip();
+	test_no_off_key();
 	test_refusals();
 	test_shapes_refusals();
 	test_shapes_tolerated_spacing();

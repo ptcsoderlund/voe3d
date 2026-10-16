@@ -15,9 +15,10 @@
 // solid in the sun; opaque or cutout, because nothing see-through casts, and a
 // cutout casts as solid since the depth-only pipeline has no fragment stage to
 // discard with. Panels and the editor's marks cast nothing, and the frame's
-// `hidden` is left out here as in _run. A model part in the frame's store casts
-// by the same rule, its material the part's or the one its row's `materials`
-// names (0399 point 6), in the world layer as every part is.
+// `hidden` and what is switched off are left out here as in _run. A model
+// part in the frame's store casts by the same rule, its material the part's or
+// the one its row's `materials` names (0399 point 6), in the world layer as
+// every part is.
 // The ground casts by nodes: a landscape draws those the view's eye chooses,
 // the bounce's passes taking it coarse (0397).
 //
@@ -61,12 +62,14 @@
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
+#include <3d/model_levels.h>
 #include <3d/models.h>
 #include <3d/normal_matrix.h>
 #include <3d/shadow_cascades.h>
 #include <3d/shape_component.h>
 #include <base/assert.h>
 #include <math/double3.h>
+#include <scene/identity_component.h>
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
@@ -97,11 +100,12 @@ static bool held_within(const voe_3d_frame *frame,
 }
 
 // Every loaded model part that casts, drawn into the shadow pass that is open,
-// as draw_casters draws a mesh, `within` and `landscape_nodes` as it takes
-// them. Nothing with no store (0277 point 3).
+// as draw_casters draws a mesh, `within`, `landscape_nodes` and `coarsest` as
+// it takes them; a part the row's level lacks casts nothing. Nothing with no
+// store (0277 point 3).
 static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 			       const voe_3d_frame *frame, uint32_t within,
-			       uint32_t landscape_nodes)
+			       uint32_t landscape_nodes, bool coarsest)
 {
 	const voe_3d_model *rows = voe_3d_model_rows(world);
 	const voe_ecs_entity *owners = voe_3d_model_entities(world);
@@ -113,10 +117,11 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 		const voe_3d_model_entry *model;
 		voe_3d_models_terrain terrain;
 		voe_scene_transform drawn;
+		uint32_t level;
 
 		// A gone row casts nothing; a fading one casts as ever (0336).
 		if (!rows[row].cast_shadows || rows[row].fade >= 1.0f ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden) ||
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden) ||
 		    voe_scene_transform_get(world, owners[row]) == NULL)
 			continue;
 		model = voe_3d_models_find(frame->models, rows[row].path);
@@ -138,11 +143,16 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 				return false;
 			continue;
 		}
+		// The camera's level, or the bounce's last (0425 point 5).
+		level = coarsest ? model->level_count - 1 :
+				   voe_3d_model_level(model, &drawn, frame->eye,
+						      &frame->view);
 		for (uint32_t part = 0; part < model->part_count; part++) {
 			voe_3d_model_part piece = voe_3d_draw_group_part_worn(
-				frame->models, model, part);
+				frame->models, model, part, level);
 
-			if (voe_3d_draw_casts(&piece.material) &&
+			if (piece.geometry.generation != 0 &&
+			    voe_3d_draw_casts(&piece.material) &&
 			    !voe_render_frame_draw(device, piece.geometry,
 						   voe_3d_draw_group_object_of(
 							   &drawn, &piece.material,
@@ -159,10 +169,11 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 // A mesh whose shape, or a model whose row, has `cast_shadows` false casts
 // nothing (0324 point 5); a mesh with no shape casts by the header's rules. A
 // model row with `fade` at or above 1 casts nothing, and a fading one casts
-// as ever (0336 point 3); the bounce shares this walk.
+// as ever (0336 point 3); the bounce shares this walk, its model rows at
+// their last level (`coarsest`).
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame, uint32_t within,
-			 uint32_t landscape_nodes)
+			 uint32_t landscape_nodes, bool coarsest)
 {
 	const voe_3d_mesh *meshes = voe_3d_mesh_rows(world);
 	const voe_ecs_entity *owners = voe_3d_mesh_entities(world);
@@ -178,7 +189,7 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 		voe_scene_transform drawn;
 
 		if (meshes[row].layer != VOE_3D_LAYER_WORLD ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
 		material = voe_3d_material_get(world, owners[row]);
 		shape = has_shapes ? voe_ecs_component_get(world, shapes,
@@ -200,7 +211,7 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 	}
 	return frame->models == NULL ||
 	       draw_model_casters(world, device, frame, within,
-				  landscape_nodes);
+				  landscape_nodes, coarsest);
 }
 
 // Whether anything bounces this frame (0326 point 8): the world's light row,
@@ -235,12 +246,14 @@ static bool anything_bounces(const voe_ecs_world *world,
 }
 
 // Whether light row `light`, in table order, casts (0324 point 4). Past the
-// count never does.
+// count never does, nor a row whose owner is off (0428 point 4).
 bool voe_3d_draw_light_casts(const voe_ecs_world *world, uint32_t light)
 {
 	VOE_BASE_ASSERT(world != NULL, "casting from no world");
 	return light < voe_scene_light_count(world) &&
-	       voe_scene_light_rows(world)[light].cast_shadows;
+	       voe_scene_light_rows(world)[light].cast_shadows &&
+	       !voe_scene_identity_off(world,
+				       voe_scene_light_entities(world)[light]);
 }
 
 // Directional light `light` of the frame: 0 is `light` and `shadow`, i + 1 is
@@ -304,7 +317,7 @@ static bool draw_light_cascades(voe_ecs_world *world, voe_render_device *device,
 			return false;
 		drawn = voe_3d_draw_casters(world, device, frame,
 					    frame_light_blockers(frame, light),
-					    VOE_3D_LANDSCAPE_NODES);
+					    VOE_3D_LANDSCAPE_NODES, false);
 		voe_render_pass_end(device);
 		if (!drawn)
 			return false;
@@ -368,7 +381,7 @@ static bool draw_point_shadows(voe_ecs_world *world, voe_render_device *device,
 	if (!voe_render_point_shadow_pass_begin(device, &frame->points))
 		return false;
 	drawn = voe_3d_draw_casters(world, device, frame, 0,
-				    VOE_3D_LANDSCAPE_NODES);
+				    VOE_3D_LANDSCAPE_NODES, false);
 	voe_render_pass_end(device);
 	return drawn;
 }

@@ -11,6 +11,7 @@
 #include <3d/depth_sort.h>
 #include <3d/normal_matrix.h>
 #include <base/assert.h>
+#include <scene/identity_component.h>
 
 // Whether two entity ids name the same entity. A zeroed id — which is what a
 // frame that hides nothing carries — never matches a live one, because
@@ -19,6 +20,17 @@
 bool voe_3d_draw_group_is_the_same_entity(voe_ecs_entity a, voe_ecs_entity b)
 {
 	return a.index == b.index && a.generation == b.generation;
+}
+
+// The one test a draw makes of a row's owner: true when it is the frame's
+// `hidden` or switched off, itself or through an ancestor (0427). The switch is
+// asked here, every frame, and not kept: one read walks the parents (0428 point
+// 2), so a cached copy would be state to keep in step with every reparent.
+bool voe_3d_draw_group_left_out(const voe_ecs_world *world,
+				voe_ecs_entity owner, voe_ecs_entity hidden)
+{
+	return voe_3d_draw_group_is_the_same_entity(owner, hidden) ||
+	       voe_scene_identity_off(world, owner);
 }
 
 // The view-space depth of an object's origin, which is the key the blended pass
@@ -148,19 +160,24 @@ bool voe_3d_draw_group_mesh_draw(voe_render_device *device,
 	return drawn;
 }
 
-// Part `part` of `model` as the model wears it (0404): the model's geometry,
-// and when the part's `wears` names a loaded material in `models`, that entry's
-// record and blended twin; else the model's own. No store is the model's own.
+// Part `part` of `model` as the model wears it (0404) at level `level` (0425):
+// that level's geometry of the part, and when the part's `wears` names a
+// loaded material in `models`, that entry's record and blended twin; else the
+// model's own. No store is the model's own. A zeroed geometry (generation 0)
+// is a part this level lacks, which the callers skip.
 voe_3d_model_part voe_3d_draw_group_part_worn(const voe_3d_models *models,
 					      const voe_3d_model_entry *model,
-					      uint32_t part)
+					      uint32_t part, uint32_t level)
 {
 	voe_3d_model_part worn;
 	const voe_3d_model_part *named;
 
 	VOE_BASE_ASSERT(model != NULL && part < model->part_count,
 			"wearing a part the model has not got");
+	VOE_BASE_ASSERT(level < model->level_count,
+			"wearing a level the model has not got");
 	worn = model->parts[part];
+	worn.geometry = model->levels[level].geometries[part];
 	named = voe_3d_draw_material_named(models, worn.wears);
 	if (named != NULL) {
 		worn.material = named->material;

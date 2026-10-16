@@ -206,6 +206,8 @@ typedef struct {
 	// loop.
 	const uint32_t *children;
 	uint32_t child_count;
+	// glTF's `name`, "" without one; Blender's levels are read from it.
+	voe_assets_model_name name;
 } voe_assets_node;
 
 // Everything the file held, in the arena the reader was handed. Freed by

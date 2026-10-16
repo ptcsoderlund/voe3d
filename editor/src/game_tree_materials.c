@@ -20,7 +20,10 @@
 //                     { "Assets/wall.glb", { .count = 2, .materials = {
 //                             "Assets/brick.material",
 //                             "",
-//                       } } },
+//                       },
+//                       .levels = { .count = 4,
+//                         .shares = { 0x1.9p+6f, 0x1.9p+5f, ... },
+//                         .swaps = { 0x1p+0f, 0x1p+0f, ... } } } },
 //             },
 //             1,
 //     };
@@ -131,6 +134,18 @@ static const char *material_entry(voe_base_arena *arena, const char *path,
 	return out;
 }
 
+// values' VOE_ASSETS_LEVELS floats as a brace list, each `%a` with an `f`.
+static const char *levels_floats(voe_base_arena *arena, const float *values)
+{
+	const char *out = "{";
+
+	VOE_BASE_ASSERT(values != NULL, "a list of no levels' floats");
+	for (uint32_t i = 0; i < VOE_ASSETS_LEVELS; i++)
+		out = voe_editor_game_tree_format(arena, "%s%s %af", out,
+						  i == 0 ? "" : ",", (double)values[i]);
+	return voe_editor_game_tree_format(arena, "%s }", out);
+}
+
 // One table entry for the parts file at Assets/path holding p, named by the
 // `.glb` beside it, in arena.
 static const char *parts_entry(voe_base_arena *arena, const char *path,
@@ -149,11 +164,17 @@ static const char *parts_entry(voe_base_arena *arena, const char *path,
 			arena, "%s\t\t\t\"%s\",\n", names,
 			voe_editor_game_tree_c_string(arena, p->materials[i]));
 	return voe_editor_game_tree_format(
-		arena, "\t\t{ \"%s\", { .count = %u, .materials = {\n%s\t\t  } } },\n",
+		arena,
+		"\t\t{ \"%s\", { .count = %u, .materials = {\n%s\t\t  },\n"
+		"\t\t  .levels = { .count = %u,\n"
+		"\t\t    .shares = %s,\n"
+		"\t\t    .swaps = %s } } },\n",
 		voe_editor_game_tree_c_string(
 			arena, voe_editor_game_tree_format(arena, "Assets/%.*s.glb",
 							   (int)stem, path)),
-		p->count, names);
+		p->count, names, p->levels.count,
+		levels_floats(arena, p->levels.shares),
+		levels_floats(arena, p->levels.swaps));
 }
 
 // The definition of name, a table of type whose rows are row, holding entries.

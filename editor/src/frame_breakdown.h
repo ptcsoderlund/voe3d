@@ -1,8 +1,9 @@
 // The Frame panel: what the graphics card spent on each pass of a frame, by the
 // pass's own name, in milliseconds, and the frame's total (ADR-0358), so render
 // work is argued from a measurement. A title row "Frame" with an × at its right
-// (0363 point 2), a row per pass, name left and milliseconds right, then Total —
-// an anchored panel at a point the caller gives.
+// (0363 point 2), a row per pass, name left and milliseconds right, then Total,
+// then Triangles, the frame's triangle count (ADR-0425 point 7) — an anchored
+// panel at a point the caller gives.
 //
 //     voe_editor_frame_breakdown breakdown = { 0 };
 //     voe_editor_frame_breakdown_show(&breakdown);
@@ -26,13 +27,15 @@
 //
 // Constraints. At most VOE_EDITOR_FRAME_PASSES passes; a frame with more shows
 // its first ones, and raising the number, with interface.h's budget, lifts it.
-// NODES, AT MOST 200: the panel, one; the title row, its label and the × as a
+// NODES, AT MOST 203: the panel, one; the title row, its label and the × as a
 // button and a label, four; per pass a row and two labels, three, 192; the
-// total's row and two labels, three. ELEMENTS, AT MOST 2974: the panel's border
-// and fill, two; "Frame", five; the ×'s border, fill and character, three; per
-// pass its name, at most VOE_RENDER_PASS_NAME - 1 (31) characters, and its
-// milliseconds, at most VOE_EDITOR_FRAME_MILLISECONDS - 1 (15), 2944; "Total"
-// and its milliseconds, twenty. Those are what interface.h's budget counts.
+// total's row and two labels, three; the triangles' row and two labels, three.
+// ELEMENTS, AT MOST 3003: the panel's border and fill, two; "Frame", five; the
+// ×'s border, fill and character, three; per pass its name, at most
+// VOE_RENDER_PASS_NAME - 1 (31) characters, and its milliseconds, at most
+// VOE_EDITOR_FRAME_MILLISECONDS - 1 (15), 2944; "Total" and its milliseconds,
+// twenty; "Triangles" and at most VOE_EDITOR_FRAME_TRIANGLES - 1 (20) digits,
+// twenty-nine. Those are what interface.h's budget counts.
 #pragma once
 
 #include <math/float2.h>
@@ -48,6 +51,8 @@
 #define VOE_EDITOR_FRAME_PASSES 64
 // The bytes of one milliseconds label with its NUL.
 #define VOE_EDITOR_FRAME_MILLISECONDS 16
+// The bytes of the triangles label with its NUL: a uint64_t's 20 digits.
+#define VOE_EDITOR_FRAME_TRIANGLES 21
 
 // Zeroed is a panel never shown and never measured.
 typedef struct {
@@ -57,10 +62,12 @@ typedef struct {
 	uint32_t count;
 	voe_render_pass_time passes[VOE_EDITOR_FRAME_PASSES];
 	double total;
+	uint64_t triangles;
 	// Kept here because a label's text is drawn after the call that made
 	// it (ui/widgets.h); the names are drawn from `passes`.
 	char milliseconds[VOE_EDITOR_FRAME_PASSES][VOE_EDITOR_FRAME_MILLISECONDS];
 	char total_milliseconds[VOE_EDITOR_FRAME_MILLISECONDS];
+	char triangles_label[VOE_EDITOR_FRAME_TRIANGLES];
 	float since_refresh;
 	voe_ui_node close_button;
 } voe_editor_frame_breakdown;
@@ -70,6 +77,7 @@ void voe_editor_frame_breakdown_hide(voe_editor_frame_breakdown *breakdown);
 
 // While showing, adds `seconds` to the time since the last refresh and, once a
 // quarter second has passed, copies `gpu`'s newest pass times and frame time in.
+// The frame's triangle count is taken with the times and lags as they do.
 // Not showing, or no measurement, it changes nothing shown.
 void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
 				     const voe_render_device *gpu, float seconds);

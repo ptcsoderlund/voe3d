@@ -44,13 +44,17 @@ bool voe_3d_draw_casts(const voe_3d_material *material);
 // over `frame->blockers`' kept records holding every bit of `within` (0361
 // point 2); `within` 0 draws every caster and takes no mask. A landscape
 // caster draws at most `landscape_nodes` nodes, the cast's capacity (0397).
-// False when render refuses a draw. draw_shadows.c.
+// With `coarsest` false each model row draws at the level the frame's camera
+// chooses for it, with true at its last: the bounce passes true, so the camera
+// never changes the bounce (0331, 0425 point 5). False when render refuses a
+// draw. draw_shadows.c.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame, uint32_t within,
-			 uint32_t landscape_nodes);
+			 uint32_t landscape_nodes, bool coarsest);
 
 // Whether light row `light`, in table order, casts (0324 point 4); false past
-// the count. draw_shadows.c.
+// the count and for a row whose owner is off, so no cascade is drawn for it
+// (0428 point 4). draw_shadows.c.
 bool voe_3d_draw_light_casts(const voe_ecs_world *world, uint32_t light);
 
 // The stale spheres of this step into `spheres`, xyz about the frame's eye and
@@ -67,8 +71,8 @@ uint32_t voe_3d_bounce_stale(const voe_ecs_world *world,
 
 // Every caster a capture draws, as voe_3d_bounce_stale marks them: world-layer
 // meshes with a casting material and a transform, then, with `frame->models`,
-// model rows with a transform and a casting part, the frame's `hidden` left
-// out. Each goes to `visit` with `context`, its mesh's geometry, and its
+// model rows with a transform and a casting part, the frame's `hidden` and
+// what is switched off left out. Each goes to `visit` with `context`, its mesh's geometry, and its
 // model's entry or NULL; the walk stops when `visit` returns false.
 void voe_3d_bounce_walk(const voe_ecs_world *world, const voe_3d_frame *frame,
 			bool (*visit)(void *context, voe_ecs_entity entity,

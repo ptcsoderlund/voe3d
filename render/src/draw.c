@@ -1,6 +1,7 @@
 // The draws inside an open pass: voe_render_frame_draw and _draw_blended record
 // one mesh each, _clear_depth clears depth between two groups of them, and
-// _draw_count reports how many draw commands the frame held. Every call asserts
+// _draw_count and _triangle_count report how many draw commands the frame held
+// and how many triangles they drew. Every call asserts
 // a pass is open, and a mesh draw that the pass was opened with a camera.
 //
 // ONE OBJECT RECORD PER DRAW. A draw writes its voe_render_object into the
@@ -263,6 +264,7 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 	// not to do. Counted here and in the element draw and nowhere else — see
 	// voe_render_frame_draw_count.
 	device->draw_commands++;
+	device->triangles += (uint64_t)(slot->index_count / 3) * instances;
 	return true;
 }
 
@@ -375,4 +377,13 @@ uint32_t voe_render_frame_draw_count(const voe_render_device *device)
 	// No assert on `recording`: the number is worth reading after _end, and
 	// that is where a caller reporting what a frame cost will read it.
 	return device->draw_commands;
+}
+
+uint64_t voe_render_frame_triangle_count(const voe_render_device *device)
+{
+	VOE_BASE_ASSERT(device != NULL,
+			"asking no device how many triangles it drew");
+
+	// No assert on `recording`, for the reason the draw count gives.
+	return device->triangles;
 }

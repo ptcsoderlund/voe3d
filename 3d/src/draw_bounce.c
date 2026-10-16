@@ -183,7 +183,7 @@ static void grow_model(struct still_box *box, const voe_render_device *device,
 	}
 	for (uint32_t part = 0; part < model->part_count; part++) {
 		voe_3d_model_part piece =
-			voe_3d_draw_group_part_worn(models, model, part);
+			voe_3d_draw_group_part_worn(models, model, part, 0);
 
 		if (voe_3d_draw_casts(&piece.material))
 			grow(box, device, piece.geometry, placed);
@@ -289,7 +289,7 @@ static bool model_casts(const voe_3d_frame *frame, const voe_3d_model *row)
 		return false;
 	for (uint32_t part = 0; part < model->part_count; part++) {
 		voe_3d_model_part piece = voe_3d_draw_group_part_worn(
-			frame->models, model, part);
+			frame->models, model, part, 0);
 
 		if (voe_3d_draw_casts(&piece.material))
 			return true;
@@ -310,7 +310,7 @@ static bool walk_models(const voe_ecs_world *world, const voe_3d_frame *frame,
 
 	VOE_BASE_ASSERT(frame->models != NULL, "casting models from no store");
 	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
-		if (voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden) ||
+		if (voe_3d_draw_group_left_out(world, owners[row], frame->hidden) ||
 		    voe_scene_transform_get(world, owners[row]) == NULL ||
 		    !model_casts(frame, &rows[row]))
 			continue;
@@ -336,7 +336,7 @@ void voe_3d_bounce_walk(const voe_ecs_world *world, const voe_3d_frame *frame,
 		const voe_3d_material *material;
 
 		if (meshes[row].layer != VOE_3D_LAYER_WORLD ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
 		material = voe_3d_material_get(world, owners[row]);
 		if (material == NULL || !voe_3d_draw_casts(material) ||
@@ -381,7 +381,7 @@ static void box_models(const voe_ecs_world *world,
 		voe_scene_transform placed;
 
 		if (!rows[row].cast_shadows ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden) ||
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden) ||
 		    voe_scene_transform_get(world, owners[row]) == NULL)
 			continue;
 		model = voe_3d_models_find(frame->models, rows[row].path);
@@ -413,7 +413,7 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 		voe_scene_transform placed;
 
 		if (meshes[row].layer != VOE_3D_LAYER_WORLD ||
-		    voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
 		material = voe_3d_material_get(world, owners[row]);
 		shape = has_shapes ? voe_ecs_component_get(world, shapes,
@@ -459,7 +459,7 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 	drawn = voe_3d_draw_casters(world, device, frame,
 				    sun == 0 ? frame->blockers.sun :
 					       frame->more_lights[sun - 1].blockers,
-				    VOE_3D_TERRAIN_BOUNCE_NODES);
+				    VOE_3D_TERRAIN_BOUNCE_NODES, true);
 	voe_render_pass_end(device);
 	return drawn;
 }
@@ -513,7 +513,7 @@ static bool bounce_volume(struct bouncing *call, voe_3d_bounce_grid grid,
 			break;
 		call->captured++;
 		drawn = voe_3d_draw_casters(call->world, call->device, frame, 0,
-					    VOE_3D_TERRAIN_BOUNCE_NODES);
+					    VOE_3D_TERRAIN_BOUNCE_NODES, true);
 		voe_render_pass_end(call->device);
 		if (!drawn)
 			return false;

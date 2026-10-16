@@ -41,6 +41,11 @@ again, or to find where a claim that has started failing is written down.
   or without it. Skips without a graphics card.
 - `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
   and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
+- `draw_levels.c` — that a levelled sphere 400 m away draws under a quarter of the triangles it
+  draws 3 m away, one loaded without levels draws whole, and in level 1's band it dissolves into
+  level 0 unless fading. Skips without a graphics card.
+- `draw_switched_off.c` — that a sphere on a child draws as no model row does when the child or
+  its parent is off, and whole again when both are back on. Skips without a graphics card.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up draws its far ridge and ground
   within the node budgets, and a painted one draws its layers. Skips without a graphics card.
 - `terrain_shadow.c` — that a 512 m landscape's 40 m ridge, under a low sun behind it, darkens
@@ -54,6 +59,8 @@ again, or to find where a claim that has started failing is written down.
 - `directional_lights.c` — that one light frames no more, a moon after a sun rides in `more_lights`
   with its light, bounces and strength, five lights keep three more, a Room about the moon sets its
   mask and not the sun's, and the pass camera carries `more`. Needs no graphics card.
+- `lights_switched_off.c` — that an off sun or moon keeps its row with no light and casts not, and
+  an off lamp or blocker is left out of the frame. Needs no graphics card.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
@@ -85,7 +92,7 @@ again, or to find where a claim that has started failing is written down.
   outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
 - `pick.c` — that the pick ray meets the nearest cube, model, water plane or child at the right
   distance and nothing where nothing is, a camera, sun or place marker wins over a cube in front of
-  it or behind it, and a drawn pixel the cube covers picks it.
+  it or behind it, a drawn pixel the cube covers picks it, and passes what is off.
 - `bounds.c` — a scaled cube's centre and radius, a parent's box from its child and round a far
   child, a bare transform with none, a cube 100 km out to the millimetre, and the framing distance
   √2 for a square picture and more for a tall one. Needs no graphics card.
@@ -128,12 +135,15 @@ again, or to find where a claim that has started failing is written down.
   says, every field named with its kind, and a replace queued. Needs no graphics card.
 - `water_system.c` — a waves row after one run, the clock stepped and wrapped at 60 s, a replace's
   colour, and a removed water's row gone. Needs no graphics card.
-- `model_bake.c` — that a baked primitive's vertex colours become their complements, red as
-  0/65535/65535/0 and grey about 32767, and one without colours stays zeroed. Needs no graphics card.
+- `model_bake.c` — that the bake carries a file's vertex colours as complements and bakes one
+  `_LOD<n>` level of a file's own at a time. Needs no graphics card.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
   blended twin and none leaked, its glTF source and the `wears` a parts set fills and a reload
   empties, pictures and the uncounted dot, and a model drawn only with the store. Skips without a
   card.
+- `models_levels.c` — the store loading a sphere with its levels file, with its own `_LOD1` levels
+  bounded by 2^-k alone and by their measured error with their file, and with a far swap, leaking
+  no level across reloads and clears; skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget. Skips without a card.
 - `models_material.c` — a `.material` with four maps loaded as one part with a live record and
@@ -145,3 +155,14 @@ again, or to find where a claim that has started failing is written down.
 - `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
   once, neighbours within a level, within capacity, bounding their heights; an update equal to a
   fresh build and the pyramid's box. Needs no graphics card.
+- `simplify.c` — a flat grid to an eighth at no error with its corners, a sphere to a half facing
+  out, the sphere held by a tiny limit, a uv seam moving along its line untorn, and a faceted
+  cylinder cut along its seam lines at angle 0 and further softened at 180. Needs no graphics card.
+- `model_levels.c` — a sphere's levels file made and read back as asked, its own levels measured,
+  going stale when its `.glb` or version changes, each level's triangles counted, and a view's level
+  and pixel share chosen by its screen size; needs no graphics card.
+- `measure.c` — that two hand-built bakes measure 0 alike, a lift's height apart, √2 for a big
+  quad's far corner either way, and 0.5 for one vertex lifted in a 32 × 32 grid. Needs no
+  graphics card.
+- `model_glb.inc` — a UV sphere's `.glb` built on an arena, with a second "Ball_LOD1" root wearing
+  half its triangles when asked.

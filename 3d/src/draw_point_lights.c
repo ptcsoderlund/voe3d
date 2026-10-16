@@ -8,7 +8,8 @@
 // frame's lag, taken about the eye in double before it is narrowed (ADR-0250);
 // its colour is the row's times its intensity and its falloff the row's, as
 // authored (0321, 0322), its bounces and bounce strength copied as authored
-// (0326 point 1). A light of intensity 0 is left out.
+// (0326 point 1). A light of intensity 0 is left out, and so is an off owner
+// left out (0428 point 4), taking no shadow slot.
 //
 // Then the shadow slots (0325 point 5): among the kept lights whose row casts,
 // ranked by the eye's distance to the light's sphere, max(0, |position| −
@@ -28,6 +29,7 @@
 #include <ecs/component.h>
 #include <math/double3.h>
 #include <math/float3.h>
+#include <scene/identity_component.h>
 #include <scene/point_light_component.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
@@ -132,6 +134,7 @@ bool voe_3d_draw_system_point_lights(const voe_ecs_world *world,
 		float intensity = rows[i].intensity;
 
 		if (!(intensity > 0.0f) ||
+		    voe_scene_identity_off(world, owners[i]) ||
 		    voe_scene_transform_get(world, owners[i]) == NULL)
 			continue;
 		voe_scene_transform place = voe_scene_transform_between(

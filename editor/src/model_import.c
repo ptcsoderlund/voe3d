@@ -249,12 +249,34 @@ static const char *parts_path_of(const char *glb, voe_base_arena *scratch)
 	return path;
 }
 
+// The levels of the `.parts` at `path`, read quietly so a re-import keeps a
+// person's choice: the defaults when there is none or it will not read.
+static voe_assets_levels levels_kept(const char *project_folder, const char *path,
+				     voe_base_arena *scratch)
+{
+	const char *full = voe_platform_path_join(scratch, project_folder, path);
+	voe_assets_parts there = { 0 };
+	const uint8_t *bytes;
+	size_t count = 0;
+
+	VOE_BASE_ASSERT(path != NULL && scratch != NULL, "keeping the levels of no path");
+	if (!voe_platform_file_exists(full))
+		return VOE_ASSETS_LEVELS_DEFAULT;
+	bytes = voe_platform_file_read(full, scratch, &count, NULL);
+	if (bytes == NULL || !voe_assets_parts_read((const char *)bytes, count, &there, NULL))
+		return VOE_ASSETS_LEVELS_DEFAULT;
+	VOE_BASE_ASSERT(there.levels.count >= 1 && there.levels.count <= VOE_ASSETS_LEVELS,
+			"a parts file read with levels out of range");
+	return there.levels;
+}
+
 bool voe_editor_model_import(const char *project_folder, const char *glb,
 			     voe_base_arena *scratch, voe_editor_notice *why)
 {
 	struct voe_base_arena_mark mark;
 	voe_assets_model model;
 	voe_assets_parts parts = { 0 };
+	const char *path;
 	bool ok = false;
 
 	VOE_BASE_ASSERT(project_folder != NULL && glb != NULL, "importing no .glb");
@@ -271,8 +293,10 @@ bool voe_editor_model_import(const char *project_folder, const char *glb,
 				  voe_assets_material_write(&values, scratch), scratch, why))
 			goto rewind;
 	}
-	ok = text_written(project_folder, parts_path_of(glb, scratch),
-			  voe_assets_parts_write(&parts, scratch), scratch, why);
+	path = parts_path_of(glb, scratch);
+	parts.levels = levels_kept(project_folder, path, scratch);
+	ok = text_written(project_folder, path, voe_assets_parts_write(&parts, scratch),
+			  scratch, why);
 rewind:
 	voe_base_arena_rewind(scratch, mark);
 	return ok;

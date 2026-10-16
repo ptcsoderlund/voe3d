@@ -351,7 +351,8 @@ voe_editor_dock_closes_read(const voe_ui_context *ui,
 // transform is not among them: it is an ordinary component, removable when no
 // other row of the entity needs it (0300, 0302), which the Inspector decides.
 static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene,
-			    const voe_3d_models *store)
+			    const voe_3d_models *store,
+			    const voe_editor_views *views)
 {
 	const voe_ecs_type kept[] = {
 		voe_ecs_component_type(scene->world, &voe_scene_identity_key),
@@ -362,7 +363,8 @@ static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene,
 	voe_editor_inspector_draw(ui, &scene->inspector, scene->world,
 				  voe_editor_scene_selected(scene), kept,
 				  sizeof(kept) / sizeof(kept[0]), &scene->sculpt,
-				  store, scene->material_open, &scene->material,
+				  store, views, scene->material_open,
+				  &scene->material,
 				  &scene->material_controls);
 }
 
@@ -433,7 +435,7 @@ void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 	case VOE_EDITOR_PANEL_INSPECTOR:
 		voe_editor_inspector_material_dim(&scene->material_controls,
 						  palette);
-		inspector_panel(ui, scene, store);
+		inspector_panel(ui, scene, store, views);
 		return;
 	case VOE_EDITOR_PANEL_SCENE_VIEW:
 		scene_view_panel(ui, view, views);

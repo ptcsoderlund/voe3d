@@ -16,6 +16,12 @@
 // root container per frame (see ui/layout.h) and a root is its own surface with
 // its own size, so it has its own element transform and its own range of the
 // buffer. One root today, one frame, one draw command.
+//
+// IT DRAWS IN THE THEME IT IS HANDED, at pixels per millimetre from the
+// window's height (voe_editor_interface_surface). Each root is the top bar
+// above its dock tree, with the browser, Preferences, Project, Errors or the
+// frame breakdown over the dock when one shows, and the Delete and levels
+// questions or the colour picker over that.
 #pragma once
 
 #include "assets_drag.h"
@@ -341,6 +347,26 @@
 // button's border and fill, four, and "Delete" and "Cancel", twelve.
 // 50649 + 658 = 51307 elements. No scroll area: five stands.
 //
+// THE LEVELS QUESTION (levels_ask.h, ADR-0430, 0433, 0436, 0437) ADDS
+// EIGHTY-FIVE NODES, counted on top as the Delete question is, and added to the
+// last paragraph's sums so the ones between keep theirs: the panel, one; its
+// title, one; the LODs row and its label, two; eight buttons, 1 to 6, Make and
+// Cancel, each a button and a label, sixteen; the button row, one; the header
+// row, its four cells and three labels, eight; at most five LOD rows, each the
+// row, its four cells, its name label, the share and swap number boxes each
+// with its figure and its triangles label, eleven apiece, fifty-five; and the
+// swap line's label, one. 2563 + 85 = 2648 nodes. AND 753 ELEMENTS: the
+// headers' 13, 12 and 9 characters and the swap line's 76, their spaces
+// drawing nothing, 110; the panel's border and fill, two;
+// the title cut at its kept room, VOE_3D_MODEL_PATH (128) and "LODs of " less
+// the zero, 136; "LODs", four; each button's border and fill, sixteen; "1" to
+// "6", "Make" and "Cancel", sixteen; each LOD row's texts at their buffers'
+// sizes less the zero, the name five, the share thirteen, the swap ten and the
+// triangles ten, and each box's one fill (no border), two, forty apiece, 200;
+// and, while one box is open for typing, a caret, VOE_UI_FIELD_CAPACITY (256)
+// typed characters and "not a number", 269. 51506 + 753 = 52259 elements. No
+// scroll area: five stands.
+//
 // THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) ADDS TWELVE NODES: the
 // panel's own column round what it draws, one; and at most a row's menu, its
 // anchored column and panel, two, and Rename, Duplicate and Delete, each a
@@ -349,8 +375,26 @@
 // ELEMENTS: the panel's border and fill, two; each button's, six; and
 // "Rename", "Duplicate" and "Delete", twenty-one — Create's and Folder's
 // come to twenty-one. 51307 + 29 = 51336 elements. No scroll area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2550
-#define VOE_EDITOR_INTERFACE_ELEMENTS 51336
+//
+// THE FRAME BREAKDOWN'S TRIANGLES ROW (frame_breakdown.h, ADR-0425) ADDS THREE
+// NODES, the row and its two labels, and TWENTY-NINE ELEMENTS: "Triangles",
+// nine, and at most twenty digits. 2550 + 3 = 2553 nodes, 51336 + 29 = 51365
+// elements. No scroll area: five stands.
+//
+// THE INSPECTOR'S LOD SECTION (inspector_level.h, ADR-0425, 0433) ADDS SIX
+// NODES, its panel, the "LOD" heading and a label for each of VOE_EDITOR_VIEWS
+// (4) views, and 129 ELEMENTS: the panel's border and fill, two; "LOD", three;
+// each label at most its 32-byte buffer less the zero, thirty-one apiece,
+// 124. 2553 + 6 = 2559 nodes, 51365 + 129 = 51494 elements. No scroll area:
+// five stands.
+//
+// THE INSPECTOR'S ENABLED ROW (inspector.h, ADR-0427) ADDS FOUR NODES, the
+// row, the "Enabled" label, the button and its label, and TWELVE ELEMENTS:
+// "Enabled", seven; the button's border and fill, two; and "Off", its longer
+// label, three. 2559 + 4 = 2563 nodes, 51494 + 12 = 51506 elements. No scroll
+// area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2648
+#define VOE_EDITOR_INTERFACE_ELEMENTS 52259
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

@@ -8,7 +8,10 @@
 // it, a water met on its plane and missed beyond it, a ray through the frustum
 // and not the box picking nothing, and the entities skipped are all checkable
 // on a build box with no Vulkan, and so is a child hit at its world place as
-// its parent moves. A model's and a landscape's cases need one to load it.
+// its parent moves. So is what is off (0428): an off cube, or one under an off
+// parent, letting the one behind be met, an off sun's marker not met, and a
+// camera met under an off parent. A model's and a landscape's cases need one
+// to load it.
 //
 // THE DRAWN HALF CANNOT BE DONE WITHOUT ONE, AND IT IS THE CHECK THAT MATTERS
 // MOST. The arithmetic half cannot catch a flipped Y: it works the pixel out the
@@ -43,6 +46,7 @@
 #include <render/device.h>
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
+#include <scene/identity_system.h>
 #include <scene/light_component.h>
 #include <scene/light_system.h>
 #include <scene/parent_system.h>
@@ -111,8 +115,8 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = 16,
-		.component_types = 12,
-		.intent_types = 8,
+		.component_types = 16,
+		.intent_types = 12,
 		// The shape system queues its removals through it
 		// (3d/shape_system.h).
 		.structure_requests = 8,
@@ -121,6 +125,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 	voe_ecs_world *world = voe_ecs_world_new(arena, limits);
 
 	voe_scene_transform_register(world, 16);
+	voe_scene_identity_register(world, 16);
 	voe_scene_parent_register(world, 16);
 	voe_scene_camera_register(world, 2);
 	voe_scene_light_register(world, 2);
@@ -134,7 +139,47 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 	return world;
 }
 
-// A grey cube with a transform at (x, y, z).
+// The entity given an identity, switched on, its id its index.
+static void authored(voe_ecs_world *world, voe_ecs_entity entity)
+{
+	VOE_TEST_CHECK(voe_scene_identity_add(
+		world, entity, (voe_scene_identity){ .id = entity.index }));
+}
+
+// The entity's switch set off through the identity intent.
+static void switch_off(voe_ecs_world *world, voe_ecs_entity entity)
+{
+	const voe_scene_identity *read = voe_scene_identity_get(world, entity);
+	voe_scene_identity row;
+
+	VOE_TEST_CHECK(read != NULL);
+	if (read == NULL)
+		return;
+	row = *read;
+	row.off = true;
+	VOE_TEST_CHECK(voe_scene_identity_submit(
+		world, (voe_scene_identity_intent){ .entity = entity,
+						    .identity = row }));
+	voe_scene_identity_system_run(world);
+}
+
+// `child` placed under a new bare entity at the origin that is switched off,
+// the parent applied so the child stands where it stood.
+static void under_an_off_parent(voe_ecs_world *world, voe_ecs_entity child)
+{
+	voe_ecs_entity parent = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &parent));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, parent,
+					       at(0.0f, 0.0f, 0.0f)));
+	authored(world, parent);
+	switch_off(world, parent);
+	VOE_TEST_CHECK(voe_scene_parent_set(world, child, parent));
+	voe_ecs_structure_apply(world);
+	voe_scene_transform_system_run(world);
+}
+
+// A grey cube with a transform at (x, y, z), authored.
 static voe_ecs_entity add_a_cube(voe_ecs_world *world, float x, float y,
 				 float z)
 {
@@ -142,6 +187,7 @@ static voe_ecs_entity add_a_cube(voe_ecs_world *world, float x, float y,
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, at(x, y, z)));
+	authored(world, entity);
 	VOE_TEST_CHECK(voe_3d_shape_add(world, entity,
 					(voe_3d_shape){
 						.kind = VOE_3D_SHAPE_CUBE,
@@ -246,7 +292,8 @@ static void the_nearer_of_two_wins_in_either_order(
 	}
 }
 
-// A camera with the test lens and a transform at (x, y, z), looking down -Z.
+// A camera with the test lens and a transform at (x, y, z), looking down -Z,
+// authored.
 static voe_ecs_entity add_a_camera(voe_ecs_world *world, float x, float y,
 				   float z)
 {
@@ -254,6 +301,7 @@ static voe_ecs_entity add_a_camera(voe_ecs_world *world, float x, float y,
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, at(x, y, z)));
+	authored(world, entity);
 	VOE_TEST_CHECK(voe_scene_camera_add(world, entity, the_lens()));
 	return entity;
 }
@@ -295,7 +343,7 @@ static void a_camera_marker_wins_over_the_cube(
 	}
 }
 
-// A light with a transform at (x, y, z), shining down -Z.
+// A light with a transform at (x, y, z), shining down -Z, authored.
 static voe_ecs_entity add_a_sun(voe_ecs_world *world, float x, float y,
 				float z)
 {
@@ -303,6 +351,7 @@ static voe_ecs_entity add_a_sun(voe_ecs_world *world, float x, float y,
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, at(x, y, z)));
+	authored(world, entity);
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, entity,
 		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
@@ -345,6 +394,91 @@ static void a_sun_marker_wins_over_the_cube(
 		VOE_TEST_CHECK_INT(hit.generation, sun.generation);
 		VOE_TEST_CHECK_FLOAT(distance, 4.9f + 1.75f, 1e-3f);
 	}
+}
+
+// AN OFF ENTITY IS NOT MET (0428 point 7). The two cubes the nearer-of-two case
+// sets on the centre ray: the nearer switched off, the farther is met at 4.4;
+// the nearer on but under an off parent, the farther is met all the same.
+static void an_off_cube_lets_the_one_behind_be_met(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_3d_ray ray = voe_3d_pick_ray(
+		the_view(size), EYE, size,
+		(voe_math_float2){ WIDTH / 2.0f, HEIGHT / 2.0f });
+	float distance = -1.0f;
+	{
+		voe_ecs_world *world = a_world(arena);
+		voe_ecs_entity far_cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
+		voe_ecs_entity near_cube = add_a_cube(world, 0.0f, 0.0f, 2.0f);
+		voe_ecs_entity hit;
+
+		VOE_TEST_CHECK_INT(
+			voe_3d_pick(world, geometries, NULL, ray, NULL).index,
+			near_cube.index);
+		switch_off(world, near_cube);
+		hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+		VOE_TEST_CHECK_INT(hit.index, far_cube.index);
+		VOE_TEST_CHECK_INT(hit.generation, far_cube.generation);
+		VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
+	}
+	{
+		voe_ecs_world *world = a_world(arena);
+		voe_ecs_entity far_cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
+		voe_ecs_entity near_cube = add_a_cube(world, 0.0f, 0.0f, 2.0f);
+		voe_ecs_entity hit;
+
+		under_an_off_parent(world, near_cube);
+		hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+		VOE_TEST_CHECK_INT(hit.index, far_cube.index);
+		VOE_TEST_CHECK_INT(hit.generation, far_cube.generation);
+		VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
+	}
+}
+
+// A sun's marker in front of the cube, as the sun's case sets it, switched
+// off: the cube behind is met, a mesh at 4.4, and no marker wins.
+static void an_off_sun_marker_is_not_met(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_3d_ray ray = voe_3d_pick_ray(
+		the_view(size), EYE, size,
+		(voe_math_float2){ WIDTH / 2.0f, HEIGHT / 2.0f });
+	voe_ecs_world *world = a_world(arena);
+	voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
+	voe_ecs_entity sun = add_a_sun(world, 0.0f, 0.0f, 2.0f);
+	float distance = -1.0f;
+	voe_ecs_entity hit;
+
+	switch_off(world, sun);
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.index, cube.index);
+	VOE_TEST_CHECK_INT(hit.generation, cube.generation);
+	VOE_TEST_CHECK_FLOAT(distance, 4.5f - 0.1f, 1e-3f);
+}
+
+// CAMERAS IGNORE THE SWITCH (0428 point 8). The camera in front of the cube,
+// as the camera's case sets it, under an off parent: still met, at 4.9 - 2.15.
+static void a_camera_is_met_under_an_off_parent(
+	voe_base_arena *arena, const voe_3d_shape_geometries *geometries)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_3d_ray ray = voe_3d_pick_ray(
+		the_view(size), EYE, size,
+		(voe_math_float2){ WIDTH / 2.0f, HEIGHT / 2.0f });
+	voe_ecs_world *world = a_world(arena);
+	voe_ecs_entity cube = add_a_cube(world, 0.0f, 0.0f, 0.0f);
+	voe_ecs_entity camera = add_a_camera(world, 0.0f, 0.0f, 2.0f);
+	float distance = -1.0f;
+	voe_ecs_entity hit;
+
+	(void)cube;
+	under_an_off_parent(world, camera);
+	hit = voe_3d_pick(world, geometries, NULL, ray, &distance);
+	VOE_TEST_CHECK_INT(hit.index, camera.index);
+	VOE_TEST_CHECK_INT(hit.generation, camera.generation);
+	VOE_TEST_CHECK_FLOAT(distance, 4.9f - 2.15f, 1e-3f);
 }
 
 // A water 4 m wide and 6 m long at the origin, seen straight down from 3 m up,
@@ -899,6 +1033,9 @@ int main(void)
 	a_cube_off_centre_is_found_at_its_own_pixel(arena, &geometries);
 	a_camera_marker_wins_over_the_cube(arena, &geometries);
 	a_sun_marker_wins_over_the_cube(arena, &geometries);
+	an_off_cube_lets_the_one_behind_be_met(arena, &geometries);
+	an_off_sun_marker_is_not_met(arena, &geometries);
+	a_camera_is_met_under_an_off_parent(arena, &geometries);
 	a_water_is_hit_on_its_plane_and_missed_beyond_it(arena, &geometries);
 	a_place_marker_wins_over_the_cube(arena, &geometries);
 	a_ray_through_the_frustum_s_corner_picks_nothing(arena, &geometries);

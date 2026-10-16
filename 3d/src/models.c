@@ -4,8 +4,10 @@
 // A LOAD IS FOUR STEPS, in the order ids are needed: `assets` reads the bytes
 // into a scratch arena, model_bake.h flattens them into parts, model_upload.h
 // puts the pictures and materials on the card, and each part becomes a geometry
-// and, unless it is BLENDED, a blended twin record. The CPU copy of the whole model, `shape`, is built last into the entry's own
-// arena. The scratch arena is the load's and is destroyed before it returns.
+// and, unless it is BLENDED, a blended twin record; models_levels.c then puts its
+// levels beside them. The CPU copy of the whole model, `shape`, is built last into
+// the entry's own arena. The scratch arena is the load's, destroyed before it
+// returns.
 //
 // A FAILED LOAD GIVES BACK WHAT IT UPLOADED, every texture, shading record, twin
 // and geometry it had made, so that a file failing again and again does not fill
@@ -47,6 +49,7 @@
 #include <base/report.h>
 
 #include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,6 +90,7 @@ static void release(voe_render_device *device, const voe_3d_model_entry *entry,
 			(void)voe_render_shading_destroy(
 				device, entry->parts[i].faded);
 	}
+	voe_3d_models_levels_free(device, entry);
 	if (entry->loaded && entry->landscape != NULL)
 		(void)voe_render_texture_destroy(device, held->heights);
 	for (uint32_t i = 0; i < held->shading_count; i++)
@@ -161,7 +165,10 @@ void voe_3d_models_entry_new(const char *path, uint64_t stamp,
 	*held = (entry_held){ .memory = voe_base_arena_new(ENTRY_BLOCK) };
 	copy = voe_base_arena_push(held->memory, length);
 	memcpy(copy, path, length);
-	*entry = (voe_3d_model_entry){ .path = copy, .stamp = stamp };
+	*entry = (voe_3d_model_entry){ .path = copy,
+				       .stamp = stamp,
+				       .levels[0].bound = INFINITY,
+				       .level_count = 1 };
 }
 
 // Puts a new entry into the store for a path it does not hold, or, for one it
@@ -172,7 +179,9 @@ bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
 			const voe_3d_model_entry *entry, const entry_held *held)
 {
 	uint32_t index = voe_3d_models_index(models, entry->path);
+	voe_3d_model_entry kept = *entry;
 
+	voe_3d_models_levels_mirror(&kept);
 	if (index == VOE_3D_MODELS) {
 		if (models->count == VOE_3D_MODELS) {
 			VOE_BASE_ERROR("3d",
@@ -181,7 +190,7 @@ bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
 			release(device, entry, held);
 			return false;
 		}
-		models->entries[models->count] = *entry;
+		models->entries[models->count] = kept;
 		models->held[models->count++] = *held;
 		return true;
 	}
@@ -189,7 +198,7 @@ bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
 		voe_3d_model_entry old = models->entries[index];
 		entry_held old_held = models->held[index];
 
-		models->entries[index] = *entry;
+		models->entries[index] = kept;
 		models->held[index] = *held;
 		release(device, &old, &old_held);
 	} else {
@@ -285,6 +294,7 @@ static void give_back(voe_render_device *device,
 			(void)voe_render_shading_destroy(
 				device, entry->parts[i].faded);
 	}
+	voe_3d_models_levels_free(device, entry);
 	for (uint32_t i = 0; i < upload->shading_count; i++)
 		(void)voe_render_shading_destroy(device, upload->shadings[i]);
 	for (uint32_t i = 0; i < upload->texture_count; i++)
@@ -309,12 +319,12 @@ static void hold_upload(const voe_3d_model_upload *upload, entry_held *held)
 	held->shading_count = upload->shading_count;
 }
 
-// Reads, bakes and uploads a `.glb` into `entry`; on failure what it made is
-// given back.
+// Reads, bakes and uploads a `.glb` and its levels into `entry`; on failure
+// what it made is given back.
 static bool load_glb(voe_render_device *device, voe_base_arena *scratch,
-		     const uint8_t *bytes, size_t size,
-		     voe_3d_model_entry *entry, entry_held *held,
-		     voe_base_error *error)
+		     const uint8_t *bytes, size_t size, const uint8_t *levels,
+		     size_t levels_size, voe_3d_model_entry *entry,
+		     entry_held *held, voe_base_error *error)
 {
 	voe_3d_model_upload upload = { 0 };
 	voe_3d_model_bake bake;
@@ -324,10 +334,15 @@ static bool load_glb(voe_render_device *device, voe_base_arena *scratch,
 
 	loaded = voe_assets_model_read_glb(bytes, size, scratch, &model,
 					   error) &&
-		 voe_3d_model_bake_create(scratch, &model, &bake, error) &&
+		 voe_3d_model_bake_create(scratch, &model, 0, &bake, error) &&
 		 voe_3d_model_upload_create(device, scratch, &model, &upload,
 					    error) &&
 		 upload_parts(device, &bake, &upload, entry, &made, error);
+	if (loaded)
+		voe_3d_models_sphere(&bake, entry);
+	loaded = loaded && voe_3d_models_levels_upload(
+				   device, scratch, &model, &bake, bytes, size,
+				   levels, levels_size, entry, error);
 
 	if (loaded) {
 		build_shape(held->memory, &bake, &entry->shape);
@@ -336,6 +351,7 @@ static bool load_glb(voe_render_device *device, voe_base_arena *scratch,
 		entry->loaded = true;
 	} else {
 		give_back(device, &upload, entry, made);
+		entry->level_count = 1;
 	}
 	return loaded;
 }
@@ -424,6 +440,16 @@ bool voe_3d_models_load(voe_3d_models *models, voe_render_device *device,
 			const char *path, uint64_t stamp, const uint8_t *bytes,
 			size_t size, voe_base_error *error)
 {
+	return voe_3d_models_load_levelled(models, device, path, stamp, bytes,
+					   size, NULL, 0, error);
+}
+
+bool voe_3d_models_load_levelled(voe_3d_models *models,
+				 voe_render_device *device, const char *path,
+				 uint64_t stamp, const uint8_t *bytes,
+				 size_t size, const uint8_t *levels,
+				 size_t levels_size, voe_base_error *error)
+{
 	voe_3d_model_entry entry;
 	voe_base_arena *scratch;
 	voe_assets_image image;
@@ -449,8 +475,8 @@ bool voe_3d_models_load(voe_3d_models *models, voe_render_device *device,
 			 upload_picture(models, device, scratch, &image, &entry,
 					&held, error);
 	} else {
-		loaded = load_glb(device, scratch, bytes, size, &entry, &held,
-				  error);
+		loaded = load_glb(device, scratch, bytes, size, levels,
+				  levels_size, &entry, &held, error);
 	}
 	if (!loaded)
 		VOE_BASE_ERROR("3d", "could not load the model %s", path);
@@ -482,6 +508,7 @@ bool voe_3d_models_load_dot(voe_3d_models *models, voe_render_device *device,
 		VOE_BASE_ERROR("3d", "could not load the soft dot");
 		voe_base_arena_destroy(models->dot_held.memory);
 	}
+	voe_3d_models_levels_mirror(&models->dot);
 	models->has_dot = loaded;
 	return loaded;
 }

@@ -41,7 +41,8 @@ of them is internal to this folder rather than reachable from outside it.
 - `material.c` — the material file over the sectioned reader, with a scratch
   arena of its own, and a writer that quotes every path.
 - `parts.c` — the parts file over the sectioned reader: each `material<N>` key
-  to an index and its path, and a writer that quotes every path.
+  to an index and its path, the optional `[Levels]` section's count,
+  shares and swaps, and a writer that quotes every path.
 - `json.h` — a JSON reader, internal to this folder. Its header says why it
   has an explicit stack and a depth limit rather than recursion, why the caller
   states how many values it will hold, and why string spans are raw.
@@ -57,7 +58,7 @@ of them is internal to this folder rather than reachable from outside it.
   images. Its header says why a texture resolves to an image.
 - `model_gltf_meshes.c` — attributes, primitives and meshes. Its header says
   why triangle lists only and why an unindexed primitive is given indices.
-- `model_gltf_nodes.c` — the node matrices and the node tree. Its header says
+- `model_gltf_nodes.c` — the node names and matrices and the node tree. Its header says
   how the tree is proven a tree without recursion.
 - `model_material.c` — a glTF material to `.material` values, and its ORM
   picture merged from occlusion and metal-roughness at the nearest texel.

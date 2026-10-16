@@ -104,7 +104,7 @@ uint32_t voe_3d_draw_water_hold(const voe_ecs_world *world,
 		voe_scene_transform drawn;
 		struct voe_3d_deferred entry = { .panel = false };
 
-		if (voe_3d_draw_group_is_the_same_entity(owners[row], frame->hidden))
+		if (voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
 			continue;
 		waves = voe_3d_waves_get(world, owners[row]);
 		if (waves == NULL ||

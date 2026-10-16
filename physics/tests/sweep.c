@@ -3,7 +3,8 @@
 // trigger left ungathered; a start inside; capacity honoured. Boxes: a ray
 // into a turned face; a sphere past a corner missing where a sharp grown box
 // would hit, and grazing an edge; a thin box not tunnelled; a box under a
-// scaled, turned parent; a ray starting inside.
+// scaled, turned parent; a ray starting inside. A sphere switched off is not
+// gathered (0428).
 //
 // EVERY SCENE RUNS TWICE, at the origin and moved by (1e6, 0, 1e6), and checks
 // the same hit to 1e-4 m. A float there has a step of about 0.06, so only a
@@ -15,6 +16,7 @@
 #include <physics/collider_component.h>
 #include <physics/collider_system.h>
 #include <physics/sweep.h>
+#include <scene/identity_system.h>
 #include <scene/parent_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
@@ -30,8 +32,8 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = ENTITIES,
-		.component_types = 3,
-		.intent_types = 2,
+		.component_types = 4,
+		.intent_types = 3,
 		.structure_requests = 4,
 		.structure_bytes = 128,
 	};
@@ -39,6 +41,7 @@ static voe_ecs_world *world_of(voe_base_arena *arena)
 
 	voe_scene_transform_register(world, ENTITIES);
 	voe_scene_parent_register(world, ENTITIES);
+	voe_scene_identity_register(world, ENTITIES);
 	voe_physics_collider_register(world, ENTITIES);
 	return world;
 }
@@ -359,6 +362,25 @@ static void a_ray_starts_inside_a_box(voe_base_arena *arena,
 		  (voe_math_float3){ 0, 0, -1 });
 }
 
+// Two spheres, the first switched off: the gather writes the second only.
+static void an_off_sphere_is_not_gathered(voe_base_arena *arena,
+					  voe_math_double3 base)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_physics_obstacle obstacles[ROOM];
+	const voe_ecs_entity off = ball(world, base, 0.0, false);
+	const voe_ecs_entity on = ball(world, base, 5.0, false);
+	uint32_t n;
+
+	VOE_TEST_CHECK(voe_scene_identity_add(
+		world, off,
+		(voe_scene_identity){ .id = 1, .name = "Off", .off = true }));
+	n = voe_physics_obstacles_gather(world, obstacles, ROOM);
+	VOE_TEST_CHECK_INT(n, 1);
+	if (n == 1)
+		VOE_TEST_CHECK(obstacles[0].entity.index == on.index);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
@@ -376,6 +398,7 @@ int main(void)
 		a_thin_box_is_not_tunnelled(arena, places[i]);
 		a_child_box_is_hit_at_its_world_place(arena, places[i]);
 		a_ray_starts_inside_a_box(arena, places[i]);
+		an_off_sphere_is_not_gathered(arena, places[i]);
 	}
 
 	voe_base_arena_destroy(arena);

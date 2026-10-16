@@ -1,7 +1,8 @@
 // The sound system, end to end with a mixer and WAVs this test writes, as
 // tests/mixer.c does: a looping sound on a thing plays after a run; a camera
 // at the origin looking down -Z hears a thing at +X louder right; a stop
-// control silences it; a one-shot run past its end stops playing; a thing
+// control silences it; switched off it has no live voice and still says
+// playing, and back on it plays; a one-shot run past its end stops playing; a thing
 // destroyed through the structural queue has its voice stopped by the next
 // run's sweep; and a run with no mixer applies a replace and starts nothing.
 //
@@ -17,6 +18,7 @@
 #include <platform/folder.h>
 
 #include <scene/camera_system.h>
+#include <scene/identity_system.h>
 #include <scene/transform_system.h>
 
 #include <testing/test.h>
@@ -67,13 +69,26 @@ static void write_wav(const char *name, uint32_t frames, int16_t value)
 static voe_ecs_world *a_world(voe_base_arena *arena)
 {
 	voe_ecs_world *world = voe_ecs_world_new(arena, (voe_ecs_limits){
-		.entities = ENTITIES, .component_types = 4, .intent_types = 4,
+		.entities = ENTITIES, .component_types = 8, .intent_types = 8,
 		.structure_requests = 4 * ENTITIES, .structure_bytes = 1024 });
 
 	voe_scene_transform_register(world, ENTITIES);
 	voe_scene_camera_register(world, 1);
+	voe_scene_identity_register(world, ENTITIES);
 	voe_audio_sound_register(world, ENTITIES);
 	return world;
+}
+
+// Sets the entity's own switch through the identity intent and drains it.
+static void switched(voe_ecs_world *world, voe_ecs_entity entity, bool off)
+{
+	voe_scene_identity identity = *voe_scene_identity_get(world, entity);
+
+	identity.off = off;
+	VOE_TEST_CHECK(voe_scene_identity_submit(
+		world, (voe_scene_identity_intent){ .entity = entity,
+						    .identity = identity }));
+	voe_scene_identity_system_run(world);
 }
 
 // A camera at the origin, unrotated, so looking down -Z, 90 degrees high.
@@ -100,6 +115,8 @@ static voe_ecs_entity a_thing(voe_ecs_world *world, voe_math_double3 where,
 	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, (voe_scene_transform){
 		.position = where, .rotation = { 0, 0, 0, 1 }, .scale = { 1, 1, 1 } }));
 	VOE_TEST_CHECK(voe_audio_sound_add(world, entity, sound));
+	VOE_TEST_CHECK(voe_scene_identity_add(world, entity, (voe_scene_identity){
+		.id = entity.index + 1, .name = "Thing" }));
 	return entity;
 }
 
@@ -133,6 +150,33 @@ static void a_loop_plays_louder_right_until_stopped(voe_base_arena *arena)
 	voe_audio_mixer_mix(mixer, out, FRAMES);
 	for (uint32_t i = 0; i < 2 * FRAMES; i++)
 		VOE_TEST_CHECK_FLOAT(out[i], 0.0f, 0.0f);
+	voe_audio_mixer_destroy(mixer);
+	voe_base_arena_clear(arena);
+}
+
+static void an_off_loop_is_silent_and_comes_back(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_audio_mixer *mixer = voe_audio_mixer_new(FOLDER);
+	voe_ecs_entity thing;
+	voe_audio_voice voice;
+
+	write_wav("hum.wav", 100, 8192);
+	a_camera(world);
+	thing = a_thing(world, (voe_math_double3){ 3, 0, -3 }, "hum.wav", true);
+	voe_audio_sound_system_run(world, mixer, 1.0f);
+	voice = voice_of(world, thing);
+	VOE_TEST_CHECK(voe_audio_mixer_playing(mixer, voice));
+
+	switched(world, thing, true);
+	voe_audio_sound_system_run(world, mixer, 1.0f);
+	VOE_TEST_CHECK(!voe_audio_mixer_playing(mixer, voice));
+	VOE_TEST_CHECK(voice_of(world, thing).id == 0);
+	VOE_TEST_CHECK(voe_audio_sound_get(world, thing)->playing);
+
+	switched(world, thing, false);
+	voe_audio_sound_system_run(world, mixer, 1.0f);
+	VOE_TEST_CHECK(voe_audio_mixer_playing(mixer, voice_of(world, thing)));
 	voe_audio_mixer_destroy(mixer);
 	voe_base_arena_clear(arena);
 }
@@ -203,6 +247,7 @@ int main(void)
 	if (!voe_platform_folder_create(FOLDER, &error))
 		VOE_TEST_CHECK(error == VOE_BASE_ERROR_REFUSED);
 	a_loop_plays_louder_right_until_stopped(arena);
+	an_off_loop_is_silent_and_comes_back(arena);
 	a_one_shot_past_its_end_is_not_playing(arena);
 	a_destroyed_thing_is_swept(arena);
 	no_mixer_applies_a_replace_and_starts_nothing(arena);
