@@ -87,6 +87,8 @@ again, or to find where a claim that has started failing is written down.
 - `sky.c` — that a frame's sky and picture are zeroed with no table or row and are the first rows,
   the haze and its top the Haze row's, each light's disc and glow carried, and a sky shows behind
   a lit slab. The picture skips without a graphics card.
+- `sky_switched_off.c` — that a Sky, Haze or Picture row whose entity or parent is off is as no
+  row, back when on, and an off first Haze row gives the second's. Needs no graphics card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
   outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.

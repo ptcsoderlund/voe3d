@@ -1,5 +1,5 @@
-// The draw system: the camera, the first light, the first sky row and Haze
-// row, the first picture row, the pass camera a frame opens with, the matrices each object is drawn with, and one draw per drawable into
+// The draw system: the camera, the first light, the first on sky row and Haze
+// row, the first on picture row, the pass camera a frame opens with, the matrices each object is drawn with, and one draw per drawable into
 // the frame the loop has opened.
 //
 // IT WALKS THE MESH, MODEL AND PANEL TABLES AND LOOKS THE OTHER COMPONENTS UP
@@ -109,31 +109,56 @@ static bool has_table(const voe_ecs_world *world, const struct voe_ecs_key *key)
 	return false;
 }
 
-// The haze from the first Haze row and the rest from the first sky row, each
-// part zeroed with no row (0417 point 1). The haze's top is above `eye`,
-// subtracted in double so a far eye keeps its metres (0419 point 2). Light
-// rows in table order, as voe_3d_draw_system_light and _lights hand them to
-// the pass, so entry i's disc is the pass's light i (0412 point 6).
+// The index of the first of `count` entities voe_scene_identity_off calls on,
+// or `count` when none is: an off row is passed over as if it were not in its
+// table (0440 point 1), each row asked of its own entity (0440 point 3).
+static uint32_t first_on(const voe_ecs_world *world,
+			 const voe_ecs_entity *entities, uint32_t count)
+{
+	uint32_t i = 0;
+
+	VOE_BASE_ASSERT(world != NULL, "the first on row of no world");
+	VOE_BASE_ASSERT(count == 0 || entities != NULL,
+			"the first on row of no entities");
+	while (i < count && voe_scene_identity_off(world, entities[i]))
+		i++;
+	return i;
+}
+
+// The haze from the first on Haze row and the rest from the first on sky row,
+// each part zeroed with none on or no row (0417 point 1, 0440). The haze's top
+// is above `eye`, subtracted in double so a far eye keeps its metres (0419
+// point 2). Light rows in table order, as voe_3d_draw_system_light and _lights
+// hand them to the pass, so entry i's disc is the pass's light i (0412 point 6).
 voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world,
 				      voe_math_double3 eye)
 {
 	voe_scene_sky row;
 	voe_render_sky sky = { 0 };
+	uint32_t count;
+	uint32_t at;
 	uint32_t lights;
 
 	VOE_BASE_ASSERT(world != NULL, "the sky of no world");
 	VOE_BASE_ASSERT(isfinite(eye.y), "the sky about an eye at no height");
-	if (has_table(world, &voe_scene_haze_key) &&
-	    voe_scene_haze_count(world) > 0) {
-		voe_scene_haze haze = voe_scene_haze_rows(world)[0];
+	count = has_table(world, &voe_scene_haze_key) ?
+			voe_scene_haze_count(world) :
+			0;
+	at = count > 0 ? first_on(world, voe_scene_haze_entities(world), count) :
+			 0;
+	if (at < count) {
+		voe_scene_haze haze = voe_scene_haze_rows(world)[at];
 
 		sky.haze = haze.haze;
 		sky.haze_start = haze.start;
 		sky.haze_top = (float)((double)haze.height - eye.y);
 	}
-	if (!has_table(world, &voe_scene_sky_key) || voe_scene_sky_count(world) == 0)
+	count = has_table(world, &voe_scene_sky_key) ? voe_scene_sky_count(world) :
+						       0;
+	at = count > 0 ? first_on(world, voe_scene_sky_entities(world), count) : 0;
+	if (at >= count)
 		return sky;
-	row = voe_scene_sky_rows(world)[0];
+	row = voe_scene_sky_rows(world)[at];
 	sky.zenith = row.zenith;
 	sky.horizon_height = row.horizon_height;
 	sky.horizon = row.horizon;
@@ -154,12 +179,19 @@ voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world,
 voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world)
 {
 	voe_scene_picture row;
+	uint32_t count;
+	uint32_t at;
 
 	VOE_BASE_ASSERT(world != NULL, "the picture of no world");
-	if (!has_table(world, &voe_scene_picture_key) ||
-	    voe_scene_picture_count(world) == 0)
+	count = has_table(world, &voe_scene_picture_key) ?
+			voe_scene_picture_count(world) :
+			0;
+	at = count > 0 ?
+		     first_on(world, voe_scene_picture_entities(world), count) :
+		     0;
+	if (at >= count)
 		return (voe_render_exposure){ 0 };
-	row = voe_scene_picture_rows(world)[0];
+	row = voe_scene_picture_rows(world)[at];
 	return (voe_render_exposure){ .exposure = row.exposure, .tone = row.tone };
 }
 
