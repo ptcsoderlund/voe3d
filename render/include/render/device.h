@@ -3,14 +3,10 @@
 //
 //     voe_base_arena *scratch = voe_base_arena_new(64 * 1024);
 //     voe_base_error error;
-//     voe_render_capacities room = {
-//             .vertices = 1 << 16, .indices = 1 << 17,
-//             .geometries = 64, .objects = 256, .shadings = 64, .passes = 4,
-//     };
-//     voe_render_device *gpu = voe_render_device_new(scratch,
-//                                                    voe_platform_window_native(window),
-//                                                    voe_platform_window_size(window),
-//                                                    room, &error);
+//     voe_render_capacities room = { .vertices = 1 << 16, .indices = 1 << 17, .geometries = 64,
+//                                    .objects = 256, .shadings = 64, .passes = 4 };
+//     voe_render_device *gpu = voe_render_device_new(scratch, voe_platform_window_native(window),
+//             voe_platform_window_size(window), room, &error);
 //     voe_base_arena_destroy(scratch);        // the device kept nothing from it
 //
 //     voe_render_geometry cube;
@@ -51,12 +47,15 @@
 // FRAMES (ADR-0370). Each that uploads waits while a frame is open on another
 // thread; the owner's own never wait. Everything else is the owner's alone.
 //
+// It opens unprepared; voe_render_device_prepare readies it a step at a time.
 // Passes onto the window or a target follow the sun's cascades and captures,
 // lit by the sun and the pass's point lights (range, falloff; shadows per
-// point_shadow_size and voe_render_point_shadows_ready); a pass may copy its
-// depth (voe_render_frame_copy_depth). VOE_RENDER_BOUNCE_* size the probe
-// volume voe_render_bounce_begin builds, captures and relights per target;
-// a shading record may be water, with waves and sky in the object record.
+// point_shadow_size and voe_render_point_shadows_ready), then exposed and tone
+// mapped by the pass's voe_render_exposure; a pass may copy its depth
+// (voe_render_frame_copy_depth) and draw copies of a mesh in one instanced draw.
+// VOE_RENDER_BOUNCE_* size the probe volume voe_render_bounce_begin builds,
+// captures and relights per target; a shading record may be water, with waves
+// and sky in the object record.
 #pragma once
 
 #include <base/arena.h>

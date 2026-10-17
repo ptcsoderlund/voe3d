@@ -3,8 +3,6 @@
 The public headers, one entry each; the fuller account of this one, and the
 questions it answers, is `device.h`'s header.
 
-- `device.h` — the whole public surface of the device: opened unprepared and
-  prepared a step at a time, geometry, textures, shading records and targets
-  uploaded for ids, and frames of passes, lit, light-blocked, exposed and tone
-  mapped by their exposure, drawn onto its window or a target, copies of a
-  mesh in one instanced draw.
+- `device.h` — the whole public surface of the device: opened and prepared, it
+  takes geometry, textures, shading records and targets for ids and draws frames
+  of lit, shadowed, tone-mapped passes onto its window or a target.
