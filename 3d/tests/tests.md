@@ -151,7 +151,8 @@ again, or to find where a claim that has started failing is written down.
   bounded by 2^-k alone and by their measured error with their file, and with a far swap, leaking
   no level across reloads and clears; skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
-  layers and renames written within a frame's budget. Skips without a card.
+  layers and renames written within a frame's budget, and its foliage placed, kept standing by a
+  sculpt, scattered, erased, put back, a kind set and renamed. Skips without a card.
 - `models_material.c` — a `.material` with four maps loaded as one part with a live record and
   twin, its cutout, emission and sides, a set changing them written by a frame, a map that is no
   picture failing MALFORMED, and a rename. Skips without a card.

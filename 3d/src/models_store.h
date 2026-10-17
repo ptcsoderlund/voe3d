@@ -8,6 +8,8 @@
 // its two dirty rects are the heights and the paint not yet written into their
 // textures, empty when x0 ≥ x1. The paint textures sit in `textures` too,
 // freed with the rest. The draw files ask voe_3d_models_terrain_of for it.
+// Its copies' placed transforms (0442 point 2) live in the arena too, room for
+// the cap, in step with the grid's copies.
 //
 // A MATERIAL'S WRITE MARK is its records changed since last written. The
 // helpers below are models.c's, lent to the other store files.
@@ -28,6 +30,7 @@
 #include <base/arena.h>
 #include <base/error.h>
 #include <render/device.h>
+#include <scene/transform_component.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -49,6 +52,9 @@ typedef struct {
 	// the points whose paint changed since last written.
 	voe_render_texture paint[2];
 	voe_3d_landscape_rect paint_dirty;
+	// Each copy's transform as 3d/foliage.h places it, in step with the
+	// grid's copies, room for VOE_ASSETS_LANDSCAPE_COPIES.
+	voe_scene_transform *placed;
 	// A loaded material's records changed since last written; its maps are
 	// `textures` above, freed with the entry.
 	bool write;
@@ -94,6 +100,10 @@ bool voe_3d_models_terrain_of(const voe_3d_models *models,
 
 // `path`'s index, or VOE_3D_MODELS when the store does not hold it.
 uint32_t voe_3d_models_index(const voe_3d_models *models, const char *path);
+
+// `path`'s index when it is a loaded landscape, else VOE_3D_MODELS.
+uint32_t voe_3d_models_landscape_index(const voe_3d_models *models,
+				       const char *path);
 
 // False, `error` REFUSED and a line on stderr, when the store is full and does
 // not hold `path`.

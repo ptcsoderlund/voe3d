@@ -158,9 +158,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models_levels.c` — a `.glb`'s levels beside its parts: own levels baked and joined by
   material, or a levels file's checked and each part's used vertices gathered, each bounded by
   the file's error and swap; the sphere, the level-0 mirror and the free.
-- `models_landscape.c` — a landscape's grid copied with its layers and paint, uploaded as heights,
-  paint and a pyramid on the shared grid; brushes and puts growing its dirt, which the frame
-  writes a budget at a time.
+- `models_landscape.c` — a landscape's grid copied with its layers, paint, foliage kinds and
+  copies, each copy placed, uploaded as heights, paint and a pyramid on the shared grid; brushes
+  and puts growing its dirt, which the frame writes a budget at a time, and placing its copies
+  again; renames following layers and kinds.
+- `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
+  handed to foliage.c, the entry marked edited on a change.
 - `models_material.c` — a `.material`'s four maps decoded and uploaded mipped with its record,
   cutout, emission and sides and its twin as one part with no geometry, the set marking it and the
   frame rewriting both records.
