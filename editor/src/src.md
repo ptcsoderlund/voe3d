@@ -329,7 +329,8 @@ carries it out.
   the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or a prepared model on asking, emptied on a different project, a broken file in the notice, where
-  its landscapes and the project's materials are edited, and its models given their parts.
+  its landscapes, their foliage too, and the project's materials are edited, and its models given
+  their parts.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
@@ -339,7 +340,7 @@ carries it out.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
 - `models.c` — the editor's one model store, made, filled, watched and re-read through
-  game/models.h, and its landscapes and materials edited and written back.
+  game/models.h, and its landscapes with their foliage and materials edited and written back.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.
@@ -367,10 +368,11 @@ carries it out.
   own memory beside the undo line's text, and the file written at once.
 - `material_steps.c` — the copy made and freed, the file's write, and the values put back either
   way into the table, file, store and open copy.
-- `strokes.h` — one sculpting or paint stroke: a landscape's path, the rectangle touched and its
-  heights or weights before and after, its own memory beside the undo line's text, and why.
-- `strokes.c` — the copies made and freed, and the heights or paint written either way through the
-  store.
+- `strokes.h` — one sculpting, paint or foliage stroke: a landscape's path, the rectangle touched and
+  its heights or weights before and after, or the copies added or removed, its own memory beside the
+  undo line's text, and why.
+- `strokes.c` — the copies made and freed, and the heights, paint or foliage written either way
+  through the store.
 - `entities.h` — Add entity, a dropped model's thing or prefab's copy, duplicating and deleting
   entities with their trees, and giving or taking components, all through the world's structural
   queue. Its header says the id and name rules.

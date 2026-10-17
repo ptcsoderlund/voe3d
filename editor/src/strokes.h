@@ -1,13 +1,18 @@
-// One sculpting or paint stroke as an undo step carries it (0379 point 5, 0402
-// point 7): which landscape, the rectangle of points it touched, and that
-// rectangle's heights, or for a paint stroke its weights, before and after, so
-// stepping over it writes one or the other back into the editor's model store.
+// One sculpting, paint or foliage stroke as an undo step carries it (0379
+// point 5, 0402 point 7, 0442 point 4): which landscape, the rectangle of
+// points it touched, and that rectangle's heights, or for a paint stroke its
+// weights, before and after, so stepping over it writes one or the other back
+// into the editor's model store.
 //
 //     stroke = voe_editor_stroke_new(path, rect, before, after);
 //     paint = voe_editor_stroke_new_paint(path, rect, bytes, bytes2);
+//     trees = voe_editor_stroke_new_foliage(path, false, added, count);
 //     voe_editor_undo_stroke(&undo, project, scratch, stroke); // undo owns it
 //     voe_editor_stroke_apply(stroke, models, false);          // back
 //     voe_editor_stroke_destroy(stroke);
+//
+// A FOLIAGE STROKE carries the copies it added or removed instead, put back by
+// value: a copy has no index that survives an erase moving the last one in.
 //
 // A STROKE RIDES BESIDE THE SCENE TEXT, NOT IN IT. A state of the undo line is
 // a whole-scene text of at most 64 KB (undo.h); a stroke over a 512-cell grid
@@ -30,13 +35,16 @@
 #include <3d/landscape.h>
 #include <3d/model_component.h>
 
+#include <assets/landscape.h>
+
 #include <stdbool.h>
 #include <stdint.h>
 
 // A landscape's path, the rectangle touched, and as they were and as the
 // stroke left them either its heights row-major, or when `paint` its weights
 // as voe_editor_models_put_paint takes them; all the stroke's own, the other
-// pair NULL.
+// pair NULL. When `foliage`, no rectangle and no values: `copy_count`
+// `copies`, its own, that the stroke removed when `erase` and added if not.
 typedef struct {
 	char path[VOE_3D_MODEL_PATH];
 	voe_3d_landscape_rect rect;
@@ -45,6 +53,10 @@ typedef struct {
 	float *after;
 	uint8_t *paint_before;
 	uint8_t *paint_after;
+	bool foliage;
+	bool erase;
+	voe_assets_landscape_copy *copies;
+	uint32_t copy_count;
 } voe_editor_stroke;
 
 // A stroke holding copies of `path` and of `rect`'s heights in `before` and
@@ -60,10 +72,19 @@ voe_editor_stroke *voe_editor_stroke_new_paint(const char *path,
 					       const uint8_t *before,
 					       const uint8_t *after);
 
-// Frees the stroke and its heights or weights. NULL is nothing.
+// A foliage stroke holding copies of `path` and of the `count` `copies` a
+// scatter added, or an erase removed when `erase`. Never NULL.
+voe_editor_stroke *
+voe_editor_stroke_new_foliage(const char *path, bool erase,
+			      const voe_assets_landscape_copy *copies,
+			      uint32_t count);
+
+// Frees the stroke and its heights, weights or copies. NULL is nothing.
 void voe_editor_stroke_destroy(voe_editor_stroke *stroke);
 
 // Writes the after values into the store's landscape when `forward`, the
-// before otherwise; nothing when the path is no loaded landscape.
+// before otherwise; a foliage stroke's copies are added forward and removed
+// backward for a scatter, the other way for an erase. Nothing when the path
+// is no loaded landscape.
 void voe_editor_stroke_apply(const voe_editor_stroke *stroke,
 			     voe_editor_models *models, bool forward);

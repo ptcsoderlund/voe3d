@@ -4,7 +4,8 @@
 // loaded again on asking, the tables'
 // materials loaded and parts given after, cleared through the device and
 // destroyed, and handed out read-only; its landscapes' heights and paint
-// stamped, put back and their layers set, heights and materials' records
+// stamped, put back and their layers set, their foliage scattered, erased,
+// put back and its kinds set, heights and materials' records
 // written in the frame, landscapes written on Save and read again, and one
 // reshaped, written at once and loaded again at the next update; an edited
 // material set live, or loaded again at the next update when a map changed,
@@ -424,6 +425,55 @@ void voe_editor_models_layer_set(voe_editor_models *models, const char *path,
 	VOE_BASE_ASSERT(path != NULL && material != NULL,
 			"setting no material or onto no path");
 	voe_3d_models_landscape_layer_set(models->store, path, index, material);
+}
+
+uint32_t voe_editor_models_scatter(voe_editor_models *models, const char *path,
+				   const voe_3d_foliage_brush *brush, float x,
+				   float z, float seconds, uint64_t *seed,
+				   voe_assets_landscape_copy *added)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"scattering into no store");
+	VOE_BASE_ASSERT(path != NULL && brush != NULL && seed != NULL &&
+				added != NULL,
+			"scattering no brush, onto no path, or with no seed or room");
+	return voe_3d_models_landscape_scatter(models->store, path, brush, x, z,
+					       seconds, seed, added);
+}
+
+uint32_t voe_editor_models_erase(voe_editor_models *models, const char *path,
+				 const voe_3d_foliage_brush *brush, float x,
+				 float z, voe_assets_landscape_copy *removed,
+				 uint32_t room)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"erasing from no store");
+	VOE_BASE_ASSERT(path != NULL && brush != NULL && removed != NULL,
+			"erasing with no brush, on no path or into no room");
+	return voe_3d_models_landscape_erase(models->store, path, brush, x, z,
+					     removed, room);
+}
+
+void voe_editor_models_put_copies(voe_editor_models *models, const char *path,
+				  const voe_assets_landscape_copy *copies,
+				  uint32_t count, bool add)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"putting copies into no store");
+	VOE_BASE_ASSERT(path != NULL && (count == 0 || copies != NULL),
+			"putting no copies or onto no path");
+	voe_3d_models_landscape_put_copies(models->store, path, copies, count,
+					   add);
+}
+
+void voe_editor_models_kind_set(voe_editor_models *models, const char *path,
+				uint32_t index, const char *model)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"setting a kind in no store");
+	VOE_BASE_ASSERT(path != NULL && model != NULL,
+			"setting no model or onto no path");
+	voe_3d_models_landscape_kind_set(models->store, path, index, model);
 }
 
 void voe_editor_models_rename(voe_editor_models *models, const char *from,

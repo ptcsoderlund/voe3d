@@ -40,8 +40,8 @@
 // and re-read it are made here and nowhere else. Each frame _frame, inside the
 // draw, writes its dirty heights into its texture (0396 point 5). Save writes
 // every edited one to its file; a New or Open reads every edited one again.
-// Its paint and layers (0402) are edited here too, and Save writes them with
-// the heights, the writer carrying them.
+// Its paint, layers (0402) and foliage (0442) are edited here too, and Save
+// writes them with the heights, the writer carrying them.
 // The Landscape panel's size and cells are written at once and re-read at the next
 // update; one re-read waits at a time, enough for a panel that writes at most
 // one a frame, and a second before the update would replace the first.
@@ -62,6 +62,7 @@
 #include "session.h"
 
 #include <3d/models.h>
+#include <3d/models_foliage.h>
 
 #include <base/arena.h>
 
@@ -148,6 +149,34 @@ void voe_editor_models_put_paint(voe_editor_models *models, const char *path,
 // loaded landscape.
 void voe_editor_models_layer_set(voe_editor_models *models, const char *path,
 				 uint32_t index, const char *material);
+
+// The foliage calls below are 3d/models_foliage.h's, each nothing for a path
+// that is no loaded landscape and marking it edited when a copy or kind
+// changes (0442 points 3 and 4). One scatter stamp of `brush` at (x, z) in
+// `path`'s grid's own space over `seconds`, `seed` the stroke's xorshift: the
+// copies it added into `added`, room for VOE_3D_FOLIAGE_TRIES; how many.
+uint32_t voe_editor_models_scatter(voe_editor_models *models, const char *path,
+				   const voe_3d_foliage_brush *brush, float x,
+				   float z, float seconds, uint64_t *seed,
+				   voe_assets_landscape_copy *added);
+
+// One erase stamp of `brush` at (x, z): the copies it removed into `removed`,
+// at most `room` of them; how many.
+uint32_t voe_editor_models_erase(voe_editor_models *models, const char *path,
+				 const voe_3d_foliage_brush *brush, float x,
+				 float z, voe_assets_landscape_copy *removed,
+				 uint32_t room);
+
+// `copies` added to `path`'s landscape when `add`, removed when not: a foliage
+// stroke put back by value (strokes.h).
+void voe_editor_models_put_copies(voe_editor_models *models, const char *path,
+				  const voe_assets_landscape_copy *copies,
+				  uint32_t count, bool add);
+
+// Kind `index` of `path`'s landscape takes `model`'s path, `index` equal to
+// its kind count adding one.
+void voe_editor_models_kind_set(voe_editor_models *models, const char *path,
+				uint32_t index, const char *model);
 
 // Every entry at `from` or under `from/` takes `to` in its place, both under
 // `Assets/`: a rename or move keeps a landscape's unsaved heights (0379 point 6).

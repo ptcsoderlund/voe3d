@@ -1,6 +1,6 @@
-// A heights or paint stroke made with copies of its path and values, freed,
-// and written back through the model store either way. See strokes.h for why
-// it is its own memory beside the undo line's text.
+// A heights, paint or foliage stroke made with copies of its path and values,
+// freed, and written back through the model store either way. See strokes.h
+// for why it is its own memory beside the undo line's text.
 #include "strokes.h"
 
 #include <base/assert.h>
@@ -77,6 +77,24 @@ voe_editor_stroke *voe_editor_stroke_new_paint(const char *path,
 	return stroke;
 }
 
+voe_editor_stroke *
+voe_editor_stroke_new_foliage(const char *path, bool erase,
+			      const voe_assets_landscape_copy *copies,
+			      uint32_t count)
+{
+	voe_editor_stroke *stroke;
+
+	VOE_BASE_ASSERT(count == 0 || copies != NULL,
+			"a foliage stroke with no copies");
+	stroke = voe_editor_stroke_made(path, (voe_3d_landscape_rect){ 0 });
+	stroke->foliage = true;
+	stroke->erase = erase;
+	stroke->copies = voe_editor_stroke_copy(copies,
+						(size_t)count * sizeof(*copies));
+	stroke->copy_count = count;
+	return stroke;
+}
+
 void voe_editor_stroke_destroy(voe_editor_stroke *stroke)
 {
 	if (stroke == NULL)
@@ -85,6 +103,7 @@ void voe_editor_stroke_destroy(voe_editor_stroke *stroke)
 	free(stroke->after);
 	free(stroke->paint_before);
 	free(stroke->paint_after);
+	free(stroke->copies);
 	free(stroke);
 }
 
@@ -93,6 +112,13 @@ void voe_editor_stroke_apply(const voe_editor_stroke *stroke,
 {
 	VOE_BASE_ASSERT(stroke != NULL, "applying no stroke");
 	VOE_BASE_ASSERT(models != NULL, "applying a stroke to no store");
+	if (stroke->foliage) {
+		// A scatter's copies go in forward, an erase's come back out.
+		voe_editor_models_put_copies(models, stroke->path, stroke->copies,
+					     stroke->copy_count,
+					     forward != stroke->erase);
+		return;
+	}
 	if (voe_editor_stroke_count(stroke->rect) == 0)
 		return;
 	if (stroke->paint)
