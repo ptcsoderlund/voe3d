@@ -170,6 +170,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
   materials on one COLOUR texture, blended already so needing no twin.
 - `landscape.c` — the bilinear height, the marched and bisected ray, and the brush's stamp on the
   heights or, painting, on a layer's weights.
+- `brush_weight.h` — a brush's soft weight by radius and softness, shared by the sculpt, paint and
+  foliage stamps; internal.
+- `foliage.c` — a copy placed on the bilinear ground's normal, a scatter stamp's tries drawn up
+  front and refused against the near copies in one walk, erase and undo by moving the last in, and
+  the replace over a rect.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
 - `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, borders
