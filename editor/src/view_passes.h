@@ -127,7 +127,13 @@
 // that draws the world draws VOE_3D_LANDSCAPE_NODES for each of
 // VOE_3D_LANDSCAPES_DRAWN landscapes, counted in `objects` where the world's
 // drawn entities are (0396 point 4); `heights_texels` is the sculpt's writes a
-// frame, VOE_3D_LANDSCAPE_WRITE_TEXELS (0396 point 5).
+// frame, VOE_3D_LANDSCAPE_WRITE_TEXELS (0396 point 5). Foliage is
+// VOE_3D_FOLIAGE_GROUPS objects per view and for the preview, in its pass and
+// in each cascade of each of VOE_RENDER_DIRECTIONAL_LIGHTS lights, in no other
+// pass, and VOE_3D_FOLIAGE_INSTANCES `instances` (0442 point 5). THOSE
+// INSTANCES ARE SHARED by every view and the preview in a frame, so views that
+// together pass them draw the rest without foliage, said on stderr; times
+// (VOE_EDITOR_VIEWS + 1) would lift it, at 8 MiB a slot each.
 #define VOE_EDITOR_CAPACITIES                                                \
 	(voe_render_capacities)                                               \
 	{                                                                     \
@@ -150,7 +156,12 @@
 				   (VOE_EDITOR_VIEWS + 1) +                    \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES * \
 				   (VOE_EDITOR_VIEWS + 1) +                    \
-			   VOE_GAME_WORLD_WATERS * (VOE_EDITOR_VIEWS + 1),     \
+			   VOE_GAME_WORLD_WATERS * (VOE_EDITOR_VIEWS + 1) +    \
+			   VOE_3D_FOLIAGE_GROUPS *                             \
+				   (1 + VOE_RENDER_SHADOW_CASCADES *           \
+						VOE_RENDER_DIRECTIONAL_LIGHTS) *  \
+				   (VOE_EDITOR_VIEWS + 1),                     \
+		.instances = VOE_3D_FOLIAGE_INSTANCES,                         \
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,   \
 		.elements = VOE_EDITOR_INTERFACE_ELEMENTS,                     \
 		.passes = VOE_EDITOR_VIEWS + 2 +                               \

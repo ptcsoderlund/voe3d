@@ -158,11 +158,11 @@ carries it out.
   cut at 160 bytes, in a scroll area under a title row with its ×, as an anchored panel over the dock.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
   calls, and the read of its × afterwards.
-- `frame_breakdown.h` — the Frame panel: each GPU pass by name with its milliseconds and the total,
-  copied from render's lagging timings four times a second, under a title row with its ×, anchored
-  at a point.
-- `frame_breakdown.c` — the quarter-second copy keeping the last on no measurement, the panel's one
-  frame of `ui` calls, and the read of its × afterwards.
+- `frame_breakdown.h` — the Frame panel: each GPU pass by name with its milliseconds, the total,
+  triangles and draws, copied from render's lagging timings four times a second, under a title row
+  with its ×, anchored at a point.
+- `frame_breakdown.c` — the quarter-second copy with the triangle and draw counts, keeping the last
+  on no measurement, the panel's one frame of `ui` calls, and the read of its × afterwards.
 - `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock
   to open a project, save into a folder or import a model or picture, in its own arena, a showing
   able to start beside a given folder.
@@ -330,11 +330,11 @@ carries it out.
   targets, the focus set to the world camera's position, the world's first light row and the
   selection's outline colour, dimmed for a gizmo handle at rest and fainter still for a blocker's box.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
-  passes, lit by every light, with the world, its models, the selection's outline, collider and
-  gizmo, every blocker's box, the markers, the brush circle, and the device capacities.
-- `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, lit by every
-  light and kept out of the blockers, every place marked and blocker lined, the brush's rings with
-  the gizmo hidden while brushing, stopping at the first refused pass.
+  passes, lit by every light, with the world, its models and foliage, the selection's outline,
+  collider and gizmo, every blocker's box, the markers, the brush circle, and the device capacities.
+- `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, foliage
+  gathered first, lit by every light and kept out of the blockers, every place marked and blocker
+  lined, the brush's rings with the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or a prepared model on asking, emptied on a different project, a broken file in the notice, where
   its landscapes, their foliage too, and the project's materials are edited, and its models given
