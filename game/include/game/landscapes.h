@@ -1,15 +1,20 @@
 // The cooked landscapes a game loads into its model store (0379 point 7):
 // each one's path, as a model row names it, its size, its cells and its
-// heights in whole millimetres, and its material layers and paint (0402).
+// heights in whole millimetres, its material layers and paint (0402), and its
+// foliage kinds and copies (0442 point 1).
 //
 //     static const int32_t hill[25] = { 0, 0, 0, 0, 0, ... };
 //     static const char *const hill_layers[2] = { "Assets/grass.material",
 //                                                 "Assets/rock.material" };
 //     static const uint8_t hill_paint[100] = { 255, 0, 0, 0, ... };
+//     static const char *const hill_kinds[1] = { "Assets/pine.glb" };
+//     static const voe_assets_landscape_copy hill_copies[2] = {
+//             { 0, -1500, 16384, 1000, 0, 0 }, { 9000, 2500, 0, 1200, 0, 0 } };
 //     const voe_game_landscapes voe_game_landscapes_cooked = {
 //             (const voe_game_landscape[]){
 //                     { "Terrain/Hill.landscape", 256.0f, 4, hill,
-//                       hill_layers, 2, hill_paint } }, 1 };
+//                       hill_layers, 2, hill_paint,
+//                       hill_kinds, 1, hill_copies, 2 } }, 1 };
 //
 // DEFINED BY THE COOKED landscapes.c IN A PROJECT'S GAME TREE, NOT BY THIS
 // FOLDER, as game/prefabs.h's table is by the cooked prefabs.c. Only
@@ -24,8 +29,13 @@
 // VOE_ASSETS_LANDSCAPE_CELLS_MAX (0396 point 1). `layers` holds at most
 // VOE_ASSETS_LANDSCAPE_LAYERS paths, each shorter than
 // VOE_ASSETS_MATERIAL_PATH; `paint` one plane up to four layers, two past.
-// The layer fields come last, so a table cooked before them still compiles.
+// `kinds` holds at most VOE_ASSETS_LANDSCAPE_KINDS paths, each shorter than
+// VOE_ASSETS_LANDSCAPE_KIND_PATH; `copies` at most VOE_ASSETS_LANDSCAPE_COPIES,
+// each kind below kind_count. The layer fields, then the foliage's, come last,
+// so a table cooked before them still compiles.
 #pragma once
+
+#include <assets/landscape.h>
 
 #include <stdint.h>
 
@@ -45,6 +55,12 @@ typedef struct {
 	// One RGBA8 plane of (cells + 1)² texels up to four layers, two past
 	// four, as authoring/landscape_cook.h cooks it; NULL with no layers.
 	const uint8_t *paint;
+	// kind_count project-relative `.glb` paths, NULL with none.
+	const char *const *kinds;
+	uint32_t kind_count;
+	// copy_count copies, NULL with none.
+	const voe_assets_landscape_copy *copies;
+	uint32_t copy_count;
 } voe_game_landscape;
 
 // The table a game loads.

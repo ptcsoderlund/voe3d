@@ -5,9 +5,12 @@
 // failure one line on stderr and counted. Scratch is rewound to where it stood after each
 // file, so a caller's own scratch data survives the call. With a progress, the
 // distinct unread paths are counted first and the stop flag asked before each.
-// A cooked landscape's millimetres become metres in scratch, rewound after it,
-// its layer paths copied and its paint widened to both planes there too, and
-// the watch passes over every landscape and material entry. A `.glb` loads
+// After the world's paths an update reads every loaded landscape's kind paths
+// the store lacks, gathered first, the same way. A cooked landscape's
+// millimetres become metres in scratch, rewound after it, its layer and kind
+// paths copied, its copies handed on for the store to copy, its paint widened
+// to both planes in scratch too, and the watch passes over every landscape and
+// material entry. A `.glb` loads
 // with its levels file, `<folder>/Cache/levels/<path>.levels`, read on scratch
 // or made there and written, its folders made first when absent; made with
 // the `[Levels]` of the `.parts` beside the `.glb`, the defaults when there is
@@ -385,6 +388,43 @@ static unsigned count_unread(const voe_ecs_world *world,
 	return total;
 }
 
+// The kind paths an update reads after the world's: the store's own copies,
+// in the landscapes' arenas, which a load elsewhere in the store never moves.
+typedef struct {
+	const char *paths[VOE_3D_MODELS];
+	uint32_t count;
+} kind_paths;
+
+// Every distinct kind path of the store's loaded landscapes an update reads
+// and the world's `paths` files do not name, at most VOE_3D_MODELS: past that
+// the store is full. Each is compared with every one kept and every world
+// path; a lookup set would lift that square.
+static void gather_kinds(const voe_ecs_world *world,
+			 const voe_3d_models *models, uint32_t paths,
+			 kind_paths *kinds)
+{
+	VOE_BASE_ASSERT(models != NULL && kinds != NULL, "no store or kinds");
+	kinds->count = 0;
+	for (uint32_t i = 0; i < voe_3d_models_count(models); i++) {
+		const voe_assets_landscape *land =
+			voe_3d_models_at(models, i)->landscape;
+
+		for (uint32_t k = 0; land != NULL && k < land->kind_count; k++) {
+			const char *path = land->kinds[k];
+			bool known = !unread(models, path) ||
+				     kinds->count == VOE_3D_MODELS;
+
+			for (uint32_t j = 0; !known && j < kinds->count; j++)
+				known = strcmp(kinds->paths[j], path) == 0;
+			for (uint32_t j = 0; !known && j < paths; j++)
+				known = strcmp(path_at(world, j), path) == 0;
+			if (!known)
+				kinds->paths[kinds->count++] = path;
+		}
+	}
+	VOE_BASE_ASSERT(kinds->count <= VOE_3D_MODELS, "too many kinds kept");
+}
+
 voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_3d_models *models,
 						voe_render_device *device,
@@ -397,14 +437,17 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 	unsigned done = 0;
 	unsigned total = 0;
 	voe_base_error error;
+	kind_paths kinds;
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(folder != NULL && scratch != NULL,
 			"no folder or scratch");
+	gather_kinds(world, models, paths, &kinds);
 	if (progress != NULL)
-		total = count_unread(world, models, paths);
-	for (uint32_t i = 0; i < paths; i++) {
-		const char *path = path_at(world, i);
+		total = count_unread(world, models, paths) + kinds.count;
+	for (uint32_t i = 0; i < paths + kinds.count; i++) {
+		const char *path = i < paths ? path_at(world, i) :
+					       kinds.paths[i - paths];
 
 		if (!unread(models, path))
 			continue;
@@ -458,6 +501,27 @@ static void copy_layers(voe_assets_landscape *landscape,
 		memset(landscape->paint + plane, 0, plane);
 }
 
+// `cooked`'s kind paths into `landscape`, and its copies handed on as they
+// are: the store copies them into its own room and never writes these.
+static void copy_foliage(voe_assets_landscape *landscape,
+			 const voe_game_landscape *cooked)
+{
+	VOE_BASE_ASSERT(cooked->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
+			"a cooked landscape with too many kinds");
+	VOE_BASE_ASSERT(cooked->copies != NULL || cooked->copy_count == 0,
+			"cooked copies with no array");
+	for (uint32_t k = 0; k < cooked->kind_count; k++) {
+		size_t length = strlen(cooked->kinds[k]);
+
+		VOE_BASE_ASSERT(length < VOE_ASSETS_LANDSCAPE_KIND_PATH,
+				"a cooked kind path too long");
+		memcpy(landscape->kinds[k], cooked->kinds[k], length + 1);
+	}
+	landscape->kind_count = cooked->kind_count;
+	landscape->copies = (voe_assets_landscape_copy *)cooked->copies;
+	landscape->copy_count = cooked->copy_count;
+}
+
 voe_game_models_failures
 voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 			   const voe_game_landscapes *landscapes,
@@ -486,6 +550,7 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 			landscape.heights[h] =
 				(float)((double)cooked->millimetres[h] / 1000.0);
 		copy_layers(&landscape, cooked, heights, scratch);
+		copy_foliage(&landscape, cooked);
 		if (!voe_3d_models_load_landscape(models, device, cooked->path,
 						  0, &landscape, &error))
 			count_failure(&failures, models, cooked->path, error);

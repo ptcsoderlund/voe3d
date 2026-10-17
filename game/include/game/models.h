@@ -13,8 +13,9 @@
 // stamp or that will not read is kept failed at 0; one that will not parse, at
 // its stamp: a broken file is read once, not once a frame. Empty paths are
 // skipped. Each emitter's texture is read the same way, a `.png` or `.jpg` made
-// a picture (0298 point 5); with any emitter the soft dot is loaded at "" if
-// the store lacks it, a failure counted with first "".
+// a picture (0298 point 5), then each loaded landscape's kind paths (0442); with
+// any emitter the soft dot is loaded at "" if the store lacks it, a failure
+// counted with first "".
 //
 // LEVELS (0426 point 2): a `.glb` path, any case, loads with its levels file
 // `<folder>/Cache/levels/<path>.levels`, made when missing or stale, in update
@@ -44,8 +45,8 @@
 // files are, or stays failed if that table has none, each failure counted once.
 //
 // LANDSCAPES come from a table, never a file (game/landscapes.h, 0236): each
-// one's millimetres made metres in scratch, its layers and paint carried, and
-// loaded at stamp 0, a failure counted as an update's.
+// one's millimetres made metres in scratch, its layers, paint, kinds and
+// copies carried, and loaded at stamp 0, a failure counted as an update's.
 //
 // BOTH RETURN how many paths failed and the first one's path, the store's own
 // copy, valid until that entry loads again or the store is cleared; NULL for
@@ -79,7 +80,8 @@ typedef struct {
 } voe_game_models_failures;
 
 // Reads and loads every model row's path and emitter's texture the store
-// lacks, and the dot for any emitter, reporting into `progress` (NULL for
+// lacks, then every loaded landscape's kind paths it lacks (0442 point 1) as a
+// row's path, and the dot for any emitter, reporting into `progress` (NULL for
 // none) and stopping when it asks. See the header.
 voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_3d_models *models,
