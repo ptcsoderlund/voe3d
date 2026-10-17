@@ -105,10 +105,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_terrain.c` — the eye taken into the grid's space, the nodes selected on scratch or, in
   the cast, on the stack, and each node's record over the heights texture, its layers looked up
   once per row per call.
-- `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
-  its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
-  a model at the camera's level, a gone one casting nothing, a landscape by the view's nodes and
-  foliage in a free light's cascades.
+- `draw_shadows.c` — the shadow passes as one call: each casting sun's cascades in its slot, of
+  only what its blockers hold, the point-shadow pass and the probe bounce, a model at the camera's
+  level, a gone one casting nothing, a landscape by the view's nodes, foliage in a free sun's cascades.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0, an
   off owner's and those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
@@ -166,9 +165,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   material, or a levels file's checked and each part's used vertices gathered, each bounded by
   the file's error and swap; the sphere, the level-0 mirror and the free.
 - `models_landscape.c` — a landscape's grid copied with its layers, paint, foliage kinds and
-  copies, each copy placed, uploaded as heights, paint and a pyramid on the shared grid; brushes
-  and puts growing its dirt, which the frame writes a budget at a time, and placing its copies
-  again; renames following layers and kinds.
+  copies, each placed, uploaded as heights, paint and a pyramid on the shared grid; brushes and
+  puts growing its dirt, written a budget at a time, and placing copies again; renames following.
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
   handed to foliage.c, the entry marked edited on a change.
 - `models_material.c` — a `.material`'s four maps decoded and uploaded mipped with its record,
