@@ -39,13 +39,12 @@
 // and has to be in the mesh table before this walk; a draw system that opened
 // and closed the frame itself left no moment for that.
 //
-// ONE DRAW PER MESH, FROM THE CPU. No instancing, no indirect command buffer, no
-// culling, and no extract step into a second layout. Each of those is a change
-// to this one loop and each is a later card; what this card guarantees is that
-// the data is already in the shape they need — geometry in shared pools, one
-// record per object in one buffer, textures by id. A panel is the exception that
-// proves it: one draw per panel however many rectangles are on it, because the
-// element path was built for exactly that.
+// ONE DRAW PER MESH, FROM THE CPU. No indirect command buffer, no culling and no
+// extract step into a second layout; the data is already in the shape those
+// would need — geometry in shared pools, one record per object, textures by id.
+// Two exceptions: a panel is one draw however many rectangles are on it, and
+// foliage is one instanced draw per group of copies (0442 point 5), gathered
+// once a frame by voe_3d_draw_system_foliage before the passes.
 //
 // GROUPING IS THE ENGINE'S AND NEVER THE USER'S. There is no component, flag or
 // authoring concept for putting objects into batches by hand: the engine knows
@@ -264,6 +263,26 @@ typedef struct {
 	voe_platform_size size;
 } voe_3d_collider_marked;
 
+// Instances one frame writes, every view together (0442 point 5): what a
+// program gives its device as `instances`.
+#define VOE_3D_FOLIAGE_INSTANCES (1u << 17)
+// Groups one frame's view gathers at most, which a program adds to its objects
+// for each pass drawing foliage: each group is one instanced draw.
+#define VOE_3D_FOLIAGE_GROUPS 256
+
+// One group of foliage copies (0442 point 5): every copy of one kind at one
+// level, wearing one part, drawn by one instanced draw.
+typedef struct {
+	// The part's range at the group's level.
+	voe_render_geometry geometry;
+	// The part as worn: its record and its sides.
+	const voe_3d_model_part *part;
+	// Its render instances, `first` as voe_render_frame_instances wrote it.
+	uint32_t first, count;
+	// A band's level-before copies, dithered the other way (0432 point 3).
+	bool rest;
+} voe_3d_foliage_group;
+
 // What one frame is drawn with, in the shape `render` takes it: the camera and
 // the sun. Computed once by voe_3d_draw_system_frame, handed to
 // voe_render_pass_begin by the loop and back to voe_3d_draw_system_run for its
@@ -424,6 +443,10 @@ typedef struct {
 	// marks there (0394), NULL for none. _frame leaves it NULL; the caller
 	// sets it per target, and only the shadows call writes it.
 	voe_3d_bounce_casters *casters;
+	// This view's foliage groups, `foliage_count` of them; none is NULL and
+	// 0. _frame leaves them so, voe_3d_draw_system_foliage fills them.
+	const voe_3d_foliage_group *foliage;
+	uint32_t foliage_count;
 } voe_3d_frame;
 
 // The share of D, the 17th casting lamp's distance, where a point light's
@@ -598,6 +621,34 @@ voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world);
 [[nodiscard]] bool voe_3d_draw_system_lights(const voe_ecs_world *world,
 					     voe_3d_frame *frame,
 					     voe_base_arena *arena);
+
+// Gathers `frame`'s foliage into `frame->foliage` (0442 point 5): inside an
+// open frame, before any pass, once per view. The groups are on `arena`, which
+// must outlive the frame's passes; the instances are pushed there too, 64 bytes
+// each, and given back before it returns. Nothing draws them here.
+//
+// THE ROWS ARE THE LANDSCAPE ROWS _run DRAWS SOLID: a model row wearing a
+// loaded landscape in `frame->models`, at the world place _run's landscape walk
+// takes, among its first VOE_3D_LANDSCAPES_DRAWN; off, hidden and fading rows
+// are left out, and a blind frame gathers none. Each copy whose kind is a loaded
+// `.glb` in the store (each kind found once a row) is placed at the row's world
+// transform composed with its placed one, given its level and share by
+// voe_3d_model_level_choose with the frame's view and eye, and is one instance
+// per opaque or cut-out part that level has: the top three rows of its matrix
+// about the eye, dithered as a dissolving model row is. Under a whole share it
+// is also one instance of each such part of the level before, with the other
+// dither, in a `rest` group. A group is one (kind, level, part, rest), shared
+// by every row naming that file.
+//
+// Instances are counted per group, then filled contiguously and written with
+// one voe_render_frame_instances. False with none when render refuses the room
+// or the count passes VOE_3D_FOLIAGE_INSTANCES; groups past
+// VOE_3D_FOLIAGE_GROUPS are left out; each is said once on stderr. True with
+// none with no store or no landscape row.
+[[nodiscard]] bool voe_3d_draw_system_foliage(const voe_ecs_world *world,
+					      voe_render_device *device,
+					      voe_3d_frame *frame,
+					      voe_base_arena *arena);
 
 // The pass camera of `frame`: its view, light, shadow, point lights, blockers,
 // sky, exposure and the lights after the first as `more`.

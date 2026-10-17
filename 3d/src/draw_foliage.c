@@ -1,0 +1,310 @@
+// The foliage's gathering (0442 point 5): voe_3d_draw_system_foliage, which
+// 3d/draw_system.h states, walks every copy of every landscape row _run draws
+// solid and writes each as a render instance into its group of (kind, level,
+// part, rest), draw_foliage.h's key. Internal to 3d; called once a frame per
+// view, inside the frame and before its passes.
+//
+// TWO WALKS OVER THE SAME COPIES: the first counts each group's instances, the
+// second fills them contiguously, group after group, into one array on the
+// caller's arena, written by one voe_render_frame_instances and given back. Both
+// walks find the same groups in the same order, so the counts the first made
+// are the room the second fills, and a group the first left out past
+// VOE_3D_FOLIAGE_GROUPS the second leaves out too.
+//
+// A ROW'S KINDS ARE FOUND ONCE: each kind's loaded `.glb` and each of its parts
+// as worn, a blended one left out (0442 point 5). A copy's (kind, level, part,
+// rest) is looked up in a per-row table and only its first sight walks the
+// groups' keys, so a row's copies cost no search.
+//
+// Constraints: every copy's level is chosen and its matrix made each frame and
+// view, the choice twice, one per walk, with no culling (093 lifts that); the
+// walk's state, about 24 KB, is on the stack; the instances need
+// 64 bytes each of the arena, up to VOE_3D_FOLIAGE_INSTANCES of them.
+#include "draw_foliage.h"
+#include "draw_group.h"
+#include "draw_material.h"
+#include "draw_models.h"
+
+#include <3d/draw_system.h>
+#include <3d/model_component.h>
+#include <3d/model_levels.h>
+#include <3d/models_foliage.h>
+#include <base/assert.h>
+#include <base/report.h>
+#include <scene/transform_component.h>
+#include <scene/transform_system.h>
+
+#include <string.h>
+
+// A per-row slot that has not been looked up, and one whose group was left out.
+#define SLOT_UNSEEN 0u
+#define SLOT_LEFT_OUT 0xffffu
+
+static_assert(VOE_3D_FOLIAGE_GROUPS < SLOT_LEFT_OUT,
+	      "a slot holds a group's index plus one");
+
+// One walk's state: the groups found so far, by key, and the row's tables.
+struct gathering {
+	struct voe_3d_foliage_key keys[VOE_3D_FOLIAGE_GROUPS];
+	voe_3d_foliage_group groups[VOE_3D_FOLIAGE_GROUPS];
+	// The second walk's cursor in each group.
+	uint32_t filled[VOE_3D_FOLIAGE_GROUPS];
+	uint32_t count;
+	// Every group's instances, counted by the first walk.
+	uint32_t instances;
+	// A group was left out past VOE_3D_FOLIAGE_GROUPS.
+	bool left_out;
+	// Where the second walk writes; NULL while the first counts.
+	voe_render_instance *out;
+	// This row's kinds: each one's loaded `.glb`, NULL for none, and each of
+	// its parts as worn, NULL for a blended one.
+	const voe_3d_model_entry *kinds[VOE_ASSETS_LANDSCAPE_KINDS];
+	const voe_3d_model_part *worn[VOE_ASSETS_LANDSCAPE_KINDS]
+				     [VOE_3D_MODEL_PARTS];
+	// This row's group of each (kind, level, part, rest): index plus one,
+	// SLOT_UNSEEN or SLOT_LEFT_OUT.
+	uint16_t slots[VOE_ASSETS_LANDSCAPE_KINDS][VOE_3D_MODEL_LEVELS]
+		      [VOE_3D_MODEL_PARTS][2];
+};
+
+static bool same_key(struct voe_3d_foliage_key a, struct voe_3d_foliage_key b)
+{
+	return a.kind == b.kind && a.level == b.level && a.part == b.part &&
+	       a.rest == b.rest;
+}
+
+// The top three rows of a matrix about the eye, the fourth being (0, 0, 0, 1).
+static voe_render_instance instance_of(voe_math_float4x4 matrix)
+{
+	voe_render_instance instance = { 0 };
+
+	for (uint32_t r = 0; r < 3; r++)
+		instance.rows[r] = (voe_math_float4){ matrix.m[r][0], matrix.m[r][1],
+						      matrix.m[r][2], matrix.m[r][3] };
+	VOE_BASE_ASSERT(matrix.m[3][3] == 1.0f, "a placed matrix is affine");
+	return instance;
+}
+
+// Each kind of `grid` found once in `models`: a loaded `.glb`, and each of its
+// parts as it wears it, its record's alpha mode the same at every level.
+static void find_kinds(const voe_3d_models *models,
+		       const voe_assets_landscape *grid, struct gathering *g)
+{
+	VOE_BASE_ASSERT(grid->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
+			"a landscape with more kinds than it holds");
+	memset(g->kinds, 0, sizeof(g->kinds));
+	memset(g->worn, 0, sizeof(g->worn));
+	for (uint32_t k = 0; k < grid->kind_count; k++) {
+		const voe_3d_model_entry *kind =
+			voe_3d_models_find(models, grid->kinds[k]);
+
+		if (kind == NULL || !kind->loaded || kind->picture ||
+		    kind->material || kind->landscape != NULL)
+			continue;
+		VOE_BASE_ASSERT(kind->part_count <= VOE_3D_MODEL_PARTS,
+				"a kind with more parts than the store holds");
+		g->kinds[k] = kind;
+		for (uint32_t p = 0; p < kind->part_count; p++) {
+			const voe_3d_model_part *named = voe_3d_draw_material_named(
+				models, kind->parts[p].wears);
+			const voe_3d_model_part *worn =
+				named != NULL ? named : &kind->parts[p];
+
+			if (worn->material.alpha_mode != VOE_RENDER_ALPHA_BLENDED)
+				g->worn[k][p] = worn;
+		}
+	}
+}
+
+// The group of `kind`'s part `part` at `level`, made when first seen; nought
+// past VOE_3D_FOLIAGE_GROUPS, else its index plus one.
+static uint32_t group_of(struct gathering *g, uint32_t kind, uint32_t level,
+			 uint32_t part, bool rest)
+{
+	uint16_t *slot = &g->slots[kind][level][part][rest ? 1 : 0];
+	const struct voe_3d_foliage_key key = {
+		.kind = g->kinds[kind], .level = level, .part = part, .rest = rest
+	};
+	uint32_t at = 0;
+
+	if (*slot == SLOT_LEFT_OUT)
+		return 0;
+	if (*slot != SLOT_UNSEEN)
+		return *slot;
+	while (at < g->count && !same_key(g->keys[at], key))
+		at++;
+	if (at == VOE_3D_FOLIAGE_GROUPS) {
+		g->left_out = true;
+		*slot = SLOT_LEFT_OUT;
+		return 0;
+	}
+	if (at == g->count) {
+		VOE_BASE_ASSERT(g->out == NULL, "a group made while filling");
+		g->keys[at] = key;
+		g->groups[at] = (voe_3d_foliage_group){
+			.geometry = key.kind->levels[level].geometries[part],
+			.part = g->worn[kind][part],
+			.rest = rest,
+		};
+		g->count++;
+	}
+	*slot = (uint16_t)(at + 1);
+	return *slot;
+}
+
+// One copy of `kind` at `level` as one instance per drawn part that level has:
+// counted while counting, else written at its group's cursor with `dither`.
+static void gather_copy(struct gathering *g, uint32_t kind, uint32_t level,
+			bool rest, float dither, voe_render_instance instance)
+{
+	const voe_3d_model_entry *model = g->kinds[kind];
+
+	VOE_BASE_ASSERT(model != NULL && level < model->level_count,
+			"gathering a level the kind has not got");
+	instance.dither = dither;
+	for (uint32_t part = 0; part < model->part_count; part++) {
+		uint32_t group;
+
+		if (g->worn[kind][part] == NULL ||
+		    model->levels[level].geometries[part].generation == 0)
+			continue;
+		group = group_of(g, kind, level, part, rest);
+		if (group-- == 0)
+			continue;
+		if (g->out == NULL) {
+			g->groups[group].count++;
+			g->instances++;
+			continue;
+		}
+		VOE_BASE_ASSERT(g->filled[group] < g->groups[group].count,
+				"filling past what was counted");
+		g->out[g->groups[group].first + g->filled[group]++] = instance;
+	}
+}
+
+// Every copy of `land`, a loaded landscape whose row stands at `where`.
+static void gather_row(const voe_3d_frame *frame,
+		       const voe_3d_model_entry *land, voe_scene_transform where,
+		       struct gathering *g)
+{
+	const voe_assets_landscape *grid = land->landscape;
+	const voe_scene_transform *placed =
+		voe_3d_models_landscape_placed(frame->models, land);
+
+	VOE_BASE_ASSERT(grid != NULL && (placed != NULL || grid->copy_count == 0),
+			"a landscape with copies and no placed transforms");
+	find_kinds(frame->models, grid, g);
+	memset(g->slots, 0, sizeof(g->slots));
+	for (uint32_t i = 0; i < grid->copy_count; i++) {
+		const uint32_t kind = grid->copies[i].kind;
+		voe_scene_transform at;
+		voe_3d_model_level_choice choice;
+		voe_render_instance instance = { 0 };
+		bool dissolving;
+
+		VOE_BASE_ASSERT(kind < grid->kind_count, "a copy of no kind");
+		if (g->kinds[kind] == NULL)
+			continue;
+		at = voe_scene_transform_compose(where, placed[i]);
+		choice = voe_3d_model_level_choose(g->kinds[kind], &at, frame->eye,
+						   &frame->view);
+		dissolving = choice.shown < 1.0f;
+		VOE_BASE_ASSERT(!dissolving || choice.level >= 1,
+				"level 0 dissolving into no level before it");
+		if (g->out != NULL)
+			instance = instance_of(voe_scene_transform_matrix(at, frame->eye));
+		gather_copy(g, kind, choice.level, false,
+			    dissolving ? choice.shown : 0.0f, instance);
+		if (dissolving)
+			gather_copy(g, kind, choice.level - 1, true, -choice.shown,
+				    instance);
+	}
+}
+
+// The landscape rows draw_system.c's landscape walk draws solid: not off,
+// hidden or fading, among its first VOE_3D_LANDSCAPES_DRAWN.
+static void walk(const voe_ecs_world *world, const voe_3d_frame *frame,
+		 struct gathering *g)
+{
+	const voe_ecs_entity *owners = voe_3d_model_entities(world);
+	uint32_t landscapes = 0;
+
+	VOE_BASE_ASSERT(frame->models != NULL, "gathering from no store");
+	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
+		const voe_3d_model_entry *land;
+		const float fade = voe_3d_model_rows(world)[row].fade;
+
+		if (fade >= 1.0f ||
+		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
+			continue;
+		land = voe_3d_draw_models_entry(world, frame->models, row);
+		if (land == NULL ||
+		    !voe_3d_draw_models_is_landscape(frame->models, land))
+			continue;
+		if (landscapes++ == VOE_3D_LANDSCAPES_DRAWN)
+			break;
+		if (fade > 0.0f)
+			continue;
+		gather_row(frame, land,
+			   voe_scene_transform_between(world, owners[row],
+						       frame->lag),
+			   g);
+	}
+}
+
+// Counts, fills on `arena` and writes; the groups pushed only once render took
+// the instances, so a refusal leaves the arena as it was.
+bool voe_3d_draw_system_foliage(const voe_ecs_world *world,
+				voe_render_device *device, voe_3d_frame *frame,
+				voe_base_arena *arena)
+{
+	static bool told_left_out, told_refused;
+	struct gathering g;
+	struct voe_base_arena_mark mark;
+	voe_3d_foliage_group *groups;
+	uint32_t first = 0;
+	bool written;
+
+	VOE_BASE_ASSERT(world != NULL && frame != NULL,
+			"gathering foliage of no world or frame");
+	VOE_BASE_ASSERT(device != NULL && arena != NULL,
+			"gathering foliage with no device or arena");
+	frame->foliage = NULL;
+	frame->foliage_count = 0;
+	if (frame->models == NULL || frame->blind)
+		return true;
+	memset(&g, 0, sizeof(g));
+	walk(world, frame, &g);
+	if (g.left_out && !told_left_out)
+		VOE_BASE_ERROR("3d", "more than %u foliage groups in a view; the rest are left out",
+			       VOE_3D_FOLIAGE_GROUPS);
+	told_left_out = told_left_out || g.left_out;
+	if (g.instances == 0)
+		return true;
+	written = g.instances <= VOE_3D_FOLIAGE_INSTANCES;
+	mark = voe_base_arena_mark(arena);
+	if (written) {
+		for (uint32_t i = 0, at = 0; i < g.count; at += g.groups[i++].count)
+			g.groups[i].first = at;
+		g.out = voe_base_arena_push(arena, sizeof(*g.out) * g.instances);
+		walk(world, frame, &g);
+		written = voe_render_frame_instances(device, g.out, g.instances,
+						     &first);
+	}
+	voe_base_arena_rewind(arena, mark);
+	if (!written) {
+		if (!told_refused)
+			VOE_BASE_ERROR("3d", "no room for %u foliage instances; none are drawn",
+				       g.instances);
+		told_refused = true;
+		return false;
+	}
+	groups = voe_base_arena_push(arena, sizeof(*groups) * g.count);
+	for (uint32_t i = 0; i < g.count; i++) {
+		groups[i] = g.groups[i];
+		groups[i].first += first;
+	}
+	frame->foliage = groups;
+	frame->foliage_count = g.count;
+	return true;
+}

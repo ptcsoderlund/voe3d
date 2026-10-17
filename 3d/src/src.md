@@ -94,6 +94,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
   the level before in its band, and blended or fading ones held, a faded-out row and a landscape
   skipped.
+- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part and rest;
+  internal.
+- `draw_foliage.c` — the foliage gathering: each drawn landscape row's copies given their level,
+  counted per group, then filled contiguously and written as render instances in one call.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended, and why one eye chooses the same nodes in every pass; internal.
 - `draw_terrain.c` — the eye taken into the grid's space, the nodes selected on scratch or, in
