@@ -22,6 +22,7 @@
 
 #include <platform/path.h>
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -111,6 +112,7 @@ static bool drop_into_view(const voe_editor_assets_drag *drag,
 // The header's outcomes; NOTHING is the one a ghost shows refused.
 typedef enum {
 	OUTCOME_NOTHING,
+	OUTCOME_MODEL_ONTO_KIND,
 	OUTCOME_MODEL_INTO_VIEW,
 	OUTCOME_MODEL_ONTO_INSPECTOR,
 	OUTCOME_PREFAB_INTO_VIEW,
@@ -228,10 +230,56 @@ static bool layer_row_at(const voe_editor_scene *scene,
 	return false;
 }
 
+// Whether the held path ends `.glb` in any case: a model row that is no
+// `.landscape`.
+static bool held_glb(const voe_editor_assets_drag *drag)
+{
+	static const char ending[] = ".glb";
+	const size_t length = strlen(drag->path);
+	const size_t tail = sizeof ending - 1;
+
+	VOE_BASE_ASSERT(length < sizeof drag->path, "a held path unterminated");
+	if (length < tail)
+		return false;
+	for (size_t i = 0; i < tail; i++)
+		if (tolower((unsigned char)drag->path[length - tail + i]) !=
+		    ending[i])
+			return false;
+	return true;
+}
+
+// The Foliage row of the selected thing's loaded grid that showed under
+// `pointer` at the last read, into `index`: a kind's own, or the add row's at
+// the kind count, never past the sixteenth. False over none, or when the
+// Inspector's records are not the selected thing's.
+static bool kind_row_at(const voe_editor_scene *scene,
+			const voe_3d_models *store, voe_ecs_entity selected,
+			voe_math_float2 pointer, uint32_t *index)
+{
+	const voe_assets_landscape *land;
+
+	VOE_BASE_ASSERT(scene != NULL && index != NULL, "a kind row of nothing");
+	if (scene->inspector.entity.index != selected.index ||
+	    scene->inspector.entity.generation != selected.generation)
+		return false;
+	land = voe_editor_inspector_layers_grid(store, scene->world, selected)
+		       .grid;
+	if (land == NULL)
+		return false;
+	for (uint32_t i = 0;
+	     i <= land->kind_count && i < VOE_ASSETS_LANDSCAPE_KINDS; i++)
+		if (voe_editor_inspector_rect_contains(scene->sculpt.kinds_seen[i],
+						       pointer)) {
+			*index = i;
+			return true;
+		}
+	return false;
+}
+
 // Over the Inspector: a picture onto the open material's map row, else, while
 // it shows the selected thing and that is no prefab's part, a material onto
 // its grid's Layers row or its shape, never its model, a picture onto its
-// emitter, a model onto its model.
+// emitter, a `.glb` onto its grid's Foliage row, a model onto its model.
 static void onto_inspector(const voe_editor_assets_drag *drag,
 			   const voe_editor_scene *scene,
 			   const voe_3d_models *store, voe_math_float2 pointer,
@@ -259,6 +307,9 @@ static void onto_inspector(const voe_editor_assets_drag *drag,
 	} else if (drag->picture) {
 		if (voe_3d_emitter_get(scene->world, selected) != NULL)
 			out->kind = OUTCOME_PICTURE_ONTO_INSPECTOR;
+	} else if (held_glb(drag) &&
+		   kind_row_at(scene, store, selected, pointer, &out->index)) {
+		out->kind = OUTCOME_MODEL_ONTO_KIND;
 	} else if (voe_3d_model_get(scene->world, selected) != NULL) {
 		out->kind = OUTCOME_MODEL_ONTO_INSPECTOR;
 	}
@@ -392,6 +443,15 @@ static void drop(const voe_editor_assets_drag *drag,
 	// A layer set is no scene edit and no undo step; unsaved as a stroke.
 	if (out.kind == OUTCOME_MATERIAL_ONTO_LAYER) {
 		voe_editor_models_layer_set(
+			models,
+			voe_3d_model_get(scene->world, swap.entity)->path,
+			out.index, drag->path);
+		voe_editor_session_edited(session);
+		return;
+	}
+	// A kind set likewise; its model loads at the next update.
+	if (out.kind == OUTCOME_MODEL_ONTO_KIND) {
+		voe_editor_models_kind_set(
 			models,
 			voe_3d_model_get(scene->world, swap.entity)->path,
 			out.index, drag->path);

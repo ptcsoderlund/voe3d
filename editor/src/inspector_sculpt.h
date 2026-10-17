@@ -14,9 +14,10 @@
 // that does not draw the section reads nothing.
 //
 // PRESSING THE CHOSEN BUTTON AGAIN CHOOSES NONE; another chooses its kind. While
-// PAINT is chosen (inspector_layers.h) no button is drawn chosen and any one
-// chooses its kind. A slider's value is taken every frame, clamped into its
-// range by `ui`; PAINT strokes with the same three.
+// PAINT (inspector_layers.h), SCATTER or ERASE (inspector_foliage.h) is chosen
+// no button is drawn chosen and any one chooses its kind. A slider's value is
+// taken every frame, clamped into its range by `ui`; PAINT strokes with the
+// same three, SCATTER and ERASE with Radius and Softness.
 //
 // Constraints: draw, forget and read are called in one frame's window, read
 // before the frame's arena is rewound; nothing here allocates.

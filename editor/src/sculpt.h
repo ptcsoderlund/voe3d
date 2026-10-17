@@ -1,6 +1,7 @@
 // The sculpting brush a person holds: which kind is chosen, if any, and its
 // radius, strength and softness (0379 point 3). The Inspector's Sculpt section
-// (inspector_sculpt.h) draws and sets it; scene.h holds the one there is.
+// (inspector_sculpt.h) draws and sets it, Layers (inspector_layers.h) and
+// Foliage (inspector_foliage.h) too; scene.h holds the one there is.
 //
 //     voe_editor_sculpt_start(&scene.sculpt);
 //     if (scene.sculpt.chosen &&
@@ -92,6 +93,12 @@ struct voe_editor_models;
 // The Layers section's rows: one per layer, and the add row.
 #define VOE_EDITOR_SCULPT_LAYER_ROWS (VOE_ASSETS_LANDSCAPE_LAYERS + 1)
 
+// The Foliage section's: Scatter and Erase, Density, Size, Turn and Lean, and
+// its rows, one per kind and the add row.
+#define VOE_EDITOR_SCULPT_FOLIAGE_KINDS 2
+#define VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS 4
+#define VOE_EDITOR_SCULPT_KIND_ROWS (VOE_ASSETS_LANDSCAPE_KINDS + 1)
+
 typedef struct {
 	// Whether a brush is chosen, and which; `kind` means nothing when not.
 	bool chosen;
@@ -123,6 +130,17 @@ typedef struct {
 	voe_ui_node layer_rows[VOE_EDITOR_SCULPT_LAYER_ROWS];
 	voe_ui_rect layers_seen[VOE_EDITOR_SCULPT_LAYER_ROWS];
 	uint32_t layers_drawn;
+	// The Foliage section's as drawn this frame, the Layers rows' way:
+	// Scatter and Erase, the sliders and their figures, kind row i kind i
+	// and row `kinds_drawn` the add row, and where each row showed at the
+	// last read (inspector_foliage.h).
+	voe_ui_node foliage_buttons[VOE_EDITOR_SCULPT_FOLIAGE_KINDS];
+	voe_ui_node foliage_sliders[VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS];
+	char foliage_figures[VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS]
+			    [VOE_EDITOR_SCULPT_FIGURE];
+	voe_ui_node kind_rows[VOE_EDITOR_SCULPT_KIND_ROWS];
+	voe_ui_rect kinds_seen[VOE_EDITOR_SCULPT_KIND_ROWS];
+	uint32_t kinds_drawn;
 	// The ground under the pointer this frame, when `hit`: (x, z) in the
 	// grid's own space of `entity`'s landscape.
 	bool hit;

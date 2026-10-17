@@ -3,7 +3,8 @@
 // component and the open list. See
 // the header for why this file names no component; the replace intent a moved
 // control becomes is inspector_edit.c's. A thing wearing a landscape gets the
-// Sculpt section and, its grid loaded, Layers; a loaded model, Level. While a material is open its section
+// Sculpt section and, its grid loaded, Layers and Foliage; a loaded model,
+// Level. While a material is open its section
 // (inspector_material.h) is drawn in place of the entity's.
 //
 // IT IS DRIVEN BY base/describe.h AND BY NOTHING ELSE. There is no table in here
@@ -26,6 +27,7 @@
 #include "inspector.h"
 
 #include "entity_field.h"
+#include "inspector_foliage.h"
 #include "inspector_layers.h"
 #include "inspector_rows.h"
 #include "inspector_sculpt.h"
@@ -484,6 +486,8 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 		voe_editor_inspector_sculpt_draw(ui, sculpt);
 		voe_editor_inspector_layers_draw(ui, sculpt, store, world,
 						 selected);
+		voe_editor_inspector_foliage_draw(ui, sculpt, store, world,
+						  selected);
 	}
 	voe_editor_inspector_level_draw(ui, &inspector->level, store, world,
 					selected, views);

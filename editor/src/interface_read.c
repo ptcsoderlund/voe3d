@@ -34,6 +34,7 @@
 #include "errors.h"
 #include "inspector.h"
 #include "inspector_edit.h"
+#include "inspector_foliage.h"
 #include "inspector_layers.h"
 #include "inspector_material.h"
 #include "inspector_place.h"
@@ -146,6 +147,7 @@ bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 					  root->pointer.down, root->pointer.at);
 	voe_editor_inspector_sculpt_read(ui, &scene->sculpt);
 	voe_editor_inspector_layers_read(ui, &scene->sculpt);
+	voe_editor_inspector_foliage_read(ui, &scene->sculpt);
 	voe_editor_interface_material_read(ui, scene, models);
 	if (!voe_editor_scene_clicks_read(scene, ui))
 		voe_editor_notice_set(&session->notice, "The scene is full.");

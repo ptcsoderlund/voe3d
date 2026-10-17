@@ -214,10 +214,11 @@ carries it out.
   a press outside, and the save into the `.parts`.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
   folder row or Up, a new thing or copy placed in a scene view, a swap, a shape's material, a filled
-  map or a set landscape layer over the Inspector, a material over a model and elsewhere nothing.
+  map, a set landscape layer or foliage kind over the Inspector, a material over a model and
+  elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the move's target, the drop point, the Inspector's rows, and each
-  swap with its undo step.
+  the release and the ghost, the move's target, the drop point, the Inspector's rows, layer and
+  kind rows among them, and each swap with its undo step.
 - `assets_walk.h` — the project's `.scene`, `.prefab`, `.material`, `.landscape` and `.parts` texts
   walked: who names a path before a Delete, and a rename's paths checked before the move and written
   after it, 128 bytes the room.
@@ -257,29 +258,35 @@ carries it out.
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
 - `inspector.c` — the Enabled row's On or Off button, the Duplicate and Delete row, each described component's heading, Remove and
-  "Needs" line, Add component, its menu and open list, a part read-only, the Sculpt and Layers
-  sections on a landscape, or an open material's section instead.
+  "Needs" line, Add component, its menu and open list, a part read-only, the Sculpt, Layers and
+  Foliage sections on a landscape, or an open material's section instead.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
   strings a text field per string, labels when it cannot be edited.
 - `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, and a
   rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
 - `sculpt.h` — the brush a person holds: chosen or not, its kind, layer, radius, strength and
-  softness with their ranges, never saved or undone, the Sculpt and Layers sections' nodes, whether
+  softness with their ranges, never saved or undone, the Sculpt, Layers and Foliage sections' nodes, whether
   a thing wears a landscape, and the held drag that sculpts, paints, scatters or erases foliage on
   it as one undo step.
 - `sculpt.c` — the defaults set, the brush put down, the `.landscape` ending matched on a thing
   not a prefab's part, the ground under the pointer, the press's heights or paint copy, the stamps
   along the drag, scattering or erasing copies, and the release's heights, paint or foliage stroke.
 - `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
-  chosen one lit, none while painting, and Radius, Strength and Softness sliders, read after the
-  frame.
+  chosen one lit, none while painting or brushing foliage, and Radius, Strength and Softness
+  sliders, read after the frame.
 - `inspector_sculpt.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: a fired button chooses its kind or none, each slider's value taken.
 - `inspector_layers.h` — the Inspector's Layers section under Sculpt: a row per layer by its
-  material's file name choosing it to paint, and the add row a dropped material lands on.
+  material's file name choosing it to paint, none lit while brushing foliage, and the add row a
+  dropped material lands on.
 - `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
   read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
-- `inspector_level.h` — the Inspector's LOD section after Layers: per view in use, the LOD it
+- `inspector_foliage.h` — the Inspector's Foliage section under Layers: Scatter and Erase, a row per
+  kind by its model's file name toggling it picked, the add row a dropped `.glb` lands on, and
+  Density, Size, Turn and Lean sliders.
+- `inspector_foliage.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
+  the read: a fired button chooses its kind or none, a fired row flips its pick, sliders clamped.
+- `inspector_level.h` — the Inspector's LOD section after Foliage: per view in use, the LOD it
   draws of a loaded model, of how many, made or own, asked with the draws' own function.
 - `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,
   each view's label formatted into its kept buffer.

@@ -3,9 +3,9 @@
 // state and what a second press does.
 //
 // The buttons are indexed as voe_3d_brush_kind is (3d/landscape.h): Raise,
-// Lower, Smooth, Flatten, so a button's index is its kind; PAINT, past them,
-// equals no button's index, so none is drawn chosen and any fired one chooses
-// its kind.
+// Lower, Smooth, Flatten, so a button's index is its kind; PAINT, SCATTER and
+// ERASE, past them, equal no button's index, so none is drawn chosen and any
+// fired one chooses its kind.
 #include "inspector_sculpt.h"
 
 #include "themes.h"

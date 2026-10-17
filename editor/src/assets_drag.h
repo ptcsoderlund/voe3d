@@ -18,6 +18,11 @@
 // - Over a folder row other than the dragged one, or over Up: the row moves
 //   there through voe_editor_assets_move, followed and refused as it says; a
 //   row marked dragged (assets_panel.h) enters no folder on the release.
+// - A `.glb` over the Foliage section's rows of a thing wearing a loaded
+//   landscape (inspector_foliage.h, 0442 point 3): over a kind row, that kind
+//   through voe_editor_models_kind_set; over the add row, a kind added;
+//   unsaved as a layer drop, no undo step. With sixteen kinds there is no add
+//   row. The kind's model loads at the next update.
 // - A model over a scene view: a new thing named after the file, wearing it,
 //   at the point below, selected, one undo step and unsaved as Add entity is;
 //   over the Inspector while the selected thing has a model, its path replaced
@@ -52,8 +57,8 @@
 // field's room is no drag.
 //
 // CONSTRAINTS. The Inspector's rectangle is the dock tree laid out below the
-// bar, and the panel's rows, Up, the Inspector's fields, the map rows and the
-// layer rows are last frame's rectangles, not what `ui` drew, because the
+// bar, and the panel's rows, Up, the Inspector's fields, the map rows, the
+// layer rows and the kind rows are last frame's rectangles, not what `ui` drew, because the
 // frame's nodes are gone by the time this runs. A drop and
 // Ctrl+D on one frame would give two new things one id (entities.h); nothing
 // guards that pair.

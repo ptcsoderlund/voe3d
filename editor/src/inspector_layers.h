@@ -3,7 +3,8 @@
 // of the landscape's grid by its material's file name, the one being painted
 // drawn chosen, then "Drop a material to add a layer" while it holds fewer
 // than eight. Pressing a row chooses painting that layer with Sculpt's
-// sliders; pressing it again chooses none. A `.material` dropped on a row
+// sliders, also while SCATTER or ERASE is chosen (inspector_foliage.h) and no
+// row is lit; pressing it again chooses none. A `.material` dropped on a row
 // replaces that layer, on the last row adds one (assets_drag.h).
 //
 //     voe_editor_inspector_layers_forget(&scene->sculpt);        // frame opened
