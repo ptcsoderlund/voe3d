@@ -88,16 +88,18 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
 - `draw_system.c` — the camera's view, the first light, the first on sky, Haze and picture rows,
-  the frame's pass camera, and each drawable's draw into the frame the loop opened.
+  the frame's pass camera, and each drawable's draw into the frame the loop opened, foliage after
+  the landscapes.
 - `draw_models.h` — the model rows' walk, its part count for the blended group's room and the
   entry and landscape test the landscape walk shares; internal.
 - `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
   the level before in its band, and blended or fading ones held, a faded-out row and a landscape
   skipped.
-- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part and rest;
-  internal.
+- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part and rest, and
+  the groups' solid and cast draws, one each, and why rest groups do not cast; internal.
 - `draw_foliage.c` — the foliage gathering: each drawn landscape row's copies given their level,
-  counted per group, then filled contiguously and written as render instances in one call.
+  counted per group, filled contiguously and written as render instances in one call; then each
+  group's instanced draw.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended, and why one eye chooses the same nodes in every pass; internal.
 - `draw_terrain.c` — the eye taken into the grid's space, the nodes selected on scratch or, in
@@ -105,7 +107,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   once per row per call.
 - `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
   its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
-  a model at the camera's level, a gone one casting nothing and a landscape by the view's nodes.
+  a model at the camera's level, a gone one casting nothing, a landscape by the view's nodes and
+  foliage in a free light's cascades.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0, an
   off owner's and those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.

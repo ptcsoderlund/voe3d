@@ -10,6 +10,15 @@
 // 3. A store without the `.glb` gathers none, and true.
 // 4. A device with `instances` 2 refuses the room: false, with none.
 //
+// The view and the sun draw them (0442 point 5): a casting sun shines along
+// (-1, -1, -0.5), so the first copy's quad, standing in x = 1 from y 0 to 2,
+// throws its shadow back over its own place, the origin under the picture's
+// centre (its point y 1, z 0.5 lands there), and no fill lights the shadow.
+//
+// 5. The centre pixel with the copies differs from the same frame with none.
+// 6. The whole frame's draws, shadows and view, with three copies equal those
+//    with the first alone, one draw a group a pass, and exceed those with none.
+//
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_model_fade.c does.
 #include <3d/draw_system.h>
@@ -17,6 +26,7 @@
 #include <3d/model_component.h>
 #include <3d/models.h>
 #include <3d/panel_component.h>
+#include <3d/shadow_cascades.h>
 #include <assets/landscape.h>
 #include <base/arena.h>
 #include <base/error.h>
@@ -25,6 +35,7 @@
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
 #include <scene/identity_system.h>
+#include <scene/light_component.h>
 #include <scene/light_system.h>
 #include <scene/parent_system.h>
 #include <scene/transform_component.h>
@@ -44,20 +55,22 @@
 #define FOREST "Assets/forest.landscape"
 #define COPIES 3
 
-// The model's parts and the landscape's grid, both with their twins; nothing
-// is drawn, so one object and one pass are spare.
+// The model's parts and the landscape's grid, both with their twins; the
+// ground's nodes and the groups drawn into the view and four cascades.
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 33 * 33 + 6,
 	.indices = 32 * 32 * 6 + 6,
 	.geometries = 4,
-	.objects = 4,
+	.objects = (1 + VOE_RENDER_SHADOW_CASCADES) * 64,
 	.shadings = 8,
-	.passes = 1,
+	.passes = 1 + VOE_RENDER_SHADOW_CASCADES,
+	.shadow_size = VOE_3D_SHADOW_TEXELS,
 	.heights_texels = VOE_3D_LANDSCAPE_WRITE_TEXELS,
 	.instances = 64,
 };
 
-// The camera 5 m up looking down, and the row wearing FOREST, into `land`.
+// The camera 5 m up looking down, the casting sun of the header with no fill,
+// and the row wearing FOREST, into `land`.
 static voe_ecs_world *a_world(voe_base_arena *arena, voe_ecs_entity *land)
 {
 	voe_ecs_limits limits = {
@@ -93,6 +106,19 @@ static voe_ecs_world *a_world(voe_base_arena *arena, voe_ecs_entity *land)
 				    .near_plane = 0.1f,
 				    .far_plane = 100.0f }));
 
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, entity,
+		(voe_scene_transform){
+			.rotation = voe_scene_light_facing(
+				(voe_math_float3){ -1.0f, -1.0f, -0.5f }),
+			.scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_light_add(
+		world, entity,
+		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
+				   .intensity = 3.0f,
+				   .cast_shadows = true }));
+
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, land));
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, *land,
@@ -105,10 +131,10 @@ static voe_ecs_world *a_world(voe_base_arena *arena, voe_ecs_entity *land)
 	return world;
 }
 
-// A store holding FOREST, 16 m of 8 cells naming KIND as kind 0 with three
-// copies, and, with `kind`, KIND itself.
+// A store holding FOREST, 16 m of 8 cells naming KIND as kind 0 with the first
+// `count` of three copies, and, with `kind`, KIND itself.
 static voe_3d_models *a_store(voe_render_device *device, voe_base_arena *arena,
-			      bool kind)
+			      bool kind, uint32_t count)
 {
 	voe_3d_models *models = voe_3d_models_new();
 	voe_assets_landscape land = voe_assets_landscape_flat(16.0f, 8, arena);
@@ -123,7 +149,7 @@ static voe_3d_models *a_store(voe_render_device *device, voe_base_arena *arena,
 	snprintf(land.kinds[0], sizeof(land.kinds[0]), "%s", KIND);
 	land.kind_count = 1;
 	land.copies = copies;
-	land.copy_count = COPIES;
+	land.copy_count = count;
 	text = voe_assets_landscape_write(&land, arena);
 	VOE_TEST_CHECK(voe_3d_models_load(models, device, FOREST, 1,
 					  (const uint8_t *)text.text, text.size,
@@ -178,7 +204,7 @@ static uint32_t opaque_parts(const voe_3d_models *models)
 static void copies_gather_into_groups(voe_render_device *device,
 				      voe_base_arena *arena)
 {
-	voe_3d_models *models = a_store(device, arena, true);
+	voe_3d_models *models = a_store(device, arena, true, COPIES);
 	voe_ecs_entity land = { 0 };
 	voe_ecs_world *world = a_world(arena, &land);
 	voe_scene_identity identity;
@@ -225,7 +251,7 @@ static void copies_gather_into_groups(voe_render_device *device,
 static void no_kind_gathers_none(voe_render_device *device,
 				 voe_base_arena *arena)
 {
-	voe_3d_models *models = a_store(device, arena, false);
+	voe_3d_models *models = a_store(device, arena, false, COPIES);
 	voe_ecs_entity land = { 0 };
 	voe_ecs_world *world = a_world(arena, &land);
 	voe_3d_frame frame;
@@ -235,6 +261,71 @@ static void no_kind_gathers_none(voe_render_device *device,
 	VOE_TEST_CHECK(frame.foliage == NULL);
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
+}
+
+// One whole frame of `world` from a store of the first `count` copies, as the
+// loop draws it: gathered, its shadows, the view's pass and the run. The
+// frame's draws in `draws`; the centre pixel, rgb packed.
+static uint32_t a_frame(voe_ecs_world *world, voe_render_device *device,
+			voe_base_arena *arena, uint32_t count, uint32_t *draws)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_3d_models *models = a_store(device, arena, true, count);
+	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	voe_render_pass_camera camera;
+	voe_render_picture picture = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	bool drawing = false;
+	const uint8_t *pixel;
+	uint32_t centre = 0;
+
+	frame.models = models;
+	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
+	VOE_TEST_CHECK(drawing);
+	if (drawing) {
+		VOE_TEST_CHECK(voe_3d_draw_system_foliage(world, device, &frame,
+							  arena));
+		VOE_TEST_CHECK(voe_3d_draw_system_shadows(world, device, &frame));
+		VOE_TEST_CHECK_INT(frame.shadow.count,
+				   VOE_RENDER_SHADOW_CASCADES);
+		camera = voe_3d_draw_system_camera(&frame);
+		VOE_TEST_CHECK(voe_render_pass_begin(
+			device, VOE_RENDER_TARGET_WINDOW, &camera));
+		voe_3d_draw_system_run(world, device, arena, frame);
+		voe_render_pass_end(device);
+		*draws = voe_render_frame_draw_count(device);
+		VOE_TEST_CHECK(voe_render_frame_end(device));
+		VOE_TEST_CHECK(voe_render_target_read(
+			device, VOE_RENDER_TARGET_WINDOW, arena, &picture, &error));
+	}
+	if (picture.pixels != NULL) {
+		pixel = picture.pixels +
+			((size_t)(picture.height / 2) * picture.width +
+			 picture.width / 2) * 4;
+		centre = (uint32_t)pixel[0] << 16 | (uint32_t)pixel[1] << 8 |
+			 pixel[2];
+		printf("%u copies: %u groups, %u draws, centre %06x\n", count,
+		       frame.foliage_count, *draws, centre);
+	}
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+	return centre;
+}
+
+// 5 and 6.
+static void the_view_and_the_sun_draw_copies(voe_render_device *device,
+					     voe_base_arena *arena)
+{
+	voe_ecs_entity land = { 0 };
+	voe_ecs_world *world = a_world(arena, &land);
+	uint32_t none_draws = 0, one_draws = 0, three_draws = 0;
+	const uint32_t none = a_frame(world, device, arena, 0, &none_draws);
+	const uint32_t three = a_frame(world, device, arena, COPIES, &three_draws);
+
+	(void)a_frame(world, device, arena, 1, &one_draws);
+	VOE_TEST_CHECK(three != none);
+	VOE_TEST_CHECK_INT(three_draws, one_draws);
+	VOE_TEST_CHECK(one_draws > none_draws);
 }
 
 // 4.
@@ -254,7 +345,7 @@ static void no_room_gathers_none(voe_base_arena *arena)
 	VOE_TEST_CHECK(device != NULL);
 	if (device == NULL)
 		return;
-	models = a_store(device, arena, true);
+	models = a_store(device, arena, true, COPIES);
 	world = a_world(arena, &land);
 	VOE_TEST_CHECK(!gather(world, device, arena, models, &frame));
 	VOE_TEST_CHECK_INT(frame.foliage_count, 0);
@@ -283,6 +374,7 @@ int main(void)
 	}
 	copies_gather_into_groups(device, arena);
 	no_kind_gathers_none(device, arena);
+	the_view_and_the_sun_draw_copies(device, arena);
 	voe_render_device_destroy(device);
 	no_room_gathers_none(arena);
 	voe_base_arena_destroy(arena);

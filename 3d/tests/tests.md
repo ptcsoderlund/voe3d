@@ -46,7 +46,8 @@ again, or to find where a claim that has started failing is written down.
   level 0 unless fading. Skips without a graphics card.
 - `draw_foliage.c` — that a landscape's three copies of a two-part model gather into groups summing
   to three per opaque part, none rest, within what was written; none when the row is off or the
-  store lacks the kind, and false with none when render has no room. Skips without a graphics card.
+  store lacks the kind, false with none when render has no room; and that the copies' shadow
+  changes the centre and three draw as many draws as one, more than none. Skips without a card.
 - `draw_switched_off.c` — that a sphere on a child draws as no model row does when the child or
   its parent is off, and whole again when both are back on. Skips without a graphics card.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up draws its far ridge and ground

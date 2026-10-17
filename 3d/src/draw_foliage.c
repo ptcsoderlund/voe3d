@@ -6,7 +6,8 @@
 //
 // TWO WALKS OVER THE SAME COPIES: the first counts each group's instances, the
 // second fills them contiguously, group after group, into one array on the
-// caller's arena, written by one voe_render_frame_instances and given back. Both
+// caller's arena, written by one voe_render_frame_instances and given back; then
+// the groups' draws, one each, solid and cast (draw_foliage.h). Both
 // walks find the same groups in the same order, so the counts the first made
 // are the room the second fills, and a group the first left out past
 // VOE_3D_FOLIAGE_GROUPS the second leaves out too.
@@ -21,6 +22,7 @@
 // walk's state, about 24 KB, is on the stack; the instances need
 // 64 bytes each of the arena, up to VOE_3D_FOLIAGE_INSTANCES of them.
 #include "draw_foliage.h"
+#include "draw_bounce.h"
 #include "draw_group.h"
 #include "draw_material.h"
 #include "draw_models.h"
@@ -306,5 +308,63 @@ bool voe_3d_draw_system_foliage(const voe_ecs_world *world,
 	}
 	frame->foliage = groups;
 	frame->foliage_count = g.count;
+	return true;
+}
+
+// One group's instanced draw: its worn record, white as a model part is
+// (draw_models.c), between two two-sided calls when that record is.
+static bool draw_group(voe_render_device *device,
+		       const voe_3d_foliage_group *group)
+{
+	const voe_3d_material *material = &group->part->material;
+	const voe_render_object object = {
+		.shading = material->shading.index,
+		.colour = { 1.0f, 1.0f, 1.0f, 1.0f },
+	};
+	bool drawn;
+
+	VOE_BASE_ASSERT(group->count > 0, "a foliage group of no copies");
+	if (material->double_sided)
+		voe_render_frame_two_sided(device, true);
+	drawn = voe_render_frame_draw_instanced(device, group->geometry, object,
+						group->first, group->count);
+	if (material->double_sided)
+		voe_render_frame_two_sided(device, false);
+	return drawn;
+}
+
+bool voe_3d_draw_foliage_solid(voe_render_device *device,
+			       const voe_3d_frame *frame)
+{
+	bool drawn = true;
+
+	VOE_BASE_ASSERT(device != NULL && frame != NULL,
+			"drawing foliage with no device or frame");
+	VOE_BASE_ASSERT(frame->foliage_count == 0 || frame->foliage != NULL,
+			"foliage groups counted and none held");
+	if (frame->foliage_count == 0)
+		return true;
+	voe_render_frame_span_begin(device, "foliage");
+	for (uint32_t i = 0; i < frame->foliage_count && drawn; i++)
+		drawn = draw_group(device, &frame->foliage[i]);
+	voe_render_frame_span_end(device);
+	return drawn;
+}
+
+bool voe_3d_draw_foliage_cast(voe_render_device *device,
+			      const voe_3d_frame *frame)
+{
+	VOE_BASE_ASSERT(device != NULL && frame != NULL,
+			"casting foliage with no device or frame");
+	VOE_BASE_ASSERT(frame->foliage_count == 0 || frame->foliage != NULL,
+			"foliage groups counted and none held");
+	for (uint32_t i = 0; i < frame->foliage_count; i++) {
+		const voe_3d_foliage_group *group = &frame->foliage[i];
+
+		if (group->rest || !voe_3d_draw_casts(&group->part->material))
+			continue;
+		if (!draw_group(device, group))
+			return false;
+	}
 	return true;
 }

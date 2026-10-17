@@ -21,6 +21,8 @@
 // every part is.
 // The ground casts by nodes: a landscape draws those the view's eye chooses,
 // the bounce's passes taking it coarse (0397).
+// Foliage casts in a light's cascades when no blocker holds it, its groups not
+// `rest` (draw_foliage.h); never in the point shadows or the bounce (0442).
 //
 // EVERY CASTING LIGHT CASTS ITS OWN CASCADES (0324 point 4, 0357 point 3): the
 // first light and each of `more_lights`, whose light row has `cast_shadows`
@@ -54,6 +56,7 @@
 // bounces nothing is called, costing nothing (0316): no begin, no volume, no
 // pass. Failing is the call's.
 #include "draw_bounce.h"
+#include "draw_foliage.h"
 #include "draw_group.h"
 #include "draw_terrain.h"
 #include "models_store.h"
@@ -318,6 +321,9 @@ static bool draw_light_cascades(voe_ecs_world *world, voe_render_device *device,
 		drawn = voe_3d_draw_casters(world, device, frame,
 					    frame_light_blockers(frame, light),
 					    VOE_3D_LANDSCAPE_NODES, false);
+		// Foliage holds no blocker's mask, so only a free light casts it.
+		if (drawn && frame_light_blockers(frame, light) == 0)
+			drawn = voe_3d_draw_foliage_cast(device, frame);
 		voe_render_pass_end(device);
 		if (!drawn)
 			return false;
