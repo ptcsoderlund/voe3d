@@ -46,13 +46,11 @@
 // second set, a second pool entry and a rebind between every mesh draw and
 // every element draw. Vulkan lets a shader leave out bindings of its layout.
 //
-// A mesh draw's only push constant is its object number; the element pipeline
-// pushes its surface transform through the same range (see device.c).
+// Push constants: a mesh draw's object number, the element surface transform (device.c).
 //
 // THE POOL IS SIZED EXACTLY AND NEVER GROWS. VOE_RENDER_FRAMES_IN_FLIGHT sets
 // are allocated once at startup and freed by destroying the pool; no set is
-// destroyed on its own anywhere in this folder. Every per-slot buffer stays
-// mapped for its whole life (see build_mapped).
+// destroyed on its own anywhere in this folder.
 //
 // WRITING THEM IS SAFE BECAUSE OF THE FENCE AT THE TOP OF THE FRAME. The cameras,
 // the suns, the object records and the element records a frame writes are in this
