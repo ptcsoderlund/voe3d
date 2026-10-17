@@ -139,6 +139,12 @@ typedef struct voe_render_device voe_render_device;
 // point 5). Nought is no writes; the first is refused with a message. Pixel
 // writes (voe_render_texture_write_pixels, ADR-0402) share the same room, a
 // pixel's 4 bytes counting as one texel.
+//
+// instances IS THE SEVENTH THAT MAY BE NOUGHT, and per frame slot like objects:
+// how many voe_render_instance records one frame may write with
+// voe_render_frame_instances, 64 bytes each per slot (ADR-0442 point 6). Nought
+// is no instanced draws; the first write is refused with a message. One record
+// stays for the binding.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
@@ -154,6 +160,7 @@ typedef struct {
 	uint32_t shadow_size;
 	uint32_t point_shadow_size;
 	uint32_t heights_texels;
+	uint32_t instances;
 } voe_render_capacities;
 
 // How many depth maps the sun renders into, near to far: the layers of one frame
@@ -810,10 +817,27 @@ typedef struct {
 	voe_math_float4 morph;
 	uint32_t layers[8];
 	float dither;
-	uint32_t reserved0;
+	// The first of an instanced draw's instance records plus one, nought
+	// none (ADR-0442 point 6): render's, set by
+	// voe_render_frame_draw_instanced; a caller leaves it nought.
+	uint32_t instances;
 	uint32_t reserved1;
 	uint32_t reserved2;
 } voe_render_object;
+
+// One copy of a mesh in an instanced draw (ADR-0442 point 6): the top three
+// rows of its camera-relative world matrix, the fourth being (0, 0, 0, 1), and
+// its dither, read as voe_render_object's. It stands in for the record's
+// `world` and `dither`; its normal matrix is the shader's, the 3×3 over its
+// first row's squared length, exact for a turn and a uniform scale and not for
+// any other. 64 bytes, asserted on in render/src/records_layout.c.
+typedef struct {
+	voe_math_float4 rows[3];
+	float dither;
+	uint32_t reserved0;
+	uint32_t reserved1;
+	uint32_t reserved2;
+} voe_render_instance;
 
 // What one element is. Two kinds, and the field exists so that adding the second
 // moved no other field and changed no size — which is what it was reserved for
@@ -1914,6 +1938,36 @@ void voe_render_frame_two_sided(voe_render_device *device, bool two_sided);
 [[nodiscard]] bool voe_render_frame_draw_blended(voe_render_device *device,
 						 voe_render_geometry geometry,
 						 voe_render_object object);
+
+// Copies `count` instance records into this frame slot's instance buffer and
+// writes the first one's index into `first`, for voe_render_frame_draw_instanced
+// (ADR-0442 point 6). Written once a frame and read by every pass that draws
+// them: any time inside the frame before the draws reading them, in a pass or
+// between passes.
+//
+// False, nothing written and `first` untouched, past the room
+// capacities.instances leaves this frame; a device made with none refuses every
+// write with a message. Not retryable inside this frame. Outside a frame, or
+// with no records or no `first`, it asserts.
+[[nodiscard]] bool voe_render_frame_instances(voe_render_device *device,
+					      const voe_render_instance *records,
+					      uint32_t count, uint32_t *first);
+
+// Draws `count` copies of one range in one draw command: copy i placed by
+// instance record first + i's rows instead of the record's `world`, its normal
+// matrix the shader's, its dither instead of the record's, everything else the
+// record's. Through the solid pipeline in a camera pass and the shadow one in a
+// shadow pass. Spends one object, counts one draw and index count ÷ 3 × count
+// triangles. False for the reasons voe_render_frame_draw is.
+//
+// Count nought, a range past what this frame wrote, or a point-shadow, capture
+// or bounce shadow pass asserts, as do voe_render_frame_draw's mistakes: the
+// first two spend the instance index on faces, and the third draws what the
+// probes see, which leaves copies out (ADR-0442 point 5).
+[[nodiscard]] bool voe_render_frame_draw_instanced(voe_render_device *device,
+						   voe_render_geometry geometry,
+						   voe_render_object object,
+						   uint32_t first, uint32_t count);
 
 // Clears the depth buffer where the frame stands, without touching what has
 // already been drawn into the colour one. Everything drawn after this call

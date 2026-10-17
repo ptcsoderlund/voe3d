@@ -1,11 +1,11 @@
 // Everything the shader reads, and the one layout that describes it: the
 // descriptor set layout, the pool, and per frame slot one set, one mapped
 // uniform buffer holding a camera, a sun and a shadow record for every pass,
-// mapped buffers of per-object records, element records, point lights and their
+// mapped buffers of per-object and instance records, element records, point lights and their
 // bins and light blockers, and the slot's shadow maps; and the probe volumes'
 // two samplers.
 //
-// TWELVE BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
+// THIRTEEN BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
 //
 //   0  the camera, the sun and its shadow record, one block per pass in one
 //      uniform buffer per frame slot, written as each pass opens. A DYNAMIC
@@ -37,6 +37,8 @@
 //      clamping sampler; written with binding 6
 //  11  the light blockers and their point lights' masks (ADR-0347): a storage
 //      buffer per frame slot, one region per pass, written as each pass opens
+//  12  the instance records (ADR-0442 point 6): a storage buffer per frame
+//      slot, read by the vertex stage, written by voe_render_frame_instances
 //
 // BINDING 4 IS IN THE SAME LAYOUT THOUGH draw.slang DOES NOT READ IT, AND THAT
 // IS THE POINT. shaders/elements.slang reads it and shares this layout, so the
@@ -69,7 +71,7 @@ static bool build_layout(voe_render_device *device)
 	const uint32_t moment_entries =
 		(device->capacities.targets + 1) * VOE_RENDER_BOUNCE_VOLUMES;
 	const uint32_t grid_entries = moment_entries * 4;
-	VkDescriptorSetLayoutBinding bindings[12] = {
+	VkDescriptorSetLayoutBinding bindings[13] = {
 		{
 			.binding = 0,
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
@@ -162,23 +164,29 @@ static bool build_layout(voe_render_device *device)
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 		},
+		{
+			.binding = 12,
+			.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		},
 	};
 	// A volume not built is never written, or names images since freed, so
 	// bindings 6 and 10 are partially bound: only the volume a pass names
 	// has to be valid.
-	const VkDescriptorBindingFlags flags[12] = {
+	const VkDescriptorBindingFlags flags[13] = {
 		[6] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
 		[10] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
 	};
 	VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-		.bindingCount = 12,
+		.bindingCount = 13,
 		.pBindingFlags = flags,
 	};
 	VkDescriptorSetLayoutCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
 		.pNext = &binding_flags,
-		.bindingCount = 12,
+		.bindingCount = 13,
 		.pBindings = bindings,
 	};
 	VkDescriptorPoolSize sizes[3] = {
@@ -195,11 +203,11 @@ static bool build_layout(voe_render_device *device)
 					    grid_entries + 1 + moment_entries),
 		},
 		{
-			// Six per set: the objects, the shadings, the
-			// elements, the point lights, their bins and the
-			// light blockers.
+			// Seven per set: the objects, the shadings, the
+			// elements, the point lights, their bins, the light
+			// blockers and the instances.
 			.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT * 6,
+			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT * 7,
 		},
 	};
 	VkDescriptorPoolCreateInfo pool = {
@@ -370,7 +378,15 @@ static bool build_slots(voe_render_device *device)
 			.range = (VkDeviceSize)device->capacities.passes *
 				 sizeof(struct voe_render_frame_blockers),
 		};
-		VkWriteDescriptorSet writes[8] = {
+		// At least one, for the reason `elements` is.
+		VkDescriptorBufferInfo instances = {
+			.offset = 0,
+			.range = (VkDeviceSize)(device->capacities.instances > 0 ?
+							device->capacities.instances :
+							1) *
+				 sizeof(voe_render_instance),
+		};
+		VkWriteDescriptorSet writes[9] = {
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 				.dstBinding = 0,
@@ -435,6 +451,14 @@ static bool build_slots(voe_render_device *device)
 					VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 				.pBufferInfo = &blockers,
 			},
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstBinding = 12,
+				.descriptorCount = 1,
+				.descriptorType =
+					VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+				.pBufferInfo = &instances,
+			},
 		};
 
 		frame->uniforms_mapped = build_mapped(
@@ -448,6 +472,11 @@ static bool build_slots(voe_render_device *device)
 			device, &frame->objects, objects.range,
 			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "slot objects");
 		if (frame->objects_mapped == NULL)
+			return false;
+		frame->instances_mapped = build_mapped(
+			device, &frame->instances, instances.range,
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, "slot instances");
+		if (frame->instances_mapped == NULL)
 			return false;
 		frame->elements_mapped = build_mapped(
 			device, &frame->elements, elements.range,
@@ -477,9 +506,10 @@ static bool build_slots(voe_render_device *device)
 		lights.buffer = frame->point_lights.buffer;
 		bins.buffer = frame->light_bins.buffer;
 		blockers.buffer = frame->light_blockers.buffer;
-		for (uint32_t w = 0; w < 8; w++)
+		instances.buffer = frame->instances.buffer;
+		for (uint32_t w = 0; w < 9; w++)
 			writes[w].dstSet = frame->descriptor;
-		voe_render_vk.update_descriptor_sets(device->device, 8, writes,
+		voe_render_vk.update_descriptor_sets(device->device, 9, writes,
 						     0, NULL);
 	}
 
@@ -657,6 +687,13 @@ void voe_render_descriptors_teardown(voe_render_device *device)
 			frame->elements_mapped = NULL;
 		}
 		voe_render_buffer_teardown(device, &frame->elements);
+
+		if (frame->instances_mapped != NULL) {
+			voe_render_vk.unmap_memory(device->device,
+						   frame->instances.memory);
+			frame->instances_mapped = NULL;
+		}
+		voe_render_buffer_teardown(device, &frame->instances);
 
 		if (frame->objects_mapped != NULL) {
 			voe_render_vk.unmap_memory(device->device,

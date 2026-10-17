@@ -49,11 +49,11 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// EIGHT PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// NINE PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
 // tone.slangh, after lighting.slangh, hazes, exposes and tone maps every exit;
 // lighting.slangh includes sky.slangh, the sky's radiance, twin of src/sky.c.
 // bindings.slangh first: the frame block, the records and the bindings both
-// stages read. lighting.slangh next: the sun, its cascades, the fill, the BRDF
+// stages read; instances.slangh, a copy's place (ADR-0442). lighting.slangh: the sun, its cascades, the fill, the BRDF
 // terms and voe_render_points, the point lights the lit exit adds to the sun's
 // direct term and the unshaded one does not, and the light blockers that gate
 // the sun, the fill and the lamps by Rooms and crossings (ADR-0350), with the
@@ -203,6 +203,7 @@
 // light clips to white.
 
 #include "bindings.slangh"
+#include "instances.slangh"
 #include "lighting.slangh"
 #include "tone.slangh"
 
@@ -233,20 +234,24 @@ struct voe_render_draw_vertex_out {
 	float2 plane : TEXCOORD1;
 	// The vertex's colour, linear rgba: what multiplies `base`.
 	float4 colour : COLOR;
+	// The draw's dither, the record's or its copy's (instances.slangh).
+	nointerpolation float dither : TEXCOORD2;
 };
 
 [shader("vertex")]
 voe_render_draw_vertex_out
-voe_render_draw_vertex(voe_render_draw_vertex_in vertex)
+voe_render_draw_vertex(voe_render_draw_vertex_in vertex,
+		       uint instance : SV_InstanceID)
 {
 	voe_render_draw_vertex_out out;
 	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
+	voe_render_placement placed = voe_render_placed(object, instance);
 	float4 world;
 	float4 eye;
 
 	if (object.heights != 0)
 		vertex = voe_render_terrain(object, vertex);
-	world = mul(object.world, float4(vertex.position, 1.0));
+	world = mul(placed.world, float4(vertex.position, 1.0));
 	eye = mul(voe_render_frame.camera.view, world);
 	out.position = mul(voe_render_frame.camera.projection, eye);
 
@@ -255,10 +260,11 @@ voe_render_draw_vertex(voe_render_draw_vertex_in vertex)
 	// Not normalized here: it is interpolated across the triangle and the
 	// fragment stage has to normalize what arrives anyway.
 	out.world = world.xyz;
-	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
+	out.normal = mul(placed.normal, float4(vertex.normal, 0.0)).xyz;
 	out.uv = vertex.uv;
 	out.plane = vertex.position.xy;
 	out.colour = 1.0 - vertex.colour_complement;
+	out.dither = placed.dither;
 	return out;
 }
 
@@ -550,11 +556,11 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 	// The object's share of the pixels, 0 whole (ADR-0432 point 5): d keeps
 	// a threshold under d, −d one at or above d, so the two cover each pixel
 	// once. Here for the reason the cut-out's discard is.
-	if (object.dither != 0.0) {
+	if (vertex.dither != 0.0) {
 		float threshold =
 			voe_render_dither_threshold(vertex.position.xy);
-		if (object.dither > 0.0 ? threshold >= object.dither :
-					  threshold < -object.dither)
+		if (vertex.dither > 0.0 ? threshold >= vertex.dither :
+					  threshold < -vertex.dither)
 			discard;
 	}
 

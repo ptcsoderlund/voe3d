@@ -135,8 +135,8 @@ which file to open — what each one owns, and where the seams between them run.
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written
   into the pass's block.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, one
-  instance per cube face reached in the point-shadow pass, and the sides a draw shows as a dynamic
-  cull mode.
+  instance per cube face reached in the point-shadow pass, a frame's instance records and the
+  instanced draw of copies they place, and the sides a draw shows as a dynamic cull mode.
 - `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is
   the one write into a swapchain image.
 - `probe.c` — the pipeline that reads a matrix and reports what it saw, built

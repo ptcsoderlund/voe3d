@@ -1,5 +1,5 @@
 // What draw.slang's two stages read: the frame block (camera, sun, cascades,
-// depth copy, point lights, blockers, the further lights, the sky, the exposure), the object and shading records, the point
+// depth copy, point lights, blockers, the further lights, the sky, the exposure), the object, instance and shading records, the point
 // lights and their bins, the light blockers, the bindings of set 0 and the push constant that names the
 // object, a point-shadow draw's faces and whether the draw is plain. A part (ADR-0308): included first by
 // draw.slang, never compiled alone.
@@ -300,7 +300,9 @@ struct voe_render_object {
 	// voe_render_object in render/device.h. Three scalars after it, not a
 	// uint3, for the padding reason above.
 	float dither;
-	uint reserved0;
+	// An instanced draw's first instance record plus one, nought none
+	// (ADR-0442 point 6); instances.slangh reads it.
+	uint instances;
 	uint reserved1;
 	uint reserved2;
 };
@@ -310,6 +312,22 @@ struct voe_render_object {
 // index.
 [[vk::binding(2, 0)]]
 StructuredBuffer<voe_render_object> voe_render_objects;
+
+// One copy of an instanced draw: voe_render_instance in render/device.h, 64
+// bytes, the top three rows of its world matrix and its dither, three scalars
+// after it for the padding reason above.
+struct voe_render_instance {
+	float4 rows[3];
+	float dither;
+	uint reserved0;
+	uint reserved1;
+	uint reserved2;
+};
+
+// Set 0, binding 12: this frame slot's instance records, read by the vertex
+// stage alone.
+[[vk::binding(12, 0)]]
+StructuredBuffer<voe_render_instance> voe_render_instances;
 
 // How a surface is shaded. Matches voe_render_shading_values in
 // render/device.h, padding included, for the reason above.

@@ -576,6 +576,11 @@ struct voe_render_frame {
 	// finished with this slot's.
 	struct voe_render_buffer objects;
 	void *objects_mapped;
+	// And its instance records (ADR-0442 point 6): capacities.instances of
+	// them, one when that is nought for the binding, written by
+	// voe_render_frame_instances; the same lifetime and the same rules.
+	struct voe_render_buffer instances;
+	void *instances_mapped;
 
 	// One record per submitted element, this slot's own, written by
 	// voe_render_frame_submit_element. Per slot and safe to overwrite for

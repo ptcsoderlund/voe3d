@@ -86,6 +86,12 @@ static_assert(offsetof(voe_render_object, layers) == 224,
 	      "the object record's layers moved; draw.slang has them at 224");
 static_assert(offsetof(voe_render_object, dither) == 256,
 	      "the object record's dither moved; draw.slang has it at 256");
+static_assert(offsetof(voe_render_object, instances) == 260,
+	      "the object record's instances moved; draw.slang has it at 260");
+static_assert(sizeof(voe_render_instance) == 64 &&
+		      offsetof(voe_render_instance, rows) == 0 &&
+		      offsetof(voe_render_instance, dither) == 48,
+	      "the instance record no longer matches bindings.slangh's: rows at 0, dither at 48, 64 bytes");
 static_assert(offsetof(voe_render_view, eye) == 128,
 	      "the camera block's eye moved; draw.slang has it at 128");
 static_assert(offsetof(voe_render_light, colour) == 16,
