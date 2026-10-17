@@ -1,9 +1,10 @@
 // The landscape cook: heights printed as one int32_t array, paint as one
-// uint8_t array (authoring/landscape_cook.h).
+// uint8_t array, copies as one voe_assets_landscape_copy array
+// (authoring/landscape_cook.h).
 //
 // The text grows through cook_text.h's buffer, which needs only the arena; the
 // world-walking parts of that cook are not used. Eight heights to a line,
-// sixteen paint bytes (four points).
+// sixteen paint bytes (four points), one copy.
 #include <authoring/landscape_cook.h>
 
 #include "cook_text.h"
@@ -56,6 +57,35 @@ voe_authoring_landscape_cook(const voe_assets_landscape *landscape,
 		voe_authoring_cook_putf(&c, "%.0f,", millimetres);
 	}
 	voe_authoring_cook_put(&c, "\n};\n");
+	return (voe_authoring_text){ .text = c.bytes, .size = c.size };
+}
+
+voe_authoring_text
+voe_authoring_landscape_cook_copies(const voe_assets_landscape *landscape,
+				    const char *name, voe_base_arena *arena)
+{
+	VOE_BASE_ASSERT(landscape != NULL && landscape->copies != NULL,
+			"cooking no copies");
+	VOE_BASE_ASSERT(landscape->copy_count > 0,
+			"cooking the copies of a landscape with none");
+	VOE_BASE_ASSERT(name != NULL && is_identifier(name),
+			"a copy array named by a C identifier");
+	VOE_BASE_ASSERT(arena != NULL, "cooking copies with no arena");
+	voe_authoring_cook c = { .arena = arena };
+
+	voe_authoring_cook_putf(&c, "static const voe_assets_landscape_copy ");
+	voe_authoring_cook_put(&c, name);
+	voe_authoring_cook_putf(&c, "[%u] = {\n",
+				(unsigned)landscape->copy_count);
+	for (uint32_t i = 0; i < landscape->copy_count; i++) {
+		const voe_assets_landscape_copy *k = &landscape->copies[i];
+
+		voe_authoring_cook_putf(&c, "\t{%d, %d, %u, %u, %u, %u},\n",
+					(int)k->x, (int)k->z, (unsigned)k->turn,
+					(unsigned)k->scale, (unsigned)k->kind,
+					(unsigned)k->lean);
+	}
+	voe_authoring_cook_put(&c, "};\n");
 	return (voe_authoring_text){ .text = c.bytes, .size = c.size };
 }
 

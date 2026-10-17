@@ -1,5 +1,5 @@
-// A landscape's heights and paint cooked into C source: arrays a game tree
-// compiles in (ADR-0379 point 7, ADR-0402 point 8).
+// A landscape's heights, paint and copies cooked into C source: arrays a game
+// tree compiles in (ADR-0379 point 7, ADR-0402 point 8, ADR-0442 point 1).
 //
 //     static const int32_t hill[25] = {
 //             0, 0, 0, 0, 0, 0, 120, 250,
@@ -22,6 +22,11 @@
 // A game table entry with no layers names no paint, NULL: the caller does not
 // call the paint cook then. The layer paths are the table's, written by the
 // game tree; this writes no path.
+//
+// COPIES ARE COOKED WHOLE (ADR-0442 point 1), one `{x, z, turn, scale, kind,
+// lean},` line a copy in the landscape's order, so the game stands each where
+// the editor did. The kind paths are the table's, written by the game tree,
+// not here; a landscape with no copies names none and is not cooked.
 //
 // THE TABLE NAMING THE ARRAYS IS THE GAME TREE'S (editor): this knows no game
 // type and writes no include. Nothing here opens a file.
@@ -46,3 +51,11 @@ voe_authoring_landscape_cook(const voe_assets_landscape *landscape,
 voe_authoring_text
 voe_authoring_landscape_cook_paint(const voe_assets_landscape *landscape,
 				   const char *name, voe_base_arena *arena);
+
+// `static const voe_assets_landscape_copy <name>[<n>] = {\n` then one
+// `\t{x, z, turn, scale, kind, lean},\n` a copy, then `};\n`, pushed into
+// `arena` as above. Cannot fail. Asserts copy_count is above nought and `name`
+// is a C identifier.
+voe_authoring_text
+voe_authoring_landscape_cook_copies(const voe_assets_landscape *landscape,
+				    const char *name, voe_base_arena *arena);

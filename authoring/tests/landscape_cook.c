@@ -1,7 +1,8 @@
 // The landscape cook: that the array is named and sized as
 // authoring/landscape_cook.h promises, and that each height comes out as the
 // whole millimetres the file would hold; that paint cooks one plane up to four
-// layers, two past, each byte as set.
+// layers, two past, each byte as set; and that copies cook one line each, in
+// order, negative x and z included.
 #include <authoring/landscape_cook.h>
 
 #include <assets/landscape.h>
@@ -107,11 +108,39 @@ static void test_cook_paint_writes_both_planes_past_four_layers(void)
 	VOE_TEST_CHECK_INT(bytes[100], 0);
 }
 
+// Two copies, the second at negative x and z, each field in its place.
+static void test_cook_copies_writes_each_copy_in_order(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
+	voe_assets_landscape land = voe_assets_landscape_flat(256.0f, 4, arena);
+	voe_assets_landscape_copy copies[2] = {
+		{ .x = 1500, .z = 32000, .turn = 16384, .scale = 1000,
+		  .kind = 0, .lean = 0 },
+		{ .x = -64000, .z = -250, .turn = 65535, .scale = 1200,
+		  .kind = 1, .lean = 255 },
+	};
+
+	land.copies = copies;
+	land.copy_count = 2;
+	voe_authoring_text out =
+		voe_authoring_landscape_cook_copies(&land, "hill_copies", arena);
+
+	VOE_TEST_CHECK(strcmp(out.text,
+			      "static const voe_assets_landscape_copy "
+			      "hill_copies[2] = {\n"
+			      "\t{1500, 32000, 16384, 1000, 0, 0},\n"
+			      "\t{-64000, -250, 65535, 1200, 1, 255},\n"
+			      "};\n") == 0);
+	VOE_TEST_CHECK_INT(out.size, strlen(out.text));
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	test_cook_names_the_array_and_its_length();
 	test_cook_writes_whole_millimetres();
 	test_cook_paint_writes_one_plane_up_to_four_layers();
 	test_cook_paint_writes_both_planes_past_four_layers();
+	test_cook_copies_writes_each_copy_in_order();
 	return voe_test_result();
 }

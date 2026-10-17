@@ -22,10 +22,10 @@ out (ADR-0145); only the reader creates rows (ADR-0152); `platform` owns files.
 - `include/authoring/scene_cook.h` — a world cooked into C source the game compiles in.
   Its header says what is cooked, why floats are hex and why the cooked function may
   create rows; the file says how every field kind is spelled and what it refuses.
-- `include/authoring/landscape_cook.h` — a landscape's heights and paint cooked
-  into C arrays the game compiles in. Its header says what is cooked, why whole
-  millimetres and bytes, why one paint plane suffices up to four layers, and
-  that the table naming the arrays is the game tree's.
+- `include/authoring/landscape_cook.h` — a landscape's heights, paint and copies
+  cooked into C arrays the game compiles in. Its header says what is cooked, why
+  whole millimetres and bytes, why one paint plane suffices up to four layers,
+  and that the table naming the arrays is the game tree's.
 - `include/authoring/paths.h` — paths in scene text followed through a rename
   or move, and looked for before a delete. Its header says what a quoted string
   is, why a match is whole segments, and what the caller checks.
