@@ -33,11 +33,16 @@ of them is internal to this folder rather than reachable from outside it.
   caller states no capacity here where the JSON reader demands one, and why
   there is nothing for rule 14 to worry about.
 - `landscape.c` — the landscape file over the sectioned reader: shape, quoted
-  layer paths and heights, and its measure-then-print writer.
+  layer paths and heights, and its measure-then-print writer, handing paint and
+  foliage to the two files below.
 - `landscape_paint.h` — the paint's read, print and resample, internal to this
   folder, with the printer and source index `landscape.c` shares with it.
 - `landscape_paint.c` — `[Paint]`'s rows and `v*n` runs into two RGBA8 planes,
   back out, and resampled per weight.
+- `landscape_foliage.h` — the foliage's read and print, internal to this
+  folder, with the quote helpers `landscape.c` shares with it.
+- `landscape_foliage.c` — `[Foliage]`'s quoted kind paths and `[Copies]`' six
+  numbers a copy, walked once in order, and back out.
 - `material.c` — the material file over the sectioned reader, with a scratch
   arena of its own, and a writer that quotes every path.
 - `parts.c` — the parts file over the sectioned reader: each `material<N>` key
