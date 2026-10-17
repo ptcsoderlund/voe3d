@@ -1,6 +1,6 @@
 // The brush's start, its put-down, whether a thing wears a landscape, and the
-// held drag that sculpts or paints it: hover, press with its heights or paint
-// copy, stamps and the release's heights or paint undo step.
+// held drag that sculpts, paints, scatters or erases it: hover, press with its
+// heights or paint copy or changed list, stamps and the release's undo step.
 // See the header for why the brush is never saved or undone.
 #include "sculpt.h"
 
@@ -25,13 +25,21 @@
 // The ending a landscape's path has, lower case, its dot included.
 #define LANDSCAPE_SUFFIX ".landscape"
 
+// The scatters' fixed first xorshift state, any nonzero one.
+#define FOLIAGE_SEED 0x9e3779b97f4a7c15u
+
 void voe_editor_sculpt_start(voe_editor_sculpt *sculpt)
 {
 	VOE_BASE_ASSERT(sculpt != NULL, "starting no brush");
 
 	*sculpt = (voe_editor_sculpt){ .radius = VOE_EDITOR_SCULPT_RADIUS,
 				       .strength = VOE_EDITOR_SCULPT_STRENGTH,
-				       .softness = VOE_EDITOR_SCULPT_SOFTNESS };
+				       .softness = VOE_EDITOR_SCULPT_SOFTNESS,
+				       .density = VOE_EDITOR_SCULPT_DENSITY,
+				       .size_vary = VOE_EDITOR_SCULPT_SIZE_VARY,
+				       .turn_vary = VOE_EDITOR_SCULPT_TURN_VARY,
+				       .lean = VOE_EDITOR_SCULPT_LEAN,
+				       .seed = FOLIAGE_SEED };
 	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_KINDS; i++)
 		sculpt->buttons[i] = VOE_UI_NODE_NONE;
 	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_SLIDERS; i++)
@@ -156,6 +164,66 @@ static voe_3d_landscape_rect join(voe_3d_landscape_rect a,
 					.z1 = a.z1 > b.z1 ? a.z1 : b.z1 };
 }
 
+// Whether `kind` places foliage copies rather than shaping the grid.
+static bool foliage_kind(voe_3d_brush_kind kind)
+{
+	return kind == VOE_3D_BRUSH_SCATTER || kind == VOE_3D_BRUSH_ERASE;
+}
+
+// The changed list doubled until `more` copies fit past its count.
+static void changed_grow(voe_editor_sculpt *sculpt, uint32_t more)
+{
+	const uint64_t want = (uint64_t)sculpt->changed_count + more;
+	uint64_t room = sculpt->changed_room;
+
+	VOE_BASE_ASSERT(sculpt->changed != NULL && room > 0,
+			"growing no changed list");
+	if (want <= room)
+		return;
+	for (uint32_t i = 0; i < 32 && room < want; i++)
+		room *= 2;
+	VOE_BASE_ASSERT(room >= want && room <= UINT32_MAX,
+			"a changed list past its room");
+	sculpt->changed = realloc(sculpt->changed,
+				  (size_t)room * sizeof(*sculpt->changed));
+	VOE_BASE_ASSERT(sculpt->changed != NULL,
+			"out of memory growing a foliage stroke");
+	sculpt->changed_room = (uint32_t)room;
+}
+
+// One SCATTER or ERASE stamp at (x, z): the copies it added or removed
+// appended to the changed list, grown first to hold the most it can take.
+static void foliage_stamp(voe_editor_sculpt *sculpt, voe_editor_models *models,
+			  float x, float z, float seconds)
+{
+	const voe_assets_landscape *land = grid(models, sculpt->path);
+	const voe_3d_foliage_brush brush = { .radius = sculpt->radius,
+					     .softness = sculpt->softness,
+					     .density = sculpt->density,
+					     .size_vary = sculpt->size_vary,
+					     .turn_vary = sculpt->turn_vary,
+					     .lean = sculpt->lean,
+					     .picked = sculpt->picked };
+
+	VOE_BASE_ASSERT(foliage_kind(sculpt->kind), "a foliage stamp of a sculpt");
+	if (land == NULL)
+		return;
+	if (sculpt->kind == VOE_3D_BRUSH_SCATTER) {
+		changed_grow(sculpt, VOE_3D_FOLIAGE_TRIES);
+		sculpt->changed_count += voe_editor_models_scatter(
+			models, sculpt->path, &brush, x, z, seconds,
+			&sculpt->seed, sculpt->changed + sculpt->changed_count);
+	} else {
+		changed_grow(sculpt, land->copy_count);
+		sculpt->changed_count += voe_editor_models_erase(
+			models, sculpt->path, &brush, x, z,
+			sculpt->changed + sculpt->changed_count,
+			sculpt->changed_room - sculpt->changed_count);
+	}
+	VOE_BASE_ASSERT(sculpt->changed_count <= sculpt->changed_room,
+			"a foliage stamp past the changed list");
+}
+
 // The stretch from the last hit to this one cut into stamps at most radius/4
 // apart, the frame's seconds shared among them, their rects joined.
 static void stamp(voe_editor_sculpt *sculpt, voe_editor_models *models,
@@ -180,13 +248,18 @@ static void stamp(voe_editor_sculpt *sculpt, voe_editor_models *models,
 				(uint32_t)ceilf(length / spacing);
 	for (uint32_t i = 1; i <= count; i++) {
 		const float t = (float)i / (float)count;
+		const float x = sculpt->last_x + dx * t;
+		const float z = sculpt->last_z + dz * t;
 
+		if (foliage_kind(sculpt->kind)) {
+			foliage_stamp(sculpt, models, x, z,
+				      seconds / (float)count);
+			continue;
+		}
 		sculpt->touched = join(
 			sculpt->touched,
-			voe_editor_models_brush(models, sculpt->path, &brush,
-						sculpt->last_x + dx * t,
-						sculpt->last_z + dz * t,
-						seconds / (float)count,
+			voe_editor_models_brush(models, sculpt->path, &brush, x,
+						z, seconds / (float)count,
 						scratch));
 	}
 	sculpt->last_x = sculpt->x;
@@ -213,7 +286,8 @@ static uint8_t *paint_copy(const voe_assets_landscape *land)
 }
 
 // The press: the path and the whole grid's heights copied and flatten's height
-// taken, or for PAINT its paint copied.
+// taken, or for PAINT its paint copied, or for SCATTER and ERASE an empty
+// changed list made.
 static void begin(voe_editor_sculpt *sculpt, const voe_editor_models *models,
 		  const char *path)
 {
@@ -226,7 +300,14 @@ static void begin(voe_editor_sculpt *sculpt, const voe_editor_models *models,
 			"a stroke's path past its room");
 	memcpy(sculpt->path, path, strlen(path) + 1);
 	sculpt->cells = land->cells;
-	if (sculpt->kind == VOE_3D_BRUSH_PAINT) {
+	if (foliage_kind(sculpt->kind)) {
+		sculpt->changed = malloc(VOE_3D_FOLIAGE_TRIES *
+					 sizeof(*sculpt->changed));
+		VOE_BASE_ASSERT(sculpt->changed != NULL,
+				"out of memory starting a foliage stroke");
+		sculpt->changed_count = 0;
+		sculpt->changed_room = VOE_3D_FOLIAGE_TRIES;
+	} else if (sculpt->kind == VOE_3D_BRUSH_PAINT) {
 		sculpt->before_paint = paint_copy(land);
 	} else {
 		count = (size_t)(land->cells + 1) * (land->cells + 1);
@@ -309,34 +390,45 @@ static voe_editor_stroke *paint_stroke(const voe_editor_sculpt *sculpt,
 }
 
 // The release: the touched rect's heights or weights from the copy and the
-// store made a stroke and handed to the undo line, the project marked edited.
-// An empty rect, or a grid gone or resized under the stroke, records nothing.
+// store, or the changed copies, made a stroke and handed to the undo line, the
+// project marked edited. An empty rect, a grid gone or resized under the
+// stroke, or no copy changed records nothing.
 static void end(voe_editor_sculpt *sculpt, const voe_editor_models *models,
 		struct voe_editor_undo *undo,
 		struct voe_editor_session *session, voe_base_arena *scratch)
 {
 	const voe_assets_landscape *land = grid(models, sculpt->path);
 	const voe_3d_landscape_rect rect = sculpt->touched;
+	voe_editor_stroke *stroke = NULL;
 
 	VOE_BASE_ASSERT(sculpt->stroking && (sculpt->before != NULL ||
-					     sculpt->before_paint != NULL),
+					     sculpt->before_paint != NULL ||
+					     sculpt->changed != NULL),
 			"ending no stroke");
-	if (!rect_empty(rect) && land != NULL && land->cells == sculpt->cells) {
-		voe_editor_stroke *stroke =
-			sculpt->before_paint != NULL ?
-				paint_stroke(sculpt, land, rect) :
-				heights_stroke(sculpt, land, rect);
-
-		if (stroke != NULL) {
-			voe_editor_undo_stroke(undo, session->project, scratch,
-					       stroke);
-			voe_editor_session_edited(session);
-		}
+	if (sculpt->changed != NULL) {
+		if (sculpt->changed_count > 0)
+			stroke = voe_editor_stroke_new_foliage(
+				sculpt->path,
+				sculpt->kind == VOE_3D_BRUSH_ERASE,
+				sculpt->changed, sculpt->changed_count);
+	} else if (!rect_empty(rect) && land != NULL &&
+		   land->cells == sculpt->cells) {
+		stroke = sculpt->before_paint != NULL ?
+				 paint_stroke(sculpt, land, rect) :
+				 heights_stroke(sculpt, land, rect);
+	}
+	if (stroke != NULL) {
+		voe_editor_undo_stroke(undo, session->project, scratch, stroke);
+		voe_editor_session_edited(session);
 	}
 	free(sculpt->before);
 	free(sculpt->before_paint);
+	free(sculpt->changed);
 	sculpt->before = NULL;
 	sculpt->before_paint = NULL;
+	sculpt->changed = NULL;
+	sculpt->changed_count = 0;
+	sculpt->changed_room = 0;
 	sculpt->stroking = false;
 	VOE_BASE_ASSERT(sculpt->before == NULL, "a stroke's copy kept");
 }

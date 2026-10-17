@@ -19,12 +19,14 @@
 // the touched rectangle as one undo step (strokes.h) and marks the project
 // edited. A press that misses the ground is left to the gizmo and the pick.
 // With kind PAINT the drag paints `layer` instead (0402 points 3 and 7), and
-// the release's step carries the rectangle's weights.
+// the release's step carries the rectangle's weights. With SCATTER or ERASE
+// it stamps foliage copies (0442 point 3); the step carries those it changed.
 //
 // Constraints: the numbers are kept inside the ranges below by whoever writes
 // them, the Sculpt section's sliders clamping. A stroke mallocs a copy of the
 // whole grid at the press, up to 513² heights, or for paint its weights at 8
-// bytes a point, and frees it at the release; a
+// bytes a point, and frees it at the release; a foliage stroke's changed list
+// doubles to fit a stamp's most, an erase's the landscape's copy count; a
 // frame stamps at most VOE_EDITOR_SCULPT_STAMPS times, so a jump longer than
 // that many quarter radii is stamped sparser; a higher cap would lift it.
 #pragma once
@@ -63,6 +65,21 @@ struct voe_editor_models;
 #define VOE_EDITOR_SCULPT_SOFTNESS_MAX 1.0f
 #define VOE_EDITOR_SCULPT_SOFTNESS 0.5f
 
+// The foliage brush's (0442 point 3): density in copies per 100 m², size and
+// lean as shares, turn in radians.
+#define VOE_EDITOR_SCULPT_DENSITY_MIN 0.1f
+#define VOE_EDITOR_SCULPT_DENSITY_MAX 50.0f
+#define VOE_EDITOR_SCULPT_DENSITY 4.0f
+#define VOE_EDITOR_SCULPT_SIZE_VARY_MIN 0.0f
+#define VOE_EDITOR_SCULPT_SIZE_VARY_MAX 1.0f
+#define VOE_EDITOR_SCULPT_SIZE_VARY 0.2f
+#define VOE_EDITOR_SCULPT_TURN_VARY_MIN 0.0f
+#define VOE_EDITOR_SCULPT_TURN_VARY_MAX 3.14159265f
+#define VOE_EDITOR_SCULPT_TURN_VARY 3.14159265f
+#define VOE_EDITOR_SCULPT_LEAN_MIN 0.0f
+#define VOE_EDITOR_SCULPT_LEAN_MAX 1.0f
+#define VOE_EDITOR_SCULPT_LEAN 0.0f
+
 // Raise, Lower, Smooth and Flatten: one button each.
 #define VOE_EDITOR_SCULPT_KINDS 4
 
@@ -84,6 +101,14 @@ typedef struct {
 	float softness;
 	// The layer a PAINT brush paints.
 	uint32_t layer;
+	// The foliage brush's: the kinds picked, bit k kind k, its numbers, and
+	// the xorshift its scatters draw from, never 0.
+	uint32_t picked;
+	float density;
+	float size_vary;
+	float turn_vary;
+	float lean;
+	uint64_t seed;
 	// The Sculpt section's buttons and sliders as drawn this frame, and the
 	// figures beside the sliders, kept because a label is read after the
 	// call that drew it. VOE_UI_NODE_NONE when not drawn
@@ -120,6 +145,12 @@ typedef struct {
 	uint32_t cells;
 	float *before;
 	uint8_t *before_paint;
+	// For SCATTER or ERASE instead of a copy: the copies the stroke added or
+	// removed, `changed_room` of room, malloced at the press, grown by
+	// doubling and freed at the release; NULL otherwise.
+	voe_assets_landscape_copy *changed;
+	uint32_t changed_count;
+	uint32_t changed_room;
 } voe_editor_sculpt;
 
 // No brush chosen, the numbers at their defaults, nothing drawn.

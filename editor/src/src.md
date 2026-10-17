@@ -265,10 +265,11 @@ carries it out.
   rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
 - `sculpt.h` — the brush a person holds: chosen or not, its kind, layer, radius, strength and
   softness with their ranges, never saved or undone, the Sculpt and Layers sections' nodes, whether
-  a thing wears a landscape, and the held drag that sculpts or paints it as one undo step.
+  a thing wears a landscape, and the held drag that sculpts, paints, scatters or erases foliage on
+  it as one undo step.
 - `sculpt.c` — the defaults set, the brush put down, the `.landscape` ending matched on a thing
   not a prefab's part, the ground under the pointer, the press's heights or paint copy, the stamps
-  along the drag and the release's heights or paint stroke.
+  along the drag, scattering or erasing copies, and the release's heights, paint or foliage stroke.
 - `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
   chosen one lit, none while painting, and Radius, Strength and Softness sliders, read after the
   frame.
