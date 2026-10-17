@@ -213,9 +213,8 @@ carries it out.
   of `ui` calls with its column headers, LOD rows and swap line, the read of its buttons, boxes and
   a press outside, and the save into the `.parts`.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
-  folder row or Up, a new thing or copy placed in a scene view, a swap, a shape's material, a filled
-  map, a set landscape layer or foliage kind over the Inspector, a material over a model and
-  elsewhere nothing.
+  folder row or Up, a new thing or copy placed in a scene view, or over the Inspector a swap, a
+  shape's material, a filled map, a landscape layer or a foliage kind, elsewhere nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
   the release and the ghost, the move's target, the drop point, the Inspector's rows, layer and
   kind rows among them, and each swap with its undo step.
@@ -257,17 +256,16 @@ carries it out.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
   draws that list and reads what was picked from it; a prefab's part is shown, never edited.
-- `inspector.c` — the Enabled row's On or Off button, the Duplicate and Delete row, each described component's heading, Remove and
-  "Needs" line, Add component, its menu and open list, a part read-only, the Sculpt, Layers and
-  Foliage sections on a landscape, or an open material's section instead.
+- `inspector.c` — the Enabled row's button, the Duplicate and Delete row, each described
+  component's heading, Remove and "Needs" line, Add component, its menu and open list, a part
+  read-only, a landscape's sections, or an open material's section instead.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
   strings a text field per string, labels when it cannot be edited.
 - `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, and a
   rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
-- `sculpt.h` — the brush a person holds: chosen or not, its kind, layer, radius, strength and
-  softness with their ranges, never saved or undone, the Sculpt, Layers and Foliage sections' nodes, whether
-  a thing wears a landscape, and the held drag that sculpts, paints, scatters or erases foliage on
-  it as one undo step.
+- `sculpt.h` — the brush a person holds: its kind, layer, radius, strength and softness with
+  their ranges, never saved or undone, its sections' nodes, whether a thing wears a landscape, and
+  the held drag that sculpts, paints, scatters or erases as one undo step.
 - `sculpt.c` — the defaults set, the brush put down, the `.landscape` ending matched on a thing
   not a prefab's part, the ground under the pointer, the press's heights or paint copy, the stamps
   along the drag, scattering or erasing copies, and the release's heights, paint or foliage stroke.
@@ -336,9 +334,8 @@ carries it out.
   gathered first, lit by every light and kept out of the blockers, every place marked and blocker
   lined, the brush's rings with the gizmo hidden while brushing, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
-  or a prepared model on asking, emptied on a different project, a broken file in the notice, where
-  its landscapes, their foliage too, and the project's materials are edited, and its models given
-  their parts.
+  or on asking, emptied on a different project, a broken file in the notice, where landscapes with
+  their foliage and the project's materials are edited, and models given their parts.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the

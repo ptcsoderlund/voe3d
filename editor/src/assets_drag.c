@@ -1,8 +1,8 @@
 // The drag's start from the held row, the outcome at the pointer each frame
 // for the ghost, and its release into a view, onto the Inspector, onto a
 // folder row or Up, or nowhere; after a move the open material follows the
-// file. See the header for the outcomes, the point a placed model lands at and
-// why the Inspector drop replaces the path.
+// file. See the header for the outcomes and the point a placed model lands
+// at, and onto_inspector for why the Inspector drop replaces the path.
 #include "assets_drag.h"
 
 #include "assets_manage.h"
@@ -280,6 +280,13 @@ static bool kind_row_at(const voe_editor_scene *scene,
 // it shows the selected thing and that is no prefab's part, a material onto
 // its grid's Layers row or its shape, never its model, a picture onto its
 // emitter, a `.glb` onto its grid's Foliage row, a model onto its model.
+//
+// THE INSPECTOR DROP REPLACES THE PATH rather than adding a component: an
+// entity has at most one row of a type, so a second model is not a thing to
+// add, and swapping what a placed thing wears is what dropping onto its panel
+// is for. A thing with no model (or emitter, for a picture) is left alone, and
+// a prefab's part: not the person's to edit (0283). A path longer than its
+// field's room is no drag (path_hold).
 static void onto_inspector(const voe_editor_assets_drag *drag,
 			   const voe_editor_scene *scene,
 			   const voe_3d_models *store, voe_math_float2 pointer,
