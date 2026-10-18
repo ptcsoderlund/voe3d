@@ -6,6 +6,11 @@
 // THE TREE IS PROVEN A TREE HERE, WITHOUT RECURSION (rule 14). The nodes are
 // read as a flat array with a claimed flag beside each: a node claimed as a
 // child twice is refused, so the walk the importer does cannot meet a cycle.
+//
+// EACH NODE IS CHECKED UNDER ITS OBJECT (ADR-0445): "the object `Trunk`", or
+// "object 3" without a name. Every refusal here is damage, in the damaged-file
+// shape. How deep the tree nests is not limited here: the importer's walk keeps
+// that limit (3d/src/import.c).
 #include "model_gltf_read.h"
 
 // glTF stores a matrix column-major and this engine stores one row-major, so
@@ -40,6 +45,99 @@ static voe_math_float4x4 composed(const float *translation,
 				      voe_math_float4x4_from_scale(sizes)));
 }
 
+// Node `index` of `count`, its name already read into `out`: its mesh, its
+// matrix and its children, each child marked in `claimed`.
+static bool read_node(struct gltf *gltf, uint32_t node, uint32_t index,
+		      uint32_t count, uint32_t mesh_count, uint8_t *claimed,
+		      voe_assets_node *out)
+{
+	uint32_t children;
+	uint32_t child_count;
+	float matrix[16];
+	float translation[3] = { 0.0f, 0.0f, 0.0f };
+	float rotation[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	float scale[3] = { 1.0f, 1.0f, 1.0f };
+	bool has_matrix;
+	bool found;
+	uint32_t *child_list;
+
+	if (node == VOE_ASSETS_JSON_NONE)
+		return voe_assets_gltf_malformed(gltf,
+						 "a node that is not an object");
+
+	out->mesh = VOE_ASSETS_MODEL_NONE;
+	if (voe_assets_json_member(gltf->json, node, "mesh") !=
+	    VOE_ASSETS_JSON_NONE) {
+		if (mesh_count == 0)
+			return voe_assets_gltf_malformed(
+				gltf,
+				"a node naming a mesh in a file that describes none");
+		if (!voe_assets_gltf_uint_member(gltf, node, "mesh",
+						 mesh_count - 1, 0, &out->mesh))
+			return false;
+	}
+
+	// A node gives either a matrix or the three parts, and glTF says a
+	// matrix wins. Composing the parts here means the importer sees one
+	// shape.
+	if (!voe_assets_gltf_floats_member(gltf, node, "matrix", 16, matrix,
+					   &has_matrix))
+		return false;
+	if (has_matrix) {
+		out->local = transposed(matrix);
+	} else {
+		if (!voe_assets_gltf_floats_member(gltf, node, "translation", 3,
+						   translation, &found) ||
+		    !voe_assets_gltf_floats_member(gltf, node, "rotation", 4,
+						   rotation, &found) ||
+		    !voe_assets_gltf_floats_member(gltf, node, "scale", 3,
+						   scale, &found))
+			return false;
+		out->local = composed(translation, rotation, scale);
+	}
+
+	if (!voe_assets_gltf_array_member(gltf, node, "children", &children,
+					  &child_count))
+		return false;
+
+	out->children = NULL;
+	out->child_count = child_count;
+	if (child_count == 0)
+		return true;
+
+	child_list = voe_base_arena_push(gltf->arena,
+					 (size_t)child_count * sizeof(*child_list));
+	for (uint32_t c = 0; c < child_count; c++) {
+		uint32_t child;
+
+		if (!voe_assets_json_uint(
+			    gltf->json,
+			    voe_assets_json_element(gltf->json, children, c),
+			    count - 1, &child))
+			return voe_assets_gltf_malformed(
+				gltf,
+				"a child index that is not a node this file describes");
+
+		// A NODE CLAIMED TWICE IS NOT A TREE, AND REFUSING IT HERE IS
+		// WHAT MAKES A WALK OF IT SAFE. Two parents is how a file
+		// describes a cycle — a is b's child and b is a's — and a walk
+		// of that never ends. glTF forbids it; a hostile or broken file
+		// does not care, and the importer's depth limit should not be
+		// the only thing standing in the way.
+		if (child == index)
+			return voe_assets_gltf_malformed(
+				gltf, "a node that is its own child");
+		if (claimed[child])
+			return voe_assets_gltf_malformed(
+				gltf,
+				"a node claimed as a child by two parents, which is not a tree");
+		claimed[child] = 1;
+		child_list[c] = child;
+	}
+	out->children = child_list;
+	return true;
+}
+
 bool voe_assets_gltf_read_nodes(struct gltf *gltf, voe_assets_model *model)
 {
 	uint32_t count = gltf->nodes == VOE_ASSETS_JSON_NONE ?
@@ -64,100 +162,21 @@ bool voe_assets_gltf_read_nodes(struct gltf *gltf, voe_assets_model *model)
 	// child. It is what makes the tree a tree — see below.
 	claimed = voe_base_arena_push(gltf->arena, count);
 
+	// The name first, so that every line after it names the object.
 	for (uint32_t i = 0; i < count; i++) {
 		uint32_t node = voe_assets_gltf_object_at(gltf, gltf->nodes, i);
-		uint32_t children;
-		uint32_t child_count;
-		float matrix[16];
-		float translation[3] = { 0.0f, 0.0f, 0.0f };
-		float rotation[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
-		float scale[3] = { 1.0f, 1.0f, 1.0f };
-		bool has_matrix;
-		bool found;
-		uint32_t *child_list;
+		bool read;
 
-		if (node == VOE_ASSETS_JSON_NONE)
-			return voe_assets_gltf_malformed(
-				gltf, "a node that is not an object");
-		if (!voe_assets_gltf_read_name(gltf, node, &nodes[i].name))
+		nodes[i].name.text[0] = '\0';
+		if (node != VOE_ASSETS_JSON_NONE &&
+		    !voe_assets_gltf_read_name(gltf, node, &nodes[i].name))
 			return false;
-
-		nodes[i].mesh = VOE_ASSETS_MODEL_NONE;
-		if (voe_assets_json_member(gltf->json, node, "mesh") !=
-		    VOE_ASSETS_JSON_NONE) {
-			if (model->mesh_count == 0)
-				return voe_assets_gltf_malformed(
-					gltf,
-					"a node naming a mesh in a file that describes none");
-			if (!voe_assets_gltf_uint_member(gltf, node, "mesh",
-							 model->mesh_count - 1,
-							 0, &nodes[i].mesh))
-				return false;
-		}
-
-		// A node gives either a matrix or the three parts, and glTF says
-		// a matrix wins. Composing the parts here means the importer
-		// sees one shape.
-		if (!voe_assets_gltf_floats_member(gltf, node, "matrix", 16,
-						   matrix, &has_matrix))
+		voe_assets_gltf_subject_push(gltf, "object", &nodes[i].name, i);
+		read = read_node(gltf, node, i, count, model->mesh_count, claimed,
+				 &nodes[i]);
+		voe_assets_gltf_subject_pop(gltf);
+		if (!read)
 			return false;
-		if (has_matrix) {
-			nodes[i].local = transposed(matrix);
-		} else {
-			if (!voe_assets_gltf_floats_member(gltf, node,
-							   "translation", 3,
-							   translation,
-							   &found) ||
-			    !voe_assets_gltf_floats_member(gltf, node,
-							   "rotation", 4,
-							   rotation, &found) ||
-			    !voe_assets_gltf_floats_member(gltf, node, "scale",
-							   3, scale, &found))
-				return false;
-			nodes[i].local = composed(translation, rotation, scale);
-		}
-
-		if (!voe_assets_gltf_array_member(gltf, node, "children",
-						  &children, &child_count))
-			return false;
-
-		nodes[i].children = NULL;
-		nodes[i].child_count = child_count;
-		if (child_count == 0)
-			continue;
-
-		child_list = voe_base_arena_push(
-			gltf->arena, (size_t)child_count * sizeof(*child_list));
-		for (uint32_t c = 0; c < child_count; c++) {
-			uint32_t child;
-
-			if (!voe_assets_json_uint(
-				    gltf->json,
-				    voe_assets_json_element(gltf->json,
-							    children, c),
-				    count - 1, &child))
-				return voe_assets_gltf_malformed(
-					gltf,
-					"a child index that is not a node this file describes");
-
-			// A NODE CLAIMED TWICE IS NOT A TREE, AND REFUSING IT
-			// HERE IS WHAT MAKES A WALK OF IT SAFE. Two parents is
-			// how a file describes a cycle — a is b's child and b
-			// is a's — and a walk of that never ends. glTF forbids
-			// it; a hostile or broken file does not care, and the
-			// importer's depth limit should not be the only thing
-			// standing in the way.
-			if (child == i)
-				return voe_assets_gltf_malformed(
-					gltf, "a node that is its own child");
-			if (claimed[child])
-				return voe_assets_gltf_malformed(
-					gltf,
-					"a node claimed as a child by two parents, which is not a tree");
-			claimed[child] = 1;
-			child_list[c] = child;
-		}
-		nodes[i].children = child_list;
 	}
 
 	model->nodes = nodes;

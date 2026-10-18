@@ -36,6 +36,11 @@
 // same description inside it, and its buffers and images live in separate files
 // that nothing here can open — so a file whose first bytes are not the magic
 // number gets a message saying that rather than a generic complaint.
+//
+// EVERY REFUSAL IS ONE LINE IN THE glTF READER'S TWO SHAPES (ADR-0445). A
+// truncated or misshapen chunk is VOE_ASSETS_GLTF_DAMAGED then `(glTF: …)`; a
+// `.gltf` or a container not version 2 says what to export instead, then
+// `(glTF: …)`. A JSON chunk the parser refuses is json.c's line, said once.
 #include "model_gltf.h"
 
 #include <base/assert.h>
@@ -70,12 +75,23 @@ static uint32_t word_at(const uint8_t *bytes, size_t offset)
 	       (uint32_t)bytes[offset + 3] << 24;
 }
 
-static bool refuse(voe_base_error *error, voe_base_error code,
-		   const char *message)
+// A container this reader will not read: the artist's sentence, then the
+// format's words. Always false.
+static bool not_read(voe_base_error *error, const char *artist,
+		     const char *words)
 {
-	VOE_BASE_ERROR("assets", "glb: %s", message);
+	VOE_BASE_ERROR("assets", "%s (glTF: %s)", artist, words);
 	if (error != NULL)
-		*error = code;
+		*error = VOE_BASE_ERROR_UNSUPPORTED;
+	return false;
+}
+
+// A truncated or misshapen container, in the damaged-file shape. Always false.
+static bool damaged(voe_base_error *error, const char *words)
+{
+	VOE_BASE_ERROR("assets", VOE_ASSETS_GLTF_DAMAGED " (glTF: %s)", words);
+	if (error != NULL)
+		*error = VOE_BASE_ERROR_MALFORMED;
 	return false;
 }
 
@@ -96,8 +112,7 @@ bool voe_assets_model_read_glb(const uint8_t *bytes, size_t size,
 	VOE_BASE_ASSERT(model != NULL, "reading a model into nothing");
 
 	if (size < GLB_HEADER_BYTES)
-		return refuse(error, VOE_BASE_ERROR_MALFORMED,
-			      "a file too short to hold even the header");
+		return damaged(error, "a file too short to hold even the header");
 
 	if (word_at(bytes, 0) != GLB_MAGIC) {
 		// The text form starts with whitespace or a brace, and that is
@@ -105,23 +120,29 @@ bool voe_assets_model_read_glb(const uint8_t *bytes, size_t size,
 		// this engine reads.
 		if (bytes[0] == '{' || bytes[0] == ' ' || bytes[0] == '\n' ||
 		    bytes[0] == '\t' || bytes[0] == '\r')
-			return refuse(error, VOE_BASE_ERROR_UNSUPPORTED,
-				      "this looks like a .gltf: the text form is not read, because its buffers and pictures are separate files and nothing here opens one. Export a .glb");
-		return refuse(error, VOE_BASE_ERROR_MALFORMED,
-			      "a file that does not start with the glTF magic number");
+			return not_read(
+				error,
+				"the file is a .gltf, whose data and pictures are separate files the engine does not open; export as glTF Binary (.glb) in Blender",
+				"JSON text where a .glb container's magic number belongs");
+		return damaged(
+			error, "a file that does not start with the glTF magic number");
 	}
 
 	if (word_at(bytes, 4) != GLB_VERSION)
-		return refuse(error, VOE_BASE_ERROR_UNSUPPORTED,
-			      "a .glb container that is not version 2");
+		return not_read(
+			error,
+			"the file is not a glTF 2 container, the only one the engine reads; export it with Blender's glTF exporter",
+			"a .glb container that is not version 2");
 
 	declared = word_at(bytes, 8);
 	if (declared < GLB_HEADER_BYTES)
-		return refuse(error, VOE_BASE_ERROR_MALFORMED,
-			      "a file whose declared length does not cover its own header");
+		return damaged(
+			error,
+			"a file whose declared length does not cover its own header");
 	if (declared > size)
-		return refuse(error, VOE_BASE_ERROR_MALFORMED,
-			      "a file that claims to be longer than it is, which means it is truncated");
+		return damaged(
+			error,
+			"a file that claims to be longer than it is, which means it is truncated");
 
 	while (pos < declared) {
 		size_t length;
@@ -129,30 +150,30 @@ bool voe_assets_model_read_glb(const uint8_t *bytes, size_t size,
 		size_t padded;
 
 		if (declared - pos < GLB_CHUNK_HEADER_BYTES)
-			return refuse(error, VOE_BASE_ERROR_MALFORMED,
-				      "a chunk header that does not fit in the file");
+			return damaged(error,
+				       "a chunk header that does not fit in the file");
 
 		length = word_at(bytes, pos);
 		type = word_at(bytes, pos + 4);
 		pos += GLB_CHUNK_HEADER_BYTES;
 
 		if (length > declared - pos)
-			return refuse(error, VOE_BASE_ERROR_MALFORMED,
-				      "a chunk that claims more bytes than the file has left");
+			return damaged(error,
+				       "a chunk that claims more bytes than the file has left");
 
 		if (type == GLB_CHUNK_JSON) {
 			if (json_chunk != NULL)
-				return refuse(error, VOE_BASE_ERROR_MALFORMED,
-					      "a file with two JSON chunks in it");
+				return damaged(error,
+					       "a file with two JSON chunks in it");
 			if (pos != GLB_HEADER_BYTES + GLB_CHUNK_HEADER_BYTES)
-				return refuse(error, VOE_BASE_ERROR_MALFORMED,
-					      "a JSON chunk that is not the first chunk");
+				return damaged(error,
+					       "a JSON chunk that is not the first chunk");
 			json_chunk = bytes + pos;
 			json_size = length;
 		} else if (type == GLB_CHUNK_BIN) {
 			if (bin_chunk != NULL)
-				return refuse(error, VOE_BASE_ERROR_MALFORMED,
-					      "a file with two binary chunks in it");
+				return damaged(error,
+					       "a file with two binary chunks in it");
 			bin_chunk = bytes + pos;
 			bin_size = length;
 		}
@@ -163,14 +184,14 @@ bool voe_assets_model_read_glb(const uint8_t *bytes, size_t size,
 		// reads a header out of the middle of a chunk.
 		padded = (length + 3u) & ~(size_t)3u;
 		if (padded > declared - pos)
-			return refuse(error, VOE_BASE_ERROR_MALFORMED,
-				      "a chunk whose padding runs off the end of the file");
+			return damaged(error,
+				       "a chunk whose padding runs off the end of the file");
 		pos += padded;
 	}
 
 	if (json_chunk == NULL)
-		return refuse(error, VOE_BASE_ERROR_MALFORMED,
-			      "a file with no JSON chunk in it");
+		return damaged(error,
+			       "a file with no JSON chunk in it");
 
 	// The chunk is padded with spaces, which JSON treats as whitespace, so
 	// the padding needs no removing. The span is handed over as a length and

@@ -43,9 +43,6 @@
 #include <stdio.h>
 #include <string.h>
 
-// The artist's half of every damaged file's line.
-#define DAMAGED "the file is damaged; export it again from Blender"
-
 // Both lines are composed here because report.h takes no va_list; report.h's
 // cut still holds.
 bool voe_assets_gltf_malformed(struct gltf *gltf, const char *format_words,
@@ -57,7 +54,7 @@ bool voe_assets_gltf_malformed(struct gltf *gltf, const char *format_words,
 	va_start(arguments, format_words);
 	(void)vsnprintf(words, sizeof(words), format_words, arguments);
 	va_end(arguments);
-	VOE_BASE_ERROR("assets", DAMAGED " (glTF: %s)", words);
+	VOE_BASE_ERROR("assets", VOE_ASSETS_GLTF_DAMAGED " (glTF: %s)", words);
 	gltf->error = VOE_BASE_ERROR_MALFORMED;
 	return false;
 }
@@ -88,6 +85,8 @@ void voe_assets_gltf_subject_push(struct gltf *gltf, const char *kind,
 	subject = gltf->subjects[gltf->subject_count++];
 	if (name != NULL && name->text[0] != '\0')
 		(void)snprintf(subject, room, "the %s `%s`", kind, name->text);
+	else if (index == VOE_ASSETS_MODEL_NONE)
+		(void)snprintf(subject, room, "%s", kind);
 	else
 		(void)snprintf(subject, room, "%s %" PRIu32, kind, index);
 	voe_base_report_subject_push(subject);
@@ -315,7 +314,7 @@ bool voe_assets_gltf_resolve_accessor(struct gltf *gltf, uint32_t index,
 	    VOE_ASSETS_JSON_NONE)
 		return voe_assets_gltf_unsupported(
 			gltf, "a sparse accessor",
-			"the file stores some of its data sparsely, which the engine does not read; untick Use Sparse Accessor under Shape Keys in Blender's glTF export");
+			"it has shape keys (morph targets), stored sparsely, which the engine does not read; untick Shape Keys in Blender's glTF export");
 
 	if (!voe_assets_gltf_uint_member(gltf, accessor, "componentType",
 					 UINT32_MAX, 0, &out->component))

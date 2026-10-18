@@ -17,9 +17,10 @@
 // what to do in Blender, then `(glTF: <words>)`. The step that meets the cause
 // says it; its callers only return false.
 //
-// A SUBJECT IS PUSHED BY THE PART THAT READS A THING: "the material `leaf`" or
-// "picture 2" while that one is read, so a line below names it and never has to.
-// Two levels at most, a part and then a material within it.
+// A SUBJECT IS PUSHED BY THE PART THAT READS A THING: "the material `leaf`",
+// "picture 2", "the part `twig`" or "object 3" while that one is read, so a line
+// below names it and never has to. Two levels at most, a part and then the
+// material one of its primitives wears ("no material" for none).
 #pragma once
 
 #include "json.h"
@@ -92,9 +93,10 @@ bool voe_assets_gltf_malformed(struct gltf *gltf, const char *format_words,
 bool voe_assets_gltf_unsupported(struct gltf *gltf, const char *format_words,
 				 const char *artist, ...);
 
-// Pushes "the <kind> `name`", or "<kind> <index>" when `name` is NULL or "", as
-// the report's subject until the matching pop. Push, read, pop, then return the
-// read's answer, so a pushed subject is popped on every path.
+// Pushes "the <kind> `name`", or "<kind> <index>" when `name` is NULL or "",
+// or `kind` alone when the index is also VOE_ASSETS_MODEL_NONE, as the report's
+// subject until the matching pop. Push, read, pop, then return the read's
+// answer, so a pushed subject is popped on every path.
 void voe_assets_gltf_subject_push(struct gltf *gltf, const char *kind,
 				  const voe_assets_model_name *name,
 				  uint32_t index);

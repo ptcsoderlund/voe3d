@@ -51,8 +51,11 @@ of them is internal to this folder rather than reachable from outside it.
   shares and swaps, and a writer that quotes every path.
 - `json.h` — a JSON reader, internal to this folder. Its header says why it
   has an explicit stack and a depth limit rather than recursion, why the caller
-  states how many values it will hold, and why string spans are raw.
-- `json.c` — the state machine, and nothing tolerated.
+  states how many values it will hold, why string spans are raw, and the
+  damaged-file line and the two limits a refusal says.
+- `json.c` — the state machine, and nothing tolerated: a syntax error is
+  damage with its byte, too many values or too deep a limit with the most the
+  engine takes.
 - `model_gltf.h` — the split between the container and the description.
 - `model_gltf_read.h` — what the glTF reader's parts share, internal to this
   folder: the read's state, the shared helpers and each part's one call. Its
@@ -63,14 +66,18 @@ of them is internal to this folder rather than reachable from outside it.
   length read out of a file is checked by, and the one buffer.
 - `model_gltf_materials.c` — texture references, the alpha mode, materials and
   images. Its header says why a texture resolves to an image.
-- `model_gltf_meshes.c` — attributes, primitives and meshes. Its header says
-  why triangle lists only and why an unindexed primitive is given indices.
-- `model_gltf_nodes.c` — the node names and matrices and the node tree. Its header says
-  how the tree is proven a tree without recursion.
+- `model_gltf_meshes.c` — attributes, primitives and meshes, each mesh under
+  its part and each primitive under its material. Its header says why triangle
+  lists only, why an unindexed primitive is given indices, and which stored
+  forms are refused: points and lines, compressed or quantized attributes.
+- `model_gltf_nodes.c` — the node names and matrices and the node tree, each
+  node under its object. Its header says how the tree is proven a tree without
+  recursion; every refusal is damage.
 - `model_material.c` — a glTF material to `.material` values, and its ORM
   picture merged from occlusion and metal-roughness at the nearest texel.
 - `model_glb.c` — the container: the header and the chunks. Its header
-  carries the layout and says why a `.gltf` is refused by name.
+  carries the layout and says why a `.gltf` is refused by name, a container not
+  version 2 refused, and a cut or misshapen chunk refused as damage.
 - `jpeg_read.h` — what the JPEG reader's two parts share, internal to this
   folder: the decoder's state, the refusal helper and the scan's two calls. Its
   header says why the split is by stage, and that each refusal is one line in

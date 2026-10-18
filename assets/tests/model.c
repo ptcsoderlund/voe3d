@@ -32,7 +32,9 @@
 // unlit, emission strength and the colour texture's repeat, each read or
 // defaulted; a 100-byte name cut at a whole character; Blender's texCoord −1
 // read as no texture; node names; and a refusal's kept line, beginning with
-// the material it is about and carrying the format's words after its own.
+// the material or the part and material it is about and carrying the format's
+// words after its own: a part of points says triangles, a `.glb` cut short says
+// to export it again, a `.gltf` says `.glb`.
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
@@ -515,6 +517,33 @@ static void a_refusal_names_what_it_is_about(voe_base_arena *arena)
 		       "the material `leaf`: ", "export it again", "(glTF: ");
 }
 
+// A part `twig` of points, under the material it wears; a `.glb` cut short; and
+// a `.gltf`'s text handed in as a `.glb`.
+static void a_refusal_names_the_part_and_the_container(void)
+{
+	static const float positions[9] = { 0, 0, 0, 1, 0, 0, 0, 1, 0 };
+	static const uint8_t text[] = "{\"asset\":{\"version\":\"2.0\"}}";
+	static uint8_t file[2048];
+	size_t size;
+
+	size = assemble_glb(
+		file, sizeof(file),
+		"{\"asset\":{\"version\":\"2.0\"},"
+		"\"buffers\":[{\"byteLength\":36}],"
+		"\"bufferViews\":[{\"buffer\":0,\"byteLength\":36}],"
+		"\"accessors\":[{\"bufferView\":0,\"componentType\":5126,"
+		"\"count\":3,\"type\":\"VEC3\"}],\"materials\":[{\"name\":\"bark\"}],"
+		"\"meshes\":[{\"name\":\"twig\",\"primitives\":[{\"attributes\":"
+		"{\"POSITION\":0},\"mode\":0,\"material\":0}]}]}",
+		(const uint8_t *)positions, sizeof(positions));
+	refused_saying("a part of points", file, size,
+		       "the part `twig`: the material ", "triangles", "(glTF: ");
+
+	refused_saying("a .glb cut short", QUAD_GLB, sizeof(QUAD_GLB) - 100,
+		       "", "export it again", "(glTF: ");
+	refused_saying("a .gltf", text, sizeof(text) - 1, "", ".glb", "(glTF: ");
+}
+
 // A `.glb` of no meshes and the nodes `nodes` (a JSON array's inside) into
 // `out`, its size returned.
 static size_t nodes_glb(uint8_t *out, size_t capacity, const char *nodes)
@@ -642,6 +671,7 @@ int main(void)
 	a_texcoord_of_minus_one_is_no_texture(arena);
 	a_node_keeps_its_name(arena);
 	a_refusal_names_what_it_is_about(arena);
+	a_refusal_names_the_part_and_the_container();
 	well_formed_files_this_reader_refuses();
 	broken_containers_are_malformed();
 

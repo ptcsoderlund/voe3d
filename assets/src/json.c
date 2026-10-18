@@ -7,7 +7,8 @@
 // accepts a trailing comma or a missing colon. The stack holds one token index
 // per open container and nothing else; how deep it may go is
 // VOE_ASSETS_JSON_MAX_DEPTH, and a document that goes deeper is refused rather
-// than followed.
+// than followed, as a limit with the most the engine takes (json.h says the
+// two shapes a refusal's line has).
 //
 // `next` IS FILLED IN WHEN A CONTAINER CLOSES, WHICH IS WHY TOKENS COME OUT IN
 // DOCUMENT ORDER. At the moment a container closes, every token inside it has
@@ -30,6 +31,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -71,16 +73,13 @@ struct parser {
 	voe_base_error error;
 };
 
-static void fail(struct parser *parser, voe_base_error error,
-		 const char *message)
-{
-	VOE_BASE_ERROR("assets", "JSON at byte %zu: %s", parser->pos, message);
-	parser->error = error;
-}
-
+// A syntax error, in the damaged-file shape with the byte it was met at.
 static bool malformed(struct parser *parser, const char *message)
 {
-	fail(parser, VOE_BASE_ERROR_MALFORMED, message);
+	VOE_BASE_ERROR("assets",
+		       VOE_ASSETS_GLTF_DAMAGED " (glTF: JSON at byte %zu: %s)",
+		       parser->pos, message);
+	parser->error = VOE_BASE_ERROR_MALFORMED;
 	return false;
 }
 
@@ -100,9 +99,17 @@ static uint32_t push_token(struct parser *parser, uint32_t kind, bool is_value)
 {
 	uint32_t index;
 
+	// A limit and not damage: the file may be fine, only larger than the
+	// caller said it would hold.
 	if (parser->count == parser->max_tokens) {
-		fail(parser, VOE_BASE_ERROR_UNSUPPORTED,
-		     "more values than this reader was told it could hold");
+		VOE_BASE_ERROR("assets",
+			       "the file's description has more than %" PRIu32
+			       " values, and the most the engine takes is %" PRIu32
+			       "; export fewer objects at once from Blender (Limit to Selected Objects) (glTF: JSON values past the reader's %" PRIu32
+			       " at byte %zu)",
+			       parser->max_tokens, parser->max_tokens,
+			       parser->max_tokens, parser->pos);
+		parser->error = VOE_BASE_ERROR_UNSUPPORTED;
 		return VOE_ASSETS_JSON_NONE;
 	}
 
@@ -132,9 +139,14 @@ static bool open_container(struct parser *parser, uint32_t kind, bool is_value)
 {
 	uint32_t index;
 
-	if (parser->depth == VOE_ASSETS_JSON_MAX_DEPTH)
-		return malformed(parser,
-				 "nested deeper than this reader will follow");
+	if (parser->depth == VOE_ASSETS_JSON_MAX_DEPTH) {
+		VOE_BASE_ERROR("assets",
+			       "the file's description nests more than %d levels deep, and the most the engine takes is %d; export it with Blender's own glTF exporter (glTF: JSON nested past the reader's %d at byte %zu)",
+			       VOE_ASSETS_JSON_MAX_DEPTH, VOE_ASSETS_JSON_MAX_DEPTH,
+			       VOE_ASSETS_JSON_MAX_DEPTH, parser->pos);
+		parser->error = VOE_BASE_ERROR_UNSUPPORTED;
+		return false;
+	}
 
 	index = push_token(parser, kind, is_value);
 	if (index == VOE_ASSETS_JSON_NONE)
