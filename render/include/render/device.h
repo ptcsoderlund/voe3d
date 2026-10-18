@@ -1151,11 +1151,29 @@ const void *voe_render_device_cache_bytes(voe_render_device *device,
 					      voe_render_geometry *out,
 					      voe_base_error *error);
 
+// A static mesh whose indices, numbered from zero as ever, walk the vertices of
+// `vertices_of`, a live static mesh: only the indices are uploaded (0444, so a
+// model's made levels cost their indices alone). It draws, casts and is boxed
+// like any other, its sphere and box being its base's. A startup operation that
+// waits for the card, as the create above is.
+//
+// FAILS AS THE CREATE ABOVE FAILS: no slot left, a grow of the index pool the
+// card refuses, or a refused upload, each returned with its message. A stale or
+// transient base, a count of zero, or an index at or past the base's vertex
+// count is the caller's bug and asserts.
+[[nodiscard]] bool voe_render_geometry_create_sharing(
+	voe_render_device *device, voe_render_geometry vertices_of,
+	const uint32_t *indices, uint32_t index_count, voe_render_geometry *out,
+	voe_base_error *error);
+
 // Gives a static mesh's vertex and index ranges back to their pools and its slot
 // back with the generation bumped, so every copy of the id is refused from here
 // on. False when the id was already stale, which is not an error: somebody else
 // got here first. A transient id is the caller's bug and asserts — it is gone at
 // the next frame's begin. A startup operation: it waits for the GPU to go idle.
+//
+// A SHARING MESH GIVES BACK ITS INDICES ALONE. Destroying a base while a sharing
+// mesh still walks it asserts, so a caller destroys the sharers first.
 bool voe_render_geometry_destroy(voe_render_device *device,
 				 voe_render_geometry geometry);
 

@@ -10,7 +10,8 @@ by reading the offscreen colour image back.
 - `loader.c` — that a machine with a driver and no SDK reaches Vulkan.
 - `pools.c` — two meshes and two ranges, a full pool that grows, and ids that stop naming
   anything when destroyed: a texture, a shading record whose slot is reused, and a mesh whose range
-  the next mesh takes, and a mesh's own box handed back and refused once destroyed. Headless.
+  the next mesh takes, a mesh's own box handed back and refused once destroyed, and a sharing mesh
+  walking its base's vertices with indices of its own, destroyed before it. Headless.
 - `textures.c` — 1024 texture slots: at least 1000 one-pixel textures made before one is refused,
   and a quad wearing the last of them, in the highest slot, drawn in its colour. Headless.
 - `transient.c` — geometry that lives one frame: an id refused by the frame after, the same slot

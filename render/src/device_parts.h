@@ -211,6 +211,11 @@ struct voe_render_transient_pool {
 // `box_min` AND `box_max` ARE THE SAME VERTICES' BOX, corner to corner in the
 // mesh's own space, taken in the same create; voe_render_geometry_box hands
 // them back to a caller fitting the bounce grid to where meshes stand (0332).
+//
+// `shares` IS THE SLOT OF THE BASE WHOSE VERTICES A SHARING MESH WALKS (0444),
+// VOE_RENDER_OWN_VERTICES for a mesh with its own; every create writes it. On a
+// base, `sharers` is how many share it, raised by the sharing create and lowered
+// by a sharer's destroy, and nought whenever the slot is free.
 struct voe_render_geometry_slot {
 	voe_math_float4 sphere;
 	voe_math_float3 box_min;
@@ -219,10 +224,14 @@ struct voe_render_geometry_slot {
 	uint32_t first_index;
 	uint32_t index_count;
 	uint32_t vertex_count;
+	uint32_t shares;
+	uint32_t sharers;
 	uint32_t generation;
 	bool live;
 	bool transient;
 };
+
+#define VOE_RENDER_OWN_VERTICES (~0u)
 
 // What a voe_render_shading id names. The record itself lives in the GPU buffer
 // the fragment stage reads; this is only what the CPU needs in order to refuse a

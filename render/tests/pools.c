@@ -20,6 +20,7 @@
 //
 // A MESH'S OWN BOX IS HANDED BACK EXACTLY (0332): vertices spanning (−1, 0, −2)
 // to (3, 5, 2) give that box, and once the mesh is destroyed the query is false.
+// A sharing mesh walks its base's vertices with indices of its own (0444).
 //
 // It includes render's internal header by relative path, as the other tests in
 // this folder do: what a geometry id resolves to is not public — a caller has an
@@ -337,6 +338,85 @@ static void a_mesh_hands_back_its_box(voe_base_arena *arena)
 	voe_render_device_destroy(device);
 }
 
+// A quad and a triangle walking its vertices (0444): the sharer's vertex range
+// and box are the quad's — the box reaching the fourth vertex no index of the
+// sharer names — and its indices its own, past the quad's. Destroyed sharer
+// first, both pools are empty again and the next mesh takes the quad's range.
+static void a_sharing_mesh_walks_its_base(voe_base_arena *arena)
+{
+	static const voe_render_vertex QUAD[4] = {
+		{ { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f }, { 0 } },
+		{ { 2.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f }, { 0 } },
+		{ { 2.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f }, { 0 } },
+		{ { 0.0f, 1.0f, -1.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f }, { 0 } },
+	};
+	static const uint32_t QUAD_INDICES[6] = { 0, 1, 2, 0, 2, 3 };
+	voe_platform_size size = { SIDE, SIDE };
+	voe_render_capacities room = CAPACITIES;
+	voe_render_device *device;
+	voe_render_geometry ids[2] = { 0 };
+	voe_render_geometry next = { 0 };
+	bool drawn[2] = { false, false };
+	voe_math_float3 min = { 9.0f, 9.0f, 9.0f };
+	voe_math_float3 max = { 9.0f, 9.0f, 9.0f };
+	voe_base_error error = VOE_BASE_OK;
+	const struct voe_render_geometry_slot *base;
+	const struct voe_render_geometry_slot *sharer;
+
+	room.vertices = 4;
+	room.indices = 9;
+	room.objects = 2;
+	device = voe_render_device_new_headless(arena, size, room, &error);
+	if (device == NULL)
+		return;
+
+	VOE_TEST_CHECK(voe_render_geometry_create(device, QUAD, 4, QUAD_INDICES,
+						  6, &ids[0], &error));
+	VOE_TEST_CHECK(voe_render_geometry_create_sharing(
+		device, ids[0], TRIANGLE_INDICES, 3, &ids[1], &error));
+	base = voe_render_geometry_at(device, ids[0]);
+	sharer = voe_render_geometry_at(device, ids[1]);
+	VOE_TEST_CHECK(base != NULL && sharer != NULL);
+	if (base == NULL || sharer == NULL) {
+		voe_render_device_destroy(device);
+		return;
+	}
+	VOE_TEST_CHECK_INT(sharer->first_vertex, base->first_vertex);
+	VOE_TEST_CHECK_INT(sharer->vertex_count, base->vertex_count);
+	VOE_TEST_CHECK_INT(sharer->index_count, 3);
+	VOE_TEST_CHECK(sharer->first_index >= base->first_index + base->index_count ||
+		       sharer->first_index + sharer->index_count <= base->first_index);
+	VOE_TEST_CHECK_INT(device->vertices.used, 4);
+	VOE_TEST_CHECK_INT(device->indices.used, 9);
+
+	VOE_TEST_CHECK(voe_render_geometry_box(device, ids[1], &min, &max));
+	VOE_TEST_CHECK(min.x == 0.0f && min.y == 0.0f && min.z == -1.0f);
+	VOE_TEST_CHECK(max.x == 2.0f && max.y == 1.0f && max.z == 0.0f);
+
+	draw_each(device, ids, drawn, 2);
+	VOE_TEST_CHECK(drawn[0]);
+	VOE_TEST_CHECK(drawn[1]);
+
+	VOE_TEST_CHECK(voe_render_geometry_destroy(device, ids[1]));
+	VOE_TEST_CHECK(!voe_render_geometry_destroy(device, ids[1]));
+	VOE_TEST_CHECK(voe_render_geometry_destroy(device, ids[0]));
+	VOE_TEST_CHECK(!voe_render_geometry_destroy(device, ids[0]));
+	VOE_TEST_CHECK(voe_render_geometry_at(device, ids[0]) == NULL);
+	VOE_TEST_CHECK(voe_render_geometry_at(device, ids[1]) == NULL);
+	VOE_TEST_CHECK_INT(device->vertices.used, 0);
+	VOE_TEST_CHECK_INT(device->indices.used, 0);
+
+	VOE_TEST_CHECK(voe_render_geometry_create(device, TRIANGLE, 3,
+						  TRIANGLE_INDICES, 3, &next,
+						  &error));
+	base = voe_render_geometry_at(device, next);
+	VOE_TEST_CHECK(base != NULL);
+	if (base != NULL)
+		VOE_TEST_CHECK_INT(base->first_vertex, 0);
+
+	voe_render_device_destroy(device);
+}
+
 static void a_texture_id_names_one_texture(voe_render_device *device)
 {
 	voe_render_texture texture = { 0 };
@@ -458,6 +538,7 @@ int main(void)
 	a_freed_range_is_reused(arena);
 	neighbouring_ranges_merge(arena);
 	a_mesh_hands_back_its_box(arena);
+	a_sharing_mesh_walks_its_base(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
