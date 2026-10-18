@@ -70,10 +70,15 @@ of them is internal to this folder rather than reachable from outside it.
   picture merged from occlusion and metal-roughness at the nearest texel.
 - `model_glb.c` — the container: the header and the chunks. Its header
   carries the layout and says why a `.gltf` is refused by name.
-- `jpeg.c` — markers, Huffman tables, the inverse cosine transform, chroma
-  upsampling and the colour conversion. Baseline only; its header says why
-  progressive is refused rather than attempted, and which index in the format is
-  the one that walks off the end of a block.
+- `jpeg_read.h` — what the JPEG reader's two parts share, internal to this
+  folder: the decoder's state, the refusal helper and the scan's two calls. Its
+  header says why the split is by stage.
+- `jpeg.c` — the markers and their tables, chroma upsampling, the colour
+  conversion and the entry point. Baseline only; its header says why
+  progressive is refused rather than attempted.
+- `jpeg_scan.c` — the entropy-coded data: the bit reader, Huffman decode, one
+  block, the inverse cosine transform and every MCU in order. Its header says
+  which index walks off the end of a block and where each is bounded.
 - `wav.c` — the WAV reader: one walk over the RIFF chunks, then 16-bit or
   float samples converted to float in the caller's arena; a refusal names the
   format or the damage in one line in the artist's words.
