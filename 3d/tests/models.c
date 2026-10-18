@@ -5,6 +5,11 @@
 // `wears` _parts_set fills, empties and a reload clears, pictures, the soft dot
 // and the water, and a model drawn.
 //
+// A REFUSAL IS SAID ONCE, UNDER THE CALLER'S SUBJECT (0445): a `.glb` built
+// here with one material more than VOE_3D_MODEL_PARTS is loaded with
+// "Assets/many.glb" pushed, and the kept first error begins with it and names
+// both counts.
+//
 // THE DEVICE HOLDS THREE COPIES OF THE MODEL: 6 vertices, 6 indices, 2
 // geometries and 4 shading records each, two parts' own and their two blended
 // twins. So a hundred loads of one path pass only if each replace frees the
@@ -36,6 +41,7 @@
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
+#include <base/report.h>
 #include <math/float3.h>
 #include <render/device.h>
 #include <scene/camera_component.h>
@@ -81,6 +87,102 @@ static bool load(voe_3d_models *models, voe_render_device *device,
 					  sizeof(TWO_PRIMITIVES_GLB), &error);
 	return voe_3d_models_load(models, device, path, stamp, NOT_A_GLB,
 				  sizeof(NOT_A_GLB), &error);
+}
+
+static void put_u32(uint8_t *at, uint32_t value)
+{
+	for (int b = 0; b < 4; b++)
+		at[b] = (uint8_t)(value >> (8 * b));
+}
+
+// A `.glb` of one triangle drawn `materials` times, each primitive wearing a
+// material of its own, built on `arena`; little-endian, as glTF is.
+static const uint8_t *many_materials_glb(voe_base_arena *arena,
+					 uint32_t materials, size_t *size)
+{
+	static const float positions[9] = { 0, 0, 0, 1, 0, 0, 0, 1, 0 };
+	static const uint32_t indices[3] = { 0, 1, 2 };
+	const size_t bin = sizeof(positions) + sizeof(indices);
+	char json[4096];
+	size_t at;
+	uint8_t *file;
+
+	at = (size_t)snprintf(json, sizeof(json),
+			      "{\"asset\":{\"version\":\"2.0\"},\"scene\":0,"
+			      "\"scenes\":[{\"nodes\":[0]}],"
+			      "\"nodes\":[{\"mesh\":0}],"
+			      "\"meshes\":[{\"primitives\":[");
+	for (uint32_t m = 0; m < materials; m++)
+		at += (size_t)snprintf(json + at, sizeof(json) - at,
+				       "%s{\"attributes\":{\"POSITION\":0},"
+				       "\"indices\":1,\"material\":%u}",
+				       m == 0 ? "" : ",", m);
+	at += (size_t)snprintf(json + at, sizeof(json) - at,
+			       "]}],\"materials\":[");
+	for (uint32_t m = 0; m < materials; m++)
+		at += (size_t)snprintf(json + at, sizeof(json) - at, "%s{}",
+				       m == 0 ? "" : ",");
+	at += (size_t)snprintf(
+		json + at, sizeof(json) - at,
+		"],\"accessors\":["
+		"{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+		"{\"bufferView\":1,\"componentType\":5125,\"count\":3,\"type\":\"SCALAR\"}],"
+		"\"bufferViews\":["
+		"{\"buffer\":0,\"byteOffset\":0,\"byteLength\":%zu},"
+		"{\"buffer\":0,\"byteOffset\":%zu,\"byteLength\":%zu}],"
+		"\"buffers\":[{\"byteLength\":%zu}]}",
+		sizeof(positions), sizeof(positions), sizeof(indices), bin);
+	VOE_TEST_CHECK(at < sizeof(json) - 4);
+	while (at % 4 != 0)
+		json[at++] = ' ';
+
+	*size = 12 + 8 + at + 8 + bin;
+	file = voe_base_arena_push(arena, *size);
+	put_u32(file, 0x46546C67u);
+	put_u32(file + 4, 2);
+	put_u32(file + 8, (uint32_t)*size);
+	put_u32(file + 12, (uint32_t)at);
+	put_u32(file + 16, 0x4E4F534Au);
+	memcpy(file + 20, json, at);
+	put_u32(file + 20 + at, (uint32_t)bin);
+	put_u32(file + 24 + at, 0x004E4942u);
+	memcpy(file + 28 + at, positions, sizeof(positions));
+	memcpy(file + 28 + at + sizeof(positions), indices, sizeof(indices));
+	return file;
+}
+
+// A `.glb` wearing one material more than VOE_3D_MODEL_PARTS is refused
+// UNSUPPORTED, and its kept line begins with the subject the caller pushed and
+// names how many it uses and the most.
+static void check_too_many_materials(voe_3d_models *models,
+				     voe_render_device *device,
+				     voe_base_arena *arena)
+{
+	voe_base_error error = VOE_BASE_OK;
+	char uses[32];
+	char most[32];
+	const char *kept;
+	size_t size;
+	const uint8_t *glb =
+		many_materials_glb(arena, VOE_3D_MODEL_PARTS + 1, &size);
+	bool loaded;
+
+	(void)snprintf(uses, sizeof(uses), "uses %u materials",
+		       VOE_3D_MODEL_PARTS + 1);
+	(void)snprintf(most, sizeof(most), "is %u", VOE_3D_MODEL_PARTS);
+	voe_base_report_error_clear();
+	voe_base_report_subject_push("Assets/many.glb");
+	loaded = voe_3d_models_load(models, device, "Assets/many.glb", 1, glb,
+				    size, &error);
+	voe_base_report_subject_pop();
+	kept = voe_base_report_error_first();
+	printf("kept: %s\n", kept == NULL ? "nothing" : kept);
+	VOE_TEST_CHECK(!loaded);
+	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_UNSUPPORTED);
+	VOE_TEST_CHECK(kept != NULL &&
+		       strncmp(kept, "Assets/many.glb: ", 17) == 0);
+	VOE_TEST_CHECK(kept != NULL && strstr(kept, uses) != NULL);
+	VOE_TEST_CHECK(kept != NULL && strstr(kept, most) != NULL);
 }
 
 // The same path loaded a hundred times: one entry, loaded, its ids new each
@@ -534,6 +636,9 @@ int main(void)
 	VOE_TEST_CHECK(entry != NULL && entry->loaded);
 	VOE_TEST_CHECK(entry != NULL && entry->stamp == 4);
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 3);
+
+	// ---- too many materials: said once, under the caller's subject
+	check_too_many_materials(models, device, arena);
 
 	// ---- the store is emptied to make room for the replace test's copies
 	voe_3d_models_clear(models, device);

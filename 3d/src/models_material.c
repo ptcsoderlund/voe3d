@@ -16,7 +16,8 @@
 // map leaves both slots none. The emission map goes up COLOUR into the emissive
 // slot. Each material uploads its own maps; a map shared by two materials
 // costs two textures, which a store of pictures by path would lift. The set
-// and the frame walk every entry.
+// and the frame walk every entry. A failed load says its cause once, at the
+// step that met it (0445), the material's path being the caller's subject.
 #include "model_picture.h"
 #include "models_store.h"
 
@@ -28,6 +29,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <stdio.h>
 #include <string.h>
 
 // A material's maps a load uploads at most.
@@ -77,22 +79,37 @@ typedef struct {
 	uint32_t count;
 } maps_made;
 
-// `map`'s picture, named `path`, uploaded as `kind` into `slot`; nothing for a
-// map of no bytes. MALFORMED when it will not decode.
+// `map`'s picture, the `name` map at `path`, uploaded as `kind` into `slot`;
+// nothing for a map of no bytes. MALFORMED when it will not decode: a path
+// that is no picture said here, a decoder's cause under "the <name> map
+// `path`" as its subject (0445 point 1).
 static bool upload_map(voe_render_device *device, voe_base_arena *scratch,
-		       const char *path, voe_3d_material_map map,
-		       voe_render_texture_kind kind, maps_made *made,
-		       voe_render_texture *slot, voe_base_error *error)
+		       const char *name, const char *path,
+		       voe_3d_material_map map, voe_render_texture_kind kind,
+		       maps_made *made, voe_render_texture *slot,
+		       voe_base_error *error)
 {
+	char subject[VOE_ASSETS_MATERIAL_PATH + 32];
 	voe_assets_image image;
+	bool decoded;
 
 	if (map.size == 0)
 		return true;
 	VOE_BASE_ASSERT(map.bytes != NULL, "a map of bytes at no address");
-	if (!voe_3d_model_picture_is(path) ||
-	    !voe_3d_model_picture_decode(path, map.bytes, map.size, scratch,
-					 &image, error)) {
-		VOE_BASE_ERROR("3d", "the map %s is no picture", path);
+	if (!voe_3d_model_picture_is(path)) {
+		VOE_BASE_ERROR("3d",
+			       "the %s map `%s` is not a PNG or JPEG picture; save it as PNG",
+			       name, path);
+		if (error != NULL)
+			*error = VOE_BASE_ERROR_MALFORMED;
+		return false;
+	}
+	(void)snprintf(subject, sizeof(subject), "the %s map `%s`", name, path);
+	voe_base_report_subject_push(subject);
+	decoded = voe_3d_model_picture_decode(path, map.bytes, map.size,
+					      scratch, &image, error);
+	voe_base_report_subject_pop();
+	if (!decoded) {
 		if (error != NULL)
 			*error = VOE_BASE_ERROR_MALFORMED;
 		return false;
@@ -119,17 +136,17 @@ static bool upload_material(voe_render_device *device, voe_base_arena *scratch,
 	bool record = false;
 
 	bool uploaded =
-		upload_map(device, scratch, values->colormap, maps.colour,
-			   VOE_RENDER_TEXTURE_COLOUR, &made,
+		upload_map(device, scratch, "colour", values->colormap,
+			   maps.colour, VOE_RENDER_TEXTURE_COLOUR, &made,
 			   &material->base_colour_texture, error) &&
-		upload_map(device, scratch, values->normalmap, maps.normal,
-			   VOE_RENDER_TEXTURE_DATA, &made,
+		upload_map(device, scratch, "normal", values->normalmap,
+			   maps.normal, VOE_RENDER_TEXTURE_DATA, &made,
 			   &material->normal_texture, error) &&
-		upload_map(device, scratch, values->ormmap, maps.orm,
+		upload_map(device, scratch, "ORM", values->ormmap, maps.orm,
 			   VOE_RENDER_TEXTURE_DATA, &made,
 			   &material->metallic_roughness_texture, error) &&
-		upload_map(device, scratch, values->emissionmap, maps.emission,
-			   VOE_RENDER_TEXTURE_COLOUR, &made,
+		upload_map(device, scratch, "emission", values->emissionmap,
+			   maps.emission, VOE_RENDER_TEXTURE_COLOUR, &made,
 			   &material->emissive_texture, error);
 
 	material->occlusion_texture = material->metallic_roughness_texture;
@@ -183,8 +200,6 @@ bool voe_3d_models_load_material(voe_3d_models *models,
 	loaded = upload_material(device, scratch, material, maps, &entry,
 				 &held, error);
 	voe_base_arena_destroy(scratch);
-	if (!loaded)
-		VOE_BASE_ERROR("3d", "could not load the material %s", path);
 	(void)voe_3d_models_keep(models, device, &entry, &held);
 	return loaded;
 }

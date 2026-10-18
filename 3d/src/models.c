@@ -11,7 +11,9 @@
 //
 // A FAILED LOAD GIVES BACK WHAT IT UPLOADED, every texture, shading record, twin
 // and geometry it had made, so that a file failing again and again does not fill
-// the device; its entry keeps the path and the stamp and nothing else.
+// the device; its entry keeps the path and the stamp and nothing else. A
+// failed load says its cause once, at the step that met it (0445): nothing
+// here restates it or names the path, which is the caller's subject.
 //
 // EACH ENTRY OWNS AN ARENA holding its path, its shape and the lists of the
 // textures and shading records its load made, so one entry's memory goes back
@@ -34,8 +36,8 @@
 //
 // CONSTRAINTS: _find is a scan over the entries by string compare, which at
 // VOE_3D_MODELS entries is nothing; a hash of the path would lift it if the
-// store ever grows by orders of magnitude. A full store refuses a new path, and
-// _fail says so on stderr rather than keeping it.
+// store ever grows by orders of magnitude. A full store refuses a new path as
+// the limit it is, and _fail says so rather than keeping it.
 #include "model_bake.h"
 #include "model_picture.h"
 #include "model_upload.h"
@@ -58,6 +60,15 @@
 // since a decoded picture alone may be many megabytes.
 #define ENTRY_BLOCK (64 * 1024)
 #define SCRATCH_BLOCK (1024 * 1024)
+
+// The store's limit, said as one (0445 point 5): the files it would hold with
+// this one beside the most.
+static void say_full(void)
+{
+	VOE_BASE_ERROR("3d",
+		       "this would be %u files held at once, and the most the engine takes is %u, models, pictures, landscapes and materials together",
+		       VOE_3D_MODELS + 1, VOE_3D_MODELS);
+}
 
 voe_3d_models *voe_3d_models_new(void)
 {
@@ -150,8 +161,7 @@ bool voe_3d_models_room(const voe_3d_models *models, const char *path,
 	if (models->count < VOE_3D_MODELS ||
 	    voe_3d_models_index(models, path) != VOE_3D_MODELS)
 		return true;
-	VOE_BASE_ERROR("3d", "no room for %s — the store holds %u models", path,
-		       VOE_3D_MODELS);
+	say_full();
 	if (error != NULL)
 		*error = VOE_BASE_ERROR_REFUSED;
 	return false;
@@ -185,9 +195,7 @@ bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
 	voe_3d_models_levels_mirror(&kept);
 	if (index == VOE_3D_MODELS) {
 		if (models->count == VOE_3D_MODELS) {
-			VOE_BASE_ERROR("3d",
-				       "no room for %s — the store holds %u models",
-				       entry->path, VOE_3D_MODELS);
+			say_full();
 			release(device, entry, held);
 			return false;
 		}
@@ -431,7 +439,6 @@ static bool load_landscape_text(voe_3d_models *models,
 		loaded = voe_3d_models_load_landscape(models, device, path, stamp,
 						      &landscape, error);
 	} else {
-		VOE_BASE_ERROR("3d", "could not load the landscape %s", path);
 		voe_3d_models_fail(models, path, stamp);
 	}
 	voe_base_arena_destroy(scratch);
@@ -480,8 +487,6 @@ bool voe_3d_models_load_levelled(voe_3d_models *models,
 		loaded = load_glb(device, scratch, bytes, size, levels,
 				  levels_size, &entry, &held, error);
 	}
-	if (!loaded)
-		VOE_BASE_ERROR("3d", "could not load the model %s", path);
 
 	voe_base_arena_destroy(scratch);
 	(void)voe_3d_models_keep(models, device, &entry, &held);

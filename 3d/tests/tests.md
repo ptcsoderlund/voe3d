@@ -148,8 +148,8 @@ again, or to find where a claim that has started failing is written down.
   `_LOD<n>` level of a file's own at a time. Needs no graphics card.
 - `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
   blended twin and none leaked, its glTF source and the `wears` a parts set fills and a reload
-  empties, pictures and the uncounted dot, and a model drawn only with the store. Skips without a
-  card.
+  empties, pictures and the uncounted dot, a model drawn only with the store, and a `.glb` of 17
+  materials refused once under the caller's subject with both counts. Skips without a card.
 - `models_levels.c` — the store loading a sphere with its levels file, with its own `_LOD1` levels
   bounded by 2^-k alone and by their measured error with their file, and with a far swap, leaking
   no level across reloads and clears; made levels boxed as level 0, and the sphere loading every

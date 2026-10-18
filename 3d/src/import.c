@@ -34,6 +34,7 @@
 #include <assets/model.h>
 #include <base/assert.h>
 #include <base/report.h>
+#include <ecs/component.h>
 #include <math/quat.h>
 #include <scene/transform_system.h>
 
@@ -63,11 +64,37 @@ struct frame {
 	uint32_t depth;
 };
 
-static bool no_room(voe_base_error *error, const char *what)
+// How many entities the file will make, so that the array of them is one push.
+static uint32_t count_entities(const voe_assets_model *model)
+{
+	uint32_t total = 0;
+
+	for (uint32_t i = 0; i < model->node_count; i++) {
+		if (model->nodes[i].mesh == VOE_ASSETS_MODEL_NONE)
+			continue;
+		total += model->meshes[model->nodes[i].mesh].primitive_count;
+	}
+	return total;
+}
+
+// The rows the table registered against `key` holds at most.
+static uint32_t table_most(const voe_ecs_world *world,
+			   const struct voe_ecs_key *key)
+{
+	return voe_ecs_component_capacity(world,
+					  voe_ecs_component_type(world, key));
+}
+
+// The world's limit met, said as one (0445 point 5): the `what` the file
+// makes, one a drawn piece, the room the world had for them, which is as many
+// as were made before this one, and the most it was made to hold.
+static bool no_room(const struct import *import, voe_base_error *error,
+		    const char *what, uint32_t most)
 {
 	VOE_BASE_ERROR("3d",
-		       "no room for %s while importing a model — the world or the device was made smaller than this file needs",
-		       what);
+		       "the model makes %u %s, one for each drawn piece, and the world had room for %u more, the most it was made to hold being %u; join the model's objects in Blender, or make the world larger",
+		       count_entities(import->model), what,
+		       import->entity_count, most);
 	if (error != NULL)
 		*error = VOE_BASE_ERROR_REFUSED;
 	return false;
@@ -273,9 +300,12 @@ static bool place_node(struct import *import, const struct frame *frame,
 							primitive->material);
 
 		if (!voe_ecs_entity_create(import->world, &entity))
-			return no_room(error, "another entity");
+			return no_room(import, error, "things",
+				       voe_ecs_entity_count(import->world));
 		if (!voe_scene_transform_add(import->world, entity, transform))
-			return no_room(error, "another transform");
+			return no_room(import, error, "transforms",
+				       table_most(import->world,
+						  &voe_scene_transform_key));
 		// A file's contents are in the world. A layer is a thing a
 		// program decides about something it has loaded, not a property
 		// a `.glb` can carry — nothing in glTF says "above everything"
@@ -287,9 +317,13 @@ static bool place_node(struct import *import, const struct frame *frame,
 					     .geometry = import->geometries[index],
 					     .layer = VOE_3D_LAYER_WORLD,
 				     }))
-			return no_room(error, "another mesh component");
+			return no_room(import, error, "meshes",
+				       table_most(import->world,
+						  &voe_3d_mesh_key));
 		if (!voe_3d_material_add(import->world, entity, material))
-			return no_room(error, "another material component");
+			return no_room(import, error, "materials",
+				       table_most(import->world,
+						  &voe_3d_material_key));
 
 		import->entities[import->entity_count++] = entity;
 	}
@@ -297,23 +331,13 @@ static bool place_node(struct import *import, const struct frame *frame,
 	return true;
 }
 
-// How many entities the file will make, so that the array of them is one push.
-static uint32_t count_entities(const voe_assets_model *model)
-{
-	uint32_t total = 0;
-
-	for (uint32_t i = 0; i < model->node_count; i++) {
-		if (model->nodes[i].mesh == VOE_ASSETS_MODEL_NONE)
-			continue;
-		total += model->meshes[model->nodes[i].mesh].primitive_count;
-	}
-	return total;
-}
-
+// The walk goes on past a node too deep, placing nothing more, so the refusal
+// names the file's deepest nesting, as model_bake.c's does.
 static bool walk(struct import *import, voe_base_error *error)
 {
 	const voe_assets_model *model = import->model;
 	struct frame *stack;
+	uint32_t deepest = 0;
 	uint32_t open = 0;
 
 	if (model->node_count == 0)
@@ -337,16 +361,10 @@ static bool walk(struct import *import, voe_base_error *error)
 		struct frame frame = stack[--open];
 		const voe_assets_node *node = &model->nodes[frame.node];
 
-		if (frame.depth > VOE_3D_IMPORT_MAX_DEPTH) {
-			VOE_BASE_ERROR("3d",
-				       "a model whose nodes nest more than %u deep",
-				       VOE_3D_IMPORT_MAX_DEPTH);
-			if (error != NULL)
-				*error = VOE_BASE_ERROR_UNSUPPORTED;
-			return false;
-		}
-
-		if (!place_node(import, &frame, error))
+		if (frame.depth > deepest)
+			deepest = frame.depth;
+		if (deepest <= VOE_3D_IMPORT_MAX_DEPTH &&
+		    !place_node(import, &frame, error))
 			return false;
 
 		for (uint32_t c = 0; c < node->child_count; c++) {
@@ -366,6 +384,14 @@ static bool walk(struct import *import, voe_base_error *error)
 		}
 	}
 
+	if (deepest > VOE_3D_IMPORT_MAX_DEPTH) {
+		VOE_BASE_ERROR("3d",
+			       "the model's objects are parented %u deep, and the most the engine takes is %u; in Blender, use Clear Parent and Keep Transform on the deepest",
+			       deepest, VOE_3D_IMPORT_MAX_DEPTH);
+		if (error != NULL)
+			*error = VOE_BASE_ERROR_UNSUPPORTED;
+		return false;
+	}
 	return true;
 }
 

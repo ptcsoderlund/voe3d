@@ -150,16 +150,17 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `model_upload.c` — each picture once per colour space wanted, a record per material and
   one default shared by the primitives naming none.
 - `import.c` — the model's upload, its geometry and the tree walk that turns a read model
-  into one entity per drawn primitive.
+  into one entity per drawn primitive, a full world and a deep nesting said as limits.
 - `model_bake.h` — a read model's nodes of one level baked into its vertices, its vertex colours
   carried, and its primitives merged into one part per material, and the count of the file's own
   levels its node names tell; internal.
 - `model_bake.c` — the walk into a list of placed primitives, each part's room counted
   from it, the fill with each colour's complement, the mirrored node's turned triangles, and
-  each node's `_LOD<n>` level carried down the walk.
+  each node's `_LOD<n>` level carried down the walk; its three refusals as limits with the file's
+  own counts.
 - `models.c` — the store's table of entries with an arena each, and the load that reads, bakes,
   uploads with each part's blended twin and glTF source and gives back what a failure made; the
-  parts set; pictures on the quad, the dot and the water apart.
+  parts set; pictures on the quad, the dot and the water apart; a full store said as a limit.
 - `models_store.h` — the store's internal table and the helpers the store's files share.
 - `models_levels.c` — a `.glb`'s levels beside its parts: own levels baked and joined by
   material, or a levels file's checked and its made levels' indices shared over level 0's vertices,
@@ -170,8 +171,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
   handed to foliage.c, the entry marked edited on a change.
 - `models_material.c` — a `.material`'s four maps decoded and uploaded mipped with its record,
-  cutout, emission and sides and its twin as one part with no geometry, the set marking it and the
-  frame rewriting both records.
+  cutout, emission and sides and its twin as one part with no geometry, each map decoded under
+  its name as the subject, the set marking it and the frame rewriting both records.
 - `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
   texture and two blended materials; internal.
 - `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow

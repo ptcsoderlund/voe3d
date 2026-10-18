@@ -192,7 +192,9 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 // nested past VOE_3D_IMPORT_MAX_DEPTH, REFUSED when the device or the store has
 // no room. What a failed load had put on the card is given back. A path already
 // held is replaced when this load succeeds and kept, at `stamp`, when it fails.
-// The same as _load_levelled with NULL levels.
+// Every failure is one line, at the step that met it, in the artist's words,
+// under the subject the caller pushed (base/report.h); nothing here names the
+// path. The same as _load_levelled with NULL levels.
 [[nodiscard]] bool voe_3d_models_load(voe_3d_models *models,
 				      voe_render_device *device,
 				      const char *path, uint64_t stamp,
