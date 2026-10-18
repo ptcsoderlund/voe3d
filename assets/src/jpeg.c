@@ -13,13 +13,20 @@
 // refine each other, so nothing can be reconstructed until the last of them
 // arrives and the whole scan loop in jpeg_scan.c is the wrong shape for it.
 // Decoding one with this code would produce a corrupt image, which is worse than
-// saying no — so SOF2 is VOE_BASE_ERROR_UNSUPPORTED and the file is untouched.
+// saying no — so SOF2, and every other frame but SOF0, is
+// VOE_BASE_ERROR_UNSUPPORTED, named for the artist, and the file is untouched.
+//
+// Each refusal is one line, said where it is met (jpeg_read.h says how).
 #include "jpeg_read.h"
 
 #include <assets/image.h>
 
 #include <base/assert.h>
+#include <base/report.h>
 
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 
 // Only the markers this decoder acts on. Everything else with a length is
@@ -37,8 +44,19 @@
 // holds, which is what bounds the loop that decodes them.
 #define MAX_SAMPLING 4
 
-bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code)
+// The line is composed here because report.h takes no va_list; report.h's cut
+// still holds.
+bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code,
+			  const char *words, ...)
 {
+	char line[512];
+	va_list arguments;
+
+	VOE_BASE_ASSERT(words != NULL, "a refusal says why");
+	va_start(arguments, words);
+	(void)vsnprintf(line, sizeof(line), words, arguments);
+	va_end(arguments);
+	VOE_BASE_ERROR("assets", "%s", line);
 	if (error != NULL)
 		*error = code;
 	return false;
@@ -47,7 +65,8 @@ bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code)
 // ---------------------------------------------------------------- the markers
 
 [[nodiscard]] static bool read_quant_tables(struct decoder *jpeg,
-					    const uint8_t *data, uint32_t length)
+					    const uint8_t *data, uint32_t length,
+					    voe_base_error *error)
 {
 	uint32_t offset = 0;
 
@@ -58,9 +77,16 @@ bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code)
 		uint32_t entries = precision ? 128 : 64;
 
 		if (id >= 4 || precision > 1)
-			return false;
+			return voe_assets_jpeg_fail(
+				error, VOE_BASE_ERROR_MALFORMED,
+				DAMAGED "(JPEG: DQT table %" PRIu32
+					" of precision %" PRIu32 ")",
+				id, precision);
 		if (entries > length - offset)
-			return false;
+			return voe_assets_jpeg_fail(
+				error, VOE_BASE_ERROR_MALFORMED,
+				DAMAGED "(JPEG: a DQT table runs past its "
+					"marker)");
 
 		for (uint32_t i = 0; i < 64; i++)
 			jpeg->quant[id][i] =
@@ -77,7 +103,8 @@ bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code)
 
 [[nodiscard]] static bool read_huffman_tables(struct decoder *jpeg,
 					      const uint8_t *data,
-					      uint32_t length)
+					      uint32_t length,
+					      voe_base_error *error)
 {
 	uint32_t offset = 0;
 
@@ -91,13 +118,20 @@ bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code)
 		int32_t k = 0;
 
 		if (length - offset < 17)
-			return false;
+			return voe_assets_jpeg_fail(
+				error, VOE_BASE_ERROR_MALFORMED,
+				DAMAGED "(JPEG: a DHT table runs past its "
+					"marker)");
 
 		header = data[offset++];
 		class = header >> 4;
 		id = header & 15;
 		if (class > 1 || id >= 4)
-			return false;
+			return voe_assets_jpeg_fail(
+				error, VOE_BASE_ERROR_MALFORMED,
+				DAMAGED "(JPEG: DHT class %" PRIu32
+					", table %" PRIu32 ")",
+				class, id);
 
 		table = class ? &jpeg->ac[id] : &jpeg->dc[id];
 
@@ -118,7 +152,11 @@ bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code)
 		offset += 16;
 
 		if (total > 256 || total > length - offset)
-			return false;
+			return voe_assets_jpeg_fail(
+				error, VOE_BASE_ERROR_MALFORMED,
+				DAMAGED "(JPEG: a DHT table of %" PRIu32
+					" codes runs past its marker)",
+				total);
 
 		memcpy(table->values, data + offset, total);
 		table->present = true;
@@ -134,28 +172,55 @@ bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code)
 	uint32_t count;
 
 	if (length < 6)
-		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(JPEG: SOF0 of %" PRIu32
+						    " bytes)",
+					    length);
 
 	// Eight bits a sample. Twelve is legal JPEG and a different set of
 	// tables, and nothing has asked for one.
 	if (data[0] != 8)
-		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_UNSUPPORTED);
+		return voe_assets_jpeg_fail(
+			error, VOE_BASE_ERROR_UNSUPPORTED,
+			"the picture is %u-bit, the engine reads 8-bit JPEGs; "
+			"save it as a baseline JPEG or as PNG (JPEG: sample "
+			"precision %u)",
+			(unsigned)data[0], (unsigned)data[0]);
 
 	jpeg->height = ((uint32_t)data[1] << 8) | data[2];
 	jpeg->width = ((uint32_t)data[3] << 8) | data[4];
 	count = data[5];
 
-	if (jpeg->width == 0 || jpeg->height == 0 ||
-	    jpeg->width > VOE_ASSETS_IMAGE_MAX_SIDE ||
+	if (jpeg->width == 0 || jpeg->height == 0)
+		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(JPEG: SOF0 gives a width "
+						    "or height of 0)");
+	// A limit the engine keeps (ADR-0443), so a choice and not damage.
+	if (jpeg->width > VOE_ASSETS_IMAGE_MAX_SIDE ||
 	    jpeg->height > VOE_ASSETS_IMAGE_MAX_SIDE)
-		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+		return voe_assets_jpeg_fail(
+			error, VOE_BASE_ERROR_UNSUPPORTED,
+			"the picture is %" PRIu32 " × %" PRIu32
+			" pixels, the most the engine takes is %d a side; "
+			"scale it down (JPEG: SOF0 width and height)",
+			jpeg->width, jpeg->height, VOE_ASSETS_IMAGE_MAX_SIDE);
 
 	// One is greyscale and three is colour. Four is CMYK, which is
 	// well-formed and needs a colour conversion this decoder does not have.
 	if (count != 1 && count != 3)
-		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_UNSUPPORTED);
+		return voe_assets_jpeg_fail(
+			error, VOE_BASE_ERROR_UNSUPPORTED,
+			"the picture has %" PRIu32 " colour channels%s, the "
+			"engine reads RGB and greyscale; save it again as an "
+			"RGB or greyscale JPEG, or as PNG (JPEG: %" PRIu32
+			" components in SOF0)",
+			count, count == 4 ? " (CMYK)" : "", count);
 	if (length - 6 < count * 3)
-		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(JPEG: SOF0 is shorter "
+						    "than its %" PRIu32
+						    " components)",
+					    count);
 
 	jpeg->component_count = count;
 	jpeg->hmax = 1;
@@ -173,7 +238,13 @@ bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code)
 		if (component->h < 1 || component->h > MAX_SAMPLING ||
 		    component->v < 1 || component->v > MAX_SAMPLING ||
 		    component->quant >= 4)
-			return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+			return voe_assets_jpeg_fail(
+				error, VOE_BASE_ERROR_MALFORMED,
+				DAMAGED "(JPEG: component %u sampled %u×%u "
+					"with quantisation table %u)",
+				(unsigned)component->id, (unsigned)component->h,
+				(unsigned)component->v,
+				(unsigned)component->quant);
 
 		if (component->h > jpeg->hmax)
 			jpeg->hmax = component->h;
@@ -184,6 +255,37 @@ bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code)
 	jpeg->mcus_x = (jpeg->width + jpeg->hmax * 8 - 1) / (jpeg->hmax * 8);
 	jpeg->mcus_y = (jpeg->height + jpeg->vmax * 8 - 1) / (jpeg->vmax * 8);
 	return true;
+}
+
+// Every frame marker but SOF0, named for the artist: well-formed, a different
+// decoder, so UNSUPPORTED. SOFn's low two bits say lossless (3) or progressive
+// (2), and n of 8 and up is arithmetic-coded; 1 is extended, 5 hierarchical.
+static bool refuse_frame(uint8_t marker, const uint8_t *data, uint32_t length,
+			 voe_base_error *error)
+{
+	unsigned n = (unsigned)marker - M_SOF0;
+	const char *kind = n == 1 ? "an extended" : "a hierarchical";
+
+	if ((n & 3) == 3)
+		kind = "a lossless";
+	else if ((n & 3) == 2)
+		kind = "a progressive";
+	else if (n >= 8)
+		kind = "an arithmetic-coded";
+
+	if ((n & 3) != 3 && length >= 1 && data[0] != 8)
+		return voe_assets_jpeg_fail(
+			error, VOE_BASE_ERROR_UNSUPPORTED,
+			"the picture is %u-bit, the engine reads 8-bit JPEGs; "
+			"save it as a baseline JPEG or as PNG (JPEG: SOF%u, "
+			"sample precision %u)",
+			(unsigned)data[0], n, (unsigned)data[0]);
+
+	return voe_assets_jpeg_fail(
+		error, VOE_BASE_ERROR_UNSUPPORTED,
+		"the picture is %s JPEG, which the engine does not read; save "
+		"it as a baseline JPEG%s or as PNG (JPEG: SOF%u)",
+		kind, (n & 3) == 2 ? " (untick Progressive)" : "", n);
 }
 
 // ------------------------------------------------------------ colour and out
@@ -273,7 +375,9 @@ bool voe_assets_jpeg_decode(const uint8_t *bytes, size_t size,
 	VOE_BASE_DEBUG_ASSERT(image != NULL, "decoding a JPEG into nothing");
 
 	if (size < 2 || bytes[0] != 0xff || bytes[1] != M_SOI)
-		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(JPEG: no SOI marker at "
+						    "the start)");
 
 	jpeg.next = 2;
 
@@ -288,7 +392,10 @@ bool voe_assets_jpeg_decode(const uint8_t *bytes, size_t size,
 		while (jpeg.next < size && bytes[jpeg.next] == 0xff)
 			jpeg.next++;
 		if (jpeg.next >= size)
-			return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+			return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+						    DAMAGED "(JPEG: the file ends "
+							    "before its EOI "
+							    "marker)");
 
 		marker = bytes[jpeg.next++];
 		if (marker == M_EOI)
@@ -298,11 +405,19 @@ bool voe_assets_jpeg_decode(const uint8_t *bytes, size_t size,
 			continue;
 
 		if (jpeg.next + 2 > size)
-			return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+			return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+						    DAMAGED "(JPEG: marker 0x%02x "
+							    "is cut off before "
+							    "its length)",
+						    (unsigned)marker);
 		length = ((uint32_t)bytes[jpeg.next] << 8) |
 			 bytes[jpeg.next + 1];
 		if (length < 2 || length - 2 > size - jpeg.next - 2)
-			return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+			return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+						    DAMAGED "(JPEG: marker 0x%02x "
+							    "runs past the end "
+							    "of the file)",
+						    (unsigned)marker);
 
 		data = bytes + jpeg.next + 2;
 		length -= 2;
@@ -310,40 +425,60 @@ bool voe_assets_jpeg_decode(const uint8_t *bytes, size_t size,
 		switch (marker) {
 		case M_SOF0:
 			if (seen_frame)
-				return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+				return voe_assets_jpeg_fail(
+					error, VOE_BASE_ERROR_MALFORMED,
+					DAMAGED "(JPEG: a second SOF0)");
 			if (!read_frame(&jpeg, data, length, error))
 				return false;
 			seen_frame = true;
 			break;
 
-		// PROGRESSIVE, AND THE ONE REFUSAL THE CARD NAMED. Well-formed,
-		// widely produced, and a different decoder — see the top of
-		// this file.
+		// PROGRESSIVE, AND EVERY OTHER FRAME BUT BASELINE. Well-formed,
+		// and a different decoder — see the top of this file. 0xC4,
+		// 0xC8 and 0xCC are not frames.
+		case 0xc1:
 		case M_SOF2:
-			return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_UNSUPPORTED);
+		case 0xc3:
+		case 0xc5:
+		case 0xc6:
+		case 0xc7:
+		case 0xc9:
+		case 0xca:
+		case 0xcb:
+		case 0xcd:
+		case 0xce:
+		case 0xcf:
+			return refuse_frame(marker, data, length, error);
 
 		case M_DQT:
-			if (!read_quant_tables(&jpeg, data, length))
-				return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+			if (!read_quant_tables(&jpeg, data, length, error))
+				return false;
 			break;
 
 		case M_DHT:
-			if (!read_huffman_tables(&jpeg, data, length))
-				return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+			if (!read_huffman_tables(&jpeg, data, length, error))
+				return false;
 			break;
 
 		case M_DRI:
 			if (length < 2)
-				return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+				return voe_assets_jpeg_fail(
+					error, VOE_BASE_ERROR_MALFORMED,
+					DAMAGED "(JPEG: DRI of %" PRIu32
+						" bytes)",
+					length);
 			jpeg.restart_interval =
 				((uint32_t)data[0] << 8) | data[1];
 			break;
 
 		case M_SOS: {
 			if (!seen_frame)
-				return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
-			if (!voe_assets_jpeg_read_scan(&jpeg, data, length))
-				return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+				return voe_assets_jpeg_fail(
+					error, VOE_BASE_ERROR_MALFORMED,
+					DAMAGED "(JPEG: SOS before any SOF0)");
+			if (!voe_assets_jpeg_read_scan(&jpeg, data, length,
+						       error))
+				return false;
 
 			for (uint32_t c = 0; c < jpeg.component_count; c++) {
 				struct component *component =
@@ -351,7 +486,13 @@ bool voe_assets_jpeg_decode(const uint8_t *bytes, size_t size,
 
 				if (!jpeg.quant_present[component->quant])
 					return voe_assets_jpeg_fail(
-						error, VOE_BASE_ERROR_MALFORMED);
+						error, VOE_BASE_ERROR_MALFORMED,
+						DAMAGED "(JPEG: component %u "
+							"uses quantisation "
+							"table %u, which no "
+							"DQT defines)",
+						(unsigned)component->id,
+						(unsigned)component->quant);
 
 				component->plane_width =
 					jpeg.mcus_x * component->h * 8;
@@ -368,13 +509,16 @@ bool voe_assets_jpeg_decode(const uint8_t *bytes, size_t size,
 			jpeg.next = (size_t)(data - bytes) + length;
 			jpeg.count = 0;
 
-			if (!voe_assets_jpeg_decode_scan(&jpeg))
-				return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+			if (!voe_assets_jpeg_decode_scan(&jpeg, error))
+				return false;
 
 			// The coded data ran out rather than ending at a
 			// marker.
 			if (jpeg.truncated)
-				return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+				return voe_assets_jpeg_fail(
+					error, VOE_BASE_ERROR_MALFORMED,
+					DAMAGED "(JPEG: the scan data is cut "
+						"short)");
 
 			// AND THE FILE MUST SAY IT ENDED, WHICH IS THE OTHER
 			// HALF OF THE SAME CHECK. Cutting the last bytes off a
@@ -402,7 +546,10 @@ bool voe_assets_jpeg_decode(const uint8_t *bytes, size_t size,
 
 				if (!seen_end)
 					return voe_assets_jpeg_fail(
-						error, VOE_BASE_ERROR_MALFORMED);
+						error, VOE_BASE_ERROR_MALFORMED,
+						DAMAGED "(JPEG: no EOI after "
+							"the scan, the file "
+							"is cut short)");
 			}
 
 			pixels = voe_base_arena_push(
@@ -422,6 +569,7 @@ bool voe_assets_jpeg_decode(const uint8_t *bytes, size_t size,
 		jpeg.next = (size_t)(data - bytes) + length;
 	}
 
-	// Ran out of file without ever reaching a scan.
-	return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED);
+	// Reached the end without ever reaching a scan.
+	return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+				    DAMAGED "(JPEG: EOI before any SOS)");
 }

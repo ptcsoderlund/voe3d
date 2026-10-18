@@ -40,9 +40,10 @@ belongs to.
   from occlusion alone, and from neither.
 - `model_data.inc` — those files, as bytes.
 - `jpeg.c` — greyscale, 4:4:4 and 4:2:0 round-tripped against the pixels
-  that went in, plus the same three failures and the progressive refusal. Its
-  header says where the files came from and why a quantiser of one is what keeps
-  a decoder tested against its own encoder honest.
+  that went in, plus the same three failures and the progressive refusal, every
+  refusal's kept line read for `(JPEG: `, and the words for progressive's
+  "baseline", the huge size's 16384 and a scan cut short's "save it again". Its
+  header says where the files came from and why a quantiser of one keeps it honest.
 - `jpeg_data.inc` — those files, as bytes.
 - `wav.c` — WAV files built byte by byte: mono 16-bit, stereo float, an
   extensible header and a skipped `LIST` decoded, each refusal with its

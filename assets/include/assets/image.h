@@ -130,11 +130,17 @@ typedef struct {
 // Decode a baseline JPEG. False on failure, and `image` is untouched when it
 // fails.
 //
-// WHAT IS REFUSED: progressive JPEG (VOE_BASE_ERROR_UNSUPPORTED — it is a
-// different decoder, not a broken file, and producing a corrupt picture from one
-// would be worse than saying no), arithmetic coding, twelve-bit samples, and
-// anything that is not one or three components — which means CMYK. Everything
-// else that goes wrong is VOE_BASE_ERROR_MALFORMED.
+// WHAT IS REFUSED, EACH IN ONE LINE TO THE ARTIST AND THEN `(JPEG: …)`
+// (ADR-0445); the picture is the report's subject, pushed by whoever has it:
+// - progressive, arithmetic-coded, lossless or 12-bit: UNSUPPORTED, a
+//   different decoder rather than a broken file; save it as a baseline JPEG
+//   (untick Progressive) or as PNG.
+// - a side past VOE_ASSETS_IMAGE_MAX_SIDE: UNSUPPORTED, a limit the engine
+//   keeps; scale it down.
+// - CMYK, or colours in separate scans: UNSUPPORTED; save it again as an RGB
+//   or greyscale JPEG, or as PNG.
+// - anything else is VOE_BASE_ERROR_MALFORMED: the picture is damaged, save
+//   it again.
 //
 // Greyscale and YCbCr are both read, at any chroma subsampling the format
 // allows, and both come out as RGBA8 with an opaque alpha. JPEG has no

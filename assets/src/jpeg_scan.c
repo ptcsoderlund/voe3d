@@ -17,6 +17,8 @@
 // it was considered.
 #include "jpeg_read.h"
 
+#include <inttypes.h>
+
 // Zigzag order to the natural position in an 8x8 block. Both the coefficients
 // and the quantisation table arrive in this order; the table below is what puts
 // them back.
@@ -142,6 +144,17 @@ static int32_t huffman_decode(struct decoder *jpeg, const struct huffman *table)
 	return table->values[index];
 }
 
+// A block that would not decode, said as damage. A stream that ran out of file
+// is said as that, whatever code it happened to make, since it is the cause.
+static bool damaged_block(const struct decoder *jpeg, voe_base_error *error,
+			  const char *what)
+{
+	return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+				    DAMAGED "(JPEG: %s)",
+				    jpeg->truncated ? "the scan data is cut short"
+						    : what);
+}
+
 // ----------------------------------------------------------- the 8x8 machinery
 
 // Coefficients to samples, rows then columns, and the level shift at the end.
@@ -197,7 +210,8 @@ static void inverse_dct(const int32_t *coefficients, uint8_t *out,
 // dequantised on the way in and written into the component's plane.
 [[nodiscard]] static bool decode_block(struct decoder *jpeg,
 				       struct component *component,
-				       uint32_t block_x, uint32_t block_y)
+				       uint32_t block_x, uint32_t block_y,
+				       voe_base_error *error)
 {
 	int32_t coefficients[64] = { 0 };
 	const uint16_t *quant = jpeg->quant[component->quant];
@@ -208,7 +222,8 @@ static void inverse_dct(const int32_t *coefficients, uint8_t *out,
 
 	length = huffman_decode(jpeg, dc);
 	if (length < 0 || length > 16)
-		return false;
+		return damaged_block(jpeg, error,
+				     "a DC code its Huffman table does not hold");
 
 	component->predictor += extend(take_bits(jpeg, (int)length),
 				       (int)length);
@@ -220,7 +235,9 @@ static void inverse_dct(const int32_t *coefficients, uint8_t *out,
 		int32_t size;
 
 		if (rs < 0)
-			return false;
+			return damaged_block(jpeg, error,
+					     "an AC code its Huffman table does "
+					     "not hold");
 
 		run = rs >> 4;
 		size = rs & 15;
@@ -238,7 +255,9 @@ static void inverse_dct(const int32_t *coefficients, uint8_t *out,
 		// corrupt file's easiest attack on this decoder is a run that
 		// takes k past 63, and this is where that stops.
 		if (k > 63)
-			return false;
+			return damaged_block(jpeg, error,
+					     "a run of zeroes past the end of a "
+					     "block");
 
 		coefficients[ZIGZAG[k]] =
 			extend(take_bits(jpeg, (int)size), (int)size) *
@@ -258,17 +277,38 @@ static void inverse_dct(const int32_t *coefficients, uint8_t *out,
 
 // The scan header: which components are in it, and with which tables. Baseline
 // has exactly one scan and it carries every component.
+//
+// A SCAN OF FEWER THAN ALL THE COMPONENTS IS LEGAL AND NOT READ: a baseline file
+// may store each colour in a scan of its own, and saving it again joins them.
 bool voe_assets_jpeg_read_scan(struct decoder *jpeg, const uint8_t *data,
-			       uint32_t length)
+			       uint32_t length, voe_base_error *error)
 {
 	uint32_t count;
 
 	if (length < 1)
-		return false;
+		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(JPEG: an empty SOS)");
 
 	count = data[0];
-	if (count != jpeg->component_count || length < 1 + count * 2 + 3)
-		return false;
+	if (count >= 1 && count < jpeg->component_count)
+		return voe_assets_jpeg_fail(
+			error, VOE_BASE_ERROR_UNSUPPORTED,
+			"the picture keeps its colours in separate scans, which "
+			"the engine does not read; save it again as an RGB or "
+			"greyscale JPEG, or as PNG (JPEG: a scan of %" PRIu32
+			" of SOF0's %" PRIu32 " components)",
+			count, jpeg->component_count);
+	if (count != jpeg->component_count)
+		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(JPEG: a scan of %" PRIu32
+						    " components)",
+					    count);
+	if (length < 1 + count * 2 + 3)
+		return voe_assets_jpeg_fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(JPEG: SOS is shorter "
+						    "than its %" PRIu32
+						    " components)",
+					    count);
 
 	for (uint32_t i = 0; i < count; i++) {
 		uint8_t id = data[1 + i * 2];
@@ -284,22 +324,35 @@ bool voe_assets_jpeg_read_scan(struct decoder *jpeg, const uint8_t *data,
 
 		// A scan naming a component the frame never declared.
 		if (found == NULL)
-			return false;
+			return voe_assets_jpeg_fail(
+				error, VOE_BASE_ERROR_MALFORMED,
+				DAMAGED "(JPEG: the scan names component %u, "
+					"which SOF0 does not)",
+				(unsigned)id);
 
 		found->dc_table = tables >> 4;
 		found->ac_table = tables & 15;
 		if (found->dc_table >= 4 || found->ac_table >= 4)
-			return false;
+			return voe_assets_jpeg_fail(
+				error, VOE_BASE_ERROR_MALFORMED,
+				DAMAGED "(JPEG: Huffman tables %u and %u, of "
+					"the four there are)",
+				(unsigned)found->dc_table,
+				(unsigned)found->ac_table);
 		if (!jpeg->dc[found->dc_table].present ||
 		    !jpeg->ac[found->ac_table].present)
-			return false;
+			return voe_assets_jpeg_fail(
+				error, VOE_BASE_ERROR_MALFORMED,
+				DAMAGED "(JPEG: component %u uses a Huffman "
+					"table no DHT defines)",
+				(unsigned)id);
 	}
 
 	return true;
 }
 
 // Every MCU, in order, each holding h*v blocks of each component.
-bool voe_assets_jpeg_decode_scan(struct decoder *jpeg)
+bool voe_assets_jpeg_decode_scan(struct decoder *jpeg, voe_base_error *error)
 {
 	uint32_t since_restart = 0;
 
@@ -315,7 +368,8 @@ bool voe_assets_jpeg_decode_scan(struct decoder *jpeg)
 						if (!decode_block(
 							    jpeg, component,
 							    mx * component->h + bx,
-							    my * component->v + by))
+							    my * component->v + by,
+							    error))
 							return false;
 					}
 				}

@@ -10,6 +10,12 @@
 // than failing. The tables and the colours are read from the markers and are
 // jpeg.c's; everything between the scan header and the next marker is
 // jpeg_scan.c's, so a change to how a block decodes reads one file.
+//
+// EVERY REFUSAL PRINTS ONE LINE THROUGH voe_assets_jpeg_fail, AND ONLY THAT ONE
+// (ADR-0445 point 2): the cause in the artist's words with the numbers, what to
+// do, then the format's own words as `(JPEG: …)`. The step that meets the cause
+// says it and its callers only return false. The picture is never named here;
+// whoever opened it pushed it as the report's subject.
 #pragma once
 
 #include <base/error.h>
@@ -84,14 +90,22 @@ struct decoder {
 	uint32_t restart_interval;
 };
 
-// `code` into `error` when there is one; always false. In jpeg.c.
-bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code);
+// The artist's half of every refusal that is damage rather than a choice.
+#define DAMAGED "the picture is damaged; save it again "
+
+// The one exit of every refusal: `words` printed as its line, then `code` into
+// `error` when there is one; always false. In jpeg.c.
+[[gnu::format(printf, 3, 4)]]
+bool voe_assets_jpeg_fail(voe_base_error *error, voe_base_error code,
+			  const char *words, ...);
 
 // The scan header: which components are in it, and with which tables. In
 // jpeg_scan.c.
 [[nodiscard]] bool voe_assets_jpeg_read_scan(struct decoder *jpeg,
 					     const uint8_t *data,
-					     uint32_t length);
+					     uint32_t length,
+					     voe_base_error *error);
 
 // Every MCU, in order, into the component planes. In jpeg_scan.c.
-[[nodiscard]] bool voe_assets_jpeg_decode_scan(struct decoder *jpeg);
+[[nodiscard]] bool voe_assets_jpeg_decode_scan(struct decoder *jpeg,
+					       voe_base_error *error);
