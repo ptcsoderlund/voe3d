@@ -349,6 +349,14 @@ void voe_render_buffer_teardown(voe_render_device *device,
 					    VkDeviceSize offset,
 					    const void *data, VkDeviceSize size);
 
+// buffer.c. The first `size` bytes of `source` into the start of `destination`,
+// in the upload's own one-time submission, waited on; false with a message. The
+// source needs TRANSFER_SRC usage and the destination TRANSFER_DST.
+[[nodiscard]] bool voe_render_buffer_copy(voe_render_device *device,
+					  const struct voe_render_buffer *destination,
+					  const struct voe_render_buffer *source,
+					  VkDeviceSize size);
+
 // descriptors.c. Everything the shader reads that a resize does not touch: the
 // descriptor set layout, the pool, and one set, one mapped uniform buffer and
 // one mapped object buffer per frame slot. Startup's, and the counterpart tears
@@ -391,6 +399,16 @@ void voe_render_geometry_frame_reset(voe_render_device *device,
 const struct voe_render_geometry_slot *
 voe_render_geometry_at(const voe_render_device *device,
 		       voe_render_geometry geometry);
+
+// geometry_grow.c (0444). Grows a static pool to hold `needed` elements of
+// `element` bytes: a new device-local buffer of `usage` named `name`, `[0, used)`
+// copied across, the old one destroyed. VOE_BASE_OK grown; UNSUPPORTED past
+// UINT32_MAX elements, with a message; REFUSED when the card will not hold it,
+// with the driver's line only, the pool left as it was. Under the guard.
+[[nodiscard]] voe_base_error
+voe_render_geometry_grow(voe_render_device *device, struct voe_render_pool *pool,
+			 uint64_t needed, size_t element,
+			 VkBufferUsageFlags usage, const char *name);
 
 // shading.c. The record buffer and the slots that name its rows. Startup's.
 [[nodiscard]] bool voe_render_shading_startup(voe_render_device *device);

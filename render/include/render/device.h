@@ -70,9 +70,10 @@
 
 typedef struct voe_render_device voe_render_device;
 
-// How much room the device makes for everything it holds. All of it is fixed at
-// creation: nothing here grows, and asking for one more than was asked for is a
-// returned failure at the call that asked.
+// How much room the device makes for everything it holds. vertices and indices
+// are where the two static geometry pools start, and they grow from there as
+// creates need them (0444). Everything else is fixed at creation, and asking for
+// one more than was asked for is a returned failure at the call that asked.
 //
 // vertices and indices are counts, not bytes. objects is per frame slot and
 // bounds how many draws one frame may contain.
@@ -1112,11 +1113,14 @@ const void *voe_render_device_cache_bytes(voe_render_device *device,
 // pool is added by the draw, so a mesh's indices never have to be rewritten
 // because something was uploaded before it.
 //
-// FAILS WHEN EITHER POOL HAS NO ROOM LEFT, WHEN THERE IS NO SLOT LEFT TO NAME
-// THE RANGE, OR WHEN THE CARD REFUSES THE UPLOAD. All three are returned rather
-// than fatal: two of them are the caller asking for more than it said it would
-// need, which is a thing a loader can report and stop. A count of zero is the
-// caller's bug and asserts.
+// A FULL POOL GROWS (0444): a larger one is made, what the old one held copied
+// across, and every id already handed out names what it named.
+//
+// FAILS WHEN THE CARD WILL NOT HOLD THE LARGER POOL, WHEN THERE IS NO SLOT LEFT
+// TO NAME THE RANGE, OR WHEN THE CARD REFUSES THE UPLOAD. All three are returned
+// rather than fatal, each with its message, and a loader can report them and
+// stop; a pool past 2^32 − 1 elements is refused as the engine's limit. A count
+// of zero is the caller's bug and asserts.
 //
 // IT WAITS FOR THE GPU TO GO IDLE, SO IT IS A STARTUP OPERATION. The upload is
 // staged through a buffer that has to be destroyed once the copy is done.
@@ -1125,8 +1129,9 @@ const void *voe_render_device_cache_bytes(voe_render_device *device,
 // frame.
 //
 // GEOMETRY LIVES IN TWO SHARED POOLS AND A MESH IS A RANGE IN THEM. One vertex
-// pool and one index pool, created with the device; voe_render_geometry_create
-// takes the first range given back that fits, else appends, and
+// pool and one index pool, created with the device at the capacities' size;
+// voe_render_geometry_create takes the first range given back that fits, else
+// appends, growing the pool when there is no room at its end, and
 // voe_render_geometry_destroy below gives both ranges back. That layout is also
 // what lets many objects be drawn from one buffer later, with one indirect call
 // instead of one call each.

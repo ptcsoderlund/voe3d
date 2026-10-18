@@ -151,8 +151,9 @@ struct voe_render_free_range {
 // sorted by offset, no two entries touch, and none touches `used` — a range
 // given back there lowers `used` instead. So there are never more holes than
 // live ranges, and `hole_room` is the static band's slot count. There is no
-// compaction: a pool whose holes are too small is a returned failure. A
-// transient pool has no list; it is emptied whole every frame.
+// compaction: a static pool whose holes are too small grows instead (0444,
+// geometry_grow.c), its buffer and `capacity` replaced. A transient pool's
+// capacity never changes, and it has no list; it is emptied whole every frame.
 struct voe_render_pool {
 	struct voe_render_buffer buffer;
 	// Elements, not bytes: vertices in one pool and indices in the other.

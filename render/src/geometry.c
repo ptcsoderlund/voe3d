@@ -1,5 +1,6 @@
 // The geometry pools and the ranges into them. Two static pools — one vertex,
-// one index, both device-local, ranges taken and given back — plus a
+// one index, both device-local, ranges taken and given back, each grown when a
+// create finds it full (0444, geometry_grow.c) — plus a
 // transient pair in every frame slot, host-visible and emptied every frame; and
 // one slot per range so that a voe_render_geometry id can be refused when it
 // names nothing.
@@ -42,10 +43,11 @@
 // model does not fill the pools. Each static pool keeps a sorted list of the
 // ranges given back; a create takes the first that fits, splitting it, before
 // appending at `used`, and a range given back merges with a neighbour it
-// touches or lowers `used`. First fit and no compaction: fragmentation that
-// leaves no hole big enough is a returned failure, lifted only by a compacting
-// pass that rewrites every slot. The transient path frees nothing because it
-// empties everything.
+// touches or lowers `used`. First fit and no compaction: a mesh that no hole
+// holds and that does not fit past `used` grows the pool (0444) and appends, so
+// fragmentation costs room and never a create; only a compacting pass that
+// rewrites every slot would win that room back. The transient path frees
+// nothing because it empties everything.
 //
 // BOTH CREATES KEEP THE RANGE'S BOUNDING SPHERE, from point_shadow_faces.h, for
 // the point-shadow draw's face culling (ADR-0325 point 2), and its vertex box,
@@ -58,6 +60,15 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+// What each static pool's buffer is made with, at startup and at every grow: a
+// copy target for the uploads and a copy source for the next grow.
+static const VkBufferUsageFlags VERTEX_POOL_USAGE =
+	VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+	VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+static const VkBufferUsageFlags INDEX_POOL_USAGE =
+	VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+	VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 // A static pool, with room for as many holes as the static band has slots —
 // the bound device_parts.h gives for voe_render_pool.
@@ -74,8 +85,7 @@ static bool build_pool(voe_render_device *device, struct voe_render_pool *pool,
 			"out of memory making room for a pool's free ranges");
 
 	return voe_render_buffer_build(device, &pool->buffer,
-				       (VkDeviceSize)capacity * element,
-				       usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				       (VkDeviceSize)capacity * element, usage,
 				       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, name);
 }
 
@@ -171,11 +181,10 @@ bool voe_render_geometry_startup(voe_render_device *device)
 	}
 
 	if (!build_pool(device, &device->vertices, device->capacities.vertices,
-			sizeof(voe_render_vertex),
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, "vertex pool") ||
+			sizeof(voe_render_vertex), VERTEX_POOL_USAGE,
+			"vertex pool") ||
 	    !build_pool(device, &device->indices, device->capacities.indices,
-			sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-			"index pool"))
+			sizeof(uint32_t), INDEX_POOL_USAGE, "index pool"))
 		return false;
 
 	if (device->capacities.transient_geometries == 0)
@@ -416,6 +425,28 @@ static void pool_give(struct voe_render_pool *pool, uint32_t offset,
 	}
 }
 
+// Grows a pool with no room for `count` more past `used`, so the create can
+// append; `what` names its elements. The card refusing is this one line in
+// 0445 point 5's terms; the 32-bit limit is the grow's own line. False with
+// *error set.
+static bool grow_pool(voe_render_device *device, struct voe_render_pool *pool,
+		      uint32_t count, size_t element, VkBufferUsageFlags usage,
+		      const char *name, const char *what, voe_base_error *error)
+{
+	uint64_t needed = (uint64_t)pool->used + count;
+	voe_base_error grown = voe_render_geometry_grow(device, pool, needed,
+							element, usage, name);
+
+	if (grown == VOE_BASE_ERROR_REFUSED)
+		VOE_BASE_ERROR("render",
+			       "the graphics card has run out of memory: %u more %s were asked for, the %s holds %u, and the card would not hold one of %llu bytes",
+			       count, what, name, pool->capacity,
+			       (unsigned long long)(needed * element));
+	if (grown != VOE_BASE_OK && error != NULL)
+		*error = grown;
+	return grown == VOE_BASE_OK;
+}
+
 static bool create_geometry(voe_render_device *device,
 			    const voe_render_vertex *vertices,
 			    uint32_t vertex_count, const uint32_t *indices,
@@ -453,20 +484,27 @@ static bool create_geometry(voe_render_device *device,
 		return false;
 	}
 
-	// Both pools are checked before either is written, so a mesh that does
-	// not fit leaves neither pool half filled with it.
+	// Both pools are found room in before either is written, so a mesh the
+	// card cannot hold leaves neither pool half filled with it; a pool that
+	// grew for it keeps its larger buffer and everything it held.
 	vertex_at = pool_find(&device->vertices, vertex_count);
 	index_at = pool_find(&device->indices, index_count);
-	if (vertex_at == UINT32_MAX || index_at == UINT32_MAX) {
-		VOE_BASE_ERROR("render",
-			       "no room for a mesh of %u vertices and %u indices — no free range fits and the pools are spent to %u of %u vertices and %u of %u indices",
-			       vertex_count, index_count, device->vertices.used,
-			       device->vertices.capacity, device->indices.used,
-			       device->indices.capacity);
-		if (error != NULL)
-			*error = VOE_BASE_ERROR_REFUSED;
-		return false;
+	if (vertex_at == UINT32_MAX) {
+		if (!grow_pool(device, &device->vertices, vertex_count,
+			       sizeof(*vertices), VERTEX_POOL_USAGE,
+			       "vertex pool", "vertices", error))
+			return false;
+		vertex_at = pool_find(&device->vertices, vertex_count);
 	}
+	if (index_at == UINT32_MAX) {
+		if (!grow_pool(device, &device->indices, index_count,
+			       sizeof(*indices), INDEX_POOL_USAGE, "index pool",
+			       "indices", error))
+			return false;
+		index_at = pool_find(&device->indices, index_count);
+	}
+	VOE_BASE_DEBUG_ASSERT(vertex_at != UINT32_MAX && index_at != UINT32_MAX,
+			      "a grown pool with no room for what it grew for");
 	first_vertex = pool_offset(&device->vertices, vertex_at);
 	first_index = pool_offset(&device->indices, index_at);
 

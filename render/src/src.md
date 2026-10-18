@@ -47,12 +47,14 @@ which file to open — what each one owns, and where the seams between them run.
 - `descriptors.c` — everything the shader reads and the one layout that describes it.
 - `records_layout.c` — the build-time proof that the C and Slang layouts of every record a shader
   reads agree, by size and member offset; no code.
-- `buffer.c` — a named buffer with the memory under it, and the staging upload
-  that fills a device-local one at an offset. Its header says why every later
-  upload is this.
-- `geometry.c` — the two static pools, whose ranges are freed and reused first fit, the transient
-  pair in every frame slot, and the ranges into all of them, each with its bounding sphere and its
-  vertex box, which `voe_render_geometry_box` hands back.
+- `buffer.c` — a named buffer with the memory under it, the staging upload
+  that fills a device-local one at an offset, and a waited-on copy of one buffer
+  into another. Its header says why every later upload is this.
+- `geometry.c` — the two static pools, whose ranges are freed and reused first fit and which grow
+  when full, the transient pair in every frame slot, and the ranges into all of them, each with its
+  bounding sphere and its vertex box, which `voe_render_geometry_box` hands back.
+- `geometry_grow.c` — one static pool grown: a buffer of twice the room or what is needed, the old
+  contents copied across in one waited-on submission, the old buffer given back.
 - `element.c` — the element path on the C side: the third pipeline, the submit that writes one
   record, the instanced draw over a range of them, and the two matrices that say what element space
   is.

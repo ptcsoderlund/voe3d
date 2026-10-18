@@ -2,13 +2,14 @@
 // shared pools, textures into the descriptor array, shading records into their
 // buffer. What is checked is the bookkeeping — that two meshes get two ranges
 // that do not overlap, that an id names what it named and nothing else, and that
-// running out of room is a returned failure and not a surprise.
+// running out of slots is a returned failure and not a surprise.
 //
-// A FULL POOL IS THE CASE WORTH HAVING A TEST FOR. Every capacity here is a
-// number the caller chose when it opened the device, so asking for one more than
-// that is an ordinary thing for a loader to do — a model bigger than the program
-// expected — and it has to come back as a false with a message rather than as a
-// truncated mesh or a slot handed out twice.
+// A FULL POOL GROWS, AND THAT IS THE CASE WORTH HAVING A TEST FOR. The vertex and
+// index capacities are only where the pools start (0444): a model bigger than the
+// program expected is an ordinary thing for a loader to meet, and it has to fit,
+// with every mesh already in the pool still where its slot says and still drawn
+// — not truncated, not refused while the card has room. A full slot table is
+// still a returned failure.
 //
 // THE STALE ID IS THE OTHER ONE. Slots are reused, so an id kept across a
 // destroy names a live slot holding something else; the generation half is what
@@ -126,42 +127,6 @@ static void two_meshes_get_two_ranges(voe_render_device *device)
 		       NULL);
 }
 
-// A pool that has run out of bytes, as opposed to a table that has run out of
-// slots. Checked on a device of its own, because the check above spent the slots
-// and this one needs to spend the vertices.
-static void a_full_pool_says_so(voe_base_arena *arena)
-{
-	voe_platform_size size = { SIDE, SIDE };
-	voe_render_capacities room = CAPACITIES;
-	voe_render_device *device;
-	voe_render_geometry geometry = { 0 };
-	voe_base_error error = VOE_BASE_OK;
-
-	// Room for two meshes' worth of slots but only one triangle's worth of
-	// vertices, so the second mesh runs out of pool rather than out of
-	// slots.
-	room.vertices = 3;
-	room.indices = 3;
-
-	device = voe_render_device_new_headless(arena, size, room, &error);
-	if (device == NULL)
-		return;
-
-	VOE_TEST_CHECK(voe_render_geometry_create(device, TRIANGLE, 3,
-						  TRIANGLE_INDICES, 3,
-						  &geometry, &error));
-	VOE_TEST_CHECK(!voe_render_geometry_create(device, TRIANGLE, 3,
-						   TRIANGLE_INDICES, 3,
-						   &geometry, &error));
-	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_REFUSED);
-
-	// The mesh that did fit is still there and still names its range: a
-	// refused upload leaves the pool as it was.
-	VOE_TEST_CHECK(voe_render_geometry_at(device, geometry) != NULL);
-
-	voe_render_device_destroy(device);
-}
-
 // A frame with one pass and a draw of each id, returning whether each was
 // accepted. Nothing is read back: what is checked is which ids the draw takes.
 static void draw_each(voe_render_device *device,
@@ -183,6 +148,72 @@ static void draw_each(voe_render_device *device,
 			(voe_render_object){ .colour = { 1, 1, 1, 1 } });
 	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
+}
+
+// A pool that has run out of room, as opposed to a table that has run out of
+// slots. Checked on a device of its own, because the check above spent the slots
+// and this one needs to spend the vertices: room for one triangle, and a second
+// and a third grow both pools, once to six and once past nine.
+static void a_full_pool_grows(voe_base_arena *arena)
+{
+	voe_platform_size size = { SIDE, SIDE };
+	voe_render_capacities room = CAPACITIES;
+	voe_render_device *device;
+	voe_render_geometry ids[3] = { 0 };
+	voe_render_geometry fourth = { 0 };
+	bool drawn[3] = { false, false, false };
+	voe_math_float3 min = { 9.0f, 9.0f, 9.0f };
+	voe_math_float3 max = { 9.0f, 9.0f, 9.0f };
+	voe_base_error error = VOE_BASE_OK;
+
+	room.vertices = 3;
+	room.indices = 3;
+	room.geometries = 3;
+	room.objects = 3;
+	device = voe_render_device_new_headless(arena, size, room, &error);
+	if (device == NULL)
+		return;
+
+	for (uint32_t i = 0; i < 3; i++)
+		VOE_TEST_CHECK(voe_render_geometry_create(device, TRIANGLE, 3,
+							  TRIANGLE_INDICES, 3,
+							  &ids[i], &error));
+
+	// Each range begins where the one before it ended, in both pools: the
+	// growth moved no range and left no gap.
+	for (uint32_t i = 0; i < 3; i++) {
+		const struct voe_render_geometry_slot *slot =
+			voe_render_geometry_at(device, ids[i]);
+
+		VOE_TEST_CHECK(slot != NULL);
+		if (slot == NULL)
+			continue;
+		VOE_TEST_CHECK_INT(slot->first_vertex, 3 * i);
+		VOE_TEST_CHECK_INT(slot->first_index, 3 * i);
+		VOE_TEST_CHECK_INT(slot->index_count, 3);
+	}
+	VOE_TEST_CHECK(device->vertices.capacity >= 9);
+	VOE_TEST_CHECK(device->indices.capacity >= 9);
+	VOE_TEST_CHECK_INT(device->vertices.used, 9);
+	VOE_TEST_CHECK_INT(device->indices.used, 9);
+
+	// The first mesh, uploaded into the starting pool, kept its box.
+	VOE_TEST_CHECK(voe_render_geometry_box(device, ids[0], &min, &max));
+	VOE_TEST_CHECK(min.x == 0.0f && min.y == 0.0f && min.z == 0.0f);
+	VOE_TEST_CHECK(max.x == 1.0f && max.y == 1.0f && max.z == 0.0f);
+
+	draw_each(device, ids, drawn, 3);
+	VOE_TEST_CHECK(drawn[0]);
+	VOE_TEST_CHECK(drawn[1]);
+	VOE_TEST_CHECK(drawn[2]);
+
+	// The slot table does not grow: a fourth mesh is refused.
+	VOE_TEST_CHECK(!voe_render_geometry_create(device, TRIANGLE, 3,
+						   TRIANGLE_INDICES, 3, &fourth,
+						   &error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_REFUSED);
+
+	voe_render_device_destroy(device);
 }
 
 // Room for exactly two meshes: a third fits only in the range the first gave
@@ -423,7 +454,7 @@ int main(void)
 
 	voe_render_device_destroy(device);
 
-	a_full_pool_says_so(arena);
+	a_full_pool_grows(arena);
 	a_freed_range_is_reused(arena);
 	neighbouring_ranges_merge(arena);
 	a_mesh_hands_back_its_box(arena);
