@@ -31,10 +31,12 @@
 // floats, absent, and signed bytes refused); material and image names, sides,
 // unlit, emission strength and the colour texture's repeat, each read or
 // defaulted; a 100-byte name cut at a whole character; Blender's texCoord −1
-// read as no texture; and node names.
+// read as no texture; node names; and a refusal's kept line, beginning with
+// the material it is about and carrying the format's words after its own.
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
+#include <base/report.h>
 
 #include <testing/test.h>
 
@@ -460,6 +462,59 @@ static void a_texcoord_of_minus_one_is_no_texture(voe_base_arena *arena)
 	VOE_TEST_CHECK_FLOAT(needles->roughness, 0.75f, 0.0f);
 }
 
+// A file refused with a kept line that begins with `subject` and contains each
+// of `words` and `also`.
+static void refused_saying(const char *what, const uint8_t *bytes, size_t size,
+			   const char *subject, const char *words,
+			   const char *also)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	voe_assets_model model;
+	const char *kept;
+
+	voe_base_report_error_clear();
+	VOE_TEST_CHECK(!voe_assets_model_read_glb(bytes, size, arena, &model,
+						  NULL));
+	kept = voe_base_report_error_first();
+	if (kept == NULL || strncmp(kept, subject, strlen(subject)) != 0 ||
+	    strstr(kept, words) == NULL || strstr(kept, also) == NULL) {
+		fprintf(stderr, "      %s said: %s\n", what,
+			kept == NULL ? "nothing" : kept);
+		VOE_TEST_CHECK(false);
+	}
+	voe_base_arena_destroy(arena);
+}
+
+// Draco named with the format's words after it; a material `leaf` on a second
+// UV map and one naming a texture past the textures, each under its material.
+static void a_refusal_names_what_it_is_about(voe_base_arena *arena)
+{
+	static uint8_t pixel[4] = { 255, 255, 255, 255 };
+	static uint8_t file[4096];
+	voe_assets_bytes png = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	size_t size;
+
+	refused_saying("Draco", REQUIRED_EXTENSION_GLB,
+		       sizeof(REQUIRED_EXTENSION_GLB), "the file needs",
+		       "KHR_draco_mesh_compression", "(glTF: ");
+
+	VOE_TEST_CHECK(voe_assets_png_encode(
+		arena, (voe_assets_image){ 1, 1, pixel }, &png, &error));
+	size = materials_glb(file, sizeof(file), png, "", "",
+			     "{\"name\":\"leaf\",\"pbrMetallicRoughness\":"
+			     "{\"baseColorTexture\":{\"index\":0,"
+			     "\"texCoord\":1}}}");
+	refused_saying("texCoord 1", file, size, "the material `leaf`: ",
+		       "UV map", "(glTF: ");
+
+	size = materials_glb(file, sizeof(file), png, "", "",
+			     "{\"name\":\"leaf\",\"normalTexture\":"
+			     "{\"index\":5}}");
+	refused_saying("a texture past the textures", file, size,
+		       "the material `leaf`: ", "export it again", "(glTF: ");
+}
+
 // A `.glb` of no meshes and the nodes `nodes` (a JSON array's inside) into
 // `out`, its size returned.
 static size_t nodes_glb(uint8_t *out, size_t capacity, const char *nodes)
@@ -586,6 +641,7 @@ int main(void)
 	a_material_carries_what_import_writes(arena);
 	a_texcoord_of_minus_one_is_no_texture(arena);
 	a_node_keeps_its_name(arena);
+	a_refusal_names_what_it_is_about(arena);
 	well_formed_files_this_reader_refuses();
 	broken_containers_are_malformed();
 

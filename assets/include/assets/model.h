@@ -36,6 +36,9 @@
 // reader will hold. Three extensions are read and so accepted even when
 // required: KHR_materials_unlit, KHR_materials_emissive_strength and
 // KHR_texture_transform. A negative `texCoord` reads as no texture (0446).
+// Every refusal is one line naming the part, material or picture, in the
+// artist's words with what to do in Blender, the format's own after it as
+// `(glTF: …)` (0443, 0445).
 //
 // ANIMATION AND SKINNING ARE IGNORED RATHER THAN REFUSED. A file with them in it
 // loads, and what it draws is the bind pose. Refusing would turn most models

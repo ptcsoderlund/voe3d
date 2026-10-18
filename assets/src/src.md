@@ -56,7 +56,8 @@ of them is internal to this folder rather than reachable from outside it.
 - `model_gltf.h` — the split between the container and the description.
 - `model_gltf_read.h` — what the glTF reader's parts share, internal to this
   folder: the read's state, the shared helpers and each part's one call. Its
-  header says why the split is by what is read.
+  header says why the split is by what is read, the subjects a part pushes
+  (part, material, picture) and the two report shapes, damaged and not read.
 - `model_gltf.c` — the shared helpers, accessors and buffer views, the version
   and extension checks, and the entry point. Its header says the rule every
   length read out of a file is checked by, and the one buffer.

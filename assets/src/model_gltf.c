@@ -23,6 +23,11 @@
 // no file API and `.glb` was chosen precisely so that there is nothing to
 // resolve. A file that asks is refused as unsupported, by name.
 //
+// A REFUSAL'S LINE IS THE ARTIST'S SENTENCE, THEN `(glTF: <words>)` FOR A
+// DEVELOPER: "the file is damaged; export it again from Blender" for damage,
+// what is not read and what to untick in Blender's glTF export otherwise.
+// model_gltf_read.h says the two shapes and who pushes a subject.
+//
 // SKINS AND ANIMATIONS ARE NOT READ AND ARE NOT REFUSED. A skinned mesh's
 // JOINTS_0 and WEIGHTS_0 attributes are ignored, so the mesh arrives in its bind
 // pose; animation channels are not looked at. Refusing would turn most files
@@ -33,24 +38,67 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 
-static bool refuse(struct gltf *gltf, voe_base_error error,
-		   const char *message)
+// The artist's half of every damaged file's line.
+#define DAMAGED "the file is damaged; export it again from Blender"
+
+// Both lines are composed here because report.h takes no va_list; report.h's
+// cut still holds.
+bool voe_assets_gltf_malformed(struct gltf *gltf, const char *format_words,
+			       ...)
 {
-	VOE_BASE_ERROR("assets", "glTF: %s", message);
-	gltf->error = error;
+	char words[512];
+	va_list arguments;
+
+	va_start(arguments, format_words);
+	(void)vsnprintf(words, sizeof(words), format_words, arguments);
+	va_end(arguments);
+	VOE_BASE_ERROR("assets", DAMAGED " (glTF: %s)", words);
+	gltf->error = VOE_BASE_ERROR_MALFORMED;
 	return false;
 }
 
-bool voe_assets_gltf_malformed(struct gltf *gltf, const char *message)
+bool voe_assets_gltf_unsupported(struct gltf *gltf, const char *format_words,
+				 const char *artist, ...)
 {
-	return refuse(gltf, VOE_BASE_ERROR_MALFORMED, message);
+	char sentence[512];
+	va_list arguments;
+
+	va_start(arguments, artist);
+	(void)vsnprintf(sentence, sizeof(sentence), artist, arguments);
+	va_end(arguments);
+	VOE_BASE_ERROR("assets", "%s (glTF: %s)", sentence, format_words);
+	gltf->error = VOE_BASE_ERROR_UNSUPPORTED;
+	return false;
 }
 
-bool voe_assets_gltf_unsupported(struct gltf *gltf, const char *message)
+void voe_assets_gltf_subject_push(struct gltf *gltf, const char *kind,
+				  const voe_assets_model_name *name,
+				  uint32_t index)
 {
-	return refuse(gltf, VOE_BASE_ERROR_UNSUPPORTED, message);
+	char *subject;
+	size_t room = sizeof(gltf->subjects[0]);
+
+	VOE_BASE_ASSERT(gltf->subject_count < 2,
+			"a glTF subject pushed past its two levels");
+	subject = gltf->subjects[gltf->subject_count++];
+	if (name != NULL && name->text[0] != '\0')
+		(void)snprintf(subject, room, "the %s `%s`", kind, name->text);
+	else
+		(void)snprintf(subject, room, "%s %" PRIu32, kind, index);
+	voe_base_report_subject_push(subject);
+}
+
+void voe_assets_gltf_subject_pop(struct gltf *gltf)
+{
+	VOE_BASE_ASSERT(gltf->subject_count > 0,
+			"a glTF subject popped with none pushed");
+	gltf->subject_count--;
+	voe_base_report_subject_pop();
 }
 
 // A member that has to be an array if it is there at all. count comes back as
@@ -106,15 +154,20 @@ bool voe_assets_gltf_uint_member(struct gltf *gltf, uint32_t object,
 				 uint32_t fallback, uint32_t *out)
 {
 	uint32_t token = voe_assets_json_member(gltf->json, object, name);
+	double value;
 
 	*out = fallback;
 	if (token == VOE_ASSETS_JSON_NONE)
 		return true;
-	if (!voe_assets_json_uint(gltf->json, token, limit, out))
-		return voe_assets_gltf_malformed(
-			gltf,
-			"a count or an index that is not a whole number inside its range");
-	return true;
+	if (voe_assets_json_uint(gltf->json, token, limit, out))
+		return true;
+	*out = fallback;
+	if (!voe_assets_json_number(gltf->json, token, &value))
+		return voe_assets_gltf_malformed(gltf, "%s is not a number",
+						 name);
+	return voe_assets_gltf_malformed(
+		gltf, "%s is %.17g, not a whole number from 0 to %" PRIu32, name,
+		value, limit);
 }
 
 bool voe_assets_gltf_float_member(struct gltf *gltf, uint32_t object,
@@ -198,6 +251,12 @@ static uint32_t components_of(const voe_assets_json *json, uint32_t token)
 	return 0;
 }
 
+// What an artist is told about data kept outside the `.glb`.
+#define PACKED                                                                \
+	"the file keeps its data in a separate file, and the engine reads only " \
+	"a .glb with everything packed in; export as glTF Binary (.glb) in "    \
+	"Blender"
+
 // The one buffer this reader allows is the container's binary chunk. Checked
 // once, from the first accessor that names it.
 bool voe_assets_gltf_check_buffer(struct gltf *gltf, uint32_t index)
@@ -207,8 +266,7 @@ bool voe_assets_gltf_check_buffer(struct gltf *gltf, uint32_t index)
 
 	if (index != 0)
 		return voe_assets_gltf_unsupported(
-			gltf,
-			"a buffer other than the file's own binary chunk, which means an external file");
+			gltf, "a buffer other than the binary chunk", PACKED);
 
 	buffer = voe_assets_gltf_object_at(gltf, gltf->buffers, 0);
 	if (buffer == VOE_ASSETS_JSON_NONE)
@@ -217,9 +275,8 @@ bool voe_assets_gltf_check_buffer(struct gltf *gltf, uint32_t index)
 			"a buffer view naming a buffer the file does not describe");
 	if (voe_assets_json_member(gltf->json, buffer, "uri") !=
 	    VOE_ASSETS_JSON_NONE)
-		return voe_assets_gltf_unsupported(
-			gltf,
-			"a buffer with a URI in it: this reader opens no files and decodes no data URIs");
+		return voe_assets_gltf_unsupported(gltf, "a buffer with a uri",
+						   PACKED);
 	if (!voe_assets_gltf_uint_member(gltf, buffer, "byteLength", UINT32_MAX,
 					 0, &length))
 		return false;
@@ -256,7 +313,9 @@ bool voe_assets_gltf_resolve_accessor(struct gltf *gltf, uint32_t index,
 	// be a quietly wrong mesh.
 	if (voe_assets_json_member(gltf->json, accessor, "sparse") !=
 	    VOE_ASSETS_JSON_NONE)
-		return voe_assets_gltf_unsupported(gltf, "a sparse accessor");
+		return voe_assets_gltf_unsupported(
+			gltf, "a sparse accessor",
+			"the file stores some of its data sparsely, which the engine does not read; untick Use Sparse Accessor under Shape Keys in Blender's glTF export");
 
 	if (!voe_assets_gltf_uint_member(gltf, accessor, "componentType",
 					 UINT32_MAX, 0, &out->component))
@@ -264,8 +323,10 @@ bool voe_assets_gltf_resolve_accessor(struct gltf *gltf, uint32_t index,
 	element = component_size(out->component);
 	if (element == 0)
 		return voe_assets_gltf_unsupported(
-			gltf,
-			"an accessor whose component type this reader does not know");
+			gltf, "an accessor of an unknown componentType",
+			"the file stores numbers of type %" PRIu32
+			", which the engine does not know; export it with Blender's own glTF exporter",
+			out->component);
 
 	type_token = voe_assets_json_member(gltf->json, accessor, "type");
 	if (type_token == VOE_ASSETS_JSON_NONE)
@@ -274,8 +335,8 @@ bool voe_assets_gltf_resolve_accessor(struct gltf *gltf, uint32_t index,
 	out->components = components_of(gltf->json, type_token);
 	if (out->components == 0)
 		return voe_assets_gltf_unsupported(
-			gltf,
-			"an accessor of a type this reader does not read, which means a matrix");
+			gltf, "an accessor of a MAT type",
+			"the file stores matrices where the engine reads vertices; export it with Blender's own glTF exporter");
 	element *= out->components;
 
 	// An element is at least one byte, so an accessor cannot have more
@@ -302,7 +363,8 @@ bool voe_assets_gltf_resolve_accessor(struct gltf *gltf, uint32_t index,
 	if (voe_assets_json_member(gltf->json, accessor, "bufferView") ==
 	    VOE_ASSETS_JSON_NONE)
 		return voe_assets_gltf_unsupported(
-			gltf, "an accessor with no buffer view");
+			gltf, "an accessor with no bufferView",
+			"the file leaves some of its data out, to be read as zeros, which the engine does not do; export it with Blender's own glTF exporter");
 	if (gltf->views == VOE_ASSETS_JSON_NONE ||
 	    voe_assets_json_count(gltf->json, gltf->views) == 0)
 		return voe_assets_gltf_malformed(
@@ -373,8 +435,8 @@ bool voe_assets_gltf_read_floats(struct gltf *gltf, const struct view *view,
 
 	if (view->component != COMPONENT_FLOAT)
 		return voe_assets_gltf_unsupported(
-			gltf,
-			"an attribute stored as something other than floats, which means a normalized or quantized accessor");
+			gltf, "a vertex attribute whose componentType is not FLOAT",
+			"the file stores its vertices compressed, which the engine does not read; export it from Blender with Compression unticked and without quantizing it afterwards");
 
 	for (uint32_t i = 0; i < view->components; i++) {
 		// memcpy and not a cast: the offset inside the buffer is the
@@ -441,8 +503,10 @@ static bool check_version(struct gltf *gltf)
 	if (token->end - token->start < 1 ||
 	    gltf->json->text[token->start] != '2')
 		return voe_assets_gltf_unsupported(
-			gltf,
-			"a glTF that is not version 2, which is a different format with the same extension");
+			gltf, "asset.version is not 2.x",
+			"the file is glTF version %.*s, and the engine reads glTF 2 only; export it with Blender's own glTF exporter",
+			(int)(token->end - token->start),
+			gltf->json->text + token->start);
 	return true;
 }
 
@@ -477,16 +541,21 @@ static bool check_extensions(struct gltf *gltf)
 				       "KHR_texture_transform"))
 			continue;
 
+		// Draco is the one Blender names for itself; every other is
+		// added by some export option, which is the artist's to find.
 		token = &gltf->json->tokens[name];
-		VOE_BASE_ERROR("assets",
-			       "glTF: this file requires the extension %.*s, which this reader does not implement",
-			       (int)(token->end - token->start),
-			       gltf->json->text + token->start);
+		(void)voe_assets_gltf_unsupported(
+			gltf, "extensionsRequired names an extension not read",
+			"the file needs the glTF extension %.*s, which the engine does not read; %s",
+			(int)(token->end - token->start),
+			gltf->json->text + token->start,
+			voe_assets_json_is(gltf->json, name,
+					   "KHR_draco_mesh_compression") ?
+				"untick Compression in Blender's glTF export" :
+				"untick the option that adds it in Blender's glTF export");
 		refused = true;
 	}
 
-	if (refused)
-		gltf->error = VOE_BASE_ERROR_UNSUPPORTED;
 	return !refused;
 }
 

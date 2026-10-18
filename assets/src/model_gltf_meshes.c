@@ -310,7 +310,9 @@ static bool read_primitive(struct gltf *gltf, uint32_t primitive,
 		    view.component != COMPONENT_UNSIGNED_INT)
 			return voe_assets_gltf_unsupported(
 				gltf,
-				"an indices accessor whose component type is not an unsigned byte, short or int");
+				"an indices accessor whose component type is not an unsigned byte, short or int",
+				"the file numbers its triangles' corners with numbers of type %u, which the engine does not read; export it with Blender's own glTF exporter",
+				view.component);
 		if (view.count % 3 != 0)
 			return voe_assets_gltf_malformed(
 				gltf,
