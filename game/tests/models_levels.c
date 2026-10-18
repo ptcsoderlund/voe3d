@@ -24,6 +24,10 @@
 // made and fresh, level 0 its 128 triangles and each level fewer; a missing
 // `.glb` counts none.
 //
+// THE REFUSED MAKE: `bad.glb`, bytes no `.glb` has, named by a row and
+// updated, is failed at the file's stamp, no levels file is in the Cache, and
+// the kept first error, cleared before, begins with `bad.glb: `.
+//
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include "glb_build.h"
@@ -37,6 +41,7 @@
 
 #include <base/arena.h>
 #include <base/error.h>
+#include <base/report.h>
 
 #include <platform/file.h>
 #include <platform/folder.h>
@@ -61,6 +66,9 @@
 #define GRID_ON_DISK FOLDER "/" GRID
 #define GRID_PARTS_ON_DISK FOLDER "/grid.parts"
 #define GRID_LEVELS_ON_DISK LEVELS_FOLDER_ON_DISK "/" GRID ".levels"
+#define BAD "bad.glb"
+#define BAD_ON_DISK FOLDER "/" BAD
+#define BAD_LEVELS_ON_DISK LEVELS_FOLDER_ON_DISK "/" BAD ".levels"
 
 // Room for the triangle twice over a reload, the pictures' quad, and the
 // shadings of the triangle, the picture and the dot, plus two blended twins:
@@ -324,6 +332,44 @@ static void check_triangles(voe_base_arena *scratch)
 			   0);
 }
 
+// A `.glb` its levels make refuses is kept failed at its stamp, with no
+// levels file, and its kept error begins with its path.
+static void check_refused_make(voe_ecs_world *world,
+			       voe_render_device *device,
+			       voe_base_arena *scratch)
+{
+	static const uint8_t BROKEN[] = "these bytes are no glb";
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_models_failures failures;
+	const voe_3d_model_entry *entry;
+	const char *kept;
+	uint64_t stamp = 0;
+
+	VOE_TEST_CHECK(voe_platform_file_write(BAD_ON_DISK, BROKEN,
+					       sizeof(BROKEN) - 1, NULL));
+	VOE_TEST_CHECK(voe_platform_file_stamp(BAD_ON_DISK, &stamp));
+
+	// ---- updated: failed at its stamp, no levels file, its path first
+	wear(world, BAD);
+	voe_base_report_error_clear();
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
+	VOE_TEST_CHECK_INT(failures.count, 1);
+	entry = voe_3d_models_find(models, BAD);
+	VOE_TEST_CHECK(entry != NULL);
+	if (entry != NULL) {
+		VOE_TEST_CHECK(!entry->loaded);
+		VOE_TEST_CHECK(entry->stamp == stamp);
+	}
+	VOE_TEST_CHECK(!voe_platform_file_exists(BAD_LEVELS_ON_DISK));
+	kept = voe_base_report_error_first();
+	VOE_TEST_CHECK(kept != NULL &&
+		       strncmp(kept, BAD ": ", sizeof(BAD ": ") - 1) == 0);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 // The grid's entry's level count, 0 when the store lacks it.
 static uint32_t grid_held(const voe_3d_models *models)
 {
@@ -432,6 +478,8 @@ static void remove_files(void)
 	remove(GRID_ON_DISK);
 	remove(GRID_PARTS_ON_DISK);
 	remove(GRID_LEVELS_ON_DISK);
+	remove(BAD_ON_DISK);
+	remove(BAD_LEVELS_ON_DISK);
 	remove(LEVELS_FOLDER_ON_DISK);
 	remove(CACHE_ON_DISK);
 	remove(FOLDER);
@@ -464,6 +512,7 @@ int main(void)
 	check_reload(voe_game_world_new(arena), device, scratch);
 	check_swaps_patched(voe_game_world_new(arena), device, scratch);
 	check_triangles(scratch);
+	check_refused_make(voe_game_world_new(arena), device, scratch);
 	remove_files();
 	voe_render_device_destroy(device);
 released:

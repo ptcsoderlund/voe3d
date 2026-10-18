@@ -3,7 +3,9 @@
 // the folder, read into scratch and handed to the store with the values; every
 // material path a shape names, then every model part's `wears` and loaded
 // landscape's layer, that the store lacks looked up in the table, loaded or
-// kept failed, each failure one line on stderr and counted. Scratch is rewound
+// kept failed, each failure counted. The material's path is the report's
+// subject around its maps' reads and its load (0445), whose causes are said
+// below; a path the table lacks is the one line said here. Scratch is rewound
 // after each material.
 //
 // Constraints: a path is found in a table by comparing it with every entry: a
@@ -58,6 +60,7 @@ bool voe_game_models_material_load(voe_3d_models *models,
 	VOE_BASE_ASSERT(material != NULL && material->path[0] != '\0',
 			"loading a material with no path");
 	*error = VOE_BASE_OK;
+	voe_base_report_subject_push(material->path);
 	loaded = read_map(folder, values->colormap, scratch, &maps.colour,
 			  error) &&
 		 read_map(folder, values->normalmap, scratch, &maps.normal,
@@ -71,6 +74,7 @@ bool voe_game_models_material_load(voe_3d_models *models,
 		loaded = voe_3d_models_load_material(models, device,
 						     material->path, stamp,
 						     values, maps, error);
+	voe_base_report_subject_pop();
 	voe_base_arena_rewind(scratch, mark);
 	return loaded;
 }
@@ -134,15 +138,13 @@ static const voe_game_material *find(const voe_game_materials *table,
 }
 
 // Counts one failure of `path`, its kept entry's copy named when the first.
+// Its line was said where its cause was met.
 static void count_failure(voe_game_models_failures *failures,
-			  const voe_3d_models *models, const char *path,
-			  voe_base_error error)
+			  const voe_3d_models *models, const char *path)
 {
 	const voe_3d_model_entry *entry = voe_3d_models_find(models, path);
 
 	VOE_BASE_ASSERT(failures != NULL && path != NULL, "no failures or path");
-	VOE_BASE_ERROR("game", "could not load the material %s: %s", path,
-		       voe_base_error_string(error));
 	if (failures->count == 0 && entry != NULL)
 		failures->first = entry->path;
 	failures->count++;
@@ -157,19 +159,23 @@ static bool load_missing(voe_3d_models *models, voe_render_device *device,
 			 voe_game_models_failures *failures)
 {
 	const voe_game_material *material;
-	voe_base_error error = VOE_BASE_ERROR_UNAVAILABLE;
+	voe_base_error error = VOE_BASE_OK;
 
 	if (path[0] == '\0' || voe_3d_models_find(models, path) != NULL)
 		return true;
 	if (voe_3d_models_count(models) == VOE_3D_MODELS)
 		return false;
 	material = find(table, path);
-	if (material == NULL)
+	if (material == NULL) {
+		voe_base_report_subject_push(path);
+		VOE_BASE_ERROR("game", "the project has no such material");
+		voe_base_report_subject_pop();
 		voe_3d_models_fail(models, path, 0);
-	else if (voe_game_models_material_load(models, device, folder,
-					       material, 0, scratch, &error))
+	} else if (voe_game_models_material_load(models, device, folder,
+						 material, 0, scratch, &error)) {
 		return true;
-	count_failure(failures, models, path, error);
+	}
+	count_failure(failures, models, path);
 	return true;
 }
 

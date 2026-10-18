@@ -25,6 +25,8 @@
 // `.parts` beside the `.glb`, the defaults when none (0430 point 5, 0436); a
 // fresh file whose swaps differ from the `.parts`' has them written in, not
 // made again (0435 point 4). A shipped game, with none, uses what it ships.
+// A make refusing the `.glb` keeps its entry failed at its stamp, with no
+// second read by the store (0445 point 4).
 //
 // PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the
 // distinct paths the call will read are counted first, then "Loading models"
@@ -50,7 +52,8 @@
 //
 // BOTH RETURN how many paths failed and the first one's path, the store's own
 // copy, valid until that entry loads again or the store is cleared; NULL for
-// none. Each failure is one line on stderr naming the path and the category.
+// none. Each failure is one line on stderr at its cause, under the path as
+// the report's subject (0445).
 //
 // Constraints: called between frames only, since a load waits for the card to
 // go idle. `scratch` holds one file, its levels and their making at a time,
