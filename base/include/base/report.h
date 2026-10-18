@@ -3,52 +3,46 @@
 // so that there is one place the engine's problems come out of.
 //
 // A report is for a problem the world caused: a file that will not open, a
-// device that will not create, a driver that refused. The caller could not have
-// prevented it and a person can act on it. It is the message written at the site
-// that base/error.h's categories deliberately do not carry. A problem the
-// program caused is not a report — it is an assert, and base/assert.h says where
-// that line runs. Reporting does not return, stop or recover anything; the
-// failing function still returns its failure and its caller still decides.
-//
-// Two macros, and the level is in the name:
+// device that will not create, a driver that refused. A person can act on it.
+// It is the message base/error.h's categories deliberately do not carry. A
+// problem the program caused is an assert; base/assert.h says where that line
+// runs. Reporting returns, stops and recovers nothing; the failing function
+// still returns its failure and its caller still decides.
 //
 //     VOE_BASE_WARNING(module, format, ...)   it went wrong and the engine carried on
 //     VOE_BASE_ERROR(module, format, ...)     it failed
 //
-// FOUR THINGS A WRITER WILL OTHERWISE GET WRONG.
+// FOUR THINGS A WRITER WILL OTHERWISE GET WRONG. The module is an argument,
+// never text inside the format: VOE_BASE_ERROR("render", "vkCreateBuffer
+// failed"), not a message that starts "render: ". It is the folder's name, so a
+// reader can sort lines by where they came from without parsing the prose.
+// The message has no trailing newline; the call writes one. The file and line
+// are captured and not printed: a later destination, a panel that jumps to the
+// site, has them without every call changing, and the person running the
+// program can act on "the shader cache is unreadable", not on "device.c:412".
+// A long message is cut, not allocated for: the whole line is at most 1024
+// bytes, composed on the stack, and a longer one ends in "..." at that length.
+// Reporting that something failed must not be able to fail.
 //
-// The module is an argument and never text inside the format. Write
-// VOE_BASE_ERROR("render", "vkCreateBuffer failed"), not a message that starts
-// "render: ". The module is the folder's name, so that a later reader can sort
-// the lines by where they came from without parsing the prose.
+// A REPORT NAMES ITS SUBJECTS (ADR-0445). A subject is what the message is
+// about, the file and then the part, material or picture in it, so that code
+// handed only bytes still names them. The code that knows pushes it, and code
+// below never names the path again. A push and its pop pair within one
+// function, like an arena's mark and rewind. The line is
+// "<level>: <module>: <s1>: <s2>: <message>", subjects in the order pushed,
+// all under the same 1024-byte cut.
 //
-// The message has no trailing newline. The call writes one; a message that
-// brings its own prints a blank line after it.
-//
-// The file and line are captured and not printed. They are passed so that a
-// later destination — a panel that jumps to the site — has them without every
-// call site changing; they are not printed because the line is written for the
-// person running the program, who can act on "the shader cache is unreadable"
-// and cannot act on "device.c:412".
-//
-// A long message is truncated, not allocated for. The whole line — level, module,
-// message and newline — is at most 1024 bytes, composed on the stack, and a line
-// that would be longer ends in "..." at that length. Reporting that something
-// failed must not be able to fail, and allocating is a way to fail.
-//
-// A PROGRAM CAN READ THE FIRST ERROR BACK (ADR-0160). Alongside stderr, this
-// file keeps the message of the first VOE_BASE_ERROR reported since the last
-// voe_base_report_error_clear(), per thread — thread_local, so a report on one
-// thread never lands in another's notice and no lock sits on a path that must
-// not fail. It is the first and not the last because a failure travels upward
-// and the site closest to the cause reports first: a scene reader refusing a
-// line is followed by nothing better from its callers. It is kept the way it
-// would be printed — no level word, no module, no newline — cut at the same
-// 1024-byte capacity as the printed line. Warnings are never kept. A reader
-// clears before the operation whose failure it wants to explain, and reads
-// voe_base_report_error_first() once that operation has returned its failure;
-// nothing below a program reads it, and a caller that forgets to clear reads a
-// stale error from earlier.
+// A PROGRAM CAN READ THE FIRST ERROR BACK (ADR-0160). This file keeps the text
+// of the first VOE_BASE_ERROR since the last voe_base_report_error_clear(), per
+// thread: thread_local, so a report on one thread never lands in another's
+// notice and no lock sits on a path that must not fail. The first, because a
+// failure travels upward and the site closest to the cause reports first. It is
+// kept the way it is printed, without the level word, the module and the
+// newline, so with its subjects before the message, under the same cut.
+// Warnings are never kept. A reader clears before the operation whose failure
+// it wants to explain and reads voe_base_report_error_first() once that has
+// failed; nothing below a program reads it, and a caller that forgets to clear
+// reads a stale error from earlier.
 #pragma once
 
 typedef enum {
@@ -56,8 +50,12 @@ typedef enum {
 	VOE_BASE_LEVEL_ERROR,
 } voe_base_report_level;
 
-// Composes "<level>: <module>: <message>" and writes it to stderr as one line.
-// Public because the macros expand to it; not meant to be called directly.
+// How many subjects one thread can have pushed at once.
+enum { VOE_BASE_REPORT_SUBJECTS = 4 };
+
+// Composes "<level>: <module>: <subjects>: <message>" and writes it to stderr
+// as one line. Public because the macros expand to it; not meant to be called
+// directly.
 [[gnu::format(printf, 5, 6)]]
 void voe_base_report_at(voe_base_report_level level, const char *module,
 			const char *file, int line, const char *format, ...);
@@ -69,11 +67,21 @@ void voe_base_report_at(voe_base_report_level level, const char *module,
 	voe_base_report_at(VOE_BASE_LEVEL_ERROR, (module), __FILE__,        \
 			   __LINE__, __VA_ARGS__)
 
+// Names `subject` in every report on the calling thread until the matching
+// voe_base_report_subject_pop(). The string is kept by pointer, not copied, so
+// it must stay valid until the pop. A NULL or empty subject, or one more than
+// VOE_BASE_REPORT_SUBJECTS, is the caller's bug and asserts.
+void voe_base_report_subject_push(const char *subject);
+
+// Drops the subject pushed last on the calling thread. Popping with none
+// pushed asserts.
+void voe_base_report_subject_pop(void);
+
 // Forgets the kept error, on the calling thread. Call before an operation
 // whose failure you want voe_base_report_error_first() to explain.
 void voe_base_report_error_clear(void);
 
-// The message of the first VOE_BASE_ERROR reported on the calling thread since
-// its last voe_base_report_error_clear(), or NULL when none has been. Valid
-// until the next clear or the next kept error.
+// The kept text of the first VOE_BASE_ERROR reported on the calling thread
+// since its last voe_base_report_error_clear(), or NULL when none has been.
+// Valid until the next clear or the next kept error.
 const char *voe_base_report_error_first(void);
