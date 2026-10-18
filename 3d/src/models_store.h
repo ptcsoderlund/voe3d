@@ -19,7 +19,8 @@
 // the first landscape load, given back by _clear.
 //
 // A `.glb`'S LEVELS ARE models_levels.c's: models.c calls them after the parts
-// and frees them wherever it frees the parts.
+// and frees them before the parts wherever it frees those, made levels walking
+// level 0's vertices (0444).
 #pragma once
 
 #include "model_bake.h"

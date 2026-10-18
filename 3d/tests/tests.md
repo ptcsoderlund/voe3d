@@ -152,7 +152,8 @@ again, or to find where a claim that has started failing is written down.
   card.
 - `models_levels.c` — the store loading a sphere with its levels file, with its own `_LOD1` levels
   bounded by 2^-k alone and by their measured error with their file, and with a far swap, leaking
-  no level across reloads and clears; skips without a card.
+  no level across reloads and clears; made levels boxed as level 0, and the sphere loading every
+  level onto pools that start below its level 0, drawn and cleared cleanly; skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget, and its foliage placed, kept standing by a
   sculpt, scattered, erased, put back, a kind set and renamed. Skips without a card.

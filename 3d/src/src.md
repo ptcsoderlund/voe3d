@@ -162,8 +162,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   parts set; pictures on the quad, the dot and the water apart.
 - `models_store.h` — the store's internal table and the helpers the store's files share.
 - `models_levels.c` — a `.glb`'s levels beside its parts: own levels baked and joined by
-  material, or a levels file's checked and each part's used vertices gathered, each bounded by
-  the file's error and swap; the sphere, the level-0 mirror and the free.
+  material, or a levels file's checked and its made levels' indices shared over level 0's vertices,
+  no gather, each bounded by the file's error and swap; the sphere, the level-0 mirror and the free.
 - `models_landscape.c` — a landscape's grid copied with its layers, paint, foliage kinds and
   copies, each placed, uploaded as heights, paint and a pyramid on the shared grid; brushes and
   puts growing its dirt, written a budget at a time, and placing copies again; renames following.

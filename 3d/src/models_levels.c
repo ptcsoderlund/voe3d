@@ -1,11 +1,17 @@
 // A loaded `.glb`'s levels put on the card beside its parts (3d/models.h): the
 // file's own levels baked one at a time and joined to level 0's parts by
 // material, or the made ones a levels file holds (3d/model_levels.h), each
-// part's used vertices gathered under renumbered indices; and their free.
-// models.c calls these after a load's parts and wherever it frees parts.
+// part its file's indices alone; and their free. models.c calls these after a
+// load's parts and wherever it frees parts.
 //
 // LEVEL 0 IS THE PARTS': _mirror copies their geometries into levels[0], never
 // freed here. Levels 1 on are this file's.
+//
+// MADE LEVELS SHARE LEVEL 0'S VERTICES (0444): each part is
+// voe_render_geometry_create_sharing over its level-0 part, so it costs its
+// indices alone, and its free must come before level 0's geometries are
+// destroyed, `render` asserting on a base destroyed under a sharer. Own levels
+// keep vertices of their own.
 //
 // A LEVEL IS COUNTED BEFORE ITS FIRST UPLOAD, so a device refusing room part
 // way leaves `level_count` covering what was made, and _free finds it; an id
@@ -22,9 +28,6 @@
 //
 // AN OWN LEVEL MATCHING NO PART ENDS THE LIST: it would draw nothing, and the
 // levels after it are farther still.
-//
-// CONSTRAINTS: a made part's gather pushes a remap and a copy of its part's
-// vertices onto the load's scratch arena, per level, given back with it.
 #include "models_store.h"
 
 #include <3d/model_levels.h>
@@ -32,7 +35,6 @@
 #include <base/assert.h>
 
 #include <math.h>
-#include <string.h>
 
 // A level's error kept under this share of half the screen (0425 point 3).
 #define SCREEN_ERROR 0.002f
@@ -185,42 +187,10 @@ static bool fits(const voe_3d_model_levels *read, const voe_3d_model_bake *bake)
 	return true;
 }
 
-// Made level k's part p: the vertices its indices use gathered in first-use
-// order, the indices renumbered to them, and uploaded into `out`.
-static bool upload_made_part(voe_render_device *device,
-			     voe_base_arena *scratch,
-			     const voe_3d_model_bake *bake,
-			     const voe_3d_model_levels *read, uint32_t k,
-			     uint32_t p, voe_render_geometry *out,
-			     voe_base_error *error)
-{
-	const voe_3d_model_bake_part *part = &bake->parts[p];
-	const voe_render_vertex *from = bake->vertices + part->first_vertex;
-	const uint32_t count = read->index_counts[k][p];
-	uint32_t *remap = voe_base_arena_push(
-		scratch, (size_t)part->vertex_count * sizeof(*remap));
-	voe_render_vertex *vertices = voe_base_arena_push(
-		scratch, (size_t)part->vertex_count * sizeof(*vertices));
-	uint32_t *indices =
-		voe_base_arena_push(scratch, (size_t)count * sizeof(*indices));
-	uint32_t used = 0;
-
-	memset(remap, 0xff, (size_t)part->vertex_count * sizeof(*remap));
-	for (uint32_t i = 0; i < count; i++) {
-		const uint32_t v = read->indices[k][p][i];
-
-		if (remap[v] == UINT32_MAX) {
-			remap[v] = used;
-			vertices[used++] = from[v];
-		}
-		indices[i] = remap[v];
-	}
-	return voe_render_geometry_create(device, vertices, used, indices, count,
-					  out, error);
-}
-
-static bool upload_made(voe_render_device *device, voe_base_arena *scratch,
-			const voe_3d_model_bake *bake,
+// Each made level's parts as indices alone over level 0's part geometries,
+// the ones _mirror copies into levels[0] once the load is kept (part_count is
+// not set before); `fits` has kept every index below its part's vertices.
+static bool upload_made(voe_render_device *device,
 			const voe_3d_model_levels *read,
 			voe_3d_model_entry *entry, voe_base_error *error)
 {
@@ -230,9 +200,11 @@ static bool upload_made(voe_render_device *device, voe_base_arena *scratch,
 					       entry->levels[k - 1].bound);
 		for (uint32_t p = 0; p < read->part_count; p++) {
 			if (read->index_counts[k][p] > 0 &&
-			    !upload_made_part(device, scratch, bake, read, k, p,
-					      &entry->levels[k].geometries[p],
-					      error))
+			    !voe_render_geometry_create_sharing(
+				    device, entry->parts[p].geometry,
+				    read->indices[k][p],
+				    read->index_counts[k][p],
+				    &entry->levels[k].geometries[p], error))
 				return false;
 		}
 	}
@@ -269,5 +241,5 @@ bool voe_3d_models_levels_upload(voe_render_device *device,
 				  entry, error);
 	if (!fresh || !fits(&read, bake))
 		return true;
-	return upload_made(device, scratch, bake, &read, entry, error);
+	return upload_made(device, &read, entry, error);
 }

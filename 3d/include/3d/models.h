@@ -18,7 +18,8 @@
 //
 // A `.glb` HAS LEVELS (0425 points 3, 4, 6; 0426; 0432; 0436): own levels
 // baked per level and joined to level 0's parts by material; made ones, from a
-// levels file, uploaded compacted to the vertices they use. Each bound is
+// levels file, walk level 0's vertices with indices of their own, not compacted
+// copies (0444). Each bound is
 // 0.002 × radius ÷ the file's error (infinite for error nought) ÷ the level's
 // swap, an own level's 2^-k only without a fresh file; then made
 // non-increasing; freed with the parts.
@@ -85,9 +86,8 @@
 // own capacities: 3074 geometries, four parts for each of the VOE_3D_MODELS
 // files at each of VOE_3D_MODEL_LEVELS levels, and one geometry more each for
 // the pictures' quad and the landscapes' shared grid; 3 M vertices and 9 M
-// indices, level 0's 2 M and 6 M and the levels' under thirty-one
-// thirty-seconds more, since they aim at a half, a quarter and so on down to a
-// thirty-second (0425 point 6, 0433); 1024
+// indices, the starting room only, which `render` grows (0444), made levels
+// adding indices alone and own levels their vertices too; 1024
 // shading records, two for each of those parts (its own and its blended twin),
 // and one more for the water. Each landscape also takes three textures: its
 // heights and two paint planes.

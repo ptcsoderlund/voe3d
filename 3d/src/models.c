@@ -77,10 +77,12 @@ static bool has_twin(const voe_3d_model_part *part)
 // Everything `entry` put on the card and its memory, given back; a picture's
 // parts are on the store's quad and a landscape's on its grid, neither the
 // entry's to free, and a material's part has none. A loaded landscape gives
-// back its heights texture.
+// back its heights texture. The levels go first: made ones walk the parts'
+// vertices, and `render` asserts on a base destroyed under a sharer.
 static void release(voe_render_device *device, const voe_3d_model_entry *entry,
 		    const entry_held *held)
 {
+	voe_3d_models_levels_free(device, entry);
 	for (uint32_t i = 0; i < entry->part_count; i++) {
 		if (!entry->picture && entry->landscape == NULL &&
 		    !entry->material)
@@ -90,7 +92,6 @@ static void release(voe_render_device *device, const voe_3d_model_entry *entry,
 			(void)voe_render_shading_destroy(
 				device, entry->parts[i].faded);
 	}
-	voe_3d_models_levels_free(device, entry);
 	if (entry->loaded && entry->landscape != NULL)
 		(void)voe_render_texture_destroy(device, held->heights);
 	for (uint32_t i = 0; i < held->shading_count; i++)
@@ -282,11 +283,13 @@ static bool upload_parts(voe_render_device *device,
 	return true;
 }
 
-// What a failed load had put on the card, given back.
+// What a failed load had put on the card, given back, the levels first as
+// release() gives them.
 static void give_back(voe_render_device *device,
 		      const voe_3d_model_upload *upload,
 		      const voe_3d_model_entry *entry, uint32_t geometries)
 {
+	voe_3d_models_levels_free(device, entry);
 	for (uint32_t i = 0; i < geometries; i++) {
 		(void)voe_render_geometry_destroy(device,
 						  entry->parts[i].geometry);
@@ -294,7 +297,6 @@ static void give_back(voe_render_device *device,
 			(void)voe_render_shading_destroy(
 				device, entry->parts[i].faded);
 	}
-	voe_3d_models_levels_free(device, entry);
 	for (uint32_t i = 0; i < upload->shading_count; i++)
 		(void)voe_render_shading_destroy(device, upload->shadings[i]);
 	for (uint32_t i = 0; i < upload->texture_count; i++)
