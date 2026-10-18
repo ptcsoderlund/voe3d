@@ -2,7 +2,8 @@
 // references, the alpha mode, names, the three material extensions read (unlit,
 // emissive strength, the colour texture's transform scale), the materials, then
 // the images named and decoded. Called by model_gltf.c through
-// model_gltf_read.h; its header's rules hold here.
+// model_gltf_read.h; its header's rules hold here. Blender writes `texCoord`
+// −1 for a picture on no UV map, read as no texture there (0446 point 1).
 //
 // TEXTURES RESOLVE TO IMAGES HERE, WHICH IS WHERE DEDUPLICATION COMES FROM. glTF
 // puts a sampler and an image behind a texture and a material points at the
@@ -39,6 +40,8 @@ static bool read_texture_reference(struct gltf *gltf, uint32_t object,
 	uint32_t index;
 	uint32_t set;
 	uint32_t texture;
+	uint32_t coordinates;
+	double number;
 
 	*image = VOE_ASSETS_MODEL_NONE;
 	if (reference == VOE_ASSETS_JSON_NONE)
@@ -47,6 +50,19 @@ static bool read_texture_reference(struct gltf *gltf, uint32_t object,
 	    VOE_ASSETS_JSON_OBJECT)
 		return voe_assets_gltf_malformed(
 			gltf, "a texture reference that is not an object");
+
+	// A negative set is no set: the part has no UV map, so the picture
+	// could only be sampled at one texel and the factors are the closer
+	// drawing (0446). The slot stays NONE and nothing is said.
+	coordinates = voe_assets_json_member(gltf->json, reference, "texCoord");
+	if (coordinates != VOE_ASSETS_JSON_NONE) {
+		if (!voe_assets_json_number(gltf->json, coordinates, &number))
+			return voe_assets_gltf_malformed(
+				gltf, "a texCoord that is not a number");
+		if (number < 0.0)
+			return true;
+	}
+
 	if (texture_count == 0)
 		return voe_assets_gltf_malformed(
 			gltf,

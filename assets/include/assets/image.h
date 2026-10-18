@@ -66,14 +66,15 @@ typedef struct {
 //
 // WHAT IS REFUSED, AND EACH OF THESE IS SAID OUT LOUD RATHER THAN GUESSED AT:
 // interlaced PNG (VOE_BASE_ERROR_UNSUPPORTED — the file is fine, this decoder
-// is not interested), and any bit depth but 8 (likewise). Everything else that
+// is not interested), and bit depths below 8 (likewise). Everything else that
 // goes wrong is VOE_BASE_ERROR_MALFORMED: a bad signature, a chunk whose CRC
 // does not match, a truncated file, a declared size past
 // VOE_ASSETS_IMAGE_MAX_SIDE, a compressed stream that does not produce exactly
 // the number of bytes the header implies.
 //
 // Colour types 0, 2, 3, 4 and 6 at depth 8 are all read — greyscale, RGB,
-// palette, greyscale with alpha, and RGBA — and all come out as RGBA8.
+// palette, greyscale with alpha, and RGBA — and all come out as RGBA8. Depth 16
+// is read in the four that allow it, each sample rounded to 8 bits (0446).
 [[nodiscard]] bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 					 voe_base_arena *arena,
 					 voe_assets_image *image,

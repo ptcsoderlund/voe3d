@@ -108,13 +108,15 @@ static uint8_t paeth(uint8_t a, uint8_t b, uint8_t c)
 // Undo the per-scanline filter, in place, over the whole decompressed block.
 //
 // EACH ROW IS PREFIXED BY ITS FILTER BYTE, WHICH IS WHY THE DECOMPRESSED SIZE IS
-// height * (1 + width * channels) AND NOT THE SIZE OF THE PICTURE. The filters
-// refer to the byte to the left and the row above, both already unfiltered, so
-// this walks forwards and can never read a byte it has not already fixed.
+// height * (1 + width * pixel_bytes) AND NOT THE SIZE OF THE PICTURE. The filters
+// refer to the byte one pixel to the left and the row above, both already
+// unfiltered, so this walks forwards and can never read a byte it has not
+// already fixed. At depth 16 a pixel is two bytes a sample and "left" is that
+// far back; the filters still work a byte at a time.
 [[nodiscard]] static bool unfilter(uint8_t *raw, uint32_t width,
-				   uint32_t height, uint32_t channels)
+				   uint32_t height, uint32_t pixel_bytes)
 {
-	size_t stride = (size_t)width * channels;
+	size_t stride = (size_t)width * pixel_bytes;
 	uint8_t *previous = NULL;
 	uint8_t *row = raw;
 
@@ -123,10 +125,11 @@ static uint8_t paeth(uint8_t a, uint8_t b, uint8_t c)
 		uint8_t *current = row + 1;
 
 		for (size_t i = 0; i < stride; i++) {
-			uint8_t left = i >= channels ? current[i - channels] : 0;
+			uint8_t left = i >= pixel_bytes ? current[i - pixel_bytes]
+							: 0;
 			uint8_t up = previous != NULL ? previous[i] : 0;
-			uint8_t up_left = (previous != NULL && i >= channels)
-						  ? previous[i - channels]
+			uint8_t up_left = (previous != NULL && i >= pixel_bytes)
+						  ? previous[i - pixel_bytes]
 						  : 0;
 
 			switch (filter) {
@@ -157,8 +160,21 @@ static uint8_t paeth(uint8_t a, uint8_t b, uint8_t c)
 	return true;
 }
 
-// How many bytes a pixel takes in the file, for the colour types read at depth
-// 8. Zero for one this decoder does not read.
+// A row of 16-bit samples, big-endian as PNG stores them, made 8 bits in place:
+// sample i is written at byte i, which is never past the bytes it came from.
+// Each is rounded to the nearest 8-bit value, (v + 128) / 257, as 0446 point 2
+// says, rather than cut to its high byte.
+static void narrow_to_8_bits(uint8_t *row, size_t samples)
+{
+	for (size_t i = 0; i < samples; i++) {
+		uint32_t value = ((uint32_t)row[i * 2] << 8) | row[i * 2 + 1];
+
+		row[i] = (uint8_t)((value + 128) / 257);
+	}
+}
+
+// How many samples a pixel has in the file, which at depth 8 is its bytes.
+// Zero for a colour type this decoder does not read.
 static uint32_t channels_of(uint8_t colour_type)
 {
 	switch (colour_type) {
@@ -240,6 +256,8 @@ bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 	uint32_t width = 0;
 	uint32_t height = 0;
 	uint32_t channels = 0;
+	uint32_t sample_bytes = 1;
+	size_t row_bytes;
 	uint8_t colour_type = 0;
 	bool seen_header = false;
 	bool seen_end = false;
@@ -300,8 +318,10 @@ bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 				return fail(error, VOE_BASE_ERROR_MALFORMED);
 			// Depth and interlace are well-formed values this
 			// decoder declines, so they are UNSUPPORTED and not
-			// MALFORMED. image.h says which.
-			if (data[8] != 8)
+			// MALFORMED. image.h says which. A palette at 16
+			// is one the format forbids, refused the same way.
+			if (data[8] != 8 &&
+			    (data[8] != 16 || colour_type == COLOUR_PALETTE))
 				return fail(error, VOE_BASE_ERROR_UNSUPPORTED);
 			if (data[12] != 0)
 				return fail(error, VOE_BASE_ERROR_UNSUPPORTED);
@@ -309,6 +329,7 @@ bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 			channels = channels_of(colour_type);
 			if (channels == 0)
 				return fail(error, VOE_BASE_ERROR_MALFORMED);
+			sample_bytes = data[8] / 8;
 			seen_header = true;
 		} else if (memcmp(type, "PLTE", 4) == 0) {
 			if (!seen_header || length % 3 != 0 || length == 0 ||
@@ -375,25 +396,30 @@ bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 		offset += 12 + (size_t)length;
 	}
 
-	// One filter byte per row, then the row. Both multiplications are
-	// bounded by VOE_ASSETS_IMAGE_MAX_SIDE and channels of at most 4, so
-	// the largest this can be is about a gigabyte and it cannot overflow.
-	raw_size = (size_t)height * (1 + (size_t)width * channels);
+	// One filter byte per row, then the row. Every factor is bounded by
+	// the header checks — VOE_ASSETS_IMAGE_MAX_SIDE, channels of at most
+	// 4 and two bytes a sample at most — so the largest this can be is
+	// about two gigabytes and it cannot overflow.
+	row_bytes = 1 + (size_t)width * channels * sample_bytes;
+	raw_size = (size_t)height * row_bytes;
 	raw = voe_base_arena_push(arena, raw_size);
 
 	if (!voe_assets_inflate(compressed, compressed_size, raw, raw_size,
 				error))
 		return false;
 
-	if (!unfilter(raw, width, height, channels))
+	if (!unfilter(raw, width, height, channels * sample_bytes))
 		return fail(error, VOE_BASE_ERROR_MALFORMED);
 
 	pixels = voe_base_arena_push(arena, (size_t)width * height * 4);
 	for (uint32_t y = 0; y < height; y++) {
-		const uint8_t *in = raw + (size_t)y *
-					    (1 + (size_t)width * channels) + 1;
+		uint8_t *in = raw + (size_t)y * row_bytes + 1;
 		uint8_t *out = pixels + (size_t)y * width * 4;
 
+		// Only after every row is unfiltered: the filters read the
+		// row above at its full 16 bits.
+		if (sample_bytes == 2)
+			narrow_to_8_bits(in, (size_t)width * channels);
 		if (!widen(out, in, width, colour_type, palette, palette_count,
 			   palette_alpha, palette_alpha_count))
 			return fail(error, VOE_BASE_ERROR_MALFORMED);

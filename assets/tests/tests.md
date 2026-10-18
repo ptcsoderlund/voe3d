@@ -14,9 +14,9 @@ belongs to.
   byte to 200 kB, at the longest match and the farthest distance the format has.
   Its header says why a round trip alone would pass with the matcher switched off
   and what the size checks do about it.
-- `png.c` — real files from a real encoder, one filter per row, the three failures card 017 named
-  plus a corrupt CRC and the two variants refused rather than broken, then the writer round-tripped
-  through the reader. Its header says why reading its own output is not the whole proof.
+- `png.c` — real files from a real encoder, one filter per row, 16-bit RGBA and grey built here
+  and rounded to 8 bits, the three failures card 017 named plus a corrupt CRC, interlace and depth 4
+  refused rather than broken, then the writer round-tripped through the reader.
 - `png_data.inc` — those files, as bytes.
 - `json.c` — a document read back as its values, and every shape of broken
   input a tolerant reader would let past.
@@ -31,7 +31,8 @@ belongs to.
   round-tripped and written again byte for byte, defaults read for what is
   absent, and bad input refused MALFORMED.
 - `model.c` — a hand-built `.glb` read back into its arrays, its fields read
-  or defaulted, and a working file corrupted a byte at a time.
+  or defaulted, a base colour texture at `texCoord` −1 read as none, and a
+  working file corrupted a byte at a time.
 - `model_material.c` — built glTF materials, no file, to their `.material`
   values: opaque, MASK, BLEND, unlit, double-sided, emission and repeat; and
   the ORM picture from metal-roughness alone, with a larger occlusion picture,

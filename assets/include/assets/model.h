@@ -35,7 +35,7 @@
 // have, an alpha mode that is not one of glTF's three, or more JSON than the
 // reader will hold. Three extensions are read and so accepted even when
 // required: KHR_materials_unlit, KHR_materials_emissive_strength and
-// KHR_texture_transform.
+// KHR_texture_transform. A negative `texCoord` reads as no texture (0446).
 //
 // ANIMATION AND SKINNING ARE IGNORED RATHER THAN REFUSED. A file with them in it
 // loads, and what it draws is the bind pose. Refusing would turn most models

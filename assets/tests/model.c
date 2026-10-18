@@ -30,7 +30,8 @@
 // BEYOND THE ARRAYS: COLOR_0 in each stored form (normalized bytes, three
 // floats, absent, and signed bytes refused); material and image names, sides,
 // unlit, emission strength and the colour texture's repeat, each read or
-// defaulted; a 100-byte name cut at a whole character; and node names.
+// defaulted; a 100-byte name cut at a whole character; Blender's texCoord −1
+// read as no texture; and node names.
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
@@ -423,6 +424,42 @@ static void a_material_carries_what_import_writes(voe_base_arena *arena)
 	}
 }
 
+// Blender's `"texCoord": -1` on the base colour texture: the material reads, its
+// base colour texture NONE with no line said, the rest as written (0446).
+static void a_texcoord_of_minus_one_is_no_texture(voe_base_arena *arena)
+{
+	static uint8_t pixel[4] = { 255, 255, 255, 255 };
+	static uint8_t file[4096];
+	voe_assets_bytes png = { 0 };
+	voe_assets_model model = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	const voe_assets_material *needles;
+	size_t size;
+
+	VOE_TEST_CHECK(voe_assets_png_encode(
+		arena, (voe_assets_image){ 1, 1, pixel }, &png, &error));
+	size = materials_glb(
+		file, sizeof(file), png, "", "",
+		"{\"name\":\"Needles\",\"doubleSided\":true,"
+		"\"pbrMetallicRoughness\":{\"baseColorFactor\":[0.25,0.5,0.125,1],"
+		"\"roughnessFactor\":0.75,"
+		"\"baseColorTexture\":{\"index\":0,\"texCoord\":-1},"
+		"\"metallicRoughnessTexture\":{\"index\":0}}}");
+	VOE_TEST_CHECK(voe_assets_model_read_glb(file, size, arena, &model,
+						 &error));
+	if (model.material_count != 1) {
+		VOE_TEST_CHECK(false);
+		return;
+	}
+	needles = &model.materials[0];
+	check_material(needles, "Needles", true, false, 1, 1);
+	VOE_TEST_CHECK_INT(needles->base_colour_image, VOE_ASSETS_MODEL_NONE);
+	VOE_TEST_CHECK_INT(needles->metallic_roughness_image, 0);
+	check_colour(needles->base_colour,
+		     (voe_math_float4){ 0.25f, 0.5f, 0.125f, 1 });
+	VOE_TEST_CHECK_FLOAT(needles->roughness, 0.75f, 0.0f);
+}
+
 // A `.glb` of no meshes and the nodes `nodes` (a JSON array's inside) into
 // `out`, its size returned.
 static size_t nodes_glb(uint8_t *out, size_t capacity, const char *nodes)
@@ -547,6 +584,7 @@ int main(void)
 	a_file_comes_back_as_its_arrays(arena);
 	a_primitive_carries_its_vertex_colours(arena);
 	a_material_carries_what_import_writes(arena);
+	a_texcoord_of_minus_one_is_no_texture(arena);
 	a_node_keeps_its_name(arena);
 	well_formed_files_this_reader_refuses();
 	broken_containers_are_malformed();
