@@ -48,8 +48,9 @@
 // numbers near four billion together to size an allocation. 16384 is above any
 // texture this engine will draw and below the point where width * height * 4
 // can overflow anything, so the multiply below is safe by construction rather
-// than by a checked-arithmetic dance. A file declaring more is refused as
-// malformed, which is the honest answer: it is not a picture, it is an ask.
+// than by a checked-arithmetic dance. A file declaring more is refused as a
+// limit the engine keeps (ADR-0443), VOE_BASE_ERROR_UNSUPPORTED and not
+// malformed: the file may be fine, and the artist is told to scale it down.
 #define VOE_ASSETS_IMAGE_MAX_SIDE 16384
 
 // A decoded picture. `pixels` is width * height * 4 bytes of RGBA, row zero
@@ -66,11 +67,14 @@ typedef struct {
 //
 // WHAT IS REFUSED, AND EACH OF THESE IS SAID OUT LOUD RATHER THAN GUESSED AT:
 // interlaced PNG (VOE_BASE_ERROR_UNSUPPORTED — the file is fine, this decoder
-// is not interested), and bit depths below 8 (likewise). Everything else that
-// goes wrong is VOE_BASE_ERROR_MALFORMED: a bad signature, a chunk whose CRC
-// does not match, a truncated file, a declared size past
-// VOE_ASSETS_IMAGE_MAX_SIDE, a compressed stream that does not produce exactly
-// the number of bytes the header implies.
+// is not interested), bit depths below 8 and a palette at 16 (likewise), and a
+// side past VOE_ASSETS_IMAGE_MAX_SIDE (likewise, a limit the engine keeps).
+// Everything else that goes wrong is VOE_BASE_ERROR_MALFORMED: a bad
+// signature, a chunk whose CRC does not match, a truncated file, a compressed
+// stream that does not produce exactly the number of bytes the header implies.
+// Every refusal prints one line in the artist's words (ADR-0445): what is
+// wrong with the numbers, what to do, then `(PNG: …)`; the picture is the
+// report's subject, pushed by whoever has it.
 //
 // Colour types 0, 2, 3, 4 and 6 at depth 8 are all read — greyscale, RGB,
 // palette, greyscale with alpha, and RGBA — and all come out as RGBA8. Depth 16

@@ -23,7 +23,10 @@
 // `RIFF`/`WAVE` magic, no `fmt ` or no `data`, a `fmt ` too short for its tag,
 // a chunk running past the end of the bytes, a `data` size that is not a whole
 // number of frames, zero channels or a rate of zero. Either way the failure is
-// reported where it is found, and `sound` is left as it was.
+// reported where it is found, one line each in the artist's words (ADR-0445):
+// the format named and what to export instead, the most channels the engine
+// takes, or that the sound is damaged, then `(WAV: …)`. `sound` is left as it
+// was.
 //
 // WHY ONLY WAV (ADR-0266 point 2): the first sound needs one uncompressed
 // format that every tool writes, and WAV is that. A compressed format is a

@@ -1,12 +1,13 @@
 // The WAV reader: files assembled here byte by byte, decoded, and compared with
 // the samples that went in; then each refusal sound.h promises, with its
-// category, and `sound` left as it was.
+// category, and `sound` left as it was; a 24-bit file's kept line read back.
 //
 // THE FILES ARE BUILT RATHER THAN RECORDED because a WAV is a dozen fields in
 // front of raw samples: writing them out keeps every byte under test visible,
 // and one field changed is one case.
 #include <assets/sound.h>
 #include <base/arena.h>
+#include <base/report.h>
 
 #include <testing/test.h>
 
@@ -206,6 +207,25 @@ static void eight_bit_is_unsupported(void)
 	refuses(&file, file.size, VOE_BASE_ERROR_UNSUPPORTED);
 }
 
+// The kept line names the format the file is in and the one to export instead.
+static void twenty_four_bit_says_export_as_16_bit(void)
+{
+	const uint8_t samples[3] = { 1, 2, 3 };
+	struct wav_file file;
+	const char *kept;
+
+	start(&file, "WAVE");
+	put_fmt(&file, 1, 1, 44100, 24);
+	put_data(&file, samples, sizeof(samples));
+	finish(&file);
+	voe_base_report_error_clear();
+	refuses(&file, file.size, VOE_BASE_ERROR_UNSUPPORTED);
+	kept = voe_base_report_error_first();
+	VOE_TEST_CHECK(kept != NULL);
+	VOE_TEST_CHECK(kept != NULL && strstr(kept, "24-bit") != NULL);
+	VOE_TEST_CHECK(kept != NULL && strstr(kept, "16-bit") != NULL);
+}
+
 static void three_channels_are_unsupported(void)
 {
 	const int16_t samples[3] = { 1, 2, 3 };
@@ -248,6 +268,7 @@ int main(void)
 	extensible_float_decodes();
 	a_list_chunk_is_skipped();
 	eight_bit_is_unsupported();
+	twenty_four_bit_says_export_as_16_bit();
 	three_channels_are_unsupported();
 	truncated_data_is_malformed();
 	an_avi_is_malformed();

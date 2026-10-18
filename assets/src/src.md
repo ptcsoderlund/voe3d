@@ -21,8 +21,9 @@ of them is internal to this folder rather than reachable from outside it.
   over a hashed chain. Its header carries the fixed code and the length and
   distance tables, and says which three rules keep a changed matcher legal.
 - `png.c` — the reader: signature, chunks, CRC, filters, palette. Its header
-  says why this file is flat and has no recursion in it, and the rule every
-  length read out of the file is checked by.
+  says why this file is flat and has no recursion in it, the rule every
+  length read out of the file is checked by, and that each refusal is one line
+  in the artist's words.
 - `png_crc.h` — PNG's CRC-32, shared by the reader and the writer and
   implemented in `png.c`. Its header says why there is no running value to
   chain from, and which bytes of a chunk it covers.
@@ -74,4 +75,5 @@ of them is internal to this folder rather than reachable from outside it.
   progressive is refused rather than attempted, and which index in the format is
   the one that walks off the end of a block.
 - `wav.c` — the WAV reader: one walk over the RIFF chunks, then 16-bit or
-  float samples converted to float in the caller's arena.
+  float samples converted to float in the caller's arena; a refusal names the
+  format or the damage in one line in the artist's words.

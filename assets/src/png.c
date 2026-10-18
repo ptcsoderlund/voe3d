@@ -20,14 +20,27 @@
 // uses it — `offset + length > size` overflows and says yes, which is the bug
 // that check was written to prevent, so it is spelled `length > size - offset`
 // with `offset <= size` already known.
+//
+// EVERY REFUSAL PRINTS ONE LINE, AND ONLY THAT ONE (ADR-0445 point 2): the
+// cause in the artist's words with the numbers, what to do, then the format's
+// own words as `(PNG: …)`. The picture is never named here; whoever opened it
+// pushed it as the report's subject. inflate.c says nothing, so a stream that
+// will not inflate is reported here, as damage.
 #include <assets/image.h>
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include "inflate.h"
 #include "png_crc.h"
 
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
+
+// The artist's half of every refusal that is damage rather than a choice.
+#define DAMAGED "the picture is damaged; save it again as PNG "
 
 // The eight bytes every PNG starts with. The CR-LF-and-Ctrl-Z in the middle is
 // deliberate on the format's part: it is there so that a PNG sent through a
@@ -82,8 +95,20 @@ static uint32_t be32(const uint8_t *bytes)
 	       ((uint32_t)bytes[2] << 8) | (uint32_t)bytes[3];
 }
 
-static bool fail(voe_base_error *error, voe_base_error code)
+// The one exit of every refusal: its line, then its code. The line is
+// composed here because report.h takes no va_list; report.h's cut still holds.
+[[gnu::format(printf, 3, 4)]]
+static bool fail(voe_base_error *error, voe_base_error code, const char *words,
+		 ...)
 {
+	char line[512];
+	va_list arguments;
+
+	VOE_BASE_ASSERT(words != NULL, "a refusal says why");
+	va_start(arguments, words);
+	(void)vsnprintf(line, sizeof(line), words, arguments);
+	va_end(arguments);
+	VOE_BASE_ERROR("assets", "%s", line);
 	if (error != NULL)
 		*error = code;
 	return false;
@@ -278,7 +303,8 @@ bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 
 	if (size < sizeof(SIGNATURE) ||
 	    memcmp(bytes, SIGNATURE, sizeof(SIGNATURE)) != 0)
-		return fail(error, VOE_BASE_ERROR_MALFORMED);
+		return fail(error, VOE_BASE_ERROR_MALFORMED,
+			    DAMAGED "(PNG: no PNG signature)");
 
 	// FIRST PASS: find the header, the palette, and how much compressed data
 	// there is. Nothing is decompressed until the total is known, because
@@ -294,65 +320,113 @@ bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 		// subtraction cannot wrap because the loop condition just
 		// established that offset + 12 fits.
 		if (length > size - offset - 12)
-			return fail(error, VOE_BASE_ERROR_MALFORMED);
+			return fail(error, VOE_BASE_ERROR_MALFORMED,
+				    DAMAGED "(PNG: a chunk runs past the end "
+					    "of the file)");
 
 		if (voe_assets_png_crc(type, (size_t)length + 4) !=
 		    be32(data + length))
-			return fail(error, VOE_BASE_ERROR_MALFORMED);
+			return fail(error, VOE_BASE_ERROR_MALFORMED,
+				    DAMAGED "(PNG: a chunk's CRC does not "
+					    "match)");
 
 		if (memcmp(type, "IHDR", 4) == 0) {
 			if (seen_header || length != 13)
-				return fail(error, VOE_BASE_ERROR_MALFORMED);
+				return fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(PNG: IHDR is repeated or "
+						    "not 13 bytes)");
 			width = be32(data);
 			height = be32(data + 4);
 			colour_type = data[9];
 
-			if (width == 0 || height == 0 ||
-			    width > VOE_ASSETS_IMAGE_MAX_SIDE ||
+			if (width == 0 || height == 0)
+				return fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(PNG: IHDR gives a width "
+						    "or height of 0)");
+			// A limit the engine keeps (ADR-0443), so a choice
+			// and not damage: UNSUPPORTED, in the limit's words.
+			if (width > VOE_ASSETS_IMAGE_MAX_SIDE ||
 			    height > VOE_ASSETS_IMAGE_MAX_SIDE)
-				return fail(error, VOE_BASE_ERROR_MALFORMED);
+				return fail(error, VOE_BASE_ERROR_UNSUPPORTED,
+					    "the picture is %" PRIu32
+					    " × %" PRIu32
+					    " pixels, the most the engine "
+					    "takes is %d a side; scale it down "
+					    "(PNG: IHDR width and height)",
+					    width, height,
+					    VOE_ASSETS_IMAGE_MAX_SIDE);
 			// Compression 0 and filter 0 are the only ones the
 			// format defines; anything else is a corrupt header
 			// rather than a variant.
 			if (data[10] != 0 || data[11] != 0)
-				return fail(error, VOE_BASE_ERROR_MALFORMED);
+				return fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(PNG: compression %u, "
+						    "filter method %u)",
+					    (unsigned)data[10],
+					    (unsigned)data[11]);
 			// Depth and interlace are well-formed values this
 			// decoder declines, so they are UNSUPPORTED and not
 			// MALFORMED. image.h says which. A palette at 16
 			// is one the format forbids, refused the same way.
-			if (data[8] != 8 &&
-			    (data[8] != 16 || colour_type == COLOUR_PALETTE))
-				return fail(error, VOE_BASE_ERROR_UNSUPPORTED);
+			if (data[8] != 8 && data[8] != 16)
+				return fail(error, VOE_BASE_ERROR_UNSUPPORTED,
+					    "the picture is %u-bit, the engine "
+					    "reads 8-bit and 16-bit pictures; "
+					    "save it as 8-bit (PNG: bit depth "
+					    "%u)",
+					    (unsigned)data[8],
+					    (unsigned)data[8]);
+			if (data[8] == 16 && colour_type == COLOUR_PALETTE)
+				return fail(error, VOE_BASE_ERROR_UNSUPPORTED,
+					    "the picture is a 16-bit palette "
+					    "picture, which the engine does not "
+					    "read; save it as 8-bit (PNG: bit "
+					    "depth 16 with colour type 3)");
 			if (data[12] != 0)
-				return fail(error, VOE_BASE_ERROR_UNSUPPORTED);
+				return fail(error, VOE_BASE_ERROR_UNSUPPORTED,
+					    "the picture is interlaced, which "
+					    "the engine does not read; save it "
+					    "without interlacing (PNG: "
+					    "interlace method %u)",
+					    (unsigned)data[12]);
 
 			channels = channels_of(colour_type);
 			if (channels == 0)
-				return fail(error, VOE_BASE_ERROR_MALFORMED);
+				return fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(PNG: colour type %u)",
+					    (unsigned)colour_type);
 			sample_bytes = data[8] / 8;
 			seen_header = true;
 		} else if (memcmp(type, "PLTE", 4) == 0) {
 			if (!seen_header || length % 3 != 0 || length == 0 ||
 			    length > 256 * 3)
-				return fail(error, VOE_BASE_ERROR_MALFORMED);
+				return fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(PNG: PLTE before IHDR or "
+						    "of %" PRIu32 " bytes)",
+					    length);
 			palette = data;
 			palette_count = length / 3;
 		} else if (memcmp(type, "tRNS", 4) == 0) {
 			if (!seen_header)
-				return fail(error, VOE_BASE_ERROR_MALFORMED);
+				return fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(PNG: tRNS before IHDR)");
 			// Only the palette form is read. The two others give a
 			// single colour full transparency, which nothing asks
 			// for yet (rule 10).
 			if (colour_type == COLOUR_PALETTE) {
 				if (length > 256)
 					return fail(error,
-						    VOE_BASE_ERROR_MALFORMED);
+						    VOE_BASE_ERROR_MALFORMED,
+						    DAMAGED "(PNG: tRNS of %" PRIu32
+							    " bytes)",
+						    length);
 				palette_alpha = data;
 				palette_alpha_count = length;
 			}
 		} else if (memcmp(type, "IDAT", 4) == 0) {
 			if (!seen_header)
-				return fail(error, VOE_BASE_ERROR_MALFORMED);
+				return fail(error, VOE_BASE_ERROR_MALFORMED,
+					    DAMAGED "(PNG: IDAT before IHDR)");
 			compressed_capacity += length;
 		} else if (memcmp(type, "IEND", 4) == 0) {
 			seen_end = true;
@@ -370,11 +444,14 @@ bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 	// to a picture that is quietly missing its bottom half. The end marker
 	// is the only thing in the format that says "that was all of it".
 	if (!seen_end)
-		return fail(error, VOE_BASE_ERROR_MALFORMED);
+		return fail(error, VOE_BASE_ERROR_MALFORMED,
+			    DAMAGED "(PNG: no IEND, the file is cut short)");
 	if (!seen_header || compressed_capacity == 0)
-		return fail(error, VOE_BASE_ERROR_MALFORMED);
+		return fail(error, VOE_BASE_ERROR_MALFORMED,
+			    DAMAGED "(PNG: no IHDR or no IDAT)");
 	if (colour_type == COLOUR_PALETTE && palette == NULL)
-		return fail(error, VOE_BASE_ERROR_MALFORMED);
+		return fail(error, VOE_BASE_ERROR_MALFORMED,
+			    DAMAGED "(PNG: colour type 3 with no PLTE)");
 
 	// SECOND PASS: gather the IDAT bytes into one buffer. The capacity was
 	// summed above from lengths that were each checked against the file, so
@@ -405,11 +482,16 @@ bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 	raw = voe_base_arena_push(arena, raw_size);
 
 	if (!voe_assets_inflate(compressed, compressed_size, raw, raw_size,
-				error))
-		return false;
+				NULL))
+		return fail(error, VOE_BASE_ERROR_MALFORMED,
+			    DAMAGED "(PNG: the IDAT data does not inflate to "
+				    "the %zu bytes IHDR implies)",
+			    raw_size);
 
 	if (!unfilter(raw, width, height, channels * sample_bytes))
-		return fail(error, VOE_BASE_ERROR_MALFORMED);
+		return fail(error, VOE_BASE_ERROR_MALFORMED,
+			    DAMAGED "(PNG: a scanline's filter byte is not "
+				    "0 to 4)");
 
 	pixels = voe_base_arena_push(arena, (size_t)width * height * 4);
 	for (uint32_t y = 0; y < height; y++) {
@@ -422,7 +504,10 @@ bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 			narrow_to_8_bits(in, (size_t)width * channels);
 		if (!widen(out, in, width, colour_type, palette, palette_count,
 			   palette_alpha, palette_alpha_count))
-			return fail(error, VOE_BASE_ERROR_MALFORMED);
+			return fail(error, VOE_BASE_ERROR_MALFORMED,
+				    DAMAGED "(PNG: a palette index past the "
+					    "%" PRIu32 " entries of PLTE)",
+				    palette_count);
 	}
 
 	image->width = width;

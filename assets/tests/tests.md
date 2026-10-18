@@ -16,7 +16,8 @@ belongs to.
   and what the size checks do about it.
 - `png.c` — real files from a real encoder, one filter per row, 16-bit RGBA and grey built here
   and rounded to 8 bits, the three failures card 017 named plus a corrupt CRC, interlace and depth 4
-  refused rather than broken, then the writer round-tripped through the reader.
+  refused rather than broken, every refusal's kept line read for `(PNG: ` and the words for interlace,
+  4-bit and the huge size's 16384, then the writer round-tripped through the reader.
 - `png_data.inc` — those files, as bytes.
 - `json.c` — a document read back as its values, and every shape of broken
   input a tolerant reader would let past.
@@ -44,5 +45,5 @@ belongs to.
   a decoder tested against its own encoder honest.
 - `jpeg_data.inc` — those files, as bytes.
 - `wav.c` — WAV files built byte by byte: mono 16-bit, stereo float, an
-  extensible header and a skipped `LIST` decoded, and each refusal with its
-  category.
+  extensible header and a skipped `LIST` decoded, each refusal with its
+  category, and a 24-bit file's kept line naming 24-bit and 16-bit.

@@ -25,7 +25,11 @@
 // THE 16-BIT AND 4-BIT FILES ARE BUILT HERE, one stored deflate block each with
 // the CRC through ../src/png_crc.h, so their samples are exactly the ones
 // 0446's rounding is checked on.
+//
+// EVERY REFUSAL IS ALSO READ BACK AS THE LINE IT KEPT (ADR-0445): `(PNG: ` on
+// all of them, and the artist's words on interlace, depth 4 and the huge size.
 #include <assets/image.h>
+#include <base/report.h>
 
 #include <testing/test.h>
 
@@ -57,8 +61,16 @@
 	return arena;
 }
 
+// Whether the line kept since the last clear contains `words`.
+static bool said(const char *words)
+{
+	const char *kept = voe_base_report_error_first();
+
+	return kept != NULL && strstr(kept, words) != NULL;
+}
+
 // A decode that must fail, with the code it must fail with, and it must not
-// crash or run away while doing it.
+// crash or run away while doing it. The kept line is left for the caller.
 static void refuses(const char *what, const uint8_t *bytes, size_t size,
 		    voe_base_error expected)
 {
@@ -67,8 +79,12 @@ static void refuses(const char *what, const uint8_t *bytes, size_t size,
 	voe_base_error error = VOE_BASE_OK;
 
 	(void)what;
+	voe_base_report_error_clear();
 	VOE_TEST_CHECK(!voe_assets_png_decode(bytes, size, arena, &image, &error));
 	VOE_TEST_CHECK_INT((int)error, (int)expected);
+	// Every refusal says why, with the format's words for a developer.
+	VOE_TEST_CHECK(voe_base_report_error_first() != NULL);
+	VOE_TEST_CHECK(said("(PNG: "));
 
 	voe_base_arena_destroy(arena);
 }
@@ -209,10 +225,13 @@ static void a_wrong_magic_number_is_refused(void)
 }
 
 // A hundred thousand square is four hundred billion bytes. Refusing on the
-// header is the whole point: the allocation must never be attempted.
+// header is the whole point: the allocation must never be attempted. It is a
+// limit the engine keeps, so unsupported, and the line names both numbers.
 static void an_absurd_declared_size_is_refused(void)
 {
-	refuses("huge", HUGE_PNG, sizeof(HUGE_PNG), VOE_BASE_ERROR_MALFORMED);
+	refuses("huge", HUGE_PNG, sizeof(HUGE_PNG), VOE_BASE_ERROR_UNSUPPORTED);
+	VOE_TEST_CHECK(said("100000 × 100000"));
+	VOE_TEST_CHECK(said("16384"));
 }
 
 static void a_corrupt_chunk_is_refused(void)
@@ -349,8 +368,10 @@ static void interlaced_and_shallow_are_unsupported_not_malformed(void)
 
 	refuses("interlaced", INTERLACED_PNG, sizeof(INTERLACED_PNG),
 		VOE_BASE_ERROR_UNSUPPORTED);
+	VOE_TEST_CHECK(said("interlac"));
 	size = build_png(file, 2, 1, 4, 0, SHALLOW, sizeof(SHALLOW));
 	refuses("4-bit", file, size, VOE_BASE_ERROR_UNSUPPORTED);
+	VOE_TEST_CHECK(said("4-bit"));
 	size = build_png(file, 2, 1, 16, 3, WIDE, sizeof(WIDE));
 	refuses("16-bit palette", file, size, VOE_BASE_ERROR_UNSUPPORTED);
 }
