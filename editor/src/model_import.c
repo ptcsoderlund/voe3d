@@ -2,6 +2,10 @@
 // maps: the file read and parsed, every path named and checked first, then the
 // files written. See the header for the names, what each overwrites and what
 // is refused.
+//
+// The file is read and parsed under its path as the report's subject; too many
+// materials is said once, as the engine's limit. Each name is cleaned and made
+// unique before any path is built from it.
 #include "model_import.h"
 
 #include <assets/image.h>
