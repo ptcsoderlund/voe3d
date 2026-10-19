@@ -8,6 +8,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 void voe_editor_notice_clear(voe_editor_notice *notice)
 {
@@ -31,12 +32,17 @@ void voe_editor_notice_set(voe_editor_notice *notice, const char *format, ...)
 void voe_editor_notice_from_report(voe_editor_notice *notice, const char *file)
 {
 	const char *reason;
+	size_t length;
 
 	VOE_BASE_ASSERT(notice != NULL, "building no notice from a report");
 	VOE_BASE_ASSERT(file != NULL, "building a notice with no file to name");
 
 	reason = voe_base_report_error_first();
-	if (reason != NULL)
+	length = strlen(file);
+	if (reason != NULL && strncmp(reason, file, length) == 0 &&
+	    strncmp(reason + length, ": ", 2) == 0)
+		voe_editor_notice_set(notice, "%s", reason);
+	else if (reason != NULL)
 		voe_editor_notice_set(notice, "%s: %s", file, reason);
 	else
 		voe_editor_notice_set(notice, "%s: could not be read", file);

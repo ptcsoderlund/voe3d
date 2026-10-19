@@ -213,28 +213,34 @@ static bool text_written(const char *project_folder, const char *path,
 			     scratch, why);
 }
 
-// `glb` read from the project and parsed into `model` on scratch. False with
-// `why` naming it.
+// `glb` read from the project and parsed into `model` on scratch, `glb` the
+// report's subject throughout so the cause's own line names it (0445 point
+// 1). False with `why` the kept line, said once.
 static bool model_read(const char *project_folder, const char *glb,
 		       voe_base_arena *scratch, voe_assets_model *model,
 		       voe_editor_notice *why)
 {
 	const uint8_t *bytes;
 	size_t count = 0;
+	bool ok;
 
 	VOE_BASE_ASSERT(model != NULL && why != NULL, "reading into no model");
 	voe_base_report_error_clear();
+	voe_base_report_subject_push(glb);
 	bytes = voe_platform_file_read(voe_platform_path_join(scratch, project_folder, glb),
 				       scratch, &count, NULL);
-	if (bytes == NULL || !voe_assets_model_read_glb(bytes, count, scratch, model, NULL)) {
-		voe_editor_notice_from_report(why, glb);
-		return false;
+	ok = bytes != NULL && voe_assets_model_read_glb(bytes, count, scratch, model, NULL);
+	if (ok && model->material_count > VOE_ASSETS_PARTS) {
+		VOE_BASE_ERROR("editor",
+			       "the model uses %u materials, the most the engine takes is %d. "
+			       "Join materials in Blender so it uses fewer",
+			       model->material_count, VOE_ASSETS_PARTS);
+		ok = false;
 	}
-	if (model->material_count <= VOE_ASSETS_PARTS)
-		return true;
-	voe_editor_notice_set(why, "%s: %u materials, more than the %d a parts file names", glb,
-			      model->material_count, VOE_ASSETS_PARTS);
-	return false;
+	voe_base_report_subject_pop();
+	if (!ok)
+		voe_editor_notice_from_report(why, glb);
+	return ok;
 }
 
 // `glb`'s `<stem>.parts` path, on scratch.

@@ -784,10 +784,12 @@ void voe_editor_assets_import(voe_editor_assets *assets,
 	length = snprintf(imported, VOE_3D_MODEL_PATH, "%s", relative);
 	if (length < 0 || length >= VOE_3D_MODEL_PATH)
 		imported[0] = '\0';
-	// A false has said why; the `.glb` itself is in place either way.
-	if (name_ends(source, ".glb"))
-		(void)voe_editor_model_import(project_folder, relative, scratch,
-					      why);
+	// A refusal has said why once and the `.glb` stays copied and listed;
+	// `imported` left "" so no LODs question, prepare or reload reads it
+	// again to say the same (0445 point 4).
+	if (name_ends(source, ".glb") &&
+	    !voe_editor_model_import(project_folder, relative, scratch, why))
+		imported[0] = '\0';
 	relist(assets, project_folder, shown, NULL, false);
 destroy_scratch:
 	voe_base_arena_destroy(scratch);

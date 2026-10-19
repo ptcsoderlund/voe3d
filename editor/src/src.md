@@ -92,7 +92,7 @@ carries it out.
   save. Its header says what a caller has to do before asking for one built
   from base/report.h's first kept error.
 - `notice.c` — a notice's text cleared, set from a format, or built from
-  base/report.h's first kept error.
+  base/report.h's first kept error, the file put before it only when the line does not begin with it.
 - `code.h` — a project's library loaded from a copy under `Build/editor/loaded/`, its one entry
   point resolved (ADR-0008), whether a build equals it, and why it closes after its worlds.
 - `code.c` — the folders made, the copy read and written, the open and the lookup, and the compare.
@@ -194,9 +194,10 @@ carries it out.
 - `model_import.h` — what Import writes beside a `.glb`: one `<stem>-<name>.material` per glTF
   material and `<stem>.parts` naming them, both overwritten every import, the levels kept (0403,
   0420 point 3); and Import textures: its pictures as PNGs and the materials' four maps set to them.
-- `model_import.c` — the file read and parsed, each name cleaned and made unique, every path
-  checked before the first write, then the materials and the parts, or the PNGs and the dressed
-  materials, written.
+- `model_import.c` — the file read and parsed under its path as the report's subject, too many
+  materials said once as the engine's limit, each name cleaned and made unique, every path checked
+  before the first write, then the materials and the parts, or the PNGs and the dressed materials,
+  written.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
   over a row and Import textures and Make LODs over a `.glb`'s, Create with its Folder, Landscape and Material
   submenu over the empty part, anchored at the pointer.

@@ -16,6 +16,10 @@
 // knows which step it is explaining. `file` is named first because a notice
 // that only repeats "line 4: ..." with no file to put it against is not
 // something a person reading a top bar can act on.
+//
+// THE FILE IS NAMED ONCE (0445 point 6). A kept line made under a subject
+// (base/report.h) already begins with that file, so a notice that put `file`
+// before it again would say the path twice; such a line is the notice whole.
 #pragma once
 
 // A message long enough for a path and one line of report text; longer is cut
@@ -33,7 +37,8 @@ void voe_editor_notice_clear(voe_editor_notice *notice);
 [[gnu::format(printf, 2, 3)]] void voe_editor_notice_set(voe_editor_notice *notice,
 							 const char *format, ...);
 
-// Writes "<file>: <voe_base_report_error_first()>", or "<file>: could not be
-// read" when nothing has been kept since the caller's last
-// voe_base_report_error_clear(). file is copied in, not kept by reference.
+// Writes the kept line, voe_base_report_error_first(), alone when it begins
+// "<file>: ", else "<file>: <kept line>", or "<file>: could not be read" when
+// nothing has been kept since the caller's last voe_base_report_error_clear().
+// file is copied in, not kept by reference.
 void voe_editor_notice_from_report(voe_editor_notice *notice, const char *file);
