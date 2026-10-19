@@ -20,7 +20,8 @@
 //
 // A MESH'S OWN BOX IS HANDED BACK EXACTLY (0332): vertices spanning (−1, 0, −2)
 // to (3, 5, 2) give that box, and once the mesh is destroyed the query is false.
-// A sharing mesh walks its base's vertices with indices of its own (0444).
+// A sharing mesh walks its base's vertices with indices of its own (0444), and
+// is destroyed before its base.
 //
 // It includes render's internal header by relative path, as the other tests in
 // this folder do: what a geometry id resolves to is not public — a caller has an
