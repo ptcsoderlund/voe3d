@@ -18,8 +18,9 @@
 //
 // POSITION, NORMAL AND TEXCOORD_0 ARE READ AS FLOATS ONLY, AND COLOR_0 AS glTF
 // ALLOWS IT AND NO WIDER: VEC3 or VEC4 of floats, or of unsigned bytes or shorts
-// marked normalized, all turned into float 0 to 1. Any other stored form is
-// unsupported, saying which attribute and how it is stored.
+// marked normalized, all turned into float 0 to 1. Any other stored form, such
+// as Blender's Compression or Quantize writes, is unsupported, saying which
+// attribute and how it is stored.
 #include "model_gltf_read.h"
 
 #include <inttypes.h>

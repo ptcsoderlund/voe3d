@@ -210,7 +210,9 @@ static bool read_format(const struct wav_chunks *chunks, voe_assets_sound *out,
 			      "the engine takes is 2; mix it to stereo "
 			      "(WAV: %" PRIu32 " channels)",
 			      out->channels, out->channels);
-	VOE_BASE_ASSERT(out->channels <= 2 && out->rate > 0, "format checked");
+	VOE_BASE_ASSERT(out->channels >= 1 && out->channels <= 2 &&
+				out->rate > 0,
+			"format checked");
 	return true;
 }
 
@@ -254,6 +256,10 @@ bool voe_assets_wav_decode(const uint8_t *bytes, size_t size,
 	if (!find_chunks(bytes, end, &chunks, error) ||
 	    !read_format(&chunks, &out, &tag, error))
 		return false;
+	// Stated again here because the analyser does not follow the variadic
+	// refuse() and so cannot see read_format's refusals return false.
+	VOE_BASE_ASSERT(out.channels >= 1 && out.channels <= 2,
+			"read_format refused every other channel count");
 	sample_bytes = tag == WAV_TAG_PCM ? 2 : 4;
 	if (chunks.data_size % (sample_bytes * out.channels) != 0)
 		return refuse(error, VOE_BASE_ERROR_MALFORMED,

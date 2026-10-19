@@ -58,18 +58,14 @@ of them is internal to this folder rather than reachable from outside it.
   engine takes.
 - `model_gltf.h` — the split between the container and the description.
 - `model_gltf_read.h` — what the glTF reader's parts share, internal to this
-  folder: the read's state, the shared helpers and each part's one call. Its
-  header says why the split is by what is read, the subjects a part pushes
-  (part, material, picture) and the two report shapes, damaged and not read.
+  folder: the read's state, the shared helpers and each part's one call.
 - `model_gltf.c` — the shared helpers, accessors and buffer views, the version
   and extension checks, and the entry point. Its header says the rule every
   length read out of a file is checked by, and the one buffer.
 - `model_gltf_materials.c` — texture references, the alpha mode, materials and
   images. Its header says why a texture resolves to an image.
 - `model_gltf_meshes.c` — attributes, primitives and meshes, each mesh under
-  its part and each primitive under its material. Its header says why triangle
-  lists only, why an unindexed primitive is given indices, and which stored
-  forms are refused: points and lines, compressed or quantized attributes.
+  its part and each primitive under its material, triangle lists only.
 - `model_gltf_nodes.c` — the node names and matrices and the node tree, each
   node under its object. Its header says how the tree is proven a tree without
   recursion; every refusal is damage.
