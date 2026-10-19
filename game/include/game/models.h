@@ -21,12 +21,9 @@
 // `<folder>/Cache/levels/<path>.levels`, made when missing or stale, in update
 // and watch alike. The write is atomic, its folders made as needed; a failed
 // one is a line on stderr, the levels made still drawn. `Cache/` may go any
-// time. The file is made with the count, strength, shares and swaps of the
-// `.parts` beside the `.glb`, the defaults when none (0430 point 5, 0436); a
-// fresh file whose swaps differ from the `.parts`' has them written in, not
-// made again (0435 point 4). A shipped game, with none, uses what it ships.
-// A make refusing the `.glb` keeps its entry failed at its stamp, with no
-// second read by the store (0445 point 4).
+// time. The file follows the `.parts` beside the `.glb` (0430 point 5, 0436,
+// 0435 point 4; see the update call). A make refusing the `.glb` keeps its
+// entry failed at its stamp, with no second read by the store (0445 point 4).
 //
 // PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the
 // distinct paths the call will read are counted first, then "Loading models"
@@ -86,6 +83,11 @@ typedef struct {
 // lacks, then every loaded landscape's kind paths it lacks (0442 point 1) as a
 // row's path, and the dot for any emitter, reporting into `progress` (NULL for
 // none) and stopping when it asks. See the header.
+//
+// A levels file is made with the count, strength, shares and swaps of the
+// `.parts` beside the `.glb`, the defaults when none (0430 point 5, 0436); a
+// fresh file whose swaps differ from the `.parts`' has them written in, not
+// made again (0435 point 4). A shipped game, with none, uses what it ships.
 voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_3d_models *models,
 						voe_render_device *device,
