@@ -18,7 +18,7 @@
 //
 // THE BAD ONES ARE THE POINT OF THE FILE. Card 017 named three — a truncated
 // file, a wrong magic number and an absurd declared size — and each is a
-// recoverable failure with a test here. A decoder that crashed or allocated four
+// recoverable failure with a test here, as is a corrupt CRC. A decoder that crashed or allocated four
 // gigabytes on any of them would still pass a test that only ever decoded valid
 // pictures, which is why the valid ones are the smaller half of this file.
 //
@@ -27,7 +27,8 @@
 // 0446's rounding is checked on.
 //
 // EVERY REFUSAL IS ALSO READ BACK AS THE LINE IT KEPT (ADR-0445): `(PNG: ` on
-// all of them, and the artist's words on interlace, depth 4 and the huge size.
+// all of them, and the artist's words on interlace, depth 4 and the huge size's
+// 16384. Interlace and depth 4 are refused rather than decoded wrong.
 #include <assets/image.h>
 #include <base/report.h>
 

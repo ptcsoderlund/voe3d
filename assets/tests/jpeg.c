@@ -23,6 +23,12 @@
 // by a level or two. Three is comfortably inside that and nowhere near enough to
 // hide a wrong pixel: every mistake this test is looking for moves samples by
 // tens or by hundreds.
+//
+// THE CASES: greyscale, 4:4:4 and 4:2:0 round-tripped; card 017's three
+// failures (a truncated file, a wrong magic number, an absurd declared size)
+// and a progressive file refused; and every refusal's kept line read for
+// `(JPEG: ` and the artist's words: progressive's "baseline", the huge size's
+// 16384 and a scan cut short's "save it again".
 #include <assets/image.h>
 
 #include <base/report.h>

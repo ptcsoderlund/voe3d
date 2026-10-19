@@ -14,10 +14,9 @@ belongs to.
   byte to 200 kB, at the longest match and the farthest distance the format has.
   Its header says why a round trip alone would pass with the matcher switched off
   and what the size checks do about it.
-- `png.c` — real files from a real encoder, one filter per row, 16-bit RGBA and grey built here
-  and rounded to 8 bits, the three failures card 017 named plus a corrupt CRC, interlace and depth 4
-  refused rather than broken, every refusal's kept line read for `(PNG: ` and the words for interlace,
-  4-bit and the huge size's 16384, then the writer round-tripped through the reader.
+- `png.c` — real encoder files with every filter, 16-bit and 4-bit files built
+  here, each refusal read for its code and its kept line's words, and the
+  writer round-tripped through the reader.
 - `png_data.inc` — those files, as bytes.
 - `json.c` — a document read back as its values, every shape of broken input
   a tolerant reader would let past, and too many values or too deep refused as
@@ -33,20 +32,16 @@ belongs to.
   round-tripped and written again byte for byte, defaults read for what is
   absent, and bad input refused MALFORMED.
 - `model.c` — a hand-built `.glb` read back into its arrays, its fields read
-  or defaulted, a base colour texture at `texCoord` −1 read as none, a working
-  file corrupted a byte at a time, and kept lines read for their subject and
-  `(glTF: `: a part of points says "triangles", a `.glb` cut short to export it
-  again, a `.gltf` ".glb".
+  or defaulted, a working file corrupted a byte at a time, and each refusal's
+  kept line read for its subject and `(glTF: `.
 - `model_material.c` — built glTF materials, no file, to their `.material`
   values: opaque, MASK, BLEND, unlit, double-sided, emission and repeat; and
   the ORM picture from metal-roughness alone, with a larger occlusion picture,
   from occlusion alone, and from neither.
 - `model_data.inc` — those files, as bytes.
 - `jpeg.c` — greyscale, 4:4:4 and 4:2:0 round-tripped against the pixels
-  that went in, plus the same three failures and the progressive refusal, every
-  refusal's kept line read for `(JPEG: `, and the words for progressive's
-  "baseline", the huge size's 16384 and a scan cut short's "save it again". Its
-  header says where the files came from and why a quantiser of one keeps it honest.
+  that went in, and each refusal read for its code and its kept line's words.
+  Its header says where the files came from.
 - `jpeg_data.inc` — those files, as bytes.
 - `wav.c` — WAV files built byte by byte: mono 16-bit, stereo float, an
   extensible header and a skipped `LIST` decoded, each refusal with its
