@@ -85,10 +85,13 @@ static bool refuse_stored(struct gltf *gltf, const char *what,
 		stored_as(view->component), read);
 }
 
-// A mesh's primitives array, refused when the mesh is not an object or has none.
+// A mesh's primitives array, refused when the mesh is not an object or has none;
+// the outputs start as none and nought, so a refusal leaves them defined.
 static bool mesh_primitives(struct gltf *gltf, uint32_t mesh, uint32_t *array,
 			    uint32_t *count)
 {
+	*array = VOE_ASSETS_JSON_NONE;
+	*count = 0;
 	if (mesh == VOE_ASSETS_JSON_NONE)
 		return voe_assets_gltf_malformed(gltf,
 						 "a mesh that is not an object");
