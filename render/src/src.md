@@ -50,10 +50,9 @@ which file to open — what each one owns, and where the seams between them run.
 - `buffer.c` — a named buffer with the memory under it, the staging upload
   that fills a device-local one at an offset, and a waited-on copy of one buffer
   into another. Its header says why every later upload is this.
-- `geometry.c` — the two static pools, whose ranges are freed and reused first fit and which grow
-  when full, the transient pair in every frame slot, the ranges into all of them, each with its
-  bounding sphere and its vertex box, which `voe_render_geometry_box` hands back, and the sharing
-  create whose indices walk another mesh's vertices.
+- `geometry.c` — the two growing static pools, ranges reused first fit, the transient pair in
+  every frame slot, the ranges into them with sphere and box, and the sharing create that walks
+  another mesh's vertices.
 - `geometry_grow.c` — one static pool grown: a buffer of twice the room or what is needed, the old
   contents copied across in one waited-on submission, the old buffer given back.
 - `element.c` — the element path on the C side: the third pipeline, the submit that writes one
