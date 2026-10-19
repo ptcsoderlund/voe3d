@@ -17,7 +17,8 @@
 // A PREPARE ("Preparing <file>") makes an imported `.glb`'s levels file
 // through voe_game_models_prepare (0426 point 3), no device in it; the Assets
 // menu's Make levels runs the same one, made even when fresh (0429); main.c
-// loads the model again after the wait (0431).
+// loads the model again after the wait (0431) unless the prepare refused it
+// (0445 point 4).
 //
 // WHAT THE WORKER OWNS. During the wait the worker owns everything its context
 // names: the session and its project, the scene, the model store, the shapes
@@ -32,6 +33,7 @@
 #pragma once
 
 #include "models.h"
+#include "notice.h"
 #include "scene.h"
 #include "session.h"
 
@@ -76,11 +78,15 @@ typedef struct {
 // `folder`, as game/models.h takes them. `phase` is the work's own, written
 // by it and pointed at by the progress while the wait runs. `remake` is
 // voe_game_models_prepare's: Import leaves it false, Make levels sets it.
+// `refused` is set when the prepare refused the `.glb`, whose cause has its
+// own line on stderr; `refusal` is then that kept line as the notice.
 typedef struct {
 	const char *folder;
 	const char *path;
 	voe_base_arena *scratch;
 	bool remake;
+	bool refused;
+	voe_editor_notice refusal;
 	char phase[VOE_EDITOR_LOADING_PHASE];
 } voe_editor_loading_prepare;
 
@@ -95,7 +101,7 @@ typedef struct {
 						voe_game_progress *progress);
 
 // A voe_game_starting_work on a voe_editor_loading_prepare. A file that will
-// not prepare is one line on stderr, not a false: the model fails where it
-// loads, as any broken file does. False only once stopped.
+// not prepare sets `refused` and `refusal`, not a line of its own and not a
+// false: its cause said its line where it was found. False only once stopped.
 [[nodiscard]] bool voe_editor_loading_prepare_work(void *context,
 						   voe_game_progress *progress);

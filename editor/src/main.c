@@ -444,7 +444,9 @@ int main(int argc, char *argv[])
 
 		// AN IMPORTED MODEL'S LEVELS MADE BEHIND THE SPLASH (loading.h),
 		// before any load replaces the project it was imported into. The
-		// model is loaded again so its new levels draw at once (0431).
+		// model is loaded again so its new levels draw at once (0431); a
+		// refused prepare puts its line in the notice and is not reloaded,
+		// which would only meet the same cause again (0445 point 4).
 		if (session.prepare_due) {
 			voe_editor_loading_prepare prepare = {
 				.folder = session.project->folder,
@@ -459,8 +461,12 @@ int main(int argc, char *argv[])
 				break;
 			}
 			voe_base_arena_clear(scratch);
-			voe_editor_models_reload(models, &session, gpu,
-						 session.prepare_path, scratch);
+			if (prepare.refused)
+				session.notice = prepare.refusal;
+			else
+				voe_editor_models_reload(models, &session, gpu,
+							 session.prepare_path,
+							 scratch);
 			session.prepare_due = false;
 			session.prepare_remake = false;
 		}

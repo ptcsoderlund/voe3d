@@ -10,7 +10,8 @@ carries it out.
 - `loading.h` — the start's, a New or Open load's and an import's prepare works for a splash wait:
   shaders with the editor's pipeline cache, shapes and models, the scene and its models, or an
   imported model's levels file, made again for Make LODs, and what the worker owns.
-- `loading.c` — the three works, each step after a stop check, in the worker's own scratch.
+- `loading.c` — the three works, each step after a stop check, in the worker's own scratch, a
+  refused prepare's notice built from the worker's kept error.
 - `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
   time so a missing copy shows the plain screen, kept by the caller until the device closes.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
@@ -346,7 +347,8 @@ carries it out.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
 - `models.c` — the editor's one model store, made, filled, watched and re-read through
-  game/models.h, and its landscapes with their foliage and materials edited and written back.
+  game/models.h, a failure's notice the kept line whole, a landscape re-read under its path as the
+  subject, and its landscapes with their foliage and materials edited and written back.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.
