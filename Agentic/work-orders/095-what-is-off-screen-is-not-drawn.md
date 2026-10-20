@@ -1,4 +1,4 @@
-# 093 — What is off screen is not drawn
+# 095 — What is off screen is not drawn
 
 ## What
 A view draws only what it can see. Things behind the camera or outside the edges of the picture cost
