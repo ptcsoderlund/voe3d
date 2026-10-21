@@ -33,9 +33,8 @@ belongs to.
   absent, and bad input refused MALFORMED.
 - `model.c` — a hand-built `.glb` read back into its arrays, its fields read
   or defaulted, a working file corrupted a byte at a time, each refusal's
-  kept line read for its subject and `(glTF: `, and the encoded read matching
-  the decoded one, its picture decoded alone and a broken one refused under
-  "the picture".
+  kept line read for its subject, and the encoded read matching the decoded
+  one.
 - `model_material.c` — built glTF materials, no file, to their `.material`
   values: opaque, MASK, BLEND, unlit, double-sided, emission and repeat; and
   the ORM picture from metal-roughness alone, with a larger occlusion picture,

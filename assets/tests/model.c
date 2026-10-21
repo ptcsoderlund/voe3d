@@ -33,7 +33,7 @@
 // defaulted; a 100-byte name cut at a whole character; Blender's texCoord −1
 // read as no texture; node names; and a refusal's kept line, beginning with
 // the material or the part and material it is about and carrying the format's
-// words after its own: a part of points says triangles, a `.glb` cut short says
+// words after its own, behind `(glTF: `: a part of points says triangles, a `.glb` cut short says
 // to export it again, a `.gltf` says `.glb`; and the encoded read, its picture
 // decoded alone and a broken one refused under "the picture" (0448).
 #include <assets/model.h>
