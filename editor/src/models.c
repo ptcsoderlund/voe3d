@@ -10,7 +10,8 @@
 // reshaped, written at once and loaded again at the next update; an edited
 // material set live, or loaded again at the next update when a map changed,
 // as is every held material a read of the tables found new or changed. A read
-// that fails is said in the session's notice.
+// that fails is said in the session's notice, the kept line whole; a landscape
+// re-read names its path as the subject.
 //
 // The store carries the program's loading pool (0448 point 2): one thread
 // fewer than the machine's cores, made with the store and destroyed after it.
