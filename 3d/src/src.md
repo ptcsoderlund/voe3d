@@ -96,7 +96,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the level before in its band, and blended or fading ones held, a faded-out row and a landscape
   skipped.
 - `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part and rest, and
-  the groups' solid and cast draws, one each, and why rest groups do not cast; internal.
+  the groups' solid and cast draws, one each, why rest groups do not cast, and why the bounce sun
+  maps draw them and captures and point shadows do not; internal.
 - `draw_foliage.c` — the foliage gathering: each drawn landscape row's copies given their level,
   counted per group, filled contiguously and written as render instances in one call; then each
   group's instanced draw.
@@ -116,14 +117,14 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
   the eye with its rows and sphere, flat ones, an off owner's and those past 32 left out, the Direct and Fill bits,
   the sun's mask, and light rows 2 to 4 each masked at its place.
-- `draw_bounce.h` — the frame's probe bounce, this step's stale spheres and the removed casters'
-  after them, the caster walk and measure bounce_casters.c shares, the still casters' box, and the
-  cascades' caster walk, at the camera's level or the last, and casting test; internal.
+- `draw_bounce.h` — the frame's probe bounce with foliage in free suns' maps, its stale and
+  removed casters' spheres, the caster walk and measure bounce_casters.c shares, the still casters'
+  box, and the cascades' caster walk and casting test; internal.
 - `bounce_casters.c` — a removed caster's sphere where the target's memory saw it last, then the
   memory refilled with this frame's casters.
 - `draw_bounce.c` — the frame's probe bounce, run only when a light bounces: the volumes fitted to
-  the still casters, the casters drawn into each pass and sun map, a landscape coarse at 16
-  nodes, and the relight.
+  the still casters, each begun with the store's count, the casters drawn into each pass and sun
+  map, the foliage into a free sun's map, a landscape coarse at 16 nodes, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, the record a mesh is drawn with, a double-sided mesh drawn between two
@@ -161,8 +162,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models.c` — the store's table of entries with an arena each, the `.glb` load as a prepare and
   a put that uploads each part with its blended twin and gives back what a failure made; the parts
   set; pictures on the quad, the dot and the water apart; the pool held, not owned.
-- `models_store.h` — the store's internal table with the program's pool, the prepared `.glb` and
-  the helpers the store's files share.
+- `models_store.h` — the store's internal table with the program's pool and its count of changes
+  the bounce relights by, the prepared `.glb` and the helpers the store's files share.
 - `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until
   one matches no part, or a levels file read and checked against the bake, the shape built and
   the sphere measured.
@@ -173,7 +174,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   copies, each placed, uploaded as heights, paint and a pyramid on the shared grid; brushes and
   puts growing its dirt, written a budget at a time, and placing copies again; renames following.
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
-  handed to foliage.c, the entry marked edited on a change.
+  handed to foliage.c, the entry marked edited and the store's count raised on a change.
 - `models_material.c` — a `.material`'s four maps, decoded by the load under each map's name as
   the subject or already by the caller, put mipped with its record, cutout, emission and sides
   and its twin as one part with no geometry; the set marking it and the frame rewriting both records.

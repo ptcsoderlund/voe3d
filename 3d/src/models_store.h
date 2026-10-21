@@ -11,6 +11,12 @@
 // Its copies' placed transforms (0442 point 2) live in the arena too, room for
 // the cap, in step with the grid's copies.
 //
+// THE STORE COUNTS ITS CHANGES (0451 point 3): `changes` rises whenever an
+// entry is put loaded, replaced or cleared, a foliage copy or kind changes, or
+// copies are placed again over changed heights; it only rises, and wraps. The
+// bounce hands it to every begin as `shade`, so a change the stale spheres do
+// not mark, a forest erased, still relights the probes (draw_bounce.c).
+//
 // A MATERIAL'S WRITE MARK is its records changed since last written. The
 // helpers below are models.c's, lent to the other store files.
 //
@@ -88,6 +94,8 @@ struct voe_3d_models {
 	// The program's pool its loaders run on, NULL until set; never run,
 	// destroyed or cleared by the store.
 	voe_base_workers *workers;
+	// Changes to what the bounce's sun maps draw, as the header says.
+	uint32_t changes;
 };
 
 // What a draw needs of a loaded landscape beside its part.

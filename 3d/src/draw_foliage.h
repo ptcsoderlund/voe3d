@@ -1,8 +1,8 @@
 // The foliage's groups (0442 point 5), and their draws. Internal to 3d:
 // draw_foliage.c defines voe_3d_draw_system_foliage, declared in
 // 3d/draw_system.h, finds each copy's group by the key below, and draws the
-// groups it gathered into the camera pass (draw_system.c) and each cascade
-// (draw_shadows.c).
+// groups it gathered into the camera pass (draw_system.c), each cascade
+// (draw_shadows.c) and each bounce sun map (draw_bounce.c).
 //
 //     struct voe_3d_foliage_key key = { .kind = entry, .level = 1,
 //                                       .part = 0, .rest = false };
@@ -22,9 +22,13 @@
 // camera chooses (0425 point 5), and the depth-only pass reads no dither, so
 // the level before would cast a second, coarser copy of each dissolving tree.
 //
-// FOLIAGE IS NOT IN THE BOUNCE OR THE POINT SHADOWS (0442 point 5): their
-// passes spend the instance index on faces and probes, which render refuses an
-// instanced draw in, and a draw per copy there is what instancing removed.
+// FOLIAGE IS IN THE BOUNCE SUN MAPS, NOT ITS CAPTURES OR THE POINT SHADOWS
+// (0450, amending 0442 point 5). A sun map is one view like a cascade, so the
+// groups draw there as they are, and the forest floor is in its trees' shade
+// when the probes are relit. Captures and point shadows spend the instance
+// index on faces and probes, which render refuses an instanced draw in, and a
+// draw per copy there is what instancing removed: the bounce sees the trees'
+// shade, not the trees.
 #pragma once
 
 #include <3d/draw_system.h>

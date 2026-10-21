@@ -7,7 +7,8 @@
 // heights' dirty rect, or a paint brush or put growing the paint's; a layer
 // set; the frame writing both kinds of dirt a shared budget at a time; the
 // lookup the draw files ask; the saved mark and the rename, layer and kind
-// paths following. The foliage calls are models_foliage.c's.
+// paths following. The foliage calls are models_foliage.c's. A load raises
+// the store's `changes` through keep, and so does every placing again.
 //
 // Used by models.c's _load for a `.landscape` path, by the draw files through
 // voe_3d_models_terrain_of, and by the editor: the brush and the frame while a
@@ -296,8 +297,8 @@ static void grow(voe_3d_landscape_rect *dirty, voe_3d_landscape_rect changed)
 }
 
 // The heights `changed` refreshed in the pyramid, the copies over them placed
-// again, the rect added to the dirty rect, and the entry edited; nothing for an
-// empty rect.
+// again, the store's changes raised, the rect added to the dirty rect, and the
+// entry edited; nothing for an empty rect.
 static void grow_dirt(voe_3d_models *models, uint32_t index,
 		      voe_3d_landscape_rect changed)
 {
@@ -309,6 +310,7 @@ static void grow_dirt(voe_3d_models *models, uint32_t index,
 				    models->entries[index].landscape, changed);
 	voe_3d_foliage_replace(models->entries[index].landscape, held->placed,
 			       changed);
+	models->changes++;
 	grow(&held->dirty, changed);
 	models->entries[index].edited = true;
 }

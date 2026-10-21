@@ -82,6 +82,9 @@ again, or to find where a claim that has started failing is written down.
   a whole relight and removal. Skips without a card.
 - `bounce_pacing.c` — that an eye flying 0.15 m a frame opens one capture pass a frame and fits
   that room every frame, then settles once still. Skips without a card.
+- `bounce_foliage.c` — that a kind set relights the bounce, an erase does too, and the relit sun
+  maps draw a whole multiple of the foliage groups more with copies than without. Skips without a
+  card.
 - `bounce_world.inc` — the bounce tests' harness: the floor, sun and placed box, the reference at
   bounces 0, one frame through the shadows call, the settle, the window read and a point's pixel.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and

@@ -20,8 +20,10 @@
 // THE CASTERS WEAR THEIR SHAPE'S COLOUR in the probes' pictures, as in the
 // view: the walk is draw_shadows.c's, and it once drew every shape white (bug 01).
 // A capture draws every caster; sun i's map only those the blockers holding
-// sun i hold, as its cascades do (0361 point 2). Both draw a landscape
-// coarse, at most VOE_3D_TERRAIN_BOUNCE_NODES nodes (0397 point 1).
+// sun i hold, and the foliage when none does, as its cascades (0361 point 2,
+// 0450). Both draw a landscape coarse, at most VOE_3D_TERRAIN_BOUNCE_NODES
+// nodes (0397 point 1). A FOLIAGE CHANGE RELIGHTS: every begin's `shade` is
+// the frame's store's `changes` (0451), as no stale sphere marks a copy.
 //
 // THE GRID IS FITTED TO THE LEVEL, NOT THE EYE (0331, 0332): the still casters'
 // box goes to voe_3d_bounce_grid_fit, and its spacing to the begin.
@@ -57,6 +59,7 @@
 // by a remembered transform, scene saying no more; with no previous table that
 // asks of every transform once a call, which a scene query would lift.
 #include "draw_bounce.h"
+#include "draw_foliage.h"
 #include "draw_group.h"
 #include "draw_terrain.h"
 #include "models_store.h"
@@ -440,14 +443,16 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 
 // Sun `sun`'s relight map (0329 point 2, 0357 point 4): the bounce shadow pass
 // with the view of `grid` along `direction`, the casters the blockers holding
-// the sun hold drawn into it when render opens it (0361 point 2). False when
-// the pass or a draw is refused.
+// the sun hold drawn into it when render opens it (0361 point 2), and the
+// foliage when none holds it (0450). False when the pass or a draw is refused.
 static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame, voe_3d_bounce_grid grid,
 			 uint32_t sun, voe_math_float3 direction)
 {
 	voe_render_view light = voe_3d_bounce_grid_sun(grid, frame->eye,
 						       direction);
+	const uint32_t within = sun == 0 ? frame->blockers.sun :
+					   frame->more_lights[sun - 1].blockers;
 	bool opened = false;
 	bool drawn;
 
@@ -456,10 +461,11 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 		return false;
 	if (!opened)
 		return true;
-	drawn = voe_3d_draw_casters(world, device, frame,
-				    sun == 0 ? frame->blockers.sun :
-					       frame->more_lights[sun - 1].blockers,
+	drawn = voe_3d_draw_casters(world, device, frame, within,
 				    VOE_3D_TERRAIN_BOUNCE_NODES, true);
+	// Foliage holds no blocker's mask, so only a free sun's map draws it.
+	if (drawn && within == 0)
+		drawn = voe_3d_draw_foliage_cast(device, frame);
 	voe_render_pass_end(device);
 	return drawn;
 }
@@ -568,6 +574,7 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 		.points = frame->points,
 		.blockers = frame->blockers,
 		.more = { frame->more_lights, frame->more_count },
+		.shade = frame->models != NULL ? frame->models->changes : 0,
 	};
 	if (voe_scene_light_count(world) >= 1) {
 		call.shared.sun_bounces = voe_scene_light_rows(world)[0].bounces;

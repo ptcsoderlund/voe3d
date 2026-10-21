@@ -705,9 +705,11 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // with the eye moving, more than 1 mm on an axis from `frame->casters`' eye of
 // the last bounce (0397 point 2). On a frame that relights a volume,
 // for each sun that bounces and casts it opens one more pass for that volume,
-// and one more object per caster: that sun's relight map (0357 point 4),
+// and one more object per caster and, when no blocker holds the sun, per
+// foliage group (0450): that sun's relight map (0357 point 4),
 // fitted to the volume (voe_3d_bounce_grid_sun) and never the cascades, so the
-// relight's sun shadow does not follow the view (0329). The device needs room
+// relight's sun shadow does not follow the view (0329). A change in
+// `frame->models` relights, recapturing nothing (0451). The device needs room
 // for VOE_RENDER_BOUNCE_VOLUMES × the casting suns of those. The first frame
 // after a light starts bouncing builds the volumes and shows none. A stale sphere is a caster's own size, half its world
 // box's diagonal, render adding the reach: two where a caster moved, turned or

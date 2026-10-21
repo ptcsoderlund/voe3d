@@ -26,6 +26,7 @@
 // one; only then does keep() swap it in and free the old, or, when it failed,
 // give it back and move the old entry's stamp. So a replace needs room on the
 // card for both copies at once, and a failed re-export never loses the model.
+// A loaded entry kept, new or replacing, and a clear raise `changes`.
 //
 // A PICTURE IS A LOAD OF ITS OWN, chosen by the path's extension: decoded and
 // uploaded by model_picture.h, its two parts on the store's one quad, which is
@@ -126,6 +127,7 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device)
 	for (uint32_t i = 0; i < models->count; i++)
 		release(device, &models->entries[i], &models->held[i]);
 	models->count = 0;
+	models->changes++;
 	if (models->has_dot)
 		release(device, &models->dot, &models->dot_held);
 	models->has_dot = false;
@@ -207,7 +209,8 @@ void voe_3d_models_entry_new(const char *path, uint64_t stamp,
 // Puts a new entry into the store for a path it does not hold, or, for one it
 // does, replaces the old entry when the new one loaded and keeps the old one at
 // the new stamp when it did not. Whatever is not kept is given back. False,
-// with the new entry given back, when the store is full.
+// with the new entry given back, when the store is full. A loaded entry kept,
+// new or replacing, counts as a change.
 bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
 			const voe_3d_model_entry *entry, const entry_held *held)
 {
@@ -221,6 +224,8 @@ bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
 			release(device, entry, held);
 			return false;
 		}
+		if (entry->loaded)
+			models->changes++;
 		models->entries[models->count] = kept;
 		models->held[models->count++] = *held;
 		return true;
@@ -231,6 +236,7 @@ bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
 
 		models->entries[index] = kept;
 		models->held[index] = *held;
+		models->changes++;
 		release(device, &old, &old_held);
 	} else {
 		models->entries[index].stamp = entry->stamp;

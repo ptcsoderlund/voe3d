@@ -119,12 +119,14 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 // stale spheres and after them the removed casters' (voe_3d_bounce_removed),
 // in the room left, the frame's light with light row 0's
 // `bounces` and `bounce_strength` (nought with no row), the frame's further
-// lights as `more` (0357 point 1) and `frame->points`; then opens capture
+// lights as `more` (0357 point 1), `frame->points` and `shade` the frame's
+// store's `changes`, nought with no store (0451 point 2); then opens capture
 // passes while render opens one, drawing the casters into each. Then one bounce
 // shadow pass per casting sun: for sun i whose light row i casts, the sun view
 // of the fitted grid along its direction (voe_3d_bounce_grid_sun) and, when
 // render opens it, the casters its blockers hold drawn into it (0329, 0357
-// point 4, 0361 point 2); then
+// point 4, 0361 point 2) and, when no blocker holds sun i, the frame's foliage
+// groups not `rest` (0450); then
 // relights. That is volume 0; then each nest finer than the level grid, coarse
 // to fine, the same at voe_3d_bounce_grid_nest from voe_render_bounce_placed,
 // the j-th of n volumes capturing until the call's count reaches

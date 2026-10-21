@@ -1,6 +1,8 @@
 // The model store's foliage calls (3d/models_foliage.h): each finds a loaded
 // landscape's entry, hands its grid and its held placed transforms to
-// 3d/foliage.h, and marks the entry edited when a copy or a kind changed.
+// 3d/foliage.h, and marks the entry edited when a copy or a kind changed. A
+// scatter or erase that changed a copy, every put of copies and every kind set
+// raise the store's `changes`, so the bounce relights (0451 point 3).
 //
 // Used by the editor: the scatter and erase brushes while a stroke is held,
 // the put for its undo step, the kind set for a dropped model; and by what
@@ -39,8 +41,10 @@ uint32_t voe_3d_models_landscape_scatter(voe_3d_models *models,
 	count = voe_3d_foliage_scatter(models->entries[index].landscape,
 				       models->held[index].placed, brush, x, z,
 				       seconds, seed, added);
-	if (count > 0)
+	if (count > 0) {
 		models->entries[index].edited = true;
+		models->changes++;
+	}
 	return count;
 }
 
@@ -62,12 +66,15 @@ uint32_t voe_3d_models_landscape_erase(voe_3d_models *models, const char *path,
 	count = voe_3d_foliage_erase(models->entries[index].landscape,
 				     models->held[index].placed, brush, x, z,
 				     removed, room);
-	if (count > 0)
+	if (count > 0) {
 		models->entries[index].edited = true;
+		models->changes++;
+	}
 	return count;
 }
 
 // Edited when the count moved: an add adds and a removal removes, or neither.
+// The store's changes rise either way.
 void voe_3d_models_landscape_put_copies(voe_3d_models *models,
 					const char *path,
 					const voe_assets_landscape_copy *copies,
@@ -85,6 +92,7 @@ void voe_3d_models_landscape_put_copies(voe_3d_models *models,
 
 	voe_3d_foliage_put(land, models->held[index].placed, copies, count,
 			   add);
+	models->changes++;
 	if (land->copy_count != before)
 		models->entries[index].edited = true;
 }
@@ -110,6 +118,7 @@ void voe_3d_models_landscape_kind_set(voe_3d_models *models, const char *path,
 	if (index == land->kind_count)
 		land->kind_count++;
 	models->entries[at].edited = true;
+	models->changes++;
 }
 
 const voe_scene_transform *
