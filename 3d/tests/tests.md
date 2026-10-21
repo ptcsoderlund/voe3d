@@ -95,10 +95,9 @@ again, or to find where a claim that has started failing is written down.
   graphics card.
 - `sky_switched_off.c` — that a Sky, Haze or Picture row whose entity or parent is off is as no
   row, back when on, and an off first Haze row gives the second's. Needs no graphics card.
-- `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
-  kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
-  outside, that the cube's arrays built alone give its edge count, and that a jittered grid of a
-  million vertices welds in linear time to its edges. Needs no graphics card.
+- `shape_geometry.c` — that the CPU store answers for its three kinds alone, each a closed surface
+  wound counter-clockwise from outside, and welds a jittered million-vertex grid in linear time.
+  Needs no graphics card.
 - `pick.c` — that the pick ray meets the nearest cube, model, water plane or child at the right
   distance and nothing where nothing is, a camera, sun or place marker wins over a cube in front of
   it or behind it, a drawn pixel the cube covers picks it, and passes what is off.
@@ -147,20 +146,17 @@ again, or to find where a claim that has started failing is written down.
   colour, and a removed water's row gone. Needs no graphics card.
 - `model_bake.c` — that the bake carries a file's vertex colours as complements and bakes one
   `_LOD<n>` level of a file's own at a time. Needs no graphics card.
-- `models.c` — the model store: loads, failures kept, replace, clear, blended twins none leaked,
-  glTF source and `wears`, pictures and the dot, a model drawn only with the store, a
-  17-material `.glb` refused once under the caller's subject, and the pool NULL when new, read
-  back as set and kept by a clear. Skips without a card.
-- `models_levels.c` — the store loading a sphere with its levels file, its own `_LOD1` levels and
-  a far swap, leaking no level across reloads and clears, made levels boxed as level 0, pools
-  starting below level 0, a prepare on a second thread put alike to a load, and 17 materials
-  prepared to UNSUPPORTED. Skips without a card.
+- `models.c` — the model store's loads, failures, replaces, clears and blended twins, glTF source
+  and `wears`, pictures, a model drawn only with the store, a 17-material refusal and the pool.
+  Skips without a card.
+- `models_levels.c` — the store's levels: a levels file's and a file's own `_LOD1`, a far swap,
+  none leaked across reloads and clears, pools below level 0, a prepare on a second thread, and 17
+  materials refused. Skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget, and its foliage placed, kept standing by a
   sculpt, scattered, erased, put back, a kind set and renamed. Skips without a card.
-- `models_material.c` — a `.material` with four maps loaded as one part with a live record and
-  twin, its cutout, emission and sides, a set changing them written by a frame, the same maps
-  decoded and put giving a like entry, a map that is no picture failing MALFORMED, and a rename.
+- `models_material.c` — a `.material` with four maps loaded as one part, its cutout, emission and
+  sides, a set written by a frame, a decoded put alike, a non-picture map MALFORMED, and a rename.
   Skips without a card.
 - `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, and
   painting a layer: the sum kept, the radius held and a light stroke stopping at its strength.
