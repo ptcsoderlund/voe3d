@@ -36,6 +36,7 @@
 #include "browser.h"
 #include "errors.h"
 #include "inspector.h"
+#include "inspector_brush.h"
 #include "inspector_edit.h"
 #include "inspector_foliage.h"
 #include "inspector_layers.h"
@@ -266,6 +267,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_inspector_sculpt_forget(&scene->sculpt);
 		voe_editor_inspector_layers_forget(&scene->sculpt);
 		voe_editor_inspector_foliage_forget(&scene->sculpt);
+		voe_editor_inspector_brush_forget(&scene->sculpt);
 		voe_editor_inspector_material_forget(&scene->material_controls);
 
 		// ONE COLUMN IS THIS FRAME'S ROOT, AND THE BAR AND THE TREE ARE

@@ -271,10 +271,14 @@ carries it out.
   not a prefab's part, the ground under the pointer, the press's heights or paint copy, the stamps
   along the drag, scattering or erasing copies, and the release's heights, paint or foliage stroke.
 - `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
-  chosen one lit, none while painting or brushing foliage, and Radius, Strength and Softness
-  sliders, read after the frame.
+  chosen one lit, none while painting or brushing foliage, and the Strength slider, read after the
+  frame.
 - `inspector_sculpt.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
-  the read: a fired button chooses its kind or none, each slider's value taken.
+  the read: a fired button chooses its kind or none, the slider's value taken.
+- `inspector_brush.h` — the Inspector's Brush section after Foliage while any brush is chosen:
+  Radius (m) and Softness sliders every brush shares, read after the frame.
+- `inspector_brush.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
+  the read: each drawn slider's value taken into the radius or softness.
 - `inspector_layers.h` — the Inspector's Layers section under Sculpt: a row per layer by its
   material's file name choosing it to paint, none lit while brushing foliage, and the add row a
   dropped material lands on.
@@ -282,10 +286,10 @@ carries it out.
   read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
 - `inspector_foliage.h` — the Inspector's Foliage section under Layers: Scatter and Erase, a row per
   kind by its model's file name toggling it picked, the add row a dropped `.glb` lands on, and
-  Density, Size, Turn and Lean sliders.
+  Density, Size, Turn and Lean sliders, Radius and Softness being the Brush section's.
 - `inspector_foliage.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: a fired button chooses its kind or none, a fired row flips its pick, sliders clamped.
-- `inspector_level.h` — the Inspector's LOD section after Foliage: per view in use, the LOD it
+- `inspector_level.h` — the Inspector's LOD section after Brush or Foliage: per view in use, the LOD it
   draws of a loaded model, of how many, made or own, asked with the draws' own function.
 - `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,
   each view's label formatted into its kept buffer.

@@ -3,8 +3,8 @@
 // with the chosen one drawn chosen, one row per kind of the landscape's grid
 // by its model's file name, the picked ones drawn chosen, then "Drop a model
 // to add a kind" while it holds fewer than sixteen, and Density, Size (%),
-// Turn (deg) and Lean (%) as sliders. Radius and Softness stay the Sculpt
-// section's, shared by both brushes.
+// Turn (deg) and Lean (%) as sliders. Radius and Softness are the Brush
+// section's (inspector_brush.h), shared by every brush.
 //
 // Pressing Scatter or Erase chooses that brush; pressing the chosen one again
 // chooses none. Pressing a kind row flips whether it is picked, and only

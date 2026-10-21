@@ -1,7 +1,7 @@
 // The sculpting brush a person holds: which kind is chosen, if any, and its
 // radius, strength and softness (0379 point 3). The Inspector's Sculpt section
-// (inspector_sculpt.h) draws and sets it, Layers (inspector_layers.h) and
-// Foliage (inspector_foliage.h) too; scene.h holds the one there is.
+// (inspector_sculpt.h) draws and sets it, Layers (inspector_layers.h), Foliage
+// (inspector_foliage.h) and Brush (inspector_brush.h) too; scene.h holds it.
 //
 //     voe_editor_sculpt_start(&scene.sculpt);
 //     if (scene.sculpt.chosen &&
@@ -24,7 +24,7 @@
 // it stamps foliage copies (0442 point 3); the step carries those it changed.
 //
 // Constraints: the numbers are kept inside the ranges below by whoever writes
-// them, the Sculpt section's sliders clamping. A stroke mallocs a copy of the
+// them, the Sculpt, Brush and Foliage sliders clamping. A stroke mallocs a copy of the
 // whole grid at the press, up to 513² heights, or for paint its weights at 8
 // bytes a point, and frees it at the release; a foliage stroke's changed list
 // doubles to fit a stamp's most, an erase's the landscape's copy count; a
@@ -84,8 +84,8 @@ struct voe_editor_models;
 // Raise, Lower, Smooth and Flatten: one button each.
 #define VOE_EDITOR_SCULPT_KINDS 4
 
-// Radius, Strength and Softness: one slider each.
-#define VOE_EDITOR_SCULPT_SLIDERS 3
+// The Brush section's Radius and Softness: one slider each.
+#define VOE_EDITOR_SCULPT_BRUSH_SLIDERS 2
 
 // Room for a slider's shown figure.
 #define VOE_EDITOR_SCULPT_FIGURE 16
@@ -116,13 +116,18 @@ typedef struct {
 	float turn_vary;
 	float lean;
 	uint64_t seed;
-	// The Sculpt section's buttons and sliders as drawn this frame, and the
-	// figures beside the sliders, kept because a label is read after the
-	// call that drew it. VOE_UI_NODE_NONE when not drawn
+	// The Sculpt section's buttons and Strength slider as drawn this frame,
+	// and the figure beside the slider, kept because a label is read after
+	// the call that drew it. VOE_UI_NODE_NONE when not drawn
 	// (inspector_sculpt.h).
 	voe_ui_node buttons[VOE_EDITOR_SCULPT_KINDS];
-	voe_ui_node sliders[VOE_EDITOR_SCULPT_SLIDERS];
-	char figures[VOE_EDITOR_SCULPT_SLIDERS][VOE_EDITOR_SCULPT_FIGURE];
+	voe_ui_node strength_slider;
+	char strength_figure[VOE_EDITOR_SCULPT_FIGURE];
+	// The Brush section's Radius and Softness sliders and their figures, the
+	// same way (inspector_brush.h).
+	voe_ui_node brush_sliders[VOE_EDITOR_SCULPT_BRUSH_SLIDERS];
+	char brush_figures[VOE_EDITOR_SCULPT_BRUSH_SLIDERS]
+			  [VOE_EDITOR_SCULPT_FIGURE];
 	// The Layers section's rows as drawn this frame, row i layer i and
 	// row `layers_drawn` the add row, VOE_UI_NODE_NONE when not drawn; and
 	// where each showed at the last read, for a drop the next frame

@@ -1,7 +1,9 @@
 // THE CLAIMS: that the store answers for the three kinds it knows and for
 // nothing else, that it holds each kind's own triangles, that every kind is a
 // closed surface whose edges carry unit-length normals, and that every triangle
-// of every kind is wound the way the edge walk assumes.
+// of every kind is wound the way the edge walk assumes; that the cube's own
+// arrays built alone, outside the store, give the cube kind's edge count; and
+// that triangles with no area are taken without asserting and give no edges.
 //
 // THE WINDING IS THE CLAIM WORTH THE MOST HERE. 3d/src/shape_geometry.c takes
 // normalize(cross(b - a, c - a)) as a triangle's *outward* normal, which is only
@@ -157,6 +159,31 @@ static void check_grid_weld(void)
 	voe_base_arena_destroy(arena);
 }
 
+// One real triangle beside two with no area — two corners on one point, and
+// three on one line sharing the real one's edge 0–1: the build does not assert,
+// the flat two give no edges, and the real one's three are boundary edges.
+static void flat_triangles_give_no_edges(voe_base_arena *arena)
+{
+	static const voe_render_vertex vertices[] = {
+		{ .position = { 0.0f, 0.0f, 0.0f } },
+		{ .position = { 1.0f, 0.0f, 0.0f } },
+		{ .position = { 0.0f, 1.0f, 0.0f } },
+		{ .position = { 2.0f, 0.0f, 0.0f } },
+	};
+	static const uint32_t indices[] = { 0, 1, 2, 0, 1, 1, 0, 1, 3 };
+	voe_3d_shape_geometry built;
+
+	voe_3d_shape_geometry_build(arena, vertices, 4, indices, 9, &built);
+	VOE_TEST_CHECK_INT(built.edge_count, 3);
+	for (uint32_t i = 0; i < built.edge_count; i++) {
+		VOE_TEST_CHECK(is_unit(built.edges[i].left));
+		VOE_TEST_CHECK(is_unit(built.edges[i].right));
+	}
+
+	voe_3d_shape_geometry_build(arena, vertices, 4, indices + 3, 6, &built);
+	VOE_TEST_CHECK_INT(built.edge_count, 0);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -211,6 +238,7 @@ int main(void)
 		VOE_TEST_CHECK(built.vertices == voe_3d_cube_vertices);
 		VOE_TEST_CHECK_INT(built.edge_count, cube->edge_count);
 	}
+	flat_triangles_give_no_edges(arena);
 
 	check_grid_weld();
 

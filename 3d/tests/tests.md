@@ -99,8 +99,8 @@ again, or to find where a claim that has started failing is written down.
 - `sky_switched_off.c` — that a Sky, Haze or Picture row whose entity or parent is off is as no
   row, back when on, and an off first Haze row gives the second's. Needs no graphics card.
 - `shape_geometry.c` — that the CPU store answers for its three kinds alone, each a closed surface
-  wound counter-clockwise from outside, and welds a jittered million-vertex grid in linear time.
-  Needs no graphics card.
+  wound counter-clockwise from outside, that flat triangles give no edges, and that a jittered
+  million-vertex grid welds in linear time. Needs no graphics card.
 - `pick.c` — that the pick ray meets the nearest cube, model, water plane or child at the right
   distance and nothing where nothing is, a camera, sun or place marker wins over a cube in front of
   it or behind it, a drawn pixel the cube covers picks it, and passes what is off.

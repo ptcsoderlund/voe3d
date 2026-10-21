@@ -27,6 +27,12 @@
 // lowest-numbered of them gives the representative the old walk over every
 // earlier vertex gave, in time linear in the vertices: two representatives in
 // one cell would be within the weld, so a cell holds one but for rounding.
+//
+// A TRIANGLE WITH NO AREA HAS NO FACING, so it gives no edges: two corners on
+// one point or three on one line make a cross of nought, and it is skipped in
+// both walks alike. Exported models are full of them and they are not a fault.
+// A real triangle whose neighbour along an edge was flat keeps that edge as a
+// boundary edge, always on the silhouette, as an open surface's is.
 #include "capsule.h"
 #include "cube.h"
 #include "cylinder.h"
@@ -222,10 +228,14 @@ static uint32_t walk_edges(voe_base_arena *arena,
 			geometry->vertices[corner[2]].position;
 		// Outward because every built-in shape is wound
 		// counter-clockwise seen from outside (src/cube.h).
-		const voe_math_float3 normal = voe_math_float3_normalize(
-			voe_math_float3_cross(voe_math_float3_sub(b, a),
-					      voe_math_float3_sub(c, a)));
+		const voe_math_float3 cross = voe_math_float3_cross(
+			voe_math_float3_sub(b, a), voe_math_float3_sub(c, a));
+		voe_math_float3 normal;
 
+		// No area, no facing: the test normalize asserts on.
+		if (!(voe_math_float3_length(cross) > 0.0f))
+			continue;
+		normal = voe_math_float3_normalize(cross);
 		for (uint32_t e = 0; e < 3; e++) {
 			const uint32_t p = welded[corner[e]];
 			const uint32_t q = welded[corner[(e + 1) % 3]];
@@ -278,6 +288,9 @@ void voe_3d_shape_geometry_build(voe_base_arena *arena,
 		.index_count = index_count,
 	};
 	count = walk_edges(arena, out, NULL);
+	// Only flat triangles leave no edges, and an arena takes no empty push.
+	if (count == 0)
+		return;
 	edges = voe_base_arena_push(arena, sizeof *edges * count);
 	walk_edges(arena, out, edges);
 	out->edges = edges;
