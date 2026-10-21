@@ -42,8 +42,9 @@ void voe_editor_sculpt_start(voe_editor_sculpt *sculpt)
 				       .seed = FOLIAGE_SEED };
 	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_KINDS; i++)
 		sculpt->buttons[i] = VOE_UI_NODE_NONE;
-	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_SLIDERS; i++)
-		sculpt->sliders[i] = VOE_UI_NODE_NONE;
+	sculpt->strength_slider = VOE_UI_NODE_NONE;
+	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_BRUSH_SLIDERS; i++)
+		sculpt->brush_sliders[i] = VOE_UI_NODE_NONE;
 	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_LAYER_ROWS; i++)
 		sculpt->layer_rows[i] = VOE_UI_NODE_NONE;
 

@@ -1,6 +1,6 @@
 // The Sculpt section's one frame of `ui` calls and the read of its buttons and
-// sliders afterwards. See the header for why the nodes live in the sculpt
-// state and what a second press does.
+// Strength slider afterwards. See the header for why the nodes live in the
+// sculpt state and what a second press does.
 //
 // The buttons are indexed as voe_3d_brush_kind is (3d/landscape.h): Raise,
 // Lower, Smooth, Flatten, so a button's index is its kind; PAINT, SCATTER and
@@ -30,38 +30,13 @@ static const char *const KIND_NAMES[VOE_EDITOR_SCULPT_KINDS] = {
 	"Raise", "Lower", "Smooth", "Flatten"
 };
 
-static const char *const SLIDER_NAMES[VOE_EDITOR_SCULPT_SLIDERS] = {
-	"Radius (m)", "Strength", "Softness"
-};
-
-static const float SLIDER_MIN[VOE_EDITOR_SCULPT_SLIDERS] = {
-	VOE_EDITOR_SCULPT_RADIUS_MIN, VOE_EDITOR_SCULPT_STRENGTH_MIN,
-	VOE_EDITOR_SCULPT_SOFTNESS_MIN
-};
-
-static const float SLIDER_MAX[VOE_EDITOR_SCULPT_SLIDERS] = {
-	VOE_EDITOR_SCULPT_RADIUS_MAX, VOE_EDITOR_SCULPT_STRENGTH_MAX,
-	VOE_EDITOR_SCULPT_SOFTNESS_MAX
-};
-
-// The number slider `i` writes: radius, strength, softness.
-static float *slider_value(voe_editor_sculpt *sculpt, uint32_t i)
-{
-	VOE_BASE_ASSERT(i < VOE_EDITOR_SCULPT_SLIDERS, "no such slider");
-
-	return i == 0 ? &sculpt->radius :
-	       i == 1 ? &sculpt->strength :
-			&sculpt->softness;
-}
-
 void voe_editor_inspector_sculpt_forget(voe_editor_sculpt *sculpt)
 {
 	VOE_BASE_ASSERT(sculpt != NULL, "forgetting no Sculpt section");
 
 	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_KINDS; i++)
 		sculpt->buttons[i] = VOE_UI_NODE_NONE;
-	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_SLIDERS; i++)
-		sculpt->sliders[i] = VOE_UI_NODE_NONE;
+	sculpt->strength_slider = VOE_UI_NODE_NONE;
 
 	VOE_BASE_ASSERT(sculpt->buttons[0] == VOE_UI_NODE_NONE,
 			"a Sculpt section left remembered");
@@ -93,22 +68,18 @@ void voe_editor_inspector_sculpt_draw(voe_ui_context *ui,
 	}
 	voe_ui_end(ui);
 
-	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_SLIDERS; i++) {
-		const float value = *slider_value(sculpt, i);
-
-		voe_ui_row_begin(ui, (voe_ui_container){
-					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = ROW_GAP,
-					     .wrap = true });
-		voe_ui_label(ui, SLIDER_NAMES[i]);
-		sculpt->sliders[i] = voe_ui_slider(ui, "brush slider", i,
-						   value, SLIDER_MIN[i],
-						   SLIDER_MAX[i], SLIDER_WIDE);
-		snprintf(sculpt->figures[i], sizeof sculpt->figures[i],
-			 i == 0 ? "%.1f" : "%.2f", (double)value);
-		voe_ui_label(ui, sculpt->figures[i]);
-		voe_ui_end(ui);
-	}
+	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
+						 .gap = ROW_GAP,
+						 .wrap = true });
+	voe_ui_label(ui, "Strength");
+	sculpt->strength_slider = voe_ui_slider(
+		ui, "brush slider", 0, sculpt->strength,
+		VOE_EDITOR_SCULPT_STRENGTH_MIN, VOE_EDITOR_SCULPT_STRENGTH_MAX,
+		SLIDER_WIDE);
+	snprintf(sculpt->strength_figure, sizeof sculpt->strength_figure,
+		 "%.2f", (double)sculpt->strength);
+	voe_ui_label(ui, sculpt->strength_figure);
+	voe_ui_end(ui);
 
 	voe_ui_end(ui);
 }
@@ -131,11 +102,10 @@ void voe_editor_inspector_sculpt_read(const voe_ui_context *ui,
 		}
 	}
 
-	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_SLIDERS; i++)
-		if (sculpt->sliders[i] != VOE_UI_NODE_NONE)
-			*slider_value(sculpt, i) = (float)voe_ui_slider_action(
-							   ui, sculpt->sliders[i],
-							   SLIDER_MIN[i],
-							   SLIDER_MAX[i])
-							   .value;
+	if (sculpt->strength_slider != VOE_UI_NODE_NONE)
+		sculpt->strength = (float)voe_ui_slider_action(
+					   ui, sculpt->strength_slider,
+					   VOE_EDITOR_SCULPT_STRENGTH_MIN,
+					   VOE_EDITOR_SCULPT_STRENGTH_MAX)
+					   .value;
 }

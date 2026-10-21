@@ -1,5 +1,6 @@
-// The Inspector's LOD section, after Layers, on a thing whose model row names
-// a loaded model (0425 point 7): a "LOD" heading as Layers' is (0433), then per
+// The Inspector's LOD section, after Brush or Foliage, on a thing whose model
+// row names a loaded model (0425 point 7): a "LOD" heading as Layers' is
+// (0433), then per
 // view in use one row, "View <n>: LOD <k> of <count>, made" or "..., own", k
 // counted from one, the full model LOD 1 (0434), or "View <n>: LOD 1 of 1" for
 // a model without levels. It shows what is drawn, so it
