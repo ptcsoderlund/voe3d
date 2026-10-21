@@ -97,7 +97,8 @@ again, or to find where a claim that has started failing is written down.
   row, back when on, and an off first Haze row gives the second's. Needs no graphics card.
 - `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
   kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
-  outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
+  outside, that the cube's arrays built alone give its edge count, and that flat triangles give
+  no edges. Needs no graphics card.
 - `pick.c` — that the pick ray meets the nearest cube, model, water plane or child at the right
   distance and nothing where nothing is, a camera, sun or place marker wins over a cube in front of
   it or behind it, a drawn pixel the cube covers picks it, and passes what is off.

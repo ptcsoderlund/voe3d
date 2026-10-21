@@ -31,8 +31,7 @@
 // IT IS KEYED BY KIND, because a kind — not a mesh and not a material — is what
 // a saved scene holds (ADR-0191, 3d/shape_component.h). Three kinds is the whole
 // of what an editor's project can draw, and about 250 KB of arena covers all
-// three. Triangles read from a model file are a later card and will be kept the
-// same way, beside the mesh they were read for.
+// three.
 //
 // THE ARENA IS THE CALLER'S AND MUST OUTLIVE THE ANSWER (rule 11). Everything
 // handed back points into it; rewinding or destroying it invalidates every
@@ -107,7 +106,8 @@ void voe_3d_shape_geometries_create(voe_base_arena *arena,
 // Points `out` at the caller's triangles, which must outlive it, and finds their
 // welded edges into `arena`. This is how any triangles — a model's as well as
 // the three shapes' — get what a ray and a silhouette need (ADR-0277 point 2);
-// the working memory is given back before it returns, as above.
+// the working memory is given back before it returns, as above. A triangle with
+// no area is taken and gives no edges; it does not assert.
 void voe_3d_shape_geometry_build(voe_base_arena *arena,
 				 const voe_render_vertex *vertices,
 				 uint32_t vertex_count, const uint32_t *indices,

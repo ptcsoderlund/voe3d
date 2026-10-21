@@ -39,7 +39,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and the opt-in changes table.
 - `shape_geometry.c` — the three shapes kept on the CPU: the cube pointed at, the
   capsule and the cylinder built into an arena, and the build any triangles go
-  through, whose edges are found by welding by position and walking twice.
+  through, whose edges are found by welding by position and walking twice, flat triangles
+  skipped.
 - `cube.h` — the built-in cube's vertices and indices as the files that use them
   see them, internal to this folder.
 - `cube.c` — those twenty-four vertices and thirty-six indices written out by
