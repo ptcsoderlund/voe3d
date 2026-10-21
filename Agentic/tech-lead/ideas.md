@@ -89,6 +89,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   direction and strength. Left out of 090/091 to keep them testable in one sitting.
 - **Backlit leaves** (2026-10-07, was work order 077): thin leaves glow on their shaded side when the sun
   is behind them. Cheap, and what makes trees read as trees from the tower.
+- **Leaves that block each other's bounce** (2026-10-21, from 0450): foliage in the bounce probes' captures, so
+  a canopy darkens its own bounce, not only its floor. Needs a draw per copy there or a new instance scheme.
 - **The rest of glTF** (2026-10-07, was work orders 067, 073–080): `.gltf` with side files, every
   primitive mode, a model's own and spot lights, specular, clearcoat, sheen, glass, iridescence,
   anisotropy, variants. Each waits until a game needs it. The loghouse's lamps may want spot lights.
