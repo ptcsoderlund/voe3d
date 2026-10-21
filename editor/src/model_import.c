@@ -5,7 +5,10 @@
 //
 // The file is read and parsed under its path as the report's subject; too many
 // materials is said once, as the engine's limit. Each name is cleaned and made
-// unique before any path is built from it.
+// unique before any path is built from it. Import reads with
+// voe_assets_model_read_glb_encoded, no picture decoded, since it only names
+// the materials; Import textures, which writes the pictures out, reads with
+// voe_assets_model_read_glb.
 #include "model_import.h"
 
 #include <assets/image.h>
@@ -219,10 +222,11 @@ static bool text_written(const char *project_folder, const char *path,
 
 // `glb` read from the project and parsed into `model` on scratch, `glb` the
 // report's subject throughout so the cause's own line names it (0445 point
-// 1). False with `why` the kept line, said once.
+// 1), its pictures decoded only when `pictures`. False with `why` the kept
+// line, said once.
 static bool model_read(const char *project_folder, const char *glb,
-		       voe_base_arena *scratch, voe_assets_model *model,
-		       voe_editor_notice *why)
+		       bool pictures, voe_base_arena *scratch,
+		       voe_assets_model *model, voe_editor_notice *why)
 {
 	const uint8_t *bytes;
 	size_t count = 0;
@@ -233,7 +237,10 @@ static bool model_read(const char *project_folder, const char *glb,
 	voe_base_report_subject_push(glb);
 	bytes = voe_platform_file_read(voe_platform_path_join(scratch, project_folder, glb),
 				       scratch, &count, NULL);
-	ok = bytes != NULL && voe_assets_model_read_glb(bytes, count, scratch, model, NULL);
+	ok = bytes != NULL &&
+	     (pictures ? voe_assets_model_read_glb(bytes, count, scratch, model, NULL) :
+			 voe_assets_model_read_glb_encoded(bytes, count, scratch, model,
+							   NULL));
 	if (ok && model->material_count > VOE_ASSETS_PARTS) {
 		VOE_BASE_ERROR("editor",
 			       "the model uses %u materials, the most the engine takes is %d. "
@@ -292,7 +299,7 @@ bool voe_editor_model_import(const char *project_folder, const char *glb,
 	VOE_BASE_ASSERT(project_folder != NULL && glb != NULL, "importing no .glb");
 	VOE_BASE_ASSERT(scratch != NULL && why != NULL, "importing with no scratch or why");
 	mark = voe_base_arena_mark(scratch);
-	if (!model_read(project_folder, glb, scratch, &model, why) ||
+	if (!model_read(project_folder, glb, false, scratch, &model, why) ||
 	    !parts_named(glb, &model, scratch, &parts, why))
 		goto rewind;
 	for (uint32_t i = 0; i < parts.count; i++) {
@@ -498,7 +505,7 @@ bool voe_editor_model_import_textures(const char *project_folder, const char *gl
 	VOE_BASE_ASSERT(project_folder != NULL && glb != NULL, "dressing no .glb");
 	VOE_BASE_ASSERT(scratch != NULL && why != NULL, "dressing with no scratch or why");
 	mark = voe_base_arena_mark(scratch);
-	if (!glb_quotable(glb, why) || !model_read(project_folder, glb, scratch, &model, why) ||
+	if (!glb_quotable(glb, why) || !model_read(project_folder, glb, true, scratch, &model, why) ||
 	    !parts_read(project_folder, glb, scratch, &parts, why) ||
 	    !pictures_named(glb, &model, scratch, &pictures, why) ||
 	    !pictures_written(project_folder, &model, &pictures, scratch, why))

@@ -11,7 +11,7 @@ carries it out.
   shaders with the editor's pipeline cache, shapes and models, the scene and its models, or an
   imported model's levels file, made again for Make LODs, and what the worker owns.
 - `loading.c` — the three works, each step after a stop check, in the worker's own scratch, a
-  refused prepare's notice built from the worker's kept error.
+  prepare's levels made over the store's pool, a refused one's notice from the kept error.
 - `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
   time so a missing copy shows the plain screen, kept by the caller until the device closes.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
@@ -195,9 +195,9 @@ carries it out.
 - `model_import.h` — what Import writes beside a `.glb`: one `<stem>-<name>.material` per glTF
   material and `<stem>.parts` naming them, both overwritten every import, the levels kept (0403,
   0420 point 3); and Import textures: its pictures as PNGs and the materials' four maps set to them.
-- `model_import.c` — the file read and parsed, each name cleaned and made unique, every path
-  checked before the first write, then the materials and the parts, or the PNGs and the dressed
-  materials, written.
+- `model_import.c` — the file read and parsed, its pictures decoded only for Import textures, each
+  name cleaned and made unique, every path checked before the first write, then the materials and
+  the parts, or the PNGs and the dressed materials, written.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
   over a row and Import textures and Make LODs over a `.glb`'s, Create with its Folder, Landscape and Material
   submenu over the empty part, anchored at the pointer.
@@ -345,9 +345,9 @@ carries it out.
   named by its `.glb`, read when the materials are.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
-- `models.c` — the editor's one model store, made, filled, watched and re-read through
-  game/models.h, a failure's notice the kept line whole, a landscape re-read under its path as the
-  subject, and its landscapes with their foliage and materials edited and written back.
+- `models.c` — the editor's one model store, made with the loading pool it carries, filled, watched
+  and re-read through game/models.h, a failure's notice the kept line whole, a landscape re-read
+  under its path as the subject, and its landscapes with their foliage and materials edited.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.

@@ -11,14 +11,19 @@
 // material set live, or loaded again at the next update when a map changed,
 // as is every held material a read of the tables found new or changed. A read
 // that fails is said in the session's notice.
+//
+// The store carries the program's loading pool (0448 point 2): one thread
+// fewer than the machine's cores, made with the store and destroyed after it.
 #include "models.h"
 
 #include <base/assert.h>
 #include <base/error.h>
 #include <base/report.h>
+#include <base/workers.h>
 
 #include <game/models.h>
 
+#include <platform/cores.h>
 #include <platform/file.h>
 #include <platform/path.h>
 
@@ -31,6 +36,8 @@
 
 struct voe_editor_models {
 	voe_3d_models *store;
+	// The loading pool set on the store, outliving it.
+	voe_base_workers *workers;
 	// The project's materials and parts, read on a different folder.
 	voe_editor_materials *materials;
 	voe_editor_parts *parts;
@@ -61,6 +68,8 @@ voe_editor_models *voe_editor_models_new(void)
 	VOE_BASE_ASSERT(models != NULL, "out of memory making the model store");
 	models->store = voe_3d_models_new();
 	VOE_BASE_ASSERT(models->store != NULL, "made a model store with none");
+	models->workers = voe_base_workers_new(voe_platform_cores() - 1);
+	voe_3d_models_workers_set(models->store, models->workers);
 	models->materials = calloc(1, sizeof(*models->materials));
 	models->before = calloc(1, sizeof(*models->before));
 	models->parts = calloc(1, sizeof(*models->parts));
@@ -78,6 +87,7 @@ void voe_editor_models_destroy(voe_editor_models *models,
 	VOE_BASE_ASSERT(device != NULL, "clearing models with no device");
 	voe_3d_models_clear(models->store, device);
 	voe_3d_models_destroy(models->store);
+	voe_base_workers_destroy(models->workers);
 	free(models->materials);
 	free(models->before);
 	free(models->parts);
