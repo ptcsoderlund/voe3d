@@ -608,9 +608,10 @@ bool voe_assets_model_from_gltf(const voe_assets_json *json,
 
 	// The order is what each step needs and nothing else: a primitive's
 	// material index is checked against the materials, a node's mesh index
-	// against the meshes. The images are decoded last because they are the
-	// expensive part and a file that is wrong somewhere else should say so
-	// before it spends that.
+	// against the meshes. The images come last and are only recorded; their
+	// decode, the expensive part, waits for the whole read
+	// (voe_assets_model_decode_picture), so a file that is wrong somewhere
+	// else says so before it spends that.
 	if (!check_version(&gltf) || !check_extensions(&gltf) ||
 	    !voe_assets_gltf_read_materials(&gltf, &read) ||
 	    !voe_assets_gltf_read_meshes(&gltf, &read) ||

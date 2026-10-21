@@ -34,7 +34,8 @@
 // read as no texture; node names; and a refusal's kept line, beginning with
 // the material or the part and material it is about and carrying the format's
 // words after its own: a part of points says triangles, a `.glb` cut short says
-// to export it again, a `.gltf` says `.glb`.
+// to export it again, a `.gltf` says `.glb`; and the encoded read, its picture
+// decoded alone and a broken one refused under "the picture" (0448).
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
@@ -584,6 +585,100 @@ static void a_node_keeps_its_name(voe_base_arena *arena)
 		VOE_BASE_ERROR_MALFORMED);
 }
 
+// The encoded read of the quad gives _read_glb's counts, material and nodes,
+// no images and its picture's PNG bytes, and decoding that picture alone gives
+// the same pixels. A picture broken after its signature (its header's CRC)
+// still reads encoded, and its decode is refused MALFORMED under its subject.
+static void a_picture_is_left_encoded_until_asked(voe_base_arena *arena)
+{
+	static const uint8_t signature[8] = { 0x89, 'P', 'N', 'G',
+					      '\r', '\n', 0x1a, '\n' };
+	static uint8_t pixel[4] = { 255, 255, 255, 255 };
+	static uint8_t file[4096];
+	voe_assets_model decoded = { 0 };
+	voe_assets_model encoded = { 0 };
+	voe_assets_image picture = { 0 };
+	voe_assets_bytes png = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	const char *kept;
+	size_t size;
+
+	VOE_TEST_CHECK(voe_assets_model_read_glb(QUAD_GLB, sizeof(QUAD_GLB),
+						 arena, &decoded, &error));
+	VOE_TEST_CHECK(voe_assets_model_read_glb_encoded(
+		QUAD_GLB, sizeof(QUAD_GLB), arena, &encoded, &error));
+	VOE_TEST_CHECK(decoded.encoded == NULL);
+	VOE_TEST_CHECK(encoded.images == NULL);
+	VOE_TEST_CHECK_INT(encoded.primitive_count, decoded.primitive_count);
+	VOE_TEST_CHECK_INT(encoded.mesh_count, decoded.mesh_count);
+	VOE_TEST_CHECK_INT(encoded.material_count, decoded.material_count);
+	VOE_TEST_CHECK_INT(encoded.image_count, decoded.image_count);
+	VOE_TEST_CHECK_INT(encoded.node_count, decoded.node_count);
+	VOE_TEST_CHECK_INT(encoded.root_count, decoded.root_count);
+	if (encoded.image_count != 1 || encoded.material_count != 1 ||
+	    encoded.node_count != 2 || encoded.encoded == NULL ||
+	    decoded.images == NULL) {
+		VOE_TEST_CHECK(false);
+		return;
+	}
+
+	VOE_TEST_CHECK(memcmp(&encoded.materials[0].base_colour,
+			      &decoded.materials[0].base_colour,
+			      sizeof(voe_math_float4)) == 0);
+	VOE_TEST_CHECK_INT(encoded.materials[0].base_colour_image,
+			   decoded.materials[0].base_colour_image);
+	VOE_TEST_CHECK_INT(encoded.materials[0].metallic_roughness_image,
+			   decoded.materials[0].metallic_roughness_image);
+	for (uint32_t i = 0; i < 2; i++) {
+		VOE_TEST_CHECK_INT(encoded.nodes[i].mesh, decoded.nodes[i].mesh);
+		VOE_TEST_CHECK_INT(encoded.nodes[i].child_count,
+				   decoded.nodes[i].child_count);
+		VOE_TEST_CHECK(memcmp(&encoded.nodes[i].local,
+				      &decoded.nodes[i].local,
+				      sizeof(voe_math_float4x4)) == 0);
+	}
+
+	VOE_TEST_CHECK(encoded.encoded[0].size >= sizeof(signature) &&
+		       memcmp(encoded.encoded[0].bytes, signature,
+			      sizeof(signature)) == 0);
+	VOE_TEST_CHECK(voe_assets_model_decode_picture(&encoded, 0, arena,
+						       &picture, &error));
+	VOE_TEST_CHECK_INT(picture.width, decoded.images[0].width);
+	VOE_TEST_CHECK_INT(picture.height, decoded.images[0].height);
+	VOE_TEST_CHECK(picture.pixels != NULL &&
+		       memcmp(picture.pixels, decoded.images[0].pixels,
+			      (size_t)picture.width * picture.height * 4) == 0);
+
+	// The CRC of the picture's header chunk, eight bytes of signature and
+	// eight of chunk header and thirteen of IHDR in: the bytes after the
+	// signature broken, which only the decode looks at.
+	VOE_TEST_CHECK(voe_assets_png_encode(
+		arena, (voe_assets_image){ 1, 1, pixel }, &png, &error));
+	size = materials_glb(file, sizeof(file), png, "", "\"name\":\"Bark\",",
+			     "{}");
+	VOE_TEST_CHECK(voe_assets_model_read_glb_encoded(file, size, arena,
+							 &encoded, &error));
+	if (encoded.image_count != 1 || encoded.encoded == NULL) {
+		VOE_TEST_CHECK(false);
+		return;
+	}
+	file[(size_t)(encoded.encoded[0].bytes - file) + 29] ^= 0xff;
+	VOE_TEST_CHECK(voe_assets_model_read_glb_encoded(file, size, arena,
+							 &encoded, &error));
+
+	voe_base_report_error_clear();
+	error = VOE_BASE_OK;
+	VOE_TEST_CHECK(!voe_assets_model_decode_picture(&encoded, 0, arena,
+							&picture, &error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_MALFORMED);
+	kept = voe_base_report_error_first();
+	if (kept == NULL || strncmp(kept, "the picture `Bark`: ", 20) != 0) {
+		fprintf(stderr, "      a broken picture said: %s\n",
+			kept == NULL ? "nothing" : kept);
+		VOE_TEST_CHECK(false);
+	}
+}
+
 // A file that is fine and that this reader will not read. Each one prints what
 // it was, which is the difference between "no" and "export it differently".
 static void well_formed_files_this_reader_refuses(void)
@@ -672,6 +767,7 @@ int main(void)
 	a_node_keeps_its_name(arena);
 	a_refusal_names_what_it_is_about(arena);
 	a_refusal_names_the_part_and_the_container();
+	a_picture_is_left_encoded_until_asked(arena);
 	well_formed_files_this_reader_refuses();
 	broken_containers_are_malformed();
 

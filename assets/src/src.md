@@ -62,8 +62,9 @@ of them is internal to this folder rather than reachable from outside it.
 - `model_gltf.c` — the shared helpers, accessors and buffer views, the version
   and extension checks, and the entry point. Its header says the rule every
   length read out of a file is checked by, and the one buffer.
-- `model_gltf_materials.c` — texture references, the alpha mode, materials and
-  images. Its header says why a texture resolves to an image.
+- `model_gltf_materials.c` — texture references, the alpha mode, materials,
+  images recorded encoded, and a picture decoded on asking. Its header says why
+  a texture resolves to an image.
 - `model_gltf_meshes.c` — attributes, primitives and meshes, each mesh under
   its part and each primitive under its material, triangle lists only.
 - `model_gltf_nodes.c` — the node names and matrices and the node tree, each
@@ -71,7 +72,8 @@ of them is internal to this folder rather than reachable from outside it.
   recursion; every refusal is damage.
 - `model_material.c` — a glTF material to `.material` values, and its ORM
   picture merged from occlusion and metal-roughness at the nearest texel.
-- `model_glb.c` — the container: the header and the chunks. Its header
+- `model_glb.c` — the container: the header and the chunks, read with the
+  pictures left encoded or each decoded. Its header
   carries the layout and says why a `.gltf` is refused by name, a container not
   version 2 refused, and a cut or misshapen chunk refused as damage.
 - `jpeg_read.h` — what the JPEG reader's two parts share, internal to this

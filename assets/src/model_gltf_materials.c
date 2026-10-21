@@ -1,10 +1,16 @@
 // glTF's materials and images, read into the arrays in assets/model.h: texture
 // references, the alpha mode, names, the three material extensions read (unlit,
 // emissive strength, the colour texture's transform scale), the materials, then
-// the images named and decoded. Called by model_gltf.c through
-// model_gltf_read.h; its header's rules hold here. Blender writes `texCoord`
-// −1 for a picture on no UV map, read as no texture there (0446 point 1). Each
-// material is read, and each image decoded, under its subject (0445).
+// the images named and recorded, their bytes left encoded. Called by
+// model_gltf.c through model_gltf_read.h; its header's rules hold here. Blender
+// writes `texCoord` −1 for a picture on no UV map, read as no texture there
+// (0446 point 1). Each material is read, and each image recorded, under its
+// subject (0445).
+//
+// AN IMAGE IS DECODED ONLY ON ASKING, by voe_assets_model_decode_picture below,
+// under its subject again, so pictures decode on a pool and a reader of
+// geometry decodes none (0448). The read checks the signature, so a picture
+// that is neither PNG nor JPEG is refused before any decode.
 //
 // TEXTURES RESOLVE TO IMAGES HERE, WHICH IS WHERE DEDUPLICATION COMES FROM. glTF
 // puts a sampler and an image behind a texture and a material points at the
@@ -12,6 +18,8 @@
 // therefore become one entry, one decode and — once `3d` has uploaded it — one
 // texture id.
 #include "model_gltf_read.h"
+
+#include <base/assert.h>
 
 #include <inttypes.h>
 #include <string.h>
@@ -411,10 +419,10 @@ static bool looks_like_jpeg(const uint8_t *bytes, size_t size)
 	return size >= 2 && bytes[0] == 0xff && bytes[1] == 0xd8;
 }
 
-// One image's bytes, out of the binary chunk, decoded under its subject. A
-// decoder's refusal is the decoder's line; nothing is added to it here.
+// One image's bytes, out of the binary chunk, recorded under its subject once
+// its signature says PNG or JPEG.
 static bool read_image(struct gltf *gltf, uint32_t image,
-		       voe_assets_image *out)
+		       voe_assets_model_encoded *out)
 {
 	uint32_t view_index;
 	uint32_t view;
@@ -482,12 +490,10 @@ static bool read_image(struct gltf *gltf, uint32_t image,
 			length, offset, gltf->bin_size);
 
 	bytes = gltf->bin + offset;
-	if (looks_like_png(bytes, length))
-		return voe_assets_png_decode(bytes, length, gltf->arena, out,
-					     &gltf->error);
-	if (looks_like_jpeg(bytes, length))
-		return voe_assets_jpeg_decode(bytes, length, gltf->arena, out,
-					      &gltf->error);
+	if (looks_like_png(bytes, length) || looks_like_jpeg(bytes, length)) {
+		*out = (voe_assets_model_encoded){ bytes, length };
+		return true;
+	}
 
 	// The mimeType is not trusted for this: it is a claim and the magic
 	// number is the fact.
@@ -498,20 +504,21 @@ static bool read_image(struct gltf *gltf, uint32_t image,
 
 bool voe_assets_gltf_read_images(struct gltf *gltf, voe_assets_model *model)
 {
-	voe_assets_image *images;
+	voe_assets_model_encoded *encoded;
 	voe_assets_model_name *names;
 	uint32_t count = gltf->images == VOE_ASSETS_JSON_NONE ?
 				 0 :
 				 voe_assets_json_count(gltf->json, gltf->images);
 
 	model->images = NULL;
+	model->encoded = NULL;
 	model->image_names = NULL;
 	model->image_count = 0;
 	if (count == 0)
 		return true;
 
-	images = voe_base_arena_push(gltf->arena,
-				     (size_t)count * sizeof(*images));
+	encoded = voe_base_arena_push(gltf->arena,
+				      (size_t)count * sizeof(*encoded));
 	names = voe_base_arena_push(gltf->arena,
 				    (size_t)count * sizeof(*names));
 
@@ -525,14 +532,46 @@ bool voe_assets_gltf_read_images(struct gltf *gltf, voe_assets_model *model)
 		    !voe_assets_gltf_read_name(gltf, image, &names[i]))
 			return false;
 		voe_assets_gltf_subject_push(gltf, "picture", &names[i], i);
-		read = read_image(gltf, image, &images[i]);
+		read = read_image(gltf, image, &encoded[i]);
 		voe_assets_gltf_subject_pop(gltf);
 		if (!read)
 			return false;
 	}
 
-	model->images = images;
+	model->encoded = encoded;
 	model->image_names = names;
 	model->image_count = count;
 	return true;
+}
+
+// The subject is pushed through a read state of its own, holding only the
+// words: nothing of the read that made `model` is needed or touched.
+bool voe_assets_model_decode_picture(const voe_assets_model *model,
+				     uint32_t index, voe_base_arena *arena,
+				     voe_assets_image *out,
+				     voe_base_error *error)
+{
+	struct gltf subject = { 0 };
+	const voe_assets_model_encoded *picture;
+	bool decoded;
+
+	VOE_BASE_ASSERT(model != NULL && model->encoded != NULL,
+			"decoding a picture of a model not read encoded");
+	VOE_BASE_ASSERT(index < model->image_count,
+			"decoding a picture the model does not have");
+	VOE_BASE_ASSERT(arena != NULL && out != NULL,
+			"decoding a picture without an arena or a place for it");
+
+	picture = &model->encoded[index];
+	voe_assets_gltf_subject_push(&subject, "picture",
+				     &model->image_names[index], index);
+	// The read let through only these two, so not a PNG is a JPEG.
+	if (looks_like_png(picture->bytes, picture->size))
+		decoded = voe_assets_png_decode(picture->bytes, picture->size,
+						arena, out, error);
+	else
+		decoded = voe_assets_jpeg_decode(picture->bytes, picture->size,
+						 arena, out, error);
+	voe_assets_gltf_subject_pop(&subject);
+	return decoded;
 }

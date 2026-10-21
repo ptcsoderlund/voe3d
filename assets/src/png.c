@@ -38,6 +38,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <threads.h>
 
 // The artist's half of every refusal that is damage rather than a choice.
 #define DAMAGED "the picture is damaged; save it again as PNG "
@@ -61,8 +62,11 @@ static const uint8_t SIGNATURE[8] = { 0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a,
 // IT IS CHECKED ON EVERY CHUNK, WHICH IS WHY inflate.c DOES NOT CHECK ITS
 // ADLER-32. One integrity check over the compressed bytes is enough, and this is
 // the one that also covers the header, the palette and the chunk boundaries.
+//
+// THE TABLE IS BUILT ONCE THROUGH call_once, because pictures decode on a pool
+// (0448) and two first uses on two threads would otherwise race on it.
 static uint32_t crc_table[256];
-static bool crc_table_built;
+static once_flag crc_table_once = ONCE_FLAG_INIT;
 
 static void build_crc_table(void)
 {
@@ -73,15 +77,13 @@ static void build_crc_table(void)
 			c = (c & 1) ? 0xedb88320u ^ (c >> 1) : c >> 1;
 		crc_table[n] = c;
 	}
-	crc_table_built = true;
 }
 
 uint32_t voe_assets_png_crc(const uint8_t *bytes, size_t count)
 {
 	uint32_t c = 0xffffffffu;
 
-	if (!crc_table_built)
-		build_crc_table();
+	call_once(&crc_table_once, build_crc_table);
 
 	for (size_t i = 0; i < count; i++)
 		c = crc_table[(c ^ bytes[i]) & 0xff] ^ (c >> 8);

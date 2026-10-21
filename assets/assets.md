@@ -8,7 +8,8 @@ way out: a decoder takes a buffer and an encoder hands one back, since
 - `src` — the implementation. See `src/src.md`.
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
 - `include/assets/model.h` — `.glb` files, read into vertex attributes,
-  materials, decoded pictures and a node tree. Its header says why binary only,
+  materials, pictures decoded or left encoded, and a node tree. Its header says
+  why binary only,
   why no coordinate is converted, and which failures are malformed.
 - `include/assets/image.h` — pictures, both directions: PNG and JPEG decoded to
   RGBA8, and RGBA8 encoded back as a PNG. Its header says why output is always

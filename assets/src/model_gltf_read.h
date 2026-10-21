@@ -162,7 +162,8 @@ uint32_t voe_assets_gltf_read_index(const struct view *view, uint32_t index);
 [[nodiscard]] bool voe_assets_gltf_read_materials(struct gltf *gltf,
 						  voe_assets_model *model);
 
-// The images, decoded. In model_gltf_materials.c.
+// The images' names and bytes, left encoded; a picture neither PNG nor JPEG is
+// refused. In model_gltf_materials.c.
 [[nodiscard]] bool voe_assets_gltf_read_images(struct gltf *gltf,
 					       voe_assets_model *model);
 

@@ -2,6 +2,10 @@
 // holds the description and the binary chunk holds the vertex data and the
 // pictures; this file finds them and hands them to model_gltf.c.
 //
+// TWO READS (0448). voe_assets_model_read_glb_encoded is the container and the
+// description, its pictures left as the file's bytes; voe_assets_model_read_glb
+// is that and then a decode of each picture into the same arena.
+//
 // THE LAYOUT, BECAUSE EVERY NUMBER IN IT IS SOMETHING TO CHECK:
 //
 //     magic     u32   0x46546C67, which is "glTF" little-endian
@@ -95,9 +99,10 @@ static bool damaged(voe_base_error *error, const char *words)
 	return false;
 }
 
-bool voe_assets_model_read_glb(const uint8_t *bytes, size_t size,
-			       voe_base_arena *arena, voe_assets_model *model,
-			       voe_base_error *error)
+bool voe_assets_model_read_glb_encoded(const uint8_t *bytes, size_t size,
+				       voe_base_arena *arena,
+				       voe_assets_model *model,
+				       voe_base_error *error)
 {
 	voe_assets_json json;
 	size_t declared;
@@ -202,4 +207,30 @@ bool voe_assets_model_read_glb(const uint8_t *bytes, size_t size,
 
 	return voe_assets_model_from_gltf(&json, bin_chunk, bin_size, arena,
 					  model, error);
+}
+
+// Into a copy, so `model` is untouched by a picture that will not decode.
+bool voe_assets_model_read_glb(const uint8_t *bytes, size_t size,
+			       voe_base_arena *arena, voe_assets_model *model,
+			       voe_base_error *error)
+{
+	voe_assets_model read;
+	voe_assets_image *images = NULL;
+
+	if (!voe_assets_model_read_glb_encoded(bytes, size, arena, &read,
+					       error))
+		return false;
+	if (read.image_count > 0)
+		images = voe_base_arena_push(
+			arena, (size_t)read.image_count * sizeof(*images));
+	for (uint32_t i = 0; i < read.image_count; i++) {
+		if (!voe_assets_model_decode_picture(&read, i, arena, &images[i],
+						     error))
+			return false;
+	}
+
+	read.images = images;
+	read.encoded = NULL;
+	*model = read;
+	return true;
 }
