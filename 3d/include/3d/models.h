@@ -19,10 +19,9 @@
 // A `.glb` HAS LEVELS (0425 points 3, 4, 6; 0426; 0432; 0436): own levels
 // baked per level and joined to level 0's parts by material; made ones, from a
 // levels file, walk level 0's vertices with indices of their own, not compacted
-// copies (0444). Each bound is
-// 0.002 × radius ÷ the file's error (infinite for error nought) ÷ the level's
-// swap, an own level's 2^-k only without a fresh file; then made
-// non-increasing; freed with the parts.
+// copies (0444). Each bound is 0.002 × radius ÷ the file's error (infinite for
+// error nought) ÷ the level's swap, an own level's 2^-k only without a fresh
+// file; then made non-increasing; freed with the parts.
 //
 // A FAILED ENTRY IS KEPT at its stamp, `loaded` false and no parts, so a broken
 // file asked for each frame is not parsed each frame. A PATH LOADED AGAIN
@@ -32,7 +31,9 @@
 // THE MEMORY IS THE STORE'S (rule 11's exception), given back by _destroy, which
 // frees nothing on the card: a program keeping its device calls _clear. THE STORE
 // IS CHANGED ONLY BETWEEN FRAMES: every upload and free waits for the card to go
-// idle; the _frame calls alone run inside one, writing what exists.
+// idle; the _frame calls alone run inside one, writing what exists. THE STORE
+// CARRIES THE POOL ITS LOADERS RUN ON (0448 point 2), the program's: never
+// run, destroyed or cleared here.
 //
 // PICTURES SHARE THE STORE (ADR-0298 point 5): a `.png`, `.jpg` or `.jpeg` path
 // has two BLENDED parts on the store's one quad, 0 lit and 1 unlit, the glow,
@@ -54,9 +55,8 @@
 // its own dirt, one budget for both.
 //
 // A `.material` IS AN ENTRY WITH NO SHAPE (0399 points 4, 5): one part with no
-// geometry holding its record, its blended twin and its own maps, here because
-// reload, rename, clear and the twin already live here. A map two materials
-// name is uploaded twice.
+// geometry holding its record, blended twin and own maps, here as reload,
+// rename, clear and the twin live here. A map two materials name goes up twice.
 #pragma once
 
 #include <3d/landscape.h>
@@ -70,6 +70,7 @@
 #include <assets/parts.h>
 #include <base/arena.h>
 #include <base/error.h>
+#include <base/workers.h>
 #include <math/float3.h>
 #include <render/device.h>
 
@@ -175,13 +176,25 @@ typedef struct {
 	voe_3d_material_map emission;
 } voe_3d_material_maps;
 
+// A material's four maps decoded (voe_3d_model_picture_decode); a map of width
+// 0 is none.
+typedef struct {
+	voe_assets_image colour, normal, orm, emission;
+} voe_3d_material_pictures;
+
 typedef struct voe_3d_models voe_3d_models;
 
 voe_3d_models *voe_3d_models_new(void);
 void voe_3d_models_destroy(voe_3d_models *models);
 // Frees every entry's parts on the card and its memory; the store is empty
-// and takes loads again.
+// and takes loads again. The pool is kept.
 void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
+
+// The program's pool its loaders run on, NULL until set; the store never runs
+// it itself, nor destroys it, so it must outlive the store's use of it.
+void voe_3d_models_workers_set(voe_3d_models *models,
+			       voe_base_workers *workers);
+voe_base_workers *voe_3d_models_workers(const voe_3d_models *models);
 
 // Reads `bytes` as a picture when `path` ends `.png`, `.jpg` or `.jpeg` in any
 // case, as a landscape's text when it ends `.landscape`, else as a `.glb`, and
@@ -236,18 +249,27 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 	voe_base_error *error);
 
 // `material` as `path`'s entry: each map with bytes decoded as a picture by its
-// path's extension and uploaded mipped, colour and emission as COLOUR, normal
-// and ORM as DATA, the ORM map's one texture in the metal-roughness and the
-// occlusion slots both (0400), the emission map in the emissive slot; colour,
-// metal, roughness, repeat and shader from the values, `cutout` > 0 as CUTOUT
-// at that cutoff else OPAQUE, `emission` × `emission_strength` as emissive, and
-// `double_sided` (0420 point 2); one part with no geometry and its blended
-// twin. Replaces and fails as _load does; MALFORMED when a map will not decode,
-// REFUSED when the device or the store has no room.
+// path's extension, under "the <name> map `path`" as the subject, then put by
+// _put_material. Fails as that does, and MALFORMED, kept as _load keeps a
+// failure, when a map will not decode or its path is no picture.
 [[nodiscard]] bool voe_3d_models_load_material(
 	voe_3d_models *models, voe_render_device *device, const char *path,
 	uint64_t stamp, const voe_assets_material_file *material,
 	voe_3d_material_maps maps, voe_base_error *error);
+
+// `material` as `path`'s entry, its maps decoded already on any thread: each of
+// width above 0 uploaded mipped, colour and emission as COLOUR, normal and ORM
+// as DATA, the ORM map's one texture in the metal-roughness and the
+// occlusion slots both (0400), the emission map in the emissive slot; colour,
+// metal, roughness, repeat and shader from the values, `cutout` > 0 as CUTOUT
+// at that cutoff else OPAQUE, `emission` × `emission_strength` as emissive, and
+// `double_sided` (0420 point 2); one part with no geometry and its blended
+// twin. Replaces and fails as _load does: REFUSED when the device or the store
+// has no room. On the thread that owns the device, between frames.
+[[nodiscard]] bool voe_3d_models_put_material(
+	voe_3d_models *models, voe_render_device *device, const char *path,
+	uint64_t stamp, const voe_assets_material_file *material,
+	voe_3d_material_pictures pictures, voe_base_error *error);
 
 // `material`'s colour, metal, roughness, repeat, shader, cutout, emission ×
 // strength and double_sided taken into `path`'s part as _load_material takes

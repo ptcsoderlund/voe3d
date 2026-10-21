@@ -148,8 +148,9 @@ again, or to find where a claim that has started failing is written down.
 - `model_bake.c` — that the bake carries a file's vertex colours as complements and bakes one
   `_LOD<n>` level of a file's own at a time. Needs no graphics card.
 - `models.c` — the model store: loads, failures kept, replace, clear, blended twins none leaked,
-  glTF source and `wears`, pictures and the dot, a model drawn only with the store, and a
-  17-material `.glb` refused once under the caller's subject. Skips without a card.
+  glTF source and `wears`, pictures and the dot, a model drawn only with the store, a
+  17-material `.glb` refused once under the caller's subject, and the pool NULL when new, read
+  back as set and kept by a clear. Skips without a card.
 - `models_levels.c` — the store loading a sphere with its levels file, its own `_LOD1` levels and
   a far swap, leaking no level across reloads and clears, made levels boxed as level 0, pools
   starting below level 0, a prepare on a second thread put alike to a load, and 17 materials
@@ -158,8 +159,9 @@ again, or to find where a claim that has started failing is written down.
   layers and renames written within a frame's budget, and its foliage placed, kept standing by a
   sculpt, scattered, erased, put back, a kind set and renamed. Skips without a card.
 - `models_material.c` — a `.material` with four maps loaded as one part with a live record and
-  twin, its cutout, emission and sides, a set changing them written by a frame, a map that is no
-  picture failing MALFORMED, and a rename. Skips without a card.
+  twin, its cutout, emission and sides, a set changing them written by a frame, the same maps
+  decoded and put giving a like entry, a map that is no picture failing MALFORMED, and a rename.
+  Skips without a card.
 - `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, and
   painting a layer: the sum kept, the radius held and a light stroke stopping at its strength.
   Needs no graphics card.

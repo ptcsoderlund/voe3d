@@ -33,6 +33,7 @@
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
+#include <base/workers.h>
 #include <render/device.h>
 #include <scene/transform_component.h>
 
@@ -84,6 +85,9 @@ struct voe_3d_models {
 	// The water's part on the quad, its record the store's, when `has_water`.
 	voe_3d_model_part water;
 	bool has_water;
+	// The program's pool its loaders run on, NULL until set; never run,
+	// destroyed or cleared by the store.
+	voe_base_workers *workers;
 };
 
 // What a draw needs of a loaded landscape beside its part.

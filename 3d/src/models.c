@@ -35,6 +35,9 @@
 // A LANDSCAPE IS READ HERE AND UPLOADED BY models_landscape.c, which holds
 // every landscape call; the table they share is models_store.h's.
 //
+// THE POOL IS HELD, NOT OWNED (0448 point 2): set and read here for the
+// loaders, it outlives _clear and is never destroyed by the store.
+//
 // CONSTRAINTS: _find is a scan over the entries by string compare, which at
 // VOE_3D_MODELS entries is nothing; a hash of the path would lift it if the
 // store ever grows by orders of magnitude. A full store refuses a new path as
@@ -134,6 +137,22 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device)
 	if (models->has_grid)
 		(void)voe_render_geometry_destroy(device, models->grid);
 	models->has_grid = false;
+}
+
+void voe_3d_models_workers_set(voe_3d_models *models,
+			       voe_base_workers *workers)
+{
+	VOE_BASE_ASSERT(models != NULL, "setting the pool of no store");
+
+	models->workers = workers;
+	VOE_BASE_ASSERT(models->workers == workers, "the pool was not set");
+}
+
+voe_base_workers *voe_3d_models_workers(const voe_3d_models *models)
+{
+	VOE_BASE_ASSERT(models != NULL, "reading the pool of no store");
+
+	return models->workers;
 }
 
 void voe_3d_models_destroy(voe_3d_models *models)

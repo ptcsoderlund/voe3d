@@ -29,14 +29,21 @@
 // A STALE OR WRONG LEVELS FILE IS NO FAILURE: the put then makes level 0 alone,
 // as the store's load does.
 //
+// A PICTURE IS DECODED HERE TOO, a model's or a material's map: by its path's
+// extension, on any thread with an arena of its own, for the put or for
+// voe_3d_models_put_material (3d/models.h).
+//
 // CONSTRAINTS: everything is pushed into `arena`, which must outlive the put;
-// the shape is copied out of it by the put.
+// the shape is copied out of it by the put. The decode looks at the extension
+// alone, not the file's magic bytes, so a PNG named `.jpg` fails MALFORMED.
 #pragma once
 
+#include <assets/image.h>
 #include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -51,3 +58,15 @@ typedef struct voe_3d_model_prepared voe_3d_model_prepared;
 voe_3d_model_prepare(voe_base_arena *arena, const voe_assets_model *model,
 		     const uint8_t *glb, size_t glb_size, const uint8_t *levels,
 		     size_t levels_size, voe_base_error *error);
+
+// Whether `path` ends `.png`, `.jpg` or `.jpeg`, in any case.
+bool voe_3d_model_picture_is(const char *path);
+
+// Decodes `bytes` as the picture `path`'s extension says into `arena`. False,
+// with `error` MALFORMED or UNSUPPORTED as the decoder says. Asserts `path` is
+// a picture's.
+[[nodiscard]] bool voe_3d_model_picture_decode(const char *path,
+					       const uint8_t *bytes, size_t size,
+					       voe_base_arena *arena,
+					       voe_assets_image *image,
+					       voe_base_error *error);

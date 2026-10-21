@@ -161,9 +161,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models.c` — the store's table of entries with an arena each, the `.glb` load as read, prepare
   and put, the put uploading with each part's blended twin and glTF source, copying the shape and
   giving back what a failure made; the parts set; pictures on the quad, the dot and the water
-  apart; a full store said as a limit.
-- `models_store.h` — the store's internal table, the prepared `.glb` and the helpers the store's
-  files share.
+  apart; the pool held, not owned; a full store said as a limit.
+- `models_store.h` — the store's internal table with the program's pool, the prepared `.glb` and
+  the helpers the store's files share.
 - `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until
   one matches no part, or a levels file read and checked against the bake, the shape built and
   the sphere measured.
@@ -175,13 +175,13 @@ here is included from outside the folder — `include/3d/` is the whole public s
   puts growing its dirt, written a budget at a time, and placing copies again; renames following.
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
   handed to foliage.c, the entry marked edited on a change.
-- `models_material.c` — a `.material`'s four maps decoded and uploaded mipped with its record,
-  cutout, emission and sides and its twin as one part with no geometry, each map decoded under
-  its name as the subject, the set marking it and the frame rewriting both records.
-- `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
-  texture and two blended materials; internal.
-- `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow
-  materials on one COLOUR texture, blended already so needing no twin.
+- `models_material.c` — a `.material`'s four maps, decoded by the load under each map's name as
+  the subject or already by the caller, put mipped with its record, cutout, emission and sides
+  and its twin as one part with no geometry; the set marking it and the frame rewriting both records.
+- `model_picture.h` — a picture's quad, the soft dot and the upload of one texture and two
+  blended materials, the public decode by extension included; internal.
+- `model_picture.c` — the decode by extension, the quad's leaning normals, the smoothstep dot,
+  and the lit and glow materials on one COLOUR texture, blended already so needing no twin.
 - `landscape.c` — the bilinear height, the marched and bisected ray, and the brush's stamp on the
   heights or, painting, on a layer's weights.
 - `brush_weight.h` — a brush's soft weight by radius and softness, shared by the sculpt, paint and
