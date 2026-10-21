@@ -7,7 +7,11 @@ project. It blocks step 1 of 090's test: the tree imported, but I cannot place o
 The import itself went through: `Assets/trees/spruce_ish.glb` (16 MB, imported 2026-10-20 15:18), its
 `.parts`, two materials and its levels file in `Cache/levels/` are all there.
 
-## Reproduced
+## Expected
+The tree is placed where I drop it, and a scene that holds it opens. A model's triangles with no
+area are taken, not asserted on.
+
+## How to reproduce
 On Linux, debug build of `c2c0cd80`, with no window: a copy of the project whose `main.scene` holds
 one more thing wearing `Assets/trees/spruce_ish.glb`, run as
 `voe_editor <copy> --capture out.png --frames 10`. It aborts while the start loads the scene:
