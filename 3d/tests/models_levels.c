@@ -23,6 +23,13 @@
 //    levelled sphere loads with every level its file holds, draws 3 m away
 //    and, under a quarter of that, 400 m away; clearing the store after it
 //    asserts nothing, made levels freed before the parts they walk.
+// 9. After a clear, the sphere with its levels file and 3's sphere with its
+//    made file, each read with its pictures encoded, prepared on a second
+//    thread, its pictures decoded and put on this one: the entry is what
+//    _load_levelled makes of the same bytes beside it (parts, `level_count`,
+//    bounds, sphere, shape), its prepare's arena gone.
+// 10. A `.glb` wearing one material more than VOE_3D_MODEL_PARTS prepares to
+//    NULL, UNSUPPORTED.
 //
 // THE DEVICE HOLDS SIXTEEN GEOMETRIES: two copies of the levelled sphere at
 // VOE_3D_MODEL_LEVELS levels at most, the two plain ones and the own one's two. A clear or replace
@@ -34,9 +41,11 @@
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
 #include <3d/model_levels.h>
+#include <3d/model_prepare.h>
 #include <3d/models.h>
 #include <3d/panel_component.h>
 
+#include <assets/model.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <ecs/world.h>
@@ -55,6 +64,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <threads.h>
 
 #include "model_glb.inc"
 
@@ -403,6 +413,181 @@ static void check_own_measured(voe_base_arena *arena, voe_3d_models *models,
 		       f->own_far_levels, f->own_far_levels_size, 2.0f);
 }
 
+// What the second thread prepares, on an arena the test does not touch
+// meanwhile.
+typedef struct {
+	voe_base_arena *arena;
+	const voe_assets_model *model;
+	const uint8_t *glb;
+	size_t glb_size;
+	const uint8_t *levels;
+	size_t levels_size;
+	const voe_3d_model_prepared *prepared;
+	voe_base_error error;
+} preparing;
+
+static int prepare_task(void *context)
+{
+	preparing *job = context;
+
+	job->prepared = voe_3d_model_prepare(job->arena, job->model, job->glb,
+					     job->glb_size, job->levels,
+					     job->levels_size, &job->error);
+	return 0;
+}
+
+// `glb` read into `model` with its pictures encoded, prepared on a second
+// thread, then its pictures decoded on this one; NULL when any step was.
+static const voe_3d_model_prepared *
+prepare_apart(voe_base_arena *arena, voe_assets_model *model,
+	      const uint8_t *glb, size_t glb_size, const uint8_t *levels,
+	      size_t levels_size)
+{
+	preparing job = { .arena = arena,
+			  .model = model,
+			  .glb = glb,
+			  .glb_size = glb_size,
+			  .levels = levels,
+			  .levels_size = levels_size };
+	voe_base_error error = VOE_BASE_OK;
+	voe_assets_image *images;
+	thrd_t thread;
+	int result = -1;
+
+	VOE_TEST_CHECK(voe_assets_model_read_glb_encoded(glb, glb_size, arena,
+							 model, &error));
+	if (error != VOE_BASE_OK)
+		return NULL;
+	VOE_TEST_CHECK(thrd_create(&thread, prepare_task, &job) ==
+		       thrd_success);
+	VOE_TEST_CHECK(thrd_join(thread, &result) == thrd_success);
+	images = voe_base_arena_push(arena, ((size_t)model->image_count + 1) *
+						    sizeof(*images));
+	for (uint32_t i = 0; i < model->image_count; i++)
+		VOE_TEST_CHECK(voe_assets_model_decode_picture(
+			model, i, arena, &images[i], &error));
+	model->images = images;
+	return job.prepared;
+}
+
+// 9: `glb` with `levels` loaded as "Assets/loaded.glb" and put as
+// "Assets/put.glb" after a prepare on a second thread: alike.
+static void check_put(voe_3d_models *models, voe_render_device *device,
+		      const uint8_t *glb, size_t glb_size,
+		      const uint8_t *levels, size_t levels_size)
+{
+	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
+	voe_base_error error = VOE_BASE_OK;
+	const voe_3d_model_prepared *prepared;
+	const voe_3d_model_entry *loaded;
+	const voe_3d_model_entry *put;
+	voe_assets_model model;
+
+	VOE_TEST_CHECK(load(models, device, "Assets/loaded.glb", glb, glb_size,
+			    levels, levels_size));
+	prepared = prepare_apart(arena, &model, glb, glb_size, levels,
+				 levels_size);
+	VOE_TEST_CHECK(prepared != NULL);
+	if (prepared != NULL)
+		VOE_TEST_CHECK(voe_3d_models_put(models, device,
+						 "Assets/put.glb", 1, prepared,
+						 &error));
+	voe_base_arena_destroy(arena);
+	loaded = voe_3d_models_find(models, "Assets/loaded.glb");
+	put = voe_3d_models_find(models, "Assets/put.glb");
+	VOE_TEST_CHECK(loaded != NULL && loaded->loaded);
+	VOE_TEST_CHECK(put != NULL && put->loaded);
+	if (loaded == NULL || put == NULL || !loaded->loaded || !put->loaded)
+		return;
+	VOE_TEST_CHECK_INT(put->part_count, loaded->part_count);
+	for (uint32_t p = 0; p < put->part_count && p < loaded->part_count; p++)
+		VOE_TEST_CHECK_INT(put->parts[p].source,
+				   loaded->parts[p].source);
+	VOE_TEST_CHECK_INT(put->level_count, loaded->level_count);
+	VOE_TEST_CHECK(put->levels_own == loaded->levels_own);
+	for (uint32_t k = 0; k < put->level_count && k < loaded->level_count;
+	     k++)
+		VOE_TEST_CHECK(put->levels[k].bound == loaded->levels[k].bound);
+	VOE_TEST_CHECK(put->radius == loaded->radius);
+	VOE_TEST_CHECK(memcmp(&put->centre, &loaded->centre,
+			      sizeof(put->centre)) == 0);
+	VOE_TEST_CHECK(put->shape.edge_count > 0);
+	VOE_TEST_CHECK_INT(put->shape.edge_count, loaded->shape.edge_count);
+	VOE_TEST_CHECK_INT(put->shape.index_count, loaded->shape.index_count);
+}
+
+// A `.glb` of one triangle drawn `materials` times, each primitive wearing a
+// material of its own, built on `arena` as 3d/tests/models.c builds it.
+static const uint8_t *many_materials_glb(voe_base_arena *arena,
+					 uint32_t materials, size_t *size)
+{
+	static const float positions[9] = { 0, 0, 0, 1, 0, 0, 0, 1, 0 };
+	static const uint32_t indices[3] = { 0, 1, 2 };
+	const size_t bin = sizeof(positions) + sizeof(indices);
+	char json[4096];
+	size_t at;
+	uint8_t *file;
+
+	at = (size_t)snprintf(json, sizeof(json),
+			      "{\"asset\":{\"version\":\"2.0\"},\"scene\":0,"
+			      "\"scenes\":[{\"nodes\":[0]}],"
+			      "\"nodes\":[{\"mesh\":0}],"
+			      "\"meshes\":[{\"primitives\":[");
+	for (uint32_t m = 0; m < materials; m++)
+		at += (size_t)snprintf(json + at, sizeof(json) - at,
+				       "%s{\"attributes\":{\"POSITION\":0},"
+				       "\"indices\":1,\"material\":%u}",
+				       m == 0 ? "" : ",", m);
+	at += (size_t)snprintf(json + at, sizeof(json) - at,
+			       "]}],\"materials\":[");
+	for (uint32_t m = 0; m < materials; m++)
+		at += (size_t)snprintf(json + at, sizeof(json) - at, "%s{}",
+				       m == 0 ? "" : ",");
+	at += (size_t)snprintf(
+		json + at, sizeof(json) - at,
+		"],\"accessors\":["
+		"{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+		"{\"bufferView\":1,\"componentType\":5125,\"count\":3,\"type\":\"SCALAR\"}],"
+		"\"bufferViews\":["
+		"{\"buffer\":0,\"byteOffset\":0,\"byteLength\":%zu},"
+		"{\"buffer\":0,\"byteOffset\":%zu,\"byteLength\":%zu}],"
+		"\"buffers\":[{\"byteLength\":%zu}]}",
+		sizeof(positions), sizeof(positions), sizeof(indices), bin);
+	VOE_TEST_CHECK(at < sizeof(json) - 4);
+	while (at % 4 != 0)
+		json[at++] = ' ';
+
+	*size = 12 + 8 + at + 8 + bin;
+	file = voe_base_arena_push(arena, *size);
+	sphere_glb_u32(file, 0x46546C67u);
+	sphere_glb_u32(file + 4, 2);
+	sphere_glb_u32(file + 8, (uint32_t)*size);
+	sphere_glb_u32(file + 12, (uint32_t)at);
+	sphere_glb_u32(file + 16, 0x4E4F534Au);
+	memcpy(file + 20, json, at);
+	sphere_glb_u32(file + 20 + at, (uint32_t)bin);
+	sphere_glb_u32(file + 24 + at, 0x004E4942u);
+	memcpy(file + 28 + at, positions, sizeof(positions));
+	memcpy(file + 28 + at + sizeof(positions), indices, sizeof(indices));
+	return file;
+}
+
+// 10: one material more than VOE_3D_MODEL_PARTS prepares to NULL.
+static void check_prepare_refused(voe_base_arena *arena)
+{
+	voe_base_error error = VOE_BASE_OK;
+	voe_assets_model model;
+	size_t size;
+	const uint8_t *glb =
+		many_materials_glb(arena, VOE_3D_MODEL_PARTS + 1, &size);
+
+	VOE_TEST_CHECK(voe_assets_model_read_glb_encoded(glb, size, arena,
+							 &model, &error));
+	VOE_TEST_CHECK(voe_3d_model_prepare(arena, &model, glb, size, NULL, 0,
+					    &error) == NULL);
+	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_UNSUPPORTED);
+}
+
 // All four loaded; false when any load was.
 static bool load_all(voe_3d_models *models, voe_render_device *device,
 		     const files *f)
@@ -463,6 +648,16 @@ int main(void)
 	// 6
 	voe_3d_models_clear(models, device);
 	check_own_measured(arena, models, device, &f);
+
+	// 9
+	voe_3d_models_clear(models, device);
+	check_put(models, device, f.glb, f.glb_size, f.levels, f.levels_size);
+	voe_3d_models_clear(models, device);
+	check_put(models, device, f.own, f.own_size, f.own_levels,
+		  f.own_levels_size);
+
+	// 10
+	check_prepare_refused(arena);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);

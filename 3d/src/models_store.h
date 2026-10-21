@@ -20,12 +20,15 @@
 //
 // A `.glb`'S LEVELS ARE models_levels.c's: models.c calls them after the parts
 // and frees them before the parts wherever it frees those, made levels walking
-// level 0's vertices (0444).
+// level 0's vertices (0444). What they upload model_prepare.c baked or read
+// into the prepared struct below, which those three files share.
 #pragma once
 
 #include "model_bake.h"
 
 #include <3d/landscape.h>
+#include <3d/model_levels.h>
+#include <3d/model_prepare.h>
 #include <3d/models.h>
 #include <assets/model.h>
 #include <base/arena.h>
@@ -126,21 +129,39 @@ bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
 bool voe_3d_models_twin(voe_render_device *device, voe_3d_model_part *part,
 			voe_base_error *error);
 
-// `entry`'s centre and radius from its level-0 `bake`: the box's centre and the
-// farthest vertex from it; untouched for a bake with no vertices.
-void voe_3d_models_sphere(const voe_3d_model_bake *bake,
-			  voe_3d_model_entry *entry);
+// A `.glb` prepared (3d/model_prepare.h), everything on the prepare's arena.
+struct voe_3d_model_prepared {
+	// The read model, its pictures decoded by the put.
+	const voe_assets_model *model;
+	// Level 0, and the CPU shape built from it.
+	voe_3d_model_bake bake;
+	voe_3d_shape_geometry shape;
+	// The bounding sphere: the box's centre and the farthest level-0 vertex
+	// from it; nought for a bake with no vertices.
+	voe_math_float3 centre;
+	float radius;
+	// The file's own levels: `own` when its nodes name any, levels 1 to
+	// `own_count` − 1 baked, each matching some level-0 part by material.
+	bool own;
+	voe_3d_model_bake own_levels[VOE_3D_MODEL_LEVELS];
+	uint32_t own_count;
+	// The levels file, read fresh: an own file's errors and swaps when
+	// `measured`, made levels' indices fitting the bake when `made`.
+	voe_3d_model_levels read;
+	bool measured;
+	bool made;
+};
 
-// `entry`'s levels after its level-0 parts, baked as `bake`: `model`'s own,
-// else the made ones of `levels`, a levels file read against `glb`; level 0
-// alone for NULL `levels` or a stale file. False, `error` set as the device or
-// a level's bake says, what it made left in `entry` for _levels_free.
+// The level-0 part `bake` merged from glTF material `material`;
+// VOE_3D_MODEL_PARTS when none was.
+uint32_t voe_3d_models_part_of(const voe_3d_model_bake *bake,
+			       uint32_t material);
+
+// `entry`'s levels after its level-0 parts, as `prepared` baked or read them;
+// level 0 alone when it has neither. False, `error` set as the device says,
+// what it made left in `entry` for _levels_free.
 bool voe_3d_models_levels_upload(voe_render_device *device,
-				 voe_base_arena *scratch,
-				 const voe_assets_model *model,
-				 const voe_3d_model_bake *bake,
-				 const uint8_t *glb, size_t glb_size,
-				 const uint8_t *levels, size_t levels_size,
+				 const voe_3d_model_prepared *prepared,
 				 voe_3d_model_entry *entry,
 				 voe_base_error *error);
 

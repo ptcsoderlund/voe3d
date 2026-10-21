@@ -151,8 +151,9 @@ again, or to find where a claim that has started failing is written down.
   glTF source and `wears`, pictures and the dot, a model drawn only with the store, and a
   17-material `.glb` refused once under the caller's subject. Skips without a card.
 - `models_levels.c` — the store loading a sphere with its levels file, its own `_LOD1` levels and
-  a far swap, leaking no level across reloads and clears, made levels boxed as level 0, and pools
-  starting below level 0. Skips without a card.
+  a far swap, leaking no level across reloads and clears, made levels boxed as level 0, pools
+  starting below level 0, a prepare on a second thread put alike to a load, and 17 materials
+  prepared to UNSUPPORTED. Skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget, and its foliage placed, kept standing by a
   sculpt, scattered, erased, put back, a kind set and renamed. Skips without a card.

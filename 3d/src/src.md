@@ -158,13 +158,18 @@ here is included from outside the folder — `include/3d/` is the whole public s
   from it, the fill with each colour's complement, the mirrored node's turned triangles, and
   each node's `_LOD<n>` level carried down the walk; its three refusals as limits with the file's
   own counts.
-- `models.c` — the store's table of entries with an arena each, and the load that reads, bakes,
-  uploads with each part's blended twin and glTF source and gives back what a failure made; the
-  parts set; pictures on the quad, the dot and the water apart; a full store said as a limit.
-- `models_store.h` — the store's internal table and the helpers the store's files share.
-- `models_levels.c` — a `.glb`'s levels beside its parts: own levels baked and joined by
-  material, or a levels file's checked and its made levels' indices shared over level 0's vertices,
-  no gather, each bounded by the file's error and swap; the sphere, the level-0 mirror and the free.
+- `models.c` — the store's table of entries with an arena each, the `.glb` load as read, prepare
+  and put, the put uploading with each part's blended twin and glTF source, copying the shape and
+  giving back what a failure made; the parts set; pictures on the quad, the dot and the water
+  apart; a full store said as a limit.
+- `models_store.h` — the store's internal table, the prepared `.glb` and the helpers the store's
+  files share.
+- `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until
+  one matches no part, or a levels file read and checked against the bake, the shape built and
+  the sphere measured.
+- `models_levels.c` — a `.glb`'s levels beside its parts, as the prepare baked or read them: own
+  levels joined by material, or made levels' indices shared over level 0's vertices, each bounded
+  by the file's error and swap; the level-0 mirror and the free.
 - `models_landscape.c` — a landscape's grid copied with its layers, paint, foliage kinds and
   copies, each placed, uploaded as heights, paint and a pyramid on the shared grid; brushes and
   puts growing its dirt, written a budget at a time, and placing copies again; renames following.

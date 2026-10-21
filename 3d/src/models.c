@@ -1,13 +1,14 @@
 // The model store: a fixed table of entries, each with an arena of its own, and
 // the load that reads, bakes, uploads and keeps one file.
 //
-// A LOAD IS FOUR STEPS, in the order ids are needed: `assets` reads the bytes
-// into a scratch arena, model_bake.h flattens them into parts, model_upload.h
-// puts the pictures and materials on the card, and each part becomes a geometry
-// and, unless it is BLENDED, a blended twin record; models_levels.c then puts its
-// levels beside them. The CPU copy of the whole model, `shape`, is built last into
-// the entry's own arena. The scratch arena is the load's, destroyed before it
-// returns.
+// A `.glb` LOAD IS A PREPARE AND A PUT (0448 point 3). The prepare
+// (3d/model_prepare.h) bakes the parts, the levels, the CPU shape and the sphere
+// on any thread; the put, on the device's, has model_upload.h put the pictures
+// and materials on the card, makes each part a geometry and, unless it is
+// BLENDED, a blended twin record, has models_levels.c put the levels beside
+// them, and copies the shape into the entry's own arena. _load_levelled reads
+// with `assets`, prepares on a scratch arena of its own and puts, destroying
+// the arena before it returns; the put's own scratch holds the upload's lists.
 //
 // A FAILED LOAD GIVES BACK WHAT IT UPLOADED, every texture, shading record, twin
 // and geometry it had made, so that a file failing again and again does not fill
@@ -217,33 +218,38 @@ bool voe_3d_models_keep(voe_3d_models *models, voe_render_device *device,
 	return true;
 }
 
-// The whole model once more on the CPU, in the entry's arena: the bake's
-// vertices, and its indices counted from the model's first vertex.
-static void build_shape(voe_base_arena *memory, const voe_3d_model_bake *bake,
-			voe_3d_shape_geometry *out)
+// `size` bytes of `from` copied into `memory`; NULL for none.
+static void *copy_into(voe_base_arena *memory, const void *from, size_t size)
 {
-	voe_render_vertex *vertices;
-	uint32_t *indices;
+	void *to;
 
-	if (bake->part_count == 0)
-		return;
+	if (size == 0)
+		return NULL;
+	to = voe_base_arena_push(memory, size);
+	memcpy(to, from, size);
+	return to;
+}
 
-	vertices = voe_base_arena_push(memory, (size_t)bake->vertex_count *
-						       sizeof(*vertices));
-	indices = voe_base_arena_push(memory, (size_t)bake->index_count *
-						      sizeof(*indices));
-	memcpy(vertices, bake->vertices,
-	       (size_t)bake->vertex_count * sizeof(*vertices));
-	for (uint32_t p = 0; p < bake->part_count; p++) {
-		const voe_3d_model_bake_part *part = &bake->parts[p];
-
-		for (uint32_t i = 0; i < part->index_count; i++)
-			indices[part->first_index + i] =
-				bake->indices[part->first_index + i] +
-				part->first_vertex;
-	}
-	voe_3d_shape_geometry_build(memory, vertices, bake->vertex_count,
-				    indices, bake->index_count, out);
+// The prepared shape copied into the entry's arena, its three arrays with it,
+// so the prepare's arena may go once the put returns.
+static void copy_shape(voe_base_arena *memory,
+		       const voe_3d_shape_geometry *shape,
+		       voe_3d_shape_geometry *out)
+{
+	*out = (voe_3d_shape_geometry){
+		.vertices = copy_into(memory, shape->vertices,
+				      (size_t)shape->vertex_count *
+					      sizeof(*shape->vertices)),
+		.vertex_count = shape->vertex_count,
+		.indices = copy_into(memory, shape->indices,
+				     (size_t)shape->index_count *
+					     sizeof(*shape->indices)),
+		.index_count = shape->index_count,
+		.edges = copy_into(memory, shape->edges,
+				   (size_t)shape->edge_count *
+					   sizeof(*shape->edges)),
+		.edge_count = shape->edge_count,
+	};
 }
 
 // `part`'s twin, its material with the alpha mode BLENDED, when it is not
@@ -329,40 +335,89 @@ static void hold_upload(const voe_3d_model_upload *upload, entry_held *held)
 	held->shading_count = upload->shading_count;
 }
 
-// Reads, bakes and uploads a `.glb` and its levels into `entry`; on failure
-// what it made is given back.
-static bool load_glb(voe_render_device *device, voe_base_arena *scratch,
-		     const uint8_t *bytes, size_t size, const uint8_t *levels,
-		     size_t levels_size, voe_3d_model_entry *entry,
-		     entry_held *held, voe_base_error *error)
+// Uploads a prepared `.glb` and its levels into `entry` and copies its shape;
+// on failure what it made is given back.
+static bool upload_glb(voe_render_device *device, voe_base_arena *scratch,
+		       const voe_3d_model_prepared *prepared,
+		       voe_3d_model_entry *entry, entry_held *held,
+		       voe_base_error *error)
 {
 	voe_3d_model_upload upload = { 0 };
-	voe_3d_model_bake bake;
-	voe_assets_model model;
 	uint32_t made = 0;
 	bool loaded;
 
-	loaded = voe_assets_model_read_glb(bytes, size, scratch, &model,
-					   error) &&
-		 voe_3d_model_bake_create(scratch, &model, 0, &bake, error) &&
-		 voe_3d_model_upload_create(device, scratch, &model, &upload,
-					    error) &&
-		 upload_parts(device, &bake, &upload, entry, &made, error);
-	if (loaded)
-		voe_3d_models_sphere(&bake, entry);
-	loaded = loaded && voe_3d_models_levels_upload(
-				   device, scratch, &model, &bake, bytes, size,
-				   levels, levels_size, entry, error);
+	loaded = voe_3d_model_upload_create(device, scratch, prepared->model,
+					    &upload, error) &&
+		 upload_parts(device, &prepared->bake, &upload, entry, &made,
+			      error);
+	if (loaded) {
+		entry->centre = prepared->centre;
+		entry->radius = prepared->radius;
+	}
+	loaded = loaded &&
+		 voe_3d_models_levels_upload(device, prepared, entry, error);
 
 	if (loaded) {
-		build_shape(held->memory, &bake, &entry->shape);
+		copy_shape(held->memory, &prepared->shape, &entry->shape);
 		hold_upload(&upload, held);
-		entry->part_count = bake.part_count;
+		entry->part_count = prepared->bake.part_count;
 		entry->loaded = true;
 	} else {
 		give_back(device, &upload, entry, made);
 		entry->level_count = 1;
 	}
+	return loaded;
+}
+
+bool voe_3d_models_put(voe_3d_models *models, voe_render_device *device,
+		       const char *path, uint64_t stamp,
+		       const voe_3d_model_prepared *prepared,
+		       voe_base_error *error)
+{
+	voe_3d_model_entry entry;
+	voe_base_arena *scratch;
+	entry_held held;
+	bool loaded;
+
+	VOE_BASE_ASSERT(models != NULL, "putting a model into no store");
+	VOE_BASE_ASSERT(device != NULL, "putting a model with no device");
+	VOE_BASE_ASSERT(path != NULL && prepared != NULL,
+			"putting no path or nothing prepared");
+	VOE_BASE_ASSERT(prepared->model->image_count == 0 ||
+				prepared->model->images != NULL,
+			"putting a model whose pictures are not decoded");
+
+	if (!voe_3d_models_room(models, path, error))
+		return false;
+	voe_3d_models_entry_new(path, stamp, &entry, &held);
+	scratch = voe_base_arena_new(SCRATCH_BLOCK);
+	loaded = upload_glb(device, scratch, prepared, &entry, &held, error);
+	voe_base_arena_destroy(scratch);
+	(void)voe_3d_models_keep(models, device, &entry, &held);
+	return loaded;
+}
+
+// Reads and prepares a `.glb` on a scratch arena of its own, then puts it; a
+// file that will not read or prepare is kept as failed at `stamp`.
+static bool load_glb(voe_3d_models *models, voe_render_device *device,
+		     const char *path, uint64_t stamp, const uint8_t *bytes,
+		     size_t size, const uint8_t *levels, size_t levels_size,
+		     voe_base_error *error)
+{
+	voe_base_arena *scratch = voe_base_arena_new(SCRATCH_BLOCK);
+	const voe_3d_model_prepared *prepared = NULL;
+	voe_assets_model model;
+	bool loaded = false;
+
+	if (voe_assets_model_read_glb(bytes, size, scratch, &model, error))
+		prepared = voe_3d_model_prepare(scratch, &model, bytes, size,
+						levels, levels_size, error);
+	if (prepared != NULL)
+		loaded = voe_3d_models_put(models, device, path, stamp,
+					   prepared, error);
+	else
+		voe_3d_models_fail(models, path, stamp);
+	voe_base_arena_destroy(scratch);
 	return loaded;
 }
 
@@ -475,19 +530,17 @@ bool voe_3d_models_load_levelled(voe_3d_models *models,
 		return load_landscape_text(models, device, path, stamp, bytes,
 					   size, error);
 
+	if (!voe_3d_model_picture_is(path))
+		return load_glb(models, device, path, stamp, bytes, size,
+				levels, levels_size, error);
+
 	voe_3d_models_entry_new(path, stamp, &entry, &held);
 	scratch = voe_base_arena_new(SCRATCH_BLOCK);
-	if (voe_3d_model_picture_is(path)) {
-		entry.picture = true;
-		loaded = voe_3d_model_picture_decode(path, bytes, size, scratch,
-						     &image, error) &&
-			 upload_picture(models, device, scratch, &image, &entry,
-					&held, error);
-	} else {
-		loaded = load_glb(device, scratch, bytes, size, levels,
-				  levels_size, &entry, &held, error);
-	}
-
+	entry.picture = true;
+	loaded = voe_3d_model_picture_decode(path, bytes, size, scratch, &image,
+					     error) &&
+		 upload_picture(models, device, scratch, &image, &entry, &held,
+				error);
 	voe_base_arena_destroy(scratch);
 	(void)voe_3d_models_keep(models, device, &entry, &held);
 	return loaded;

@@ -61,6 +61,7 @@
 
 #include <3d/landscape.h>
 #include <3d/material_component.h>
+#include <3d/model_prepare.h>
 #include <3d/shape_geometry.h>
 
 #include <assets/landscape.h>
@@ -205,10 +206,24 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 // ones `levels` holds, a levels file (3d/model_levels.h) read against `bytes`.
 // NULL `levels`, a stale file or one naming an index past its part loads level
 // 0 alone, never a failure; REFUSED when the device has no room for a level.
+// It is voe_assets_model_read_glb, voe_3d_model_prepare (3d/model_prepare.h)
+// and _put, unchanged in what it does.
 [[nodiscard]] bool voe_3d_models_load_levelled(
 	voe_3d_models *models, voe_render_device *device, const char *path,
 	uint64_t stamp, const uint8_t *bytes, size_t size, const uint8_t *levels,
 	size_t levels_size, voe_base_error *error);
+
+// `prepared` as `path`'s entry: its pictures and materials uploaded, each part
+// a geometry and its blended twin, its levels, and its shape copied into the
+// entry's own arena, so the prepare's arena may go after. Replaces and fails as
+// _load does: REFUSED when the device or the store has no room. Asserts the
+// model's pictures are decoded. On the thread that owns the device, between
+// frames.
+[[nodiscard]] bool voe_3d_models_put(voe_3d_models *models,
+				     voe_render_device *device,
+				     const char *path, uint64_t stamp,
+				     const voe_3d_model_prepared *prepared,
+				     voe_base_error *error);
 
 // `landscape`'s grid copied into `path`'s entry with its layers and paint (all
 // layer 0 when NULL), uploaded as its heights texture and two paint textures,
