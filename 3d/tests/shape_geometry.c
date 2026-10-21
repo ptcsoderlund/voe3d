@@ -1,8 +1,9 @@
 // THE CLAIMS: that the store answers for the three kinds it knows and for
 // nothing else, that it holds each kind's own triangles, that every kind is a
 // closed surface whose edges carry unit-length normals, and that every triangle
-// of every kind is wound the way the edge walk assumes; and that triangles with
-// no area are taken without asserting and give no edges.
+// of every kind is wound the way the edge walk assumes; that the cube's own
+// arrays built alone, outside the store, give the cube kind's edge count; and
+// that triangles with no area are taken without asserting and give no edges.
 //
 // THE WINDING IS THE CLAIM WORTH THE MOST HERE. 3d/src/shape_geometry.c takes
 // normalize(cross(b - a, c - a)) as a triangle's *outward* normal, which is only
