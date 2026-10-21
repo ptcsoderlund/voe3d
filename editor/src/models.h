@@ -20,13 +20,16 @@
 //
 // BETWEEN FRAMES, because a load waits for the card to go idle
 // (game/models.h): the update runs after the world step, so this frame's rows
-// are read, and before the frame's draw opens. During a splash wait a worker
-// may call it instead (0370 point 4), with the wait's progress, which
-// game/models.h reports into and stops on; every other call passes NULL.
+// are read, and before the frame's draw opens. Its files are read and baked
+// beside the frames by game/models_loader.h (0448 point 5), one put between
+// two frames each frame. During a splash wait a worker may call it instead
+// (0370 point 4), with the wait's progress, which game/models.h reports into
+// and stops on, and it loads whole; every other call passes NULL.
 //
 // ONCE A SECOND the store's files are asked for their stamps (0277 point 5):
 // often enough for a person exporting from Blender, and not a file system
-// call per model every frame. A prepared model is also loaded again on asking.
+// call per model every frame. The watch goes through the loader too. A
+// prepared model is also loaded again on asking.
 //
 // A BROKEN FILE sets the session notice to `Could not read <path>: <reason>`
 // (0277 point 9), the reason being the last phrase of base/report.h's first

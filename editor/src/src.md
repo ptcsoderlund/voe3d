@@ -345,8 +345,8 @@ carries it out.
   named by its `.glb`, read when the materials are.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
-- `models.c` — the editor's one model store, made with the loading pool it carries, filled, watched
-  and re-read through game/models.h, a failure's notice the kept line whole, a landscape re-read
+- `models.c` — the editor's one model store, made with the loading pool it carries, filled and
+  watched beside the frames through game/models_loader.h, a failure's notice the kept line whole, a landscape re-read
   under its path as the subject, and its landscapes with their foliage and materials edited.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
