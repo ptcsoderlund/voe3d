@@ -114,21 +114,23 @@ static files make_files(voe_base_arena *arena)
 		far.swaps[k] = 2.0f;
 	out.glb = sphere_glb(arena, RINGS, SEGMENTS, false, &out.glb_size);
 	out.own = sphere_glb(arena, RINGS, SEGMENTS, true, &out.own_size);
-	out.levels = voe_3d_model_levels_make(arena, out.glb, out.glb_size,
+	out.levels = voe_3d_model_levels_make(arena, NULL, out.glb,
+					      out.glb_size,
 					      VOE_ASSETS_LEVELS_DEFAULT,
 					      &out.levels_size, &error);
-	out.far_levels = voe_3d_model_levels_make(arena, out.glb, out.glb_size,
-						  far, &out.far_levels_size,
-						  &error);
+	out.far_levels = voe_3d_model_levels_make(arena, NULL, out.glb,
+						  out.glb_size, far,
+						  &out.far_levels_size, &error);
 	out.other_levels = voe_3d_model_levels_make(
-		arena, other, other_size, VOE_ASSETS_LEVELS_DEFAULT,
+		arena, NULL, other, other_size, VOE_ASSETS_LEVELS_DEFAULT,
 		&out.other_levels_size, &error);
-	out.own_levels = voe_3d_model_levels_make(arena, out.own, out.own_size,
+	out.own_levels = voe_3d_model_levels_make(arena, NULL, out.own,
+						  out.own_size,
 						  VOE_ASSETS_LEVELS_DEFAULT,
 						  &out.own_levels_size, &error);
 	out.own_far_levels = voe_3d_model_levels_make(
-		arena, out.own, out.own_size, far, &out.own_far_levels_size,
-		&error);
+		arena, NULL, out.own, out.own_size, far,
+		&out.own_far_levels_size, &error);
 	VOE_TEST_CHECK(out.levels != NULL && out.far_levels != NULL &&
 		       out.other_levels != NULL && out.own_levels != NULL &&
 		       out.own_far_levels != NULL);

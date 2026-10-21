@@ -1,5 +1,6 @@
-// The levels file made and read (3d/model_levels.h): a `.glb` parsed, baked at
-// level 0 and simplified a part at a time into the file's bytes, or its own
+// The levels file made and read (3d/model_levels.h): a `.glb` parsed with its
+// pictures left encoded, baked at level 0 and simplified by level and part
+// over a pool of workers into the file's bytes, or its own
 // levels baked and measured against level 0, and those bytes read back field
 // by field against the `.glb` they were made from; each level's triangles; and
 // a view's level of a loaded model, walked from the top over bounds made
@@ -8,10 +9,13 @@
 // AN OWN LEVEL IS BAKED AND GIVEN BACK ONE AT A TIME, so making the file holds
 // level 0 and one own level at most; its error is measure.h's.
 //
-// A LEVEL IS MADE WHOLE BEFORE IT IS JUDGED: every part simplified, its
-// triangles summed, and only then held against the level before: one not below
-// it in triangles is dropped with the ones after (0436 point 5). A dropped
-// level's indices are given back to the arena at once.
+// ALL LEVELS ARE SIMPLIFIED AT ONCE OVER THE POOL BEFORE ANY IS JUDGED (0448
+// point 3): one task per (level, part), each on a scratch arena of its own and
+// writing only its own buffer, count and error, so the bytes are the same
+// whatever the pool. Then each level's triangles are summed in order and held
+// against the level before: one not below it is dropped with the ones after
+// (0436 point 5), their indices given back to the arena. So making holds a
+// buffer of the part's level-0 index count per level and part at once.
 //
 // A PART'S TARGET IS ITS OWN TRIANGLES × THE LEVEL'S SHARE ÷ 100, rounded down,
 // so every part keeps its share of the model and a small part may reach nought
@@ -31,6 +35,7 @@
 
 #include <assets/model.h>
 #include <base/assert.h>
+#include <base/workers.h>
 
 #include <math.h>
 #include <string.h>
@@ -104,66 +109,91 @@ static float radius_of(const voe_3d_model_bake *bake)
 	return most;
 }
 
-// Level k of every part, from level 0, each part aiming at `share` percent of
-// its triangles, into `levels`; false when it holds no fewer than `previous`
-// triangles, its indices then given back.
-static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
-			   uint32_t k, float share, float max_error,
-			   uint64_t *previous, voe_3d_model_levels *levels)
-{
-	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
-	uint64_t triangles = 0;
-	float error = 0.0f;
+// What every (level, part) task reads, and the slots each writes its own of.
+struct simplify_run {
+	const voe_3d_model_bake *bake;
+	const float *shares;
+	float max_error;
+	voe_3d_model_levels *levels;
+	float part_errors[VOE_3D_MODEL_LEVELS][VOE_3D_MODEL_PARTS];
+};
 
+// Task `index` of a simplify_run: level 1 + index ÷ parts of part index mod
+// parts, from level 0, aiming at the level's share of the part's triangles,
+// into the buffer pushed for it, on a scratch arena of its own.
+static void simplify_part(void *context, uint32_t index)
+{
+	struct simplify_run *run = context;
+	const uint32_t k = 1 + index / run->bake->part_count;
+	const uint32_t p = index % run->bake->part_count;
+	const voe_3d_model_bake_part *part = &run->bake->parts[p];
+	const float share = run->shares[k];
+	const uint32_t target =
+		(uint32_t)((double)(part->index_count / 3) * share / 100.0) * 3;
+	voe_base_arena *scratch = voe_base_arena_new(1024 * 1024);
+
+	VOE_BASE_ASSERT(k < VOE_3D_MODEL_LEVELS, "a task past the last level");
 	VOE_BASE_ASSERT(share >= 0.0f && share <= 100.0f,
 			"a level's share out of range");
-	for (uint32_t p = 0; p < bake->part_count; p++) {
-		const voe_3d_model_bake_part *part = &bake->parts[p];
-		const uint32_t target =
-			(uint32_t)((double)(part->index_count / 3) * share /
-				   100.0) *
-			3;
-		uint32_t *out = voe_base_arena_push(
-			arena, (size_t)part->index_count * sizeof(*out));
-		float part_error = 0.0f;
-		uint32_t count = voe_3d_simplify(
-			arena, bake->vertices + part->first_vertex,
-			part->vertex_count, bake->indices + part->first_index,
-			part->index_count, target, max_error,
-			SHARED_SIDE_DEGREES, out, &part_error);
-
-		levels->indices[k][p] = out;
-		levels->index_counts[k][p] = count;
-		triangles += count / 3;
-		error = fmaxf(error, part_error);
-	}
-
-	if (triangles >= *previous) {
-		memset(levels->indices[k], 0, sizeof(levels->indices[k]));
-		memset(levels->index_counts[k], 0,
-		       sizeof(levels->index_counts[k]));
-		voe_base_arena_rewind(arena, mark);
-		return false;
-	}
-	levels->errors[k] = error;
-	*previous = triangles;
-	return true;
+	run->levels->index_counts[k][p] = voe_3d_simplify(
+		scratch, run->bake->vertices + part->first_vertex,
+		part->vertex_count, run->bake->indices + part->first_index,
+		part->index_count, target, run->max_error, SHARED_SIDE_DEGREES,
+		run->levels->indices[k][p], &run->part_errors[k][p]);
+	voe_base_arena_destroy(scratch);
 }
 
-static void simplify_levels(voe_base_arena *arena,
+// Levels 1 to `asked.count` − 1 of every part simplified at once over
+// `workers`, then judged in order: the first not below the one before in
+// triangles ends the list, its buffers and the later ones' rewound off `arena`.
+static void simplify_levels(voe_base_arena *arena, voe_base_workers *workers,
 			    const voe_3d_model_bake *bake,
 			    voe_assets_levels asked,
 			    voe_3d_model_levels *levels)
 {
-	const float max_error = radius_of(bake) / COLLAPSE_RADIUS_DIVISOR;
+	struct voe_base_arena_mark marks[VOE_3D_MODEL_LEVELS];
+	struct simplify_run run = {
+		.bake = bake,
+		.shares = asked.shares,
+		.max_error = radius_of(bake) / COLLAPSE_RADIUS_DIVISOR,
+		.levels = levels,
+	};
+	const uint32_t made = bake->index_count >= 3 ? asked.count : 1;
 	uint64_t previous = bake->index_count / 3;
 
 	levels->part_count = bake->part_count;
-	for (uint32_t k = 1; k < asked.count && previous > 0; k++) {
-		if (!simplify_level(arena, bake, k, asked.shares[k], max_error,
-				    &previous, levels))
+	for (uint32_t k = 1; k < made; k++) {
+		marks[k] = voe_base_arena_mark(arena);
+		for (uint32_t p = 0; p < bake->part_count; p++)
+			levels->indices[k][p] = voe_base_arena_push(
+				arena, (size_t)bake->parts[p].index_count *
+					       sizeof(uint32_t));
+	}
+	voe_base_workers_run(workers, (made - 1) * bake->part_count,
+			     simplify_part, &run);
+
+	for (uint32_t k = 1; k < made && previous > 0; k++) {
+		uint64_t triangles = 0;
+		float error = 0.0f;
+
+		for (uint32_t p = 0; p < bake->part_count; p++) {
+			triangles += levels->index_counts[k][p] / 3;
+			error = fmaxf(error, run.part_errors[k][p]);
+		}
+		if (triangles >= previous)
 			break;
+		levels->errors[k] = error;
 		levels->level_count = k + 1;
+		previous = triangles;
+	}
+	if (levels->level_count < made) {
+		const uint32_t cut = levels->level_count;
+
+		memset(levels->indices[cut], 0,
+		       (made - cut) * sizeof(levels->indices[cut]));
+		memset(levels->index_counts[cut], 0,
+		       (made - cut) * sizeof(levels->index_counts[cut]));
+		voe_base_arena_rewind(arena, marks[cut]);
 	}
 }
 
@@ -251,6 +281,7 @@ static const uint8_t *write_file(voe_base_arena *arena,
 }
 
 const uint8_t *voe_3d_model_levels_make(voe_base_arena *arena,
+					voe_base_workers *workers,
 					const uint8_t *glb, size_t glb_size,
 					voe_assets_levels levels, size_t *size,
 					voe_base_error *error)
@@ -270,7 +301,8 @@ const uint8_t *voe_3d_model_levels_make(voe_base_arena *arena,
 		VOE_BASE_ASSERT(made.swaps[k] >= VOE_ASSETS_LEVELS_SWAP_LEAST &&
 					made.swaps[k] <= VOE_ASSETS_LEVELS_SWAP_MOST,
 				"a level swap out of range");
-	if (!voe_assets_model_read_glb(glb, glb_size, arena, &model, error) ||
+	if (!voe_assets_model_read_glb_encoded(glb, glb_size, arena, &model,
+					       error) ||
 	    !voe_3d_model_bake_create(arena, &model, 0, &bake, error))
 		return NULL;
 	if (voe_3d_model_bake_levels(&model) > 1) {
@@ -280,7 +312,7 @@ const uint8_t *voe_3d_model_levels_make(voe_base_arena *arena,
 		made.level_count =
 			own_levels(arena, &model, &bake, triangles, made.errors);
 	} else {
-		simplify_levels(arena, &bake, levels, &made);
+		simplify_levels(arena, workers, &bake, levels, &made);
 	}
 	return write_file(arena, &made, voe_3d_model_levels_hash(glb, glb_size),
 			  size);
@@ -406,7 +438,8 @@ uint32_t voe_3d_model_levels_triangles(voe_base_arena *arena,
 	*fresh = levels != NULL &&
 		 voe_3d_model_levels_read(arena, levels, levels_size, glb,
 					  glb_size, &read);
-	if (!voe_assets_model_read_glb(glb, glb_size, arena, &model, NULL) ||
+	if (!voe_assets_model_read_glb_encoded(glb, glb_size, arena, &model,
+					       NULL) ||
 	    !voe_3d_model_bake_create(arena, &model, 0, &zero, NULL))
 		return 0;
 	if (voe_3d_model_bake_levels(&model) > 1) {

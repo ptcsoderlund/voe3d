@@ -40,11 +40,14 @@
 //     level 0 the sphere's triangles, level k its index counts' sum ÷ 3, not
 //     `own`; with NULL levels, 1.
 // 20. _triangles of bytes that are no `.glb`: 0.
+// 21. The sphere's file made with a pool of 3 is byte for byte the file made
+//     with NULL, with the defaults and with six levels of other shares.
 #include <3d/model_levels.h>
 #include <3d/projection.h>
 
 #include <base/arena.h>
 #include <base/error.h>
+#include <base/workers.h>
 
 #include <testing/test.h>
 
@@ -119,8 +122,9 @@ static void sphere_levels(voe_base_arena *arena)
 	const uint8_t *glb = sphere_glb(arena, RINGS, SEGMENTS, false, &glb_size);
 	voe_base_error error = VOE_BASE_OK;
 	size_t size = 0;
-	const uint8_t *file = voe_3d_model_levels_make(
-		arena, glb, glb_size, VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
+	const uint8_t *file =
+		voe_3d_model_levels_make(arena, NULL, glb, glb_size,
+					 VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
 	voe_3d_model_levels levels = {};
 	uint64_t previous = TRIANGLES;
 	uint8_t *changed;
@@ -180,7 +184,7 @@ static bool sphere_made(voe_base_arena *arena, voe_assets_levels asked,
 	const uint8_t *glb = sphere_glb(arena, RINGS, SEGMENTS, false, &glb_size);
 	voe_base_error error = VOE_BASE_OK;
 	size_t size = 0;
-	const uint8_t *file = voe_3d_model_levels_make(arena, glb, glb_size,
+	const uint8_t *file = voe_3d_model_levels_make(arena, NULL, glb, glb_size,
 						       asked, &size, &error);
 
 	return file != NULL && voe_3d_model_levels_read(arena, file, size, glb,
@@ -223,14 +227,49 @@ static void levels_asked(voe_base_arena *arena)
 		VOE_TEST_CHECK(levels.swaps[k] == 1.0f);
 }
 
+// 21 as `asked`.
+static void pooled_same(voe_base_arena *arena, voe_base_workers *workers,
+			voe_assets_levels asked)
+{
+	size_t glb_size;
+	const uint8_t *glb = sphere_glb(arena, RINGS, SEGMENTS, false, &glb_size);
+	voe_base_error error = VOE_BASE_OK;
+	size_t alone_size = 0;
+	size_t pooled_size = 0;
+	const uint8_t *alone = voe_3d_model_levels_make(
+		arena, NULL, glb, glb_size, asked, &alone_size, &error);
+	const uint8_t *pooled = voe_3d_model_levels_make(
+		arena, workers, glb, glb_size, asked, &pooled_size, &error);
+
+	VOE_TEST_CHECK(alone != NULL && pooled != NULL);
+	VOE_TEST_CHECK_INT(pooled_size, alone_size);
+	VOE_TEST_CHECK(alone != NULL && pooled != NULL &&
+		       pooled_size == alone_size &&
+		       memcmp(pooled, alone, alone_size) == 0);
+}
+
+static void pooled_levels(voe_base_arena *arena)
+{
+	voe_base_workers *workers = voe_base_workers_new(3);
+	voe_assets_levels six = VOE_ASSETS_LEVELS_DEFAULT;
+	const float shares[VOE_ASSETS_LEVELS] = { 100, 80, 40, 20, 10, 5 };
+
+	six.count = 6;
+	memcpy(six.shares, shares, sizeof(shares));
+	pooled_same(arena, workers, VOE_ASSETS_LEVELS_DEFAULT);
+	pooled_same(arena, workers, six);
+	voe_base_workers_destroy(workers);
+}
+
 static void own_levels(voe_base_arena *arena)
 {
 	size_t glb_size;
 	const uint8_t *glb = sphere_glb(arena, 8, 16, true, &glb_size);
 	voe_base_error error = VOE_BASE_OK;
 	size_t size = 0;
-	const uint8_t *file = voe_3d_model_levels_make(
-		arena, glb, glb_size, VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
+	const uint8_t *file =
+		voe_3d_model_levels_make(arena, NULL, glb, glb_size,
+					 VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
 	voe_3d_model_levels levels = {};
 	uint32_t triangles[VOE_3D_MODEL_LEVELS] = {};
 	bool own = false;
@@ -275,7 +314,8 @@ static void not_a_glb(voe_base_arena *arena)
 				   arena, (const uint8_t *)text, sizeof(text),
 				   NULL, 0, triangles, &own, &fresh),
 			   0);
-	VOE_TEST_CHECK(voe_3d_model_levels_make(arena, (const uint8_t *)text,
+	VOE_TEST_CHECK(voe_3d_model_levels_make(arena, NULL,
+						(const uint8_t *)text,
 						sizeof(text),
 						VOE_ASSETS_LEVELS_DEFAULT,
 						&size, &error) == NULL);
@@ -379,6 +419,7 @@ int main(void)
 		       0xaf63dc4c8601ec8cull);
 	not_a_glb(arena);
 	levels_asked(arena);
+	pooled_levels(arena);
 	view_levels();
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

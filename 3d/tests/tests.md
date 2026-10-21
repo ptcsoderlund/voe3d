@@ -171,7 +171,8 @@ again, or to find where a claim that has started failing is written down.
 - `simplify.c` — a flat grid to an eighth at no error with its corners, a sphere to a half facing
   out, the sphere held by a tiny limit, a uv seam moving along its line untorn, and a faceted
   cylinder cut along its seam lines at angle 0 and further softened at 180. Needs no graphics card.
-- `model_levels.c` — a sphere's levels file made and read back as asked, its own levels measured,
+- `model_levels.c` — a sphere's levels file made and read back as asked, the same over a pool,
+  its own levels measured,
   going stale when its `.glb` or version changes, each level's triangles counted, and a view's level
   and pixel share chosen by its screen size; needs no graphics card.
 - `measure.c` — that two hand-built bakes measure 0 alike, a lift's height apart, √2 for a big
