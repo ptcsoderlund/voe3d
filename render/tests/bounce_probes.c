@@ -35,6 +35,9 @@
 // or its bounces changed does, and so does the moon taken away. A moon with no
 // bounces is none (ADR-0357 points 1 and 4).
 //
+// A SHADE COUNT CHANGED RELIGHTS AND QUEUES NOTHING: relit at shade 1, shade 1
+// again needs no relight and shade 2 does (ADR-0451 point 2).
+//
 // A SCROLL UNDER A STILL LAMP CHANGES NO LIGHTS: compared about the world
 // origin, only the entered slabs relight (ADR-0389 point 5).
 //
@@ -560,6 +563,26 @@ static void a_moon_relights_when_it_changes(void)
 	VOE_TEST_CHECK_INT(lights.more_count, 0);
 }
 
+// Place sets no shade; the begin does, as here.
+static void a_shade_change_relights_and_queues_nothing(void)
+{
+	static voe_render_bounce_probes p;
+
+	memset(&p, 0, sizeof(p));
+	place(&p, CELL, NULL, 0, &NONE);
+	capture_all(&p);
+	lights.shade = 1;
+	voe_render_bounce_probes_relit(&p, &lights);
+	place(&p, CELL, NULL, 0, &NONE);
+	lights.shade = 1;
+	VOE_TEST_CHECK(!voe_render_bounce_probes_relight_needed(&p, &lights));
+	place(&p, CELL, NULL, 0, &NONE);
+	lights.shade = 2;
+	VOE_TEST_CHECK(voe_render_bounce_probes_lights_changed(&p, &lights));
+	VOE_TEST_CHECK(voe_render_bounce_probes_relight_needed(&p, &lights));
+	VOE_TEST_CHECK_INT(count(p.queued), 0);
+}
+
 int main(void)
 {
 	the_first_place_queues_all();
@@ -575,6 +598,7 @@ int main(void)
 	kinds_and_the_sun_mask_relight();
 	the_17th_bouncing_lamp_is_left_out();
 	a_moon_relights_when_it_changes();
+	a_shade_change_relights_and_queues_nothing();
 	a_scroll_under_a_still_lamp_does_not_relight();
 	a_new_picture_fades_in_over_sixteen_places();
 	a_retaken_picture_keeps_its_readiness();

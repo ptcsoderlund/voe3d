@@ -17,7 +17,7 @@
 // sets the record's `instances` to its first plus one and records `count`
 // instances from firstInstance 0, so copy i reads record instances − 1 + i by
 // its instance index. Never in the point-shadow or capture passes, which spend
-// that index on faces, nor the bounce shadow pass, whose probes see no copies.
+// that index on faces; a bounce shadow pass draws them as a cascade (ADR-0450).
 //
 // `plain` IS 1 FOR EVERY MESH DRAW AFTER THE PASS'S FIRST DEPTH CLEAR (ADR-0405
 // point 8): the overlay, drawn as authored, no exposure or tone. 0 before it.
@@ -353,8 +353,6 @@ bool voe_render_frame_draw_instanced(voe_render_device *device,
 			"an instanced draw past the instances this frame wrote");
 	VOE_BASE_ASSERT(!device->pass_point_shadow && !device->pass_capture,
 			"an instanced draw in a point-shadow or capture pass — their instance index counts faces");
-	VOE_BASE_ASSERT(!device->pass_bounce_shadow,
-			"an instanced draw in a bounce shadow pass — the probes see no copies");
 	object.instances = first + 1;
 	return draw_with(device, geometry, object, device->pipeline, count);
 }

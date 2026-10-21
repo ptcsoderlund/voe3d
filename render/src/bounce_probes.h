@@ -48,7 +48,8 @@
 // a different count relights, and so does a row's xyz or the sphere's radius
 // beyond 1e-4, its centre about the origin beyond a millimetre, or row.w +
 // row.xyz · origin beyond 1e-4. Walls, indoors, the sun's mask, or a further
-// sun added, taken away or changed relight (ADR-0350, 0357).
+// sun added, taken away or changed relight (ADR-0350, 0357), and so does a
+// `shade` other than the last relit, queuing no probe (ADR-0451 point 2).
 //
 // CONSTRAINTS. A place scans the whole grid twice, and once more per stale
 // sphere; a take scans it once per probe taken, room × 6912 compares. Fine at
@@ -114,6 +115,9 @@ typedef struct voe_render_bounce_lights {
 	uint32_t walls;
 	uint32_t indoors;
 	uint32_t sun_mask;
+	// The begin's count of changes to what the sun maps draw; place leaves
+	// it nought and its caller sets it.
+	uint32_t shade;
 } voe_render_bounce_lights;
 
 // One grid's state. Zeroed is "nothing yet"; only the calls below write it.

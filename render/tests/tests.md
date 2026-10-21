@@ -116,18 +116,18 @@ by reading the offscreen colour image back.
 - `shadow_lights.c` — the shadow array growing: one light ready at first and none without
   `shadow_size`, a second ready the frame after it is wanted, layer 7 drawn and slot 1 read, nine
   capped at four, and nought shrinking nothing. Headless.
-- `bounce_probes.c` — probes queued and relit, with no card: a sphere reaching a grid's reach
-  further or sixteen radii, no relight on a scroll under a still lamp, a new picture fading in over
-  sixteen places, a retaken one keeping its readiness, a scrolled-in one not ready.
+- `bounce_probes.c` — probes queued and relit, with no card: a sphere's reach, no relight on a
+  scroll under a still lamp, a new picture fading in over sixteen places, a retaken one keeping its
+  readiness, a scrolled-in one not ready, a new shade count relighting with nothing queued.
 - `bounce_volume.c` — a probe volume built the frame after its first begin, freed after 300
   idle frames, a window's and a target's and two of one target kept apart, each relit into its own
   record at its own spacing. Headless.
 - `bounce_capture.c` — the capture pass: open with a near cube one draw and a far one none, the
   fifth in a frame not open, refused with `passes` spent, a red cube in the albedo atlas, and at
   spacing 4 a cube 30 m off one draw. Headless.
-- `bounce_shadow.c` — the relight's sun map: opened after a frame's captures with a cube one draw
-  and a texel past the clear, not opened when settled, when only a lamp bounces, or with `passes`
-  spent, and opened for the window and a target in one frame, each record saying drawn. Headless.
+- `bounce_shadow.c` — the relight's sun map: a cube's draw, or a copy's instanced draw under a
+  new shade count, past the clear; not opened when settled, when only a lamp bounces, or with
+  `passes` spent; the window and a target in one frame. Headless.
 - `bounce_settle.c` — captured probes settling: validity and moments beside and inside a cube,
   readiness fading in over sixteen frames, a fading frame one settle, a settled one nothing, and
   `bounce relight` in the breakdown only when relit. Headless.

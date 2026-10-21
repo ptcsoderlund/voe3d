@@ -29,6 +29,10 @@
 // sun's: the nearest texels 5/19 apart. Then the moon of bounces 0: sun 0 opens
 // and sun 1 says opened false.
 //
+// COPIES (ADR-0450, 0451). A begin of `shade` 1, nothing else changed, opens the
+// pass; one instanced draw of the cube's range over a written instance record
+// placing it 2 m along +X leaves a texel past the clear, as the cube draw does.
+//
 // A card without shaderOutputLayer opens nothing: checked instead, and said. A
 // machine with no usable Vulkan skips and says so.
 #include "../src/device_internal.h"
@@ -63,6 +67,7 @@ static const voe_render_capacities CAPACITIES = {
 	.shadings = 1,
 	.passes = VOE_RENDER_BOUNCE_CAPTURE_PASSES + 2,
 	.targets = 1,
+	.instances = 1,
 };
 
 static const voe_render_shading_values GREY = {
@@ -490,6 +495,39 @@ static void moon_layers(voe_render_device *device, voe_render_geometry cube,
 	with_moon(device, cube, grey, &moon, false);
 }
 
+// A frame whose only change is `shade` 1: the pass opens and the cube is one
+// instanced draw of one copy, its record placing it where cube_object does.
+static void copies_in_map(voe_render_device *device, voe_render_geometry cube,
+			  voe_render_shading grey)
+{
+	struct voe_render_bounce_frame frame = bounce(1, false);
+	const voe_render_view light = sun_view(HEIGHT);
+	const voe_render_instance copy = {
+		.rows = { { 1.0f, 0.0f, 0.0f, 2.0f },
+			  { 0.0f, 1.0f, 0.0f, 0.0f },
+			  { 0.0f, 0.0f, 1.0f, 0.0f } },
+	};
+	const uint32_t slot = device->slot;
+	uint32_t first = 0;
+	bool opened = false;
+
+	frame.shade = 1;
+	if (!open_frame(device, &frame))
+		return;
+	VOE_TEST_CHECK(voe_render_frame_instances(device, &copy, 1, &first));
+	VOE_TEST_CHECK(voe_render_bounce_shadow_pass_begin(device, 0, &light,
+							   &opened));
+	VOE_TEST_CHECK(opened);
+	if (opened) {
+		VOE_TEST_CHECK(voe_render_frame_draw_instanced(
+			device, cube, cube_object(grey), first, 1));
+		voe_render_pass_end(device);
+	}
+	voe_render_bounce_relight(device);
+	VOE_TEST_CHECK(voe_render_frame_end(device));
+	check_map(device, slot);
+}
+
 // A frame of the captured pictures fading in: no capture, the bounce shadow
 // pass with the cube when it opens, and the relight.
 static void faded(voe_render_device *device, voe_render_geometry cube,
@@ -551,6 +589,7 @@ static void sun_map(voe_render_device *device)
 	passes_spent(device);
 	two_targets(device, cube, grey);
 	moon_layers(device, cube, grey);
+	copies_in_map(device, cube, grey);
 }
 
 static void nothing_without_output_layer(voe_render_device *device)

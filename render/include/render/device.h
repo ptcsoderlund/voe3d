@@ -1765,7 +1765,8 @@ typedef struct {
 //
 // `opened` IS FALSE, and true is returned with nothing open, when the volume is
 // not built, that sun has no bounces, no intensity or is unshaded, or no relight
-// is needed for this begin. IT IS A PASS AND COUNTS AGAINST `passes`, its draws
+// is needed for this begin: no probe changed, and neither the lights nor the
+// begin's `shade` did. IT IS A PASS AND COUNTS AGAINST `passes`, its draws
 // against `objects`: false, with a line, when the frame's passes are spent. It
 // may open once per sun after each voe_render_bounce_begin, so every view draws
 // this begin's maps for its own volume (ADR-0330).
@@ -1831,6 +1832,12 @@ void voe_render_pass_end(voe_render_device *device);
 // `volume` IS WHICH OF THE TARGET'S VOE_RENDER_BOUNCE_VOLUMES THIS IS (0389
 // point 1): 0 the level grid, which a caller naming none gets, and 1 to 3 the
 // nests at 16, 4 and 1 m about the eye. It is below VOE_RENDER_BOUNCE_VOLUMES.
+//
+// `shade` IS THE CALLER'S COUNT OF CHANGES TO WHAT ITS SUN MAPS DRAW that no
+// stale sphere marks, such as foliage copies (ADR-0451 point 2). A begin whose
+// `shade` differs from the one the volume was last relit with relights it, as a
+// changed light does, and recaptures no probe. Zero, which a caller naming none
+// gives, is the old behaviour.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;
@@ -1844,6 +1851,7 @@ struct voe_render_bounce_frame {
 	voe_render_light_blockers blockers;
 	voe_render_directional_lights more;
 	uint32_t volume;
+	uint32_t shade;
 };
 
 // Records `target`'s bounce for this frame, between passes; the arrays are
@@ -1979,13 +1987,15 @@ void voe_render_frame_two_sided(voe_render_device *device, bool two_sided);
 // instance record first + i's rows instead of the record's `world`, its normal
 // matrix the shader's, its dither instead of the record's, everything else the
 // record's. Through the solid pipeline in a camera pass and the shadow one in a
-// shadow pass. Spends one object, counts one draw and index count ÷ 3 × count
-// triangles. False for the reasons voe_render_frame_draw is.
+// shadow pass or the bounce shadow pass: a sun map is one view like a cascade,
+// so the copies shade the ground the probes are relit by (ADR-0450). Spends one
+// object, counts one draw and index count ÷ 3 × count triangles. False for the
+// reasons voe_render_frame_draw is.
 //
-// Count nought, a range past what this frame wrote, or a point-shadow, capture
-// or bounce shadow pass asserts, as do voe_render_frame_draw's mistakes: the
-// first two spend the instance index on faces, and the third draws what the
-// probes see, which leaves copies out (ADR-0442 point 5).
+// Count nought, a range past what this frame wrote, or a point-shadow or
+// capture pass asserts, as do voe_render_frame_draw's mistakes: those two spend
+// the instance index on faces, so the probes' pictures and the lamps' shadows
+// leave copies out (ADR-0442 point 5).
 [[nodiscard]] bool voe_render_frame_draw_instanced(voe_render_device *device,
 						   voe_render_geometry geometry,
 						   voe_render_object object,
