@@ -1,6 +1,8 @@
 // A batch of model files loaded in timed phases over the store's pool (0448
 // points 3 and 4): game/src/models.c's update, watch and reload fill one a
-// chunk at a time, prepare it and put its files in order. Internal to `game`.
+// chunk at a time, prepare it and put its files in order; the loader of
+// game/src/models_loader.c fills one with the same gatherings, prepares it on
+// a thread of its own and puts a file a frame. Internal to `game`.
 //
 //     voe_game_models_batch *batch = voe_game_models_batch_new(folder, room);
 //     voe_game_models_batch_add(batch, path, known, forced);
@@ -108,6 +110,47 @@ void voe_game_models_batch_prepare(voe_game_models_batch *batch,
 					     voe_game_models_failures *failures,
 					     voe_base_error *error,
 					     voe_game_models_times *times);
+
+// Whether the store holds prepared file `index`'s path at the stamp its
+// reading found, 0 for none: a put of it would change nothing it should.
+bool voe_game_models_batch_held(const voe_game_models_batch *batch,
+				const voe_3d_models *models, uint32_t index);
+
+// The kind paths an update reads after the world's: the store's own copies,
+// in the landscapes' arenas, which a load elsewhere in the store never moves.
+typedef struct {
+	const char *paths[VOE_3D_MODELS];
+	uint32_t count;
+} voe_game_models_kinds;
+
+// Every distinct kind path of the store's loaded landscapes an update reads
+// and the world's model rows and emitters do not name, at most VOE_3D_MODELS.
+void voe_game_models_kinds_gather(const voe_ecs_world *world,
+				  const voe_3d_models *models,
+				  voe_game_models_kinds *kinds);
+
+// Adds to `batch`, until it holds `room`, every path from the `next`th on an
+// update reads, named first there: the model rows', the emitters', then
+// `kinds`. The index after the last one looked at.
+uint32_t voe_game_models_update_gather(const voe_ecs_world *world,
+				       const voe_3d_models *models,
+				       const voe_game_models_kinds *kinds,
+				       uint32_t next, uint32_t room,
+				       voe_game_models_batch *batch);
+
+// Adds to `batch`, until it holds `room`, every store entry from the `next`th
+// on the watch reads, at its stamp: landscapes and materials aside. The index
+// after the last one looked at.
+uint32_t voe_game_models_watch_gather(const voe_3d_models *models,
+				      uint32_t next, uint32_t room,
+				      voe_game_models_batch *batch);
+
+// The soft dot when the world has an emitter and the water record when it
+// has a water, each loaded when the store lacks it, a failure counted.
+void voe_game_models_dot_and_water(const voe_ecs_world *world,
+				   voe_3d_models *models,
+				   voe_render_device *device,
+				   voe_game_models_failures *failures);
 
 // The times' line on stderr, when a file was read: `game: <noun>: …` with the
 // phases `line` names, a VOE_GAME_*_LINE.

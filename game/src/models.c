@@ -10,6 +10,8 @@
 // flag asked before each chunk. A full store ends an update before its next
 // chunk or put. The watch adds every entry but landscapes and materials at
 // its stamp, read only when that changed; a reload adds its one path, forced.
+// The update's and the watch's gathering and the dot and water are internal
+// calls (models_batch.h) the loader beside the frames (models_loader.c) shares.
 // A cooked landscape's millimetres become metres in scratch, rewound after it,
 // its layer and kind paths copied, its copies handed on for the store to copy,
 // its paint widened to both planes in scratch too. The public prepare reads
@@ -144,21 +146,20 @@ static unsigned count_unread(const voe_ecs_world *world,
 	return total;
 }
 
-// The kind paths an update reads after the world's: the store's own copies,
-// in the landscapes' arenas, which a load elsewhere in the store never moves.
-typedef struct {
-	const char *paths[VOE_3D_MODELS];
-	uint32_t count;
-} kind_paths;
-
-// Every distinct kind path of the store's loaded landscapes an update reads
-// and the world's `paths` files do not name, at most VOE_3D_MODELS: past that
-// the store is full. Each is compared with every one kept and every world
-// path; a lookup set would lift that square.
-static void gather_kinds(const voe_ecs_world *world,
-			 const voe_3d_models *models, uint32_t paths,
-			 kind_paths *kinds)
+// The model rows' and emitters' files of the world, which path_at numbers.
+static uint32_t world_paths(const voe_ecs_world *world)
 {
+	return voe_3d_model_count(world) + voe_3d_emitter_count(world);
+}
+
+// At most VOE_3D_MODELS: past that the store is full. Each is compared with
+// every one kept and every world path; a lookup set would lift that square.
+void voe_game_models_kinds_gather(const voe_ecs_world *world,
+				  const voe_3d_models *models,
+				  voe_game_models_kinds *kinds)
+{
+	uint32_t paths = world_paths(world);
+
 	VOE_BASE_ASSERT(models != NULL && kinds != NULL, "no store or kinds");
 	kinds->count = 0;
 	for (uint32_t i = 0; i < voe_3d_models_count(models); i++) {
@@ -219,15 +220,14 @@ static bool batch_load(struct models_call *call, voe_game_models_batch *batch)
 	return room;
 }
 
-// Adds to `batch`, until it holds `room`, every path from the `next`th on an
-// update reads, named first there: the world's `paths` files, then `kinds`.
-// The index after the last one looked at.
-static uint32_t chunk_gather(const voe_ecs_world *world,
-			     const voe_3d_models *models,
-			     const kind_paths *kinds, uint32_t paths,
-			     uint32_t next, uint32_t room,
-			     voe_game_models_batch *batch)
+uint32_t voe_game_models_update_gather(const voe_ecs_world *world,
+				       const voe_3d_models *models,
+				       const voe_game_models_kinds *kinds,
+				       uint32_t next, uint32_t room,
+				       voe_game_models_batch *batch)
 {
+	uint32_t paths = world_paths(world);
+
 	VOE_BASE_ASSERT(kinds != NULL && batch != NULL, "no kinds or batch");
 	for (; next < paths + kinds->count &&
 	       voe_game_models_batch_count(batch) < room;
@@ -242,6 +242,25 @@ static uint32_t chunk_gather(const voe_ecs_world *world,
 	return next;
 }
 
+void voe_game_models_dot_and_water(const voe_ecs_world *world,
+				   voe_3d_models *models,
+				   voe_render_device *device,
+				   voe_game_models_failures *failures)
+{
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_BASE_ASSERT(models != NULL && device != NULL && failures != NULL,
+			"no store, device or failures");
+	if (voe_3d_emitter_count(world) > 0 &&
+	    voe_3d_models_find(models, "") == NULL &&
+	    !voe_3d_models_load_dot(models, device, &error))
+		voe_game_models_failure_count(failures, models, "");
+	if (voe_3d_water_count(world) > 0 &&
+	    voe_3d_models_water(models) == NULL &&
+	    !voe_3d_models_load_water(models, device, &error))
+		voe_game_models_failure_count(failures, models, "");
+}
+
 voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_3d_models *models,
 						voe_render_device *device,
@@ -249,18 +268,18 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_base_arena *scratch,
 						voe_game_progress *progress)
 {
-	uint32_t paths = voe_3d_model_count(world) + voe_3d_emitter_count(world);
+	uint32_t paths = world_paths(world);
 	uint32_t room = voe_base_workers_threads(voe_3d_models_workers(models));
 	struct models_call call = { .models = models,
 				    .device = device,
 				    .progress = progress };
 	bool going = true;
-	kind_paths kinds;
+	voe_game_models_kinds kinds;
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(folder != NULL && scratch != NULL,
 			"no folder or scratch");
-	gather_kinds(world, models, paths, &kinds);
+	voe_game_models_kinds_gather(world, models, &kinds);
 	if (progress != NULL)
 		call.total = count_unread(world, models, paths) + kinds.count;
 	for (uint32_t next = 0; going && next < paths + kinds.count;) {
@@ -268,8 +287,8 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 			voe_game_models_batch_new(folder, room);
 		bool any;
 
-		next = chunk_gather(world, models, &kinds, paths, next, room,
-				    batch);
+		next = voe_game_models_update_gather(world, models, &kinds, next,
+						     room, batch);
 		any = voe_game_models_batch_count(batch) > 0;
 		if (any && voe_game_progress_stopped(progress)) {
 			voe_game_models_batch_destroy(batch);
@@ -285,14 +304,7 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 	voe_game_progress_set(progress, "Loading models", call.done, call.total);
 	voe_game_models_times_write(&call.times, "models",
 					    VOE_GAME_MODELS_LINE);
-	if (voe_3d_emitter_count(world) > 0 &&
-	    voe_3d_models_find(models, "") == NULL &&
-	    !voe_3d_models_load_dot(models, device, &call.error))
-		voe_game_models_failure_count(&call.failures, models, "");
-	if (voe_3d_water_count(world) > 0 &&
-	    voe_3d_models_water(models) == NULL &&
-	    !voe_3d_models_load_water(models, device, &call.error))
-		voe_game_models_failure_count(&call.failures, models, "");
+	voe_game_models_dot_and_water(world, models, device, &call.failures);
 	return call.failures;
 }
 
@@ -411,6 +423,27 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 	return failures;
 }
 
+uint32_t voe_game_models_watch_gather(const voe_3d_models *models,
+				      uint32_t next, uint32_t room,
+				      voe_game_models_batch *batch)
+{
+	VOE_BASE_ASSERT(models != NULL && batch != NULL, "no store or batch");
+	for (; next < voe_3d_models_count(models) &&
+	       voe_game_models_batch_count(batch) < room;
+	     next++) {
+		const voe_3d_model_entry *entry = voe_3d_models_at(models, next);
+
+		// A landscape is never re-read by stamp (0379 point 2), nor a
+		// material, which the editor reloads itself (0399 point 7).
+		if (entry->landscape == NULL && !entry->material)
+			voe_game_models_batch_add(batch, entry->path,
+						  entry->stamp, false);
+	}
+	VOE_BASE_ASSERT(voe_game_models_batch_count(batch) <= room,
+			"gathered past the room");
+	return next;
+}
+
 voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 					       voe_render_device *device,
 					       const char *folder,
@@ -426,19 +459,7 @@ voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 		voe_game_models_batch *batch =
 			voe_game_models_batch_new(folder, room);
 
-		for (; i < voe_3d_models_count(models) &&
-		       voe_game_models_batch_count(batch) < room;
-		     i++) {
-			const voe_3d_model_entry *entry =
-				voe_3d_models_at(models, i);
-
-			// A landscape is never re-read by stamp (0379 point 2),
-			// nor a material, which the editor reloads itself (0399
-			// point 7).
-			if (entry->landscape == NULL && !entry->material)
-				voe_game_models_batch_add(batch, entry->path,
-							  entry->stamp, false);
-		}
+		i = voe_game_models_watch_gather(models, i, room, batch);
 		// Every path is held, so the store has room for each.
 		if (!batch_load(&call, batch))
 			VOE_BASE_ASSERT(false, "a held path refused for room");

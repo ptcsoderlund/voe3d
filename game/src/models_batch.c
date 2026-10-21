@@ -628,6 +628,21 @@ bool voe_game_models_batch_put(voe_game_models_batch *batch,
 	return true;
 }
 
+bool voe_game_models_batch_held(const voe_game_models_batch *batch,
+				const voe_3d_models *models, uint32_t index)
+{
+	const struct batch_file *file;
+	const voe_3d_model_entry *entry;
+
+	VOE_BASE_ASSERT(batch != NULL && models != NULL && index < batch->count,
+			"asking after a file past the batch");
+	file = &batch->files[index];
+	VOE_BASE_ASSERT(file->state != FILE_ADDED, "asking after a file not read");
+	entry = voe_3d_models_find(models, file->path);
+	return entry != NULL &&
+	       entry->stamp == (file->state == FILE_UNSTAMPED ? 0 : file->stamp);
+}
+
 // The line is composed whole and written in one call, so another thread's
 // line cannot land inside it.
 void voe_game_models_times_write(const voe_game_models_times *times,
