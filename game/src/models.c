@@ -273,7 +273,8 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 		any = voe_game_models_batch_count(batch) > 0;
 		if (any && voe_game_progress_stopped(progress)) {
 			voe_game_models_batch_destroy(batch);
-			voe_game_models_times_write(&call.times);
+			voe_game_models_times_write(&call.times, "models",
+					    VOE_GAME_MODELS_LINE);
 			return call.failures;
 		}
 		// A full store said so once; the update ends.
@@ -282,7 +283,8 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 		voe_game_models_batch_destroy(batch);
 	}
 	voe_game_progress_set(progress, "Loading models", call.done, call.total);
-	voe_game_models_times_write(&call.times);
+	voe_game_models_times_write(&call.times, "models",
+					    VOE_GAME_MODELS_LINE);
 	if (voe_3d_emitter_count(world) > 0 &&
 	    voe_3d_models_find(models, "") == NULL &&
 	    !voe_3d_models_load_dot(models, device, &call.error))
@@ -315,7 +317,8 @@ bool voe_game_models_reload(voe_3d_models *models, voe_render_device *device,
 	if (!batch_load(&call, batch))
 		VOE_BASE_ASSERT(false, "a held path refused for room");
 	voe_game_models_batch_destroy(batch);
-	voe_game_models_times_write(&call.times);
+	voe_game_models_times_write(&call.times, "models",
+					    VOE_GAME_MODELS_LINE);
 	*error = call.error;
 	return call.failures.count == 0;
 }
@@ -441,6 +444,7 @@ voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 			VOE_BASE_ASSERT(false, "a held path refused for room");
 		voe_game_models_batch_destroy(batch);
 	}
-	voe_game_models_times_write(&call.times);
+	voe_game_models_times_write(&call.times, "models",
+					    VOE_GAME_MODELS_LINE);
 	return call.failures;
 }

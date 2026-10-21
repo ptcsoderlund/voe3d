@@ -10,7 +10,7 @@
 //                                            &failures, &error, &times))
 //                     break;   // the store is full
 //     voe_game_models_batch_destroy(batch);
-//     voe_game_models_times_write(&times);
+//     voe_game_models_times_write(&times, "models", VOE_GAME_MODELS_LINE);
 //
 // A FILE is a copy of its path, the stamp it is known at and whether it loads
 // whatever its stamp; read, it gets an arena of its own, and each picture of
@@ -31,7 +31,8 @@
 // each failure counted.
 //
 // THE TIMES are each phase's wall seconds over every chunk, and the files read;
-// their line, `game: models: <n> files in <s> s: reading <s> s, …`, goes to
+// their line, `game: models: <n> files in <s> s: reading <s> s, …`, or the
+// materials' with their three phases (game/src/models_materials.c), goes to
 // stderr only when a file was read, and is no report: nothing went wrong.
 //
 // Constraints: the folder is kept by pointer and must outlive the batch. A
@@ -62,6 +63,14 @@ enum {
 	VOE_GAME_MODELS_BAKING,
 	VOE_GAME_MODELS_UPLOADING,
 	VOE_GAME_MODELS_PHASES
+};
+
+// The phases a line prints, a bit a slot: a model's six, a material's three.
+enum {
+	VOE_GAME_MODELS_LINE = (1u << VOE_GAME_MODELS_PHASES) - 1,
+	VOE_GAME_MATERIALS_LINE = 1u << VOE_GAME_MODELS_READING |
+				  1u << VOE_GAME_MODELS_DECODING |
+				  1u << VOE_GAME_MODELS_UPLOADING
 };
 
 // Each phase's wall seconds, and the files whose bytes were read.
@@ -100,8 +109,10 @@ void voe_game_models_batch_prepare(voe_game_models_batch *batch,
 					     voe_base_error *error,
 					     voe_game_models_times *times);
 
-// The times' line on stderr, when a file was read.
-void voe_game_models_times_write(const voe_game_models_times *times);
+// The times' line on stderr, when a file was read: `game: <noun>: …` with the
+// phases `line` names, a VOE_GAME_*_LINE.
+void voe_game_models_times_write(const voe_game_models_times *times,
+				 const char *noun, uint32_t line);
 
 // Counts one failure of `path`, the store's copy kept when it is the first.
 void voe_game_models_failure_count(voe_game_models_failures *failures,

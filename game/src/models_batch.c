@@ -628,24 +628,37 @@ bool voe_game_models_batch_put(voe_game_models_batch *batch,
 	return true;
 }
 
-void voe_game_models_times_write(const voe_game_models_times *times)
+// The line is composed whole and written in one call, so another thread's
+// line cannot land inside it.
+void voe_game_models_times_write(const voe_game_models_times *times,
+				 const char *noun, uint32_t line)
 {
-	const double *s = times->seconds;
+	static const char *const names[VOE_GAME_MODELS_PHASES] = {
+		"reading", "parsing", "making LODs", "decoding pictures",
+		"baking", "uploading"
+	};
+	char phases[256];
+	size_t at = 0;
 	double total = 0.0;
 
-	VOE_BASE_ASSERT(times != NULL, "writing no times");
+	VOE_BASE_ASSERT(times != NULL && noun != NULL, "writing no times");
+	VOE_BASE_ASSERT(line != 0 && line <= VOE_GAME_MODELS_LINE,
+			"a line of no phases");
 	if (times->files == 0)
 		return;
-	for (uint32_t p = 0; p < VOE_GAME_MODELS_PHASES; p++)
-		total += s[p];
+	phases[0] = '\0';
+	for (uint32_t p = 0; p < VOE_GAME_MODELS_PHASES; p++) {
+		if ((line & (1u << p)) == 0)
+			continue;
+		total += times->seconds[p];
+		// Six names and numbers fit; a cut line is still a line.
+		at += (size_t)snprintf(phases + at, sizeof(phases) - at,
+				       "%s%s %.3f s", at > 0 ? ", " : "",
+				       names[p], times->seconds[p]);
+		at = at < sizeof(phases) ? at : sizeof(phases) - 1;
+	}
 	VOE_BASE_ASSERT(total >= 0.0, "a phase took less than no time");
 	// A stderr that will not take the line leaves nobody to tell.
-	(void)fprintf(stderr,
-		      "game: models: %u files in %.3f s: reading %.3f s, "
-		      "parsing %.3f s, making LODs %.3f s, decoding pictures "
-		      "%.3f s, baking %.3f s, uploading %.3f s\n",
-		      (unsigned)times->files, total, s[VOE_GAME_MODELS_READING],
-		      s[VOE_GAME_MODELS_PARSING], s[VOE_GAME_MODELS_MAKING_LODS],
-		      s[VOE_GAME_MODELS_DECODING], s[VOE_GAME_MODELS_BAKING],
-		      s[VOE_GAME_MODELS_UPLOADING]);
+	(void)fprintf(stderr, "game: %s: %u files in %.3f s: %s\n", noun,
+		      (unsigned)times->files, total, phases);
 }
