@@ -19,3 +19,7 @@ module's promises from outside.
 - `samples.c` — that an empty run reads as noughts, that the average and the
   worst are over exactly what was added, and that a reset does not leave the
   worst behind. Its header says why that last one is the failure worth a test.
+- `workers.c` — that no pool runs in order on the caller, a pool runs each
+  index once, nested runs and two callers finish, and a task's kept error
+  reaches its caller with the caller's subjects. Its header says why every
+  check is made on the main thread.

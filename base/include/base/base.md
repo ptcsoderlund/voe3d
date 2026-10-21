@@ -14,3 +14,5 @@ stays on `base/base.md`.
 - `report.h` — the one call a recoverable problem is reported through.
 - `samples.h` — a run of measurements: how many, the average, the worst.
 - `version.h` — the placeholder that proves the folder builds.
+- `workers.h` — the pool of threads that runs tasks 0 to n−1 and returns when
+  all have.

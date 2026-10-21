@@ -15,3 +15,5 @@
   whole, so a pool task runs under its caller's subjects (ADR-0448).
 - `samples.c` — the three lines of arithmetic behind `include/base/samples.h`.
 - `version.c` — the placeholder's one function, and the C23 assertion.
+- `workers.c` — the pool's threads, one queue of runs under a lock, and each
+  task between a report state's save and load.
