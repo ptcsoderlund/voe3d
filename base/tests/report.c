@@ -17,12 +17,20 @@
 // those macros are what feeds voe_base_report_error_first(). Each call still
 // prints to stderr, same as every other test that exercises a refusal; nothing
 // here captures it.
+//
+// And it checks ADR-0448's carried state (report_state.h): a state saved on
+// one thread and loaded on another brings the subjects into that thread's lines
+// and kept error, and its kept text until a clear; an empty state loaded over a
+// thread with both leaves it with neither. The second thread's checks count on
+// the shared counter safely because main joins it before reading anything.
 #include "../src/report_line.h"
+#include "../src/report_state.h"
 
 #include <testing/test.h>
 
 #include <stdarg.h>
 #include <string.h>
+#include <threads.h>
 
 [[gnu::format(printf, 4, 5)]]
 static size_t compose(char *line, voe_base_report_level level,
@@ -35,6 +43,71 @@ static size_t compose(char *line, voe_base_report_level level,
 						arguments);
 	va_end(arguments);
 	return length;
+}
+
+// Runs on a thread of its own, which starts with no subjects and nothing kept,
+// and loads the state main saved: two subjects and a kept error.
+static int run_under_loaded_state(void *state)
+{
+	static char line[VOE_BASE_REPORT_LINE_CAPACITY + 1];
+
+	VOE_TEST_CHECK(voe_base_report_error_first() == NULL);
+	voe_base_report_state_load(state);
+
+	// The loaded kept text is this thread's, and a later error does not
+	// replace it.
+	const char *kept = voe_base_report_error_first();
+	VOE_TEST_CHECK(kept != NULL &&
+		       strcmp(kept, "a.glb: the part `x`: saved") == 0);
+	VOE_BASE_ERROR("m", "there");
+	kept = voe_base_report_error_first();
+	VOE_TEST_CHECK(kept != NULL &&
+		       strcmp(kept, "a.glb: the part `x`: saved") == 0);
+
+	// Its line carries both subjects before the message.
+	compose(line, VOE_BASE_LEVEL_ERROR, "m", "message");
+	VOE_TEST_CHECK(strcmp(line, "error: m: a.glb: the part `x`: message\n") ==
+		       0);
+
+	// After a clear, an error reported here keeps both subjects too.
+	voe_base_report_error_clear();
+	VOE_TEST_CHECK(voe_base_report_error_first() == NULL);
+	VOE_BASE_ERROR("m", "there");
+	kept = voe_base_report_error_first();
+	VOE_TEST_CHECK(kept != NULL &&
+		       strcmp(kept, "a.glb: the part `x`: there") == 0);
+	return 0;
+}
+
+// ADR-0448: the state crosses to another thread, and an empty one clears.
+static void check_state_crosses_threads(void)
+{
+	static struct voe_base_report_state empty;
+	static struct voe_base_report_state full;
+	static char line[VOE_BASE_REPORT_LINE_CAPACITY + 1];
+	thrd_t thread;
+	int thread_result = -1;
+
+	voe_base_report_error_clear();
+	voe_base_report_state_save(&empty);
+	VOE_TEST_CHECK_INT((long long)empty.subject_count, 0);
+	VOE_TEST_CHECK(!empty.first_error_kept);
+
+	voe_base_report_subject_push("a.glb");
+	voe_base_report_subject_push("the part `x`");
+	VOE_BASE_ERROR("m", "saved");
+	voe_base_report_state_save(&full);
+
+	VOE_TEST_CHECK(thrd_create(&thread, run_under_loaded_state, &full) ==
+		       thrd_success);
+	VOE_TEST_CHECK(thrd_join(thread, &thread_result) == thrd_success);
+	VOE_TEST_CHECK_INT(thread_result, 0);
+
+	// Main still has both; the empty state leaves it with neither.
+	voe_base_report_state_load(&empty);
+	VOE_TEST_CHECK(voe_base_report_error_first() == NULL);
+	compose(line, VOE_BASE_LEVEL_ERROR, "m", "message");
+	VOE_TEST_CHECK(strcmp(line, "error: m: message\n") == 0);
 }
 
 int main(void)
@@ -143,5 +216,6 @@ int main(void)
 	compose(line, VOE_BASE_LEVEL_ERROR, "m", "message");
 	VOE_TEST_CHECK(strcmp(line, "error: m: message\n") == 0);
 
+	check_state_crosses_threads();
 	return voe_test_result();
 }
