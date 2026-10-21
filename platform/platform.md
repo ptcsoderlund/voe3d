@@ -20,6 +20,8 @@ program's own arguments, the environment, and the sound device.
   launched this process. Its header says why it is
   monotonic and not the time of day, why it is seconds as a double, and that
   the wait is on the window.
+- `include/platform/cores.h` — the machine's logical cores, at least 1, for sizing a loading pool
+  (0448). Its header says why a count the OS will not give is 1 and why it is asked, not cached.
 - `include/platform/file.h` — reading a whole file into an arena, testing whether a
   path is a regular file, its stamp, writing a whole file atomically, and moving a file or
   folder without replacing. The file says which failure means what and what a stamp tells.

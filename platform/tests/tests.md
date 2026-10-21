@@ -6,6 +6,7 @@ that module's promises from outside. None of them needs a window or a display.
 - `clock.c` — that the clock moves and never goes backwards, and in `launched_is_before_now`
   that the launch is known and less than a minute before now. Its header says
   why nothing in it measures a duration against a duration.
+- `cores.c` — that the core count is at least 1 and at most 4096, and two asks agree.
 - `file.c` — that bytes round-trip, a shorter file replaces a longer one, a failed read or
   write fails as it says, and a move renames a file, carries a folder whole, refuses a taken
   name and fails on nothing.
