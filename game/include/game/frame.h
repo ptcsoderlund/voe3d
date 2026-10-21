@@ -76,8 +76,9 @@
 // VOE_3D_EMITTER_PARTICLES in the window pass alone, since particles cast no
 // shadow (0298 points 6 and 8); one per water, VOE_GAME_WORLD_WATERS, in the
 // window pass alone, since water casts no shadow (0305 point 7);
-// VOE_3D_FOLIAGE_GROUPS in the window pass and in each cascade of each light,
-// foliage drawing in no other pass, and VOE_3D_FOLIAGE_INSTANCES instances,
+// VOE_3D_FOLIAGE_GROUPS in the window pass, in each cascade of each light and
+// in each bounce sun map (0450), the captures and the point-shadow pass
+// drawing none, and VOE_3D_FOLIAGE_INSTANCES instances,
 // written once a frame (0442 point 5); the window pass, one shadow pass per cascade per casting light (0357 point 3), the
 // lamps' point-shadow pass (0325 point 7), and up to
 // VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes after it, the bounce map
@@ -106,7 +107,9 @@
 			   VOE_GAME_WORLD_WATERS +                              \
 			   VOE_3D_FOLIAGE_GROUPS *                              \
 				   (1 + VOE_RENDER_DIRECTIONAL_LIGHTS *         \
-						VOE_RENDER_SHADOW_CASCADES),    \
+						VOE_RENDER_SHADOW_CASCADES +    \
+					VOE_RENDER_BOUNCE_VOLUMES *             \
+						VOE_RENDER_DIRECTIONAL_LIGHTS), \
 		.instances = VOE_3D_FOLIAGE_INSTANCES,                        \
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,  \
 		.passes = 1 + VOE_RENDER_SHADOW_CASCADES *                    \
