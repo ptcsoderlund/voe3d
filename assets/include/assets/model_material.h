@@ -18,11 +18,12 @@
 // record, file and Inspector, which nothing asks for (0420). Those read as 1.
 //
 // THE ORM PICTURE (0420 point 5): red is the occlusion picture's red, else 255;
-// green and blue are the metal-roughness picture's, else roughness and metal ×
-// 255. glTF packs both pictures this way already, so this only merges them
-// when they are two. It is the larger of the two by pixel count, each read at
-// its nearest texel. With a metal-roughness picture its green and blue are the
-// whole truth and the factors are not read (0401).
+// green is the metal-roughness picture's green × roughness and blue its blue ×
+// metal, as glTF defines them (0449), else roughness and metal × 255; each
+// factor clamped to 0–1 first. glTF packs both pictures this way already, so
+// this merges them when they are two. It is the larger of the two by pixel
+// count, each read at its nearest texel. A `.material` naming this picture
+// therefore needs nothing more: 0401's rule for the standard material stands.
 #pragma once
 
 #include <assets/image.h>

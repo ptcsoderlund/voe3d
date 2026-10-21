@@ -2,7 +2,10 @@
 // voe_assets_model values built here, no file: opaque, MASK 0.3, BLEND,
 // unlit, double-sided, emissive strength, a uniform and an uneven scale map
 // to their values; the ORM picture from a 2×2 metal-roughness picture alone,
-// with a 4×4 occlusion picture, from occlusion alone, and from neither.
+// with a 4×4 occlusion picture (both at factors 1), from occlusion alone, and
+// from neither; and a picture's green and blue times roughness and metal:
+// metal 0 over blue 255 is 0, metal 1 is 255, 0.5 over 200 is 100, and a
+// metal of 2 reads as 1.
 #include <assets/model_material.h>
 #include <base/arena.h>
 
@@ -119,8 +122,12 @@ static voe_assets_model orm_model(voe_assets_material *materials,
 	images[1] = (voe_assets_image){ 4, 4, occlusion_pixels };
 	for (uint32_t i = 0; i < 4; i++)
 		materials[i] = gltf_material();
-	materials[0].metallic_roughness_image = 0;
-	materials[1].metallic_roughness_image = 0;
+	// Factors of 1 keep the picture as painted.
+	for (uint32_t i = 0; i < 2; i++) {
+		materials[i].metallic_roughness_image = 0;
+		materials[i].roughness = 1.0f;
+		materials[i].metallic = 1.0f;
+	}
 	materials[1].occlusion_image = 1;
 	materials[2].occlusion_image = 1;
 	materials[2].roughness = 0.6f;
@@ -172,6 +179,54 @@ static void orm_pictures(voe_base_arena *arena)
 	VOE_TEST_CHECK(orm.width == 0 && orm.pixels == NULL);
 }
 
+// A 2×2 bark picture: green 10 + texel, blue 255; and a 2×2 picture all 200.
+static uint8_t bark_pixels[2 * 2 * 4];
+static uint8_t grey_pixels[2 * 2 * 4];
+
+static void orm_multiplies_the_picture_by_the_factors(voe_base_arena *arena)
+{
+	voe_assets_material materials[4];
+	voe_assets_image images[2] = { { 2, 2, bark_pixels },
+				       { 2, 2, grey_pixels } };
+	const float metallic[4] = { 0.0f, 1.0f, 0.5f, 2.0f };
+	const voe_assets_model model = { .materials = materials,
+					 .material_count = 4,
+					 .images = images,
+					 .image_count = 2 };
+	voe_assets_image orm = { 0 };
+
+	for (uint32_t i = 0; i < 4; i++) {
+		bark_pixels[i * 4 + 0] = 7;
+		bark_pixels[i * 4 + 1] = (uint8_t)(10 + i);
+		bark_pixels[i * 4 + 2] = 255;
+		bark_pixels[i * 4 + 3] = 255;
+		memset(&grey_pixels[i * 4], 200, 4);
+		materials[i] = gltf_material();
+		materials[i].metallic_roughness_image = 0;
+		materials[i].roughness = 1.0f;
+		materials[i].metallic = metallic[i];
+	}
+	materials[2].metallic_roughness_image = 1;
+	materials[2].roughness = 0.5f;
+
+	VOE_TEST_CHECK(voe_assets_model_orm(&model, 0, arena, &orm));
+	for (uint32_t i = 0; i < 4; i++) {
+		VOE_TEST_CHECK_INT(orm.pixels[i * 4 + 1], 10 + i);
+		VOE_TEST_CHECK_INT(orm.pixels[i * 4 + 2], 0);
+	}
+	VOE_TEST_CHECK(voe_assets_model_orm(&model, 1, arena, &orm));
+	for (uint32_t i = 0; i < 4; i++)
+		VOE_TEST_CHECK_INT(orm.pixels[i * 4 + 2], 255);
+	VOE_TEST_CHECK(voe_assets_model_orm(&model, 2, arena, &orm));
+	for (uint32_t i = 0; i < 4; i++) {
+		VOE_TEST_CHECK_INT(orm.pixels[i * 4 + 1], 100);
+		VOE_TEST_CHECK_INT(orm.pixels[i * 4 + 2], 100);
+	}
+	VOE_TEST_CHECK(voe_assets_model_orm(&model, 3, arena, &orm));
+	for (uint32_t i = 0; i < 4; i++)
+		VOE_TEST_CHECK_INT(orm.pixels[i * 4 + 2], 255);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(4096);
@@ -179,6 +234,7 @@ int main(void)
 	opaque_maps_to_plain_values();
 	each_gltf_field_maps_to_its_value();
 	orm_pictures(arena);
+	orm_multiplies_the_picture_by_the_factors(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

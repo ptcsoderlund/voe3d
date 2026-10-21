@@ -65,9 +65,11 @@ static uint8_t nearest(const voe_assets_image *image, uint32_t x, uint32_t y,
 	return image->pixels[(sy * image->width + sx) * 4 + channel];
 }
 
-static uint8_t factor_byte(float factor)
+// `byte` times `factor` clamped to 0–1, rounded to the nearest whole value:
+// glTF's texture × factor (0449), and the factor alone as 255 × factor.
+static uint8_t scaled_byte(uint8_t byte, float factor)
 {
-	return (uint8_t)lroundf(clamp(factor, 0.0f, 1.0f) * 255.0f);
+	return (uint8_t)lroundf((float)byte * clamp(factor, 0.0f, 1.0f));
 }
 
 static uint64_t pixel_count(const voe_assets_image *image)
@@ -115,19 +117,23 @@ bool voe_assets_model_orm(const voe_assets_model *model, uint32_t material,
 		for (uint32_t x = 0; x < orm.width; x++) {
 			uint8_t *texel =
 				&orm.pixels[((size_t)y * orm.width + x) * 4];
+			const uint8_t green = packed != NULL ?
+						      nearest(packed, x, y,
+							      orm.width,
+							      orm.height, 1) :
+						      255;
+			const uint8_t blue = packed != NULL ?
+						     nearest(packed, x, y,
+							     orm.width,
+							     orm.height, 2) :
+						     255;
 
 			texel[0] = occlusion != NULL ?
 					   nearest(occlusion, x, y, orm.width,
 						   orm.height, 0) :
 					   255;
-			texel[1] = packed != NULL ?
-					   nearest(packed, x, y, orm.width,
-						   orm.height, 1) :
-					   factor_byte(m->roughness);
-			texel[2] = packed != NULL ?
-					   nearest(packed, x, y, orm.width,
-						   orm.height, 2) :
-					   factor_byte(m->metallic);
+			texel[1] = scaled_byte(green, m->roughness);
+			texel[2] = scaled_byte(blue, m->metallic);
 			texel[3] = 255;
 		}
 	}

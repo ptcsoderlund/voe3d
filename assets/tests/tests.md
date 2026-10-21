@@ -36,9 +36,8 @@ belongs to.
   kept line read for its subject, and the encoded read matching the decoded
   one.
 - `model_material.c` — built glTF materials, no file, to their `.material`
-  values: opaque, MASK, BLEND, unlit, double-sided, emission and repeat; and
-  the ORM picture from metal-roughness alone, with a larger occlusion picture,
-  from occlusion alone, and from neither.
+  values; and the ORM picture from metal-roughness, occlusion, both or
+  neither, its green and blue the products by the roughness and metal factors.
 - `model_data.inc` — those files, as bytes.
 - `jpeg.c` — greyscale, 4:4:4 and 4:2:0 round-tripped against the pixels
   that went in, and each refusal read for its code and its kept line's words.

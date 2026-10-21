@@ -71,7 +71,8 @@ of them is internal to this folder rather than reachable from outside it.
   node under its object. Its header says how the tree is proven a tree without
   recursion; every refusal is damage.
 - `model_material.c` — a glTF material to `.material` values, and its ORM
-  picture merged from occlusion and metal-roughness at the nearest texel.
+  picture merged from occlusion and metal-roughness at the nearest texel and
+  multiplied by the roughness and metal factors.
 - `model_glb.c` — the container: the header and the chunks, read with the
   pictures left encoded or each decoded. Its header
   carries the layout and says why a `.gltf` is refused by name, a container not
