@@ -158,10 +158,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   from it, the fill with each colour's complement, the mirrored node's turned triangles, and
   each node's `_LOD<n>` level carried down the walk; its three refusals as limits with the file's
   own counts.
-- `models.c` — the store's table of entries with an arena each, the `.glb` load as read, prepare
-  and put, the put uploading with each part's blended twin and glTF source, copying the shape and
-  giving back what a failure made; the parts set; pictures on the quad, the dot and the water
-  apart; the pool held, not owned; a full store said as a limit.
+- `models.c` — the store's table of entries with an arena each, the `.glb` load as a prepare and
+  a put that uploads each part with its blended twin and gives back what a failure made; the parts
+  set; pictures on the quad, the dot and the water apart; the pool held, not owned.
 - `models_store.h` — the store's internal table with the program's pool, the prepared `.glb` and
   the helpers the store's files share.
 - `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until

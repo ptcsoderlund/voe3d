@@ -9,6 +9,8 @@
 // them, and copies the shape into the entry's own arena. _load_levelled reads
 // with `assets`, prepares on a scratch arena of its own and puts, destroying
 // the arena before it returns; the put's own scratch holds the upload's lists.
+// Each part keeps its glTF material index as its source, so _parts_set can name
+// what every part wears from a parts file without loading the model again.
 //
 // A FAILED LOAD GIVES BACK WHAT IT UPLOADED, every texture, shading record, twin
 // and geometry it had made, so that a file failing again and again does not fill
