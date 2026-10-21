@@ -21,6 +21,10 @@
 // with a progress to total 1 and done 1; with stop already asked an update
 // reads nothing, and a second one without a progress loads the file.
 //
+// THE POOL, on a world and stores of its own: five paths, two chunks for a pool of 3, give a
+// store with the pool set the same entries (loaded, parts, levels) as one
+// without, the progress ending done at its total; stop asked, none is read.
+//
 // THE LANDSCAPES, on a fifth store: a 4-cell table loads at stamp 0 with its
 // millimetres as metres, one part; with a text file at its path a watch reports nothing
 // and leaves it loaded at 0.
@@ -64,6 +68,7 @@
 
 #include <base/arena.h>
 #include <base/error.h>
+#include <base/workers.h>
 
 #include <math/quat.h>
 
@@ -84,6 +89,7 @@
 #define FOLDER "game_models_test"
 #define GOOD "good.glb"
 #define MISSING "missing.glb"
+#define GONE "gone.glb"
 #define GOOD_ON_DISK FOLDER "/" GOOD
 #define PICTURE "puff.png"
 #define NO_PICTURE "missing.png"
@@ -321,6 +327,86 @@ static void check_progress(voe_ecs_world *world, voe_render_device *device,
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
+}
+
+// What the pool case compares of one entry, and how many it keeps.
+#define SEEN 8
+struct entry_seen {
+	char path[32];
+	bool loaded;
+	uint32_t parts;
+	uint32_t levels;
+};
+
+// The world updated into a fresh store with `workers` set (NULL for none)
+// and a progress, which ends done at its total of five: the entries into
+// `seen`, their count returned.
+static uint32_t pool_load(voe_ecs_world *world, voe_render_device *device,
+			  voe_base_arena *scratch, voe_base_workers *workers,
+			  struct entry_seen seen[SEEN])
+{
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_progress progress = { 0 };
+	uint32_t count;
+
+	voe_3d_models_workers_set(models, workers);
+	(void)voe_game_models_update(world, models, device, FOLDER, scratch,
+				     &progress);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.total), 5);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.done),
+			   atomic_load(&progress.total));
+	count = voe_3d_models_count(models);
+	VOE_TEST_CHECK(count <= SEEN);
+	for (uint32_t i = 0; i < count && i < SEEN; i++) {
+		const voe_3d_model_entry *entry = voe_3d_models_at(models, i);
+
+		snprintf(seen[i].path, sizeof(seen[i].path), "%s", entry->path);
+		seen[i].loaded = entry->loaded;
+		seen[i].parts = entry->part_count;
+		seen[i].levels = entry->level_count;
+	}
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+	return count;
+}
+
+static void check_pool(voe_ecs_world *world, voe_render_device *device,
+		       voe_base_arena *scratch)
+{
+	voe_base_workers *workers = voe_base_workers_new(3);
+	struct entry_seen alone[SEEN] = { 0 };
+	struct entry_seen pooled[SEEN] = { 0 };
+	voe_game_progress progress = { 0 };
+	voe_3d_models *models;
+	uint32_t count;
+
+	// ---- five paths, two chunks: the same entries as with no pool
+	wear(world, GOOD);
+	wear(world, MISSING);
+	wear(world, GONE);
+	emit(world, PICTURE);
+	emit(world, NO_PICTURE);
+	count = pool_load(world, device, scratch, NULL, alone);
+	VOE_TEST_CHECK_INT(count, 5);
+	VOE_TEST_CHECK_INT(pool_load(world, device, scratch, workers, pooled),
+			   count);
+	for (uint32_t i = 0; i < count && i < SEEN; i++) {
+		VOE_TEST_CHECK(strcmp(alone[i].path, pooled[i].path) == 0);
+		VOE_TEST_CHECK(alone[i].loaded == pooled[i].loaded);
+		VOE_TEST_CHECK_INT(alone[i].parts, pooled[i].parts);
+		VOE_TEST_CHECK_INT(alone[i].levels, pooled[i].levels);
+	}
+	VOE_TEST_CHECK(alone[0].loaded && alone[3].loaded);
+
+	// ---- stop already asked: nothing read over the pool
+	models = voe_3d_models_new();
+	voe_3d_models_workers_set(models, workers);
+	atomic_store(&progress.stop, true);
+	(void)voe_game_models_update(world, models, device, FOLDER, scratch,
+				     &progress);
+	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 0);
+	voe_3d_models_destroy(models);
+	voe_base_workers_destroy(workers);
 }
 
 // The table's landscape held, loaded at stamp 0, heights in metres.
@@ -681,6 +767,7 @@ int main(void)
 	check_pictures(voe_game_world_new(arena), device, scratch);
 	check_water(voe_game_world_new(arena), device, scratch);
 	check_progress(voe_game_world_new(arena), device, scratch);
+	check_pool(voe_game_world_new(arena), device, scratch);
 	landscapes = voe_3d_models_new();
 	landscapes_load_from_a_table(landscapes, device, scratch);
 	watch_leaves_a_landscape_alone(landscapes, device, scratch);

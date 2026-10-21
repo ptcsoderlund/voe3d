@@ -7,7 +7,9 @@
 //   and scene, uploads the shapes and reads the models, in its own scratch,
 //   never the main thread's. Once it is joined, the main thread alone has the
 //   world, the store and the log: it gives the splash back, opens the mixer
-//   and sound device, runs the frames and writes the log.
+//   and sound device, runs the frames and writes the log. The store's pool
+//   (0448 point 2), the cores but one, is made with it and set on it, its
+//   loads run over it, and is destroyed after the store on every path out.
 // - The interface runs each frame and may end the run.
 // - A restart asked makes the world again in its own arena; the mixer pauses
 //   with the run.
@@ -48,7 +50,9 @@
 #include <base/assert.h>
 #include <base/error.h>
 #include <base/report.h>
+#include <base/workers.h>
 
+#include <platform/cores.h>
 #include <platform/path.h>
 #include <platform/sound.h>
 
@@ -117,6 +121,7 @@ struct run_start {
 	voe_ecs_world *world;
 	voe_3d_shapes shapes;
 	voe_3d_models *store;
+	voe_base_workers *workers;
 	bool failed;
 };
 
@@ -159,6 +164,8 @@ static bool run_start_work(void *context, voe_game_progress *progress)
 		return false;
 	}
 	start->store = voe_3d_models_new();
+	start->workers = voe_base_workers_new(voe_platform_cores() - 1);
+	voe_3d_models_workers_set(start->store, start->workers);
 	// Failures are on stderr and kept as failed entries. The cooked
 	// landscapes go first, so the scene's landscape rows find them held.
 	(void)voe_game_models_landscapes(start->store, start->device,
@@ -365,6 +372,7 @@ int voe_game_run(const char *title, voe_game_window window)
 		voe_3d_models_clear(start.store, voe_app_device(app));
 		voe_3d_models_destroy(start.store);
 	}
+	voe_base_workers_destroy(start.workers);
 	voe_game_interface_destroy(interface);
 closed:
 	voe_app_destroy(app);

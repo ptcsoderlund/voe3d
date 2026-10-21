@@ -9,59 +9,58 @@
 //
 // UPDATE reads every path a model row names that the store lacks: the folder
 // (the project's in the editor, the program's in the game, 0266 point 3) joined
-// with the row's `/`-separated path, stamped, read and loaded. A file with no
-// stamp or that will not read is kept failed at 0; one that will not parse, at
-// its stamp: a broken file is read once, not once a frame. Empty paths are
-// skipped. Each emitter's texture is read the same way, a `.png` or `.jpg` made
-// a picture (0298 point 5), then each loaded landscape's kind paths (0442); with
-// any emitter the soft dot is loaded at "" if the store lacks it, a failure
-// counted with first "".
+// with the row's `/`-separated path. A file with no stamp or that will not
+// read is kept failed at 0; one that will not parse, at its stamp: a broken
+// file is read once, not once a frame. Empty paths are skipped. Then each
+// emitter's texture, a `.png` or `.jpg` made a picture (0298 point 5), and each
+// loaded landscape's kind paths (0442); with any emitter the soft dot at "".
 //
-// LEVELS (0426 point 2): a `.glb` path, any case, loads with its levels file
-// `<folder>/Cache/levels/<path>.levels`, made when missing or stale, in update
-// and watch alike. The write is atomic, its folders made as needed; a failed
-// one is a line on stderr, the levels made still drawn. `Cache/` may go any
-// time. The file follows the `.parts` beside the `.glb` (0430 point 5, 0436,
-// 0435 point 4; see the update call). A make refusing the `.glb` keeps its
-// entry failed at its stamp, with no second read by the store (0445 point 4).
+// LEVELS (0426 point 2): a `.glb`, any case, loads with its levels file
+// `<folder>/Cache/levels/<path>.levels`, made when missing or stale and
+// written atomically, a failed write a line on stderr; `Cache/` may go any
+// time. It follows the `.parts` beside the `.glb` (0430 point 5, 0436, 0435
+// point 4). A refused make keeps the entry failed at its stamp (0445 point 4).
+//
+// PHASES (0448 points 3, 4): update, watch and reload load in chunks of the
+// store's pool's threads (voe_3d_models_workers), each read, parsed, its LODs
+// made, pictures decoded and baked over the pool, then uploaded file by file
+// on the caller. A call that read a file writes `game: models: <n> files in
+// <s> s: reading <s> s, parsing …, making LODs …, decoding pictures …, baking
+// …, uploading …` to stderr, each phase's wall time.
 //
 // PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the
-// distinct paths the call will read are counted first, then "Loading models"
-// done/total is set before each file and once at the end. Once stop is asked
-// the call returns before the next file, the failures so far counted, and
-// loads no dot or water; the paths left unread are read by a later call.
+// distinct paths to read are counted first, "Loading models" done/total set
+// before each upload and at the end. Stop asked, the call returns before the
+// next chunk, loading no dot or water; a later call reads the rest.
 //
-// WATCH, a stamp of time and size asked once a second, no watcher thread (0277
-// point 5), reloads every entry, pictures too, whose stamp differs: a success
-// replaces the parts, a failure keeps them (3d/models.h). A failed entry whose
-// file now has a stamp differs from its 0 and is tried again; a loaded file
-// that has gone is kept failed at 0, tried again when it is back.
+// WATCH, a stamp of time and size asked once a second (0277 point 5), reloads
+// every entry, pictures too, whose stamp differs: a success replaces the
+// parts, a failure keeps them. A failed entry whose file now has a stamp is
+// tried again; a loaded file that has gone is kept failed at 0.
 //
 // MATERIALS come from tables (game/materials.h, 0399 point 7, 0420): each
-// loaded model takes its parts from the parts table, none for a path it lacks;
-// then each shape's material, part's `wears` and landscape's layer (0402 point
-// 8) the store lacks loads from the material table at stamp 0, its maps read as
-// files are, or stays failed if that table has none, each failure counted once.
+// loaded model takes its parts from the parts table; then each shape's
+// material, part's `wears` and landscape's layer (0402 point 8) the store
+// lacks loads from the material table at stamp 0, or stays failed.
 //
-// LANDSCAPES come from a table, never a file (game/landscapes.h, 0236): each
-// one's millimetres made metres in scratch, its layers, paint, kinds and
-// copies carried, and loaded at stamp 0, a failure counted as an update's.
+// LANDSCAPES come from a table, never a file (game/landscapes.h, 0236), loaded
+// at stamp 0 with their layers, paint, kinds and copies.
 //
-// BOTH RETURN how many paths failed and the first one's path, the store's own
+// ALL RETURN how many paths failed and the first one's path, the store's own
 // copy, valid until that entry loads again or the store is cleared; NULL for
-// none. Each failure is one line on stderr at its cause, under the path as
-// the report's subject (0445).
+// none. Each failure is one line at its cause, under the path as the subject.
 //
-// Constraints: called between frames only, since a load waits for the card to
-// go idle. `scratch` holds one file, its levels and their making at a time,
-// rewound after each. A full store (VOE_3D_MODELS) ends an update: the store
-// said so once, and new paths are not read again each frame; a larger store
-// would lift it.
+// Constraints: between frames only, since a load waits for the card to go
+// idle. Each file has arenas of its own, one for it and one a picture, freed
+// after its upload, `scratch` holding only the call's lists: a chunk's files
+// are in memory at once. A full store (VOE_3D_MODELS) ends an update, said
+// once by the store; a larger store would lift it.
 #pragma once
 
 #include <3d/models.h>
 
 #include <base/arena.h>
+#include <base/workers.h>
 
 #include <ecs/world.h>
 
@@ -126,11 +125,14 @@ voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 // makes and writes it whatever is there, `made` then true whenever the `.glb`
 // reads and parses. False, `error` set, only when the `.glb` will not read or
 // parse; a write that fails is a line on stderr and true. Scratch rewound to
-// where it stood. It makes the file alone: the editor's import keeps a fresh
-// one, its Make levels makes it again (0429). See the header.
+// where it stood. The levels are made over `workers`, NULL in order. It makes
+// the file alone: the editor's import keeps a fresh one, its Make levels makes
+// it again (0429). See the header.
 [[nodiscard]] bool voe_game_models_prepare(const char *folder, const char *path,
-					   voe_base_arena *scratch, bool remake,
-					   bool *made, voe_base_error *error);
+					   voe_base_arena *scratch,
+					   voe_base_workers *workers,
+					   bool remake, bool *made,
+					   voe_base_error *error);
 
 // Each level's triangles of `<folder>/<path>` into `triangles`, as
 // voe_3d_model_levels_triangles counts them with its levels file in the Cache

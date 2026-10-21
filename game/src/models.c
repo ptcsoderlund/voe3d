@@ -1,248 +1,38 @@
-// The model loader of game/include/game/models.h: a model row's path or an
-// emitter's texture joined onto the folder, stamped, read into scratch and
-// handed to the store, the soft dot loaded when any emitter is there and the
-// water record when any water is, each failure counted. The path is the
-// report's subject around its read, levels and load (0445): a cause is one
-// line where it is met, the store's or the reader's; a file with no stamp or
-// that will not read, one line here; levels not saved, one line here. A
-// `.glb` whose levels make refused is kept failed at its stamp, the store not
-// reading it again. Scratch is rewound to where it stood after each
-// file, so a caller's own scratch data survives the call. With a progress, the
-// distinct unread paths are counted first and the stop flag asked before each.
-// After the world's paths an update reads every loaded landscape's kind paths
-// the store lacks, gathered first, the same way. A cooked landscape's
-// millimetres become metres in scratch, rewound after it, its layer and kind
-// paths copied, its copies handed on for the store to copy, its paint widened
-// to both planes in scratch too, and the watch passes over every landscape and
-// material entry. A `.glb` loads
-// with its levels file, `<folder>/Cache/levels/<path>.levels`, read on scratch
-// or made there and written, its folders made first when absent; made with
-// the `[Levels]` of the `.parts` beside the `.glb`, the defaults when there is
-// none or it will not parse. A fresh file kept whose swaps differ from those of
-// a `.parts` that reads has them patched into a copy on scratch, written back
-// and handed on, not made again; with no `.parts` its own swaps stand. One held
-// path is loaded again on asking, its stamp not asked. The triangle counts of
-// a `.glb`'s levels are read for the LODs panel, nothing made or written.
+// The model loader of game/include/game/models.h: the paths a call loads
+// gathered in chunks of the store's pool's threads (0448 point 3), each chunk a
+// batch (models_batch.h) prepared in phases over the pool and put file by file
+// in order, then the soft dot loaded when any emitter is there and the water
+// record when any water is, each failure counted and the times' line written
+// once. An update gathers the model rows' paths and the emitters' textures the
+// store lacks, each named first there, then every loaded landscape's kind
+// paths the store lacks, gathered first; with a progress the distinct unread
+// paths are counted first, "Loading models" set before each put, and the stop
+// flag asked before each chunk. A full store ends an update before its next
+// chunk or put. The watch adds every entry but landscapes and materials at
+// its stamp, read only when that changed; a reload adds its one path, forced.
+// A cooked landscape's millimetres become metres in scratch, rewound after it,
+// its layer and kind paths copied, its copies handed on for the store to copy,
+// its paint widened to both planes in scratch too. The public prepare reads
+// its `.glb` and levels file on scratch, rewound; the triangle counts of a
+// `.glb`'s levels are read for the LODs panel, nothing made or written.
 #include <game/models.h>
+
+#include "models_batch.h"
 
 #include <3d/emitter_component.h>
 #include <3d/model_component.h>
 #include <3d/model_levels.h>
 #include <3d/water_component.h>
 
-#include <assets/parts.h>
-
 #include <base/assert.h>
 #include <base/error.h>
 #include <base/report.h>
 
 #include <platform/file.h>
-#include <platform/folder.h>
 #include <platform/path.h>
 
-#include <ctype.h>
 #include <stddef.h>
 #include <string.h>
-
-// Counts one failure of `path`, the store's copy kept when it is the first.
-// Its line was said where its cause was met.
-static void count_failure(voe_game_models_failures *failures,
-			  const voe_3d_models *models, const char *path)
-{
-	const voe_3d_model_entry *entry = voe_3d_models_find(models, path);
-
-	VOE_BASE_ASSERT(failures != NULL, "counting into no failures");
-	VOE_BASE_ASSERT(path != NULL, "counting a failure with no path");
-	// The dot keeps no failed entry; its "" is a literal, valid for ever.
-	if (failures->count == 0 && entry != NULL)
-		failures->first = entry->path;
-	else if (failures->count == 0 && path[0] == '\0')
-		failures->first = "";
-	failures->count++;
-}
-
-// Whether `path` ends `.glb`, compared without case.
-static bool is_glb(const char *path)
-{
-	static const char suffix[] = ".glb";
-	size_t tail = sizeof(suffix) - 1;
-	size_t length;
-
-	VOE_BASE_ASSERT(path != NULL, "asking after no path");
-	length = strlen(path);
-	if (length < tail)
-		return false;
-	for (size_t i = 0; i < tail; i++)
-		if (tolower((unsigned char)path[length - tail + i]) != suffix[i])
-			return false;
-	return true;
-}
-
-// The one line of levels made or patched whose write failed with `error`,
-// under the file's subject.
-static void report_unsaved(voe_base_error error)
-{
-	VOE_BASE_ERROR("game",
-		       "the LODs could not be saved in the project's "
-		       "`Cache/levels/`: %s",
-		       voe_base_error_string(error));
-}
-
-// Makes the folder `path` unless a listing finds one there, so a folder
-// already there says nothing on stderr. False, `error` set, when it could not
-// be made.
-static bool make_absent(const char *path, voe_base_arena *scratch,
-			voe_base_error *error)
-{
-	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
-	voe_platform_folder_listing listing;
-	bool there = voe_platform_folder_list(path, scratch, &listing, NULL);
-
-	VOE_BASE_ASSERT(path != NULL, "making no folder");
-	voe_base_arena_rewind(scratch, mark);
-	return there || voe_platform_folder_create(path, error);
-}
-
-// Makes `levels` (`folder`'s Cache/levels) and each folder of the
-// `/`-separated `path` under it, every one only when absent. False, `error`
-// set, when one could not be made.
-static bool make_levels_folders(const char *folder, const char *levels,
-				const char *path, voe_base_arena *scratch,
-				voe_base_error *error)
-{
-	size_t length = strlen(path);
-	char *prefix = voe_base_arena_push(scratch, length + 1);
-	bool made = make_absent(voe_platform_path_join(scratch, folder, "Cache"),
-				scratch, error) &&
-		    make_absent(levels, scratch, error);
-
-	VOE_BASE_ASSERT(prefix != NULL, "no room for a path");
-	memcpy(prefix, path, length + 1);
-	for (size_t i = 0; made && i < length; i++) {
-		if (path[i] != '/')
-			continue;
-		prefix[i] = '\0';
-		made = make_absent(voe_platform_path_join(scratch, levels, prefix),
-				   scratch, error);
-		prefix[i] = '/';
-	}
-	return made;
-}
-
-// The `[Levels]` of the `.parts` beside `folder`'s `.glb` `path` (0430 point
-// 5), `*parted` whether that file was there and read: the defaults, silently,
-// when there is no such file, and when it will not parse, the parts reader
-// having said why. Scratch rewound.
-static voe_assets_levels levels_asked(const char *folder, const char *path,
-				      voe_base_arena *scratch, bool *parted)
-{
-	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
-	// A prepare of a path not ending `.glb` looks beside it whole.
-	size_t stem = strlen(path) - (is_glb(path) ? sizeof(".glb") - 1 : 0);
-	char *name = voe_base_arena_push(scratch, stem + sizeof(".parts"));
-	voe_assets_levels levels = VOE_ASSETS_LEVELS_DEFAULT;
-	voe_assets_parts parts;
-	const char *file;
-	const uint8_t *text = NULL;
-	size_t size = 0;
-
-	VOE_BASE_ASSERT(folder != NULL, "asking levels in no folder");
-	VOE_BASE_ASSERT(name != NULL && parted != NULL, "no room or no parted");
-	memcpy(name, path, stem);
-	memcpy(name + stem, ".parts", sizeof(".parts"));
-	file = voe_platform_path_join(scratch, folder, name);
-	if (voe_platform_file_exists(file))
-		text = voe_platform_file_read(file, scratch, &size, NULL);
-	*parted = text != NULL &&
-		  voe_assets_parts_read((const char *)text, size, &parts, NULL);
-	if (*parted)
-		levels = parts.levels;
-	voe_base_arena_rewind(scratch, mark);
-	return levels;
-}
-
-// `levels`, `folder`'s Cache/levels, joined with `path` and `.levels`.
-static const char *levels_file(const char *levels, const char *path,
-			       voe_base_arena *scratch)
-{
-	size_t length = strlen(path);
-	char *name = voe_base_arena_push(scratch, length + sizeof(".levels"));
-
-	VOE_BASE_ASSERT(name != NULL, "no room for a path");
-	memcpy(name, path, length);
-	memcpy(name + length, ".levels", sizeof(".levels"));
-	return voe_platform_path_join(scratch, levels, name);
-}
-
-// The fresh levels file `bytes`, whose swaps `read` holds, handed on as it is
-// unless `asked`'s swaps 1 to 5 differ (0436 point 7): then a copy on scratch
-// with them set, written back to `file`, a failed write a line on stderr.
-static const uint8_t *swaps_patched(const char *file, const uint8_t *bytes,
-				    size_t size,
-				    const voe_3d_model_levels *read,
-				    const voe_assets_levels *asked,
-				    voe_base_arena *scratch)
-{
-	voe_base_error unsaved = VOE_BASE_OK;
-	bool differ = false;
-	uint8_t *copy;
-
-	VOE_BASE_ASSERT(bytes != NULL && read != NULL && asked != NULL,
-			"patching no file");
-	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++)
-		differ = differ || read->swaps[k] != asked->swaps[k];
-	if (!differ)
-		return bytes;
-	copy = voe_base_arena_push(scratch, size);
-	VOE_BASE_ASSERT(copy != NULL, "no room for the levels");
-	memcpy(copy, bytes, size);
-	voe_3d_model_levels_swaps_set(copy, size, asked->swaps);
-	if (!voe_platform_file_write(file, copy, size, &unsaved))
-		report_unsaved(unsaved);
-	return copy;
-}
-
-// The levels file of `folder`'s `path`, whose bytes are `glb`, on scratch with
-// its count in `*size`: the one in the Cache when it fits `glb` and `remake`
-// is false, its swaps patched to a `.parts` that reads, else made and written,
-// `*made` then true. A failed write is a line on stderr, and the levels just
-// made or patched are handed back still. NULL, `error` set, only when `glb`
-// will not parse.
-static const uint8_t *levels_for(const char *folder, const char *path,
-				 const uint8_t *glb, size_t glb_size,
-				 bool remake, voe_base_arena *scratch,
-				 size_t *size, bool *made, voe_base_error *error)
-{
-	const char *levels = voe_platform_path_join(scratch, folder,
-						    "Cache/levels");
-	const char *file = levels_file(levels, path, scratch);
-	const uint8_t *bytes = NULL;
-	voe_base_error unsaved = VOE_BASE_OK;
-	voe_3d_model_levels read;
-	bool parted;
-	voe_assets_levels asked = levels_asked(folder, path, scratch, &parted);
-
-	VOE_BASE_ASSERT(glb != NULL && size != NULL, "no `.glb` or size");
-	VOE_BASE_ASSERT(made != NULL && error != NULL, "no made or error");
-	*made = false;
-	if (!remake && voe_platform_file_exists(file))
-		bytes = voe_platform_file_read(file, scratch, size, NULL);
-	// A shipped game has no `.parts`: the file's own swaps stand.
-	if (bytes != NULL && voe_3d_model_levels_read(scratch, bytes, *size,
-						      glb, glb_size, &read))
-		return parted ? swaps_patched(file, bytes, *size, &read, &asked,
-					      scratch) :
-				bytes;
-	bytes = voe_3d_model_levels_make(scratch, glb, glb_size, asked, size,
-					 error);
-	if (bytes == NULL)
-		return NULL;
-	*made = true;
-	if (!make_levels_folders(folder, levels, path, scratch, &unsaved) ||
-	    !voe_platform_file_write(file, bytes, *size, &unsaved))
-		report_unsaved(unsaved);
-	return bytes;
-}
 
 uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
 					  voe_base_arena *scratch,
@@ -267,9 +57,9 @@ uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
 	glb = voe_platform_file_read(voe_platform_path_join(scratch, folder,
 							    path),
 				     scratch, &glb_size, NULL);
-	file = levels_file(voe_platform_path_join(scratch, folder,
-						  "Cache/levels"),
-			   path, scratch);
+	file = voe_game_models_levels_file(
+		voe_platform_path_join(scratch, folder, "Cache/levels"), path,
+		scratch);
 	if (glb != NULL && voe_platform_file_exists(file))
 		levels = voe_platform_file_read(file, scratch, &size, NULL);
 	if (glb != NULL)
@@ -282,8 +72,8 @@ uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
 }
 
 bool voe_game_models_prepare(const char *folder, const char *path,
-			     voe_base_arena *scratch, bool remake, bool *made,
-			     voe_base_error *error)
+			     voe_base_arena *scratch, voe_base_workers *workers,
+			     bool remake, bool *made, voe_base_error *error)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	const uint8_t *glb;
@@ -299,93 +89,13 @@ bool voe_game_models_prepare(const char *folder, const char *path,
 	glb = voe_platform_file_read(voe_platform_path_join(scratch, folder,
 							    path),
 				     scratch, &glb_size, error);
-	ready = glb != NULL && levels_for(folder, path, glb, glb_size, remake,
-					  scratch, &size, made, error) != NULL;
+	ready = glb != NULL &&
+		voe_game_models_levels_for(folder, path, glb, glb_size, remake,
+					   scratch, workers, &size, made,
+					   error) != NULL;
 	voe_base_report_subject_pop();
 	voe_base_arena_rewind(scratch, mark);
 	return ready;
-}
-
-// Loads `path` from `folder` if its stamp is not `known`, or whatever it is
-// when `always`; a file with no stamp becomes a failed entry at 0, unless it
-// already is one. A `.glb` loads with its levels file, made when missing or
-// stale. False, with the category in `error`, when it failed. Under `path` as
-// the subject, a copy on scratch since a load may replace the store's.
-static bool load_changed(voe_3d_models *models, voe_render_device *device,
-			 const char *folder, const char *path, uint64_t known,
-			 bool always, voe_base_arena *scratch,
-			 voe_base_error *error)
-{
-	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
-	const char *full = voe_platform_path_join(scratch, folder, path);
-	size_t length = strlen(path);
-	char *subject = voe_base_arena_push(scratch, length + 1);
-	const uint8_t *bytes = NULL;
-	const uint8_t *levels = NULL;
-	uint64_t stamp = 0;
-	size_t size = 0;
-	size_t levels_size = 0;
-	bool made;
-	bool loaded = true;
-	bool unreadable = false;
-	bool refused;
-
-	VOE_BASE_ASSERT(path[0] != '\0', "loading a model with no path");
-	VOE_BASE_ASSERT(subject != NULL, "no room for a path");
-	memcpy(subject, path, length + 1);
-	voe_base_report_subject_push(subject);
-	*error = VOE_BASE_OK;
-	if (!voe_platform_file_stamp(full, &stamp)) {
-		if (known != 0 || voe_3d_models_find(models, path) == NULL) {
-			voe_3d_models_fail(models, path, 0);
-			*error = VOE_BASE_ERROR_UNAVAILABLE;
-			loaded = false;
-			unreadable = true;
-		}
-	} else if (always || stamp != known) {
-		bytes = voe_platform_file_read(full, scratch, &size, error);
-		unreadable = bytes == NULL;
-		if (bytes != NULL && is_glb(path))
-			levels = levels_for(folder, path, bytes, size, false,
-					    scratch, &levels_size, &made,
-					    error);
-		// A `.glb` its levels make refused is kept failed at its stamp,
-		// not read a second time (0445 point 4).
-		refused = !unreadable && is_glb(path) && levels == NULL;
-		if (unreadable || refused)
-			voe_3d_models_fail(models, path, refused ? stamp : 0);
-		loaded = !unreadable && !refused &&
-			 voe_3d_models_load_levelled(models, device, path,
-						     stamp, bytes, size, levels,
-						     levels_size, error);
-	}
-	// A refused make or load said its cause below.
-	if (unreadable)
-		VOE_BASE_ERROR("game", "the file could not be read: %s",
-			       voe_base_error_string(*error));
-	voe_base_report_subject_pop();
-	voe_base_arena_rewind(scratch, mark);
-	VOE_BASE_ASSERT(loaded || *error != VOE_BASE_OK,
-			"a failed model load with no category");
-	return loaded;
-}
-
-bool voe_game_models_reload(voe_3d_models *models, voe_render_device *device,
-			    const char *folder, const char *path,
-			    voe_base_arena *scratch, voe_base_error *error)
-{
-	const voe_3d_model_entry *entry;
-
-	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
-	VOE_BASE_ASSERT(folder != NULL && path != NULL && scratch != NULL &&
-				error != NULL,
-			"no folder, path, scratch or error");
-	*error = VOE_BASE_OK;
-	entry = voe_3d_models_find(models, path);
-	if (entry == NULL)
-		return true;
-	return load_changed(models, device, folder, entry->path, entry->stamp,
-			    true, scratch, error);
 }
 
 // The path of the world's `index`th file: the model rows' paths, then the
@@ -406,22 +116,31 @@ static bool unread(const voe_3d_models *models, const char *path)
 	return path[0] != '\0' && voe_3d_models_find(models, path) == NULL;
 }
 
-// How many distinct paths of `paths` files an update reads. Each path is
-// compared with every earlier one, so a path named twice counts once; a
-// lookup set of the paths would lift that square.
+// Whether the world's `index`th of `paths` files is the first naming its
+// path; a kind path past them always is. Each path is compared with every
+// earlier one; a lookup set of the paths would lift that square.
+static bool named_first(const voe_ecs_world *world, uint32_t paths,
+			uint32_t index)
+{
+	bool earlier = false;
+
+	VOE_BASE_ASSERT(world != NULL, "asking after no world");
+	for (uint32_t j = 0; !earlier && index < paths && j < index; j++)
+		earlier = strcmp(path_at(world, j), path_at(world, index)) == 0;
+	return !earlier;
+}
+
+// How many distinct paths of `paths` files an update reads.
 static unsigned count_unread(const voe_ecs_world *world,
 			     const voe_3d_models *models, uint32_t paths)
 {
 	unsigned total = 0;
 
-	for (uint32_t i = 0; i < paths; i++) {
-		const char *path = path_at(world, i);
-		bool earlier = false;
-
-		for (uint32_t j = 0; !earlier && j < i; j++)
-			earlier = strcmp(path_at(world, j), path) == 0;
-		total += !earlier && unread(models, path);
-	}
+	VOE_BASE_ASSERT(models != NULL, "counting into no store");
+	for (uint32_t i = 0; i < paths; i++)
+		total += unread(models, path_at(world, i)) &&
+			 named_first(world, paths, i);
+	VOE_BASE_ASSERT(total <= paths, "more unread paths than paths");
 	return total;
 }
 
@@ -462,6 +181,67 @@ static void gather_kinds(const voe_ecs_world *world,
 	VOE_BASE_ASSERT(kinds->count <= VOE_3D_MODELS, "too many kinds kept");
 }
 
+// One loader call's running state: where it puts, what it reports into, and
+// what it has counted and timed.
+struct models_call {
+	voe_3d_models *models;
+	voe_render_device *device;
+	voe_game_progress *progress;
+	unsigned done;
+	unsigned total;
+	voe_base_error error;
+	voe_game_models_failures failures;
+	voe_game_models_times times;
+};
+
+// `batch` prepared over the store's pool and each file put in order,
+// "Loading models" set before each. False when the store was full, the files
+// after not put.
+static bool batch_load(struct models_call *call, voe_game_models_batch *batch)
+{
+	bool room = true;
+
+	VOE_BASE_ASSERT(call != NULL && batch != NULL, "no call or batch");
+	voe_game_models_batch_prepare(
+		batch, voe_3d_models_workers(call->models), &call->times);
+	for (uint32_t k = 0; room && k < voe_game_models_batch_count(batch);
+	     k++) {
+		voe_game_progress_set(call->progress, "Loading models",
+				      call->done, call->total);
+		room = voe_game_models_batch_put(batch, call->models,
+						 call->device, k,
+						 &call->failures, &call->error,
+						 &call->times);
+		call->done += room;
+	}
+	VOE_BASE_ASSERT(call->total == 0 || call->done <= call->total,
+			"more files put than counted");
+	return room;
+}
+
+// Adds to `batch`, until it holds `room`, every path from the `next`th on an
+// update reads, named first there: the world's `paths` files, then `kinds`.
+// The index after the last one looked at.
+static uint32_t chunk_gather(const voe_ecs_world *world,
+			     const voe_3d_models *models,
+			     const kind_paths *kinds, uint32_t paths,
+			     uint32_t next, uint32_t room,
+			     voe_game_models_batch *batch)
+{
+	VOE_BASE_ASSERT(kinds != NULL && batch != NULL, "no kinds or batch");
+	for (; next < paths + kinds->count &&
+	       voe_game_models_batch_count(batch) < room;
+	     next++) {
+		const char *path = next < paths ? path_at(world, next) :
+						  kinds->paths[next - paths];
+
+		if (unread(models, path) && named_first(world, paths, next))
+			voe_game_models_batch_add(batch, path, 0, false);
+	}
+	VOE_BASE_ASSERT(next <= paths + kinds->count, "gathered past the paths");
+	return next;
+}
+
 voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_3d_models *models,
 						voe_render_device *device,
@@ -470,10 +250,11 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_game_progress *progress)
 {
 	uint32_t paths = voe_3d_model_count(world) + voe_3d_emitter_count(world);
-	voe_game_models_failures failures = { 0 };
-	unsigned done = 0;
-	unsigned total = 0;
-	voe_base_error error;
+	uint32_t room = voe_base_workers_threads(voe_3d_models_workers(models));
+	struct models_call call = { .models = models,
+				    .device = device,
+				    .progress = progress };
+	bool going = true;
 	kind_paths kinds;
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
@@ -481,34 +262,62 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 			"no folder or scratch");
 	gather_kinds(world, models, paths, &kinds);
 	if (progress != NULL)
-		total = count_unread(world, models, paths) + kinds.count;
-	for (uint32_t i = 0; i < paths + kinds.count; i++) {
-		const char *path = i < paths ? path_at(world, i) :
-					       kinds.paths[i - paths];
+		call.total = count_unread(world, models, paths) + kinds.count;
+	for (uint32_t next = 0; going && next < paths + kinds.count;) {
+		voe_game_models_batch *batch =
+			voe_game_models_batch_new(folder, room);
+		bool any;
 
-		if (!unread(models, path))
-			continue;
-		if (voe_game_progress_stopped(progress))
-			return failures;
+		next = chunk_gather(world, models, &kinds, paths, next, room,
+				    batch);
+		any = voe_game_models_batch_count(batch) > 0;
+		if (any && voe_game_progress_stopped(progress)) {
+			voe_game_models_batch_destroy(batch);
+			voe_game_models_times_write(&call.times);
+			return call.failures;
+		}
 		// A full store said so once; the update ends.
-		if (voe_3d_models_count(models) == VOE_3D_MODELS)
-			break;
-		voe_game_progress_set(progress, "Loading models", done, total);
-		if (!load_changed(models, device, folder, path, 0, false,
-				  scratch, &error))
-			count_failure(&failures, models, path);
-		done++;
+		going = !any || (voe_3d_models_count(models) < VOE_3D_MODELS &&
+				 batch_load(&call, batch));
+		voe_game_models_batch_destroy(batch);
 	}
-	voe_game_progress_set(progress, "Loading models", done, total);
+	voe_game_progress_set(progress, "Loading models", call.done, call.total);
+	voe_game_models_times_write(&call.times);
 	if (voe_3d_emitter_count(world) > 0 &&
 	    voe_3d_models_find(models, "") == NULL &&
-	    !voe_3d_models_load_dot(models, device, &error))
-		count_failure(&failures, models, "");
+	    !voe_3d_models_load_dot(models, device, &call.error))
+		voe_game_models_failure_count(&call.failures, models, "");
 	if (voe_3d_water_count(world) > 0 &&
 	    voe_3d_models_water(models) == NULL &&
-	    !voe_3d_models_load_water(models, device, &error))
-		count_failure(&failures, models, "");
-	return failures;
+	    !voe_3d_models_load_water(models, device, &call.error))
+		voe_game_models_failure_count(&call.failures, models, "");
+	return call.failures;
+}
+
+bool voe_game_models_reload(voe_3d_models *models, voe_render_device *device,
+			    const char *folder, const char *path,
+			    voe_base_arena *scratch, voe_base_error *error)
+{
+	struct models_call call = { .models = models, .device = device };
+	const voe_3d_model_entry *entry;
+	voe_game_models_batch *batch;
+
+	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
+	VOE_BASE_ASSERT(folder != NULL && path != NULL && scratch != NULL &&
+				error != NULL,
+			"no folder, path, scratch or error");
+	*error = VOE_BASE_OK;
+	entry = voe_3d_models_find(models, path);
+	if (entry == NULL)
+		return true;
+	batch = voe_game_models_batch_new(folder, 1);
+	voe_game_models_batch_add(batch, entry->path, entry->stamp, true);
+	if (!batch_load(&call, batch))
+		VOE_BASE_ASSERT(false, "a held path refused for room");
+	voe_game_models_batch_destroy(batch);
+	voe_game_models_times_write(&call.times);
+	*error = call.error;
+	return call.failures.count == 0;
 }
 
 // `cooked`'s layer paths into `landscape`, and its paint, when cooked, as
@@ -591,7 +400,8 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 		voe_base_report_subject_push(cooked->path);
 		if (!voe_3d_models_load_landscape(models, device, cooked->path,
 						  0, &landscape, &error))
-			count_failure(&failures, models, cooked->path);
+			voe_game_models_failure_count(&failures, models,
+						      cooked->path);
 		voe_base_report_subject_pop();
 		voe_base_arena_rewind(scratch, mark);
 	}
@@ -603,23 +413,34 @@ voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 					       const char *folder,
 					       voe_base_arena *scratch)
 {
-	voe_game_models_failures failures = { 0 };
+	uint32_t room = voe_base_workers_threads(voe_3d_models_workers(models));
+	struct models_call call = { .models = models, .device = device };
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(folder != NULL && scratch != NULL,
 			"no folder or scratch");
-	for (uint32_t i = 0; i < voe_3d_models_count(models); i++) {
-		const voe_3d_model_entry *entry = voe_3d_models_at(models, i);
-		voe_base_error error;
+	for (uint32_t i = 0; i < voe_3d_models_count(models);) {
+		voe_game_models_batch *batch =
+			voe_game_models_batch_new(folder, room);
 
-		// A landscape is never re-read by stamp (0379 point 2), nor a
-		// material, which the editor reloads itself (0399 point 7).
-		if (entry->landscape != NULL || entry->material)
-			continue;
-		if (!load_changed(models, device, folder, entry->path,
-				  entry->stamp, false, scratch, &error))
-			count_failure(&failures, models,
-				      voe_3d_models_at(models, i)->path);
+		for (; i < voe_3d_models_count(models) &&
+		       voe_game_models_batch_count(batch) < room;
+		     i++) {
+			const voe_3d_model_entry *entry =
+				voe_3d_models_at(models, i);
+
+			// A landscape is never re-read by stamp (0379 point 2),
+			// nor a material, which the editor reloads itself (0399
+			// point 7).
+			if (entry->landscape == NULL && !entry->material)
+				voe_game_models_batch_add(batch, entry->path,
+							  entry->stamp, false);
+		}
+		// Every path is held, so the store has room for each.
+		if (!batch_load(&call, batch))
+			VOE_BASE_ASSERT(false, "a held path refused for room");
+		voe_game_models_batch_destroy(batch);
 	}
-	return failures;
+	voe_game_models_times_write(&call.times);
+	return call.failures;
 }
