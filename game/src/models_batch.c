@@ -448,7 +448,8 @@ static void lods_task(void *context, uint32_t index)
 	voe_base_report_subject_pop();
 }
 
-// Every picture of the batch's `.glb`s still going into the batch's list.
+// Every picture of the batch's `.glb`s still going into the batch's list; a
+// write never passes the counted list.
 static void pictures_gather(voe_game_models_batch *batch)
 {
 	uint32_t total = 0;
@@ -467,7 +468,7 @@ static void pictures_gather(voe_game_models_batch *batch)
 			continue;
 		file->first_picture = at;
 		file->picture_count = file->model.image_count;
-		for (uint32_t k = 0; k < file->picture_count; k++)
+		for (uint32_t k = 0; k < file->picture_count && at < total; k++)
 			batch->pictures[at++] = (struct batch_picture){
 				.file = i, .index = k, .error = VOE_BASE_OK
 			};
