@@ -5,9 +5,7 @@ and every other file is a `.h` saying what it owns and why beside the `.c` that
 carries it out.
 
 - `main.c` — opens the project, window and device, starts and loads scenes on a worker behind a
-  live splash, and runs the loop until a close goes ahead or the picture is written, taking the
-  frame breakdown's timings and marking the hitch watch's stretches each frame and writing,
-  saving and reverting landscapes.
+  live splash, and runs the loop until a close goes ahead or the picture is written.
 - `loading.h` — the start's, a New or Open load's and an import's prepare works for a splash wait:
   shaders with the editor's pipeline cache, shapes and models, the scene and its models, or an
   imported model's levels file, made again for Make LODs, and what the worker owns.
@@ -342,8 +340,7 @@ carries it out.
   collider and gizmo, every blocker's box, the markers, the brush circle, and the device capacities.
 - `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, foliage
   gathered first, lit by every light and kept out of the blockers, every place marked and blocker
-  lined, the brush's rings with the gizmo hidden while brushing, the shadow calls timed for the
-  hitch watch, stopping at the first refused pass.
+  lined, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or on asking, emptied on a different project, a broken file in the notice, where landscapes with
   their foliage and the project's materials are edited, and models given their parts.

@@ -24,8 +24,9 @@
 // volume another view moved (0326 point 8); each target's frame carries its
 // own remembered casters too (0394). That volume stands on the view's
 // eye, so turning never moves it, and its relight shadows the sun by a sun
-// map of its own, never the view's cascades (0329 points 1 and 2). The first
-// refused pass stops the frame there.
+// map of its own, never the view's cascades (0329 points 1 and 2). Every
+// shadow call is timed into `shadows` for the hitch watch (frame_hitches.h).
+// The first refused pass stops the frame there.
 #include "view_passes.h"
 
 #include <base/assert.h>

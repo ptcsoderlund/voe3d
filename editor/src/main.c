@@ -4,9 +4,8 @@
 // out of the order of the calls here, lists the project's authored entities,
 // follows a click on one, and draws the world into each view from that view's
 // own camera. The bar's New, Open and Save are session.h's: this file calls
-// voe_editor_session_do and takes a refused window close back.
-//
-// WHICH PROJECT IT OPENS ON IS startup.h's; THE WORLD'S STEP IS world_step.h's.
+// voe_editor_session_do and takes a refused window close back. Which project it
+// opens on is startup.h's; the world's step is world_step.h's.
 //
 // IT DRAWS IN THE THEME REMEMBERED IN `<settings>/voe3d/theme` (themes.h),
 // looked at again once a second at the top of the loop, in the one font the
@@ -42,9 +41,8 @@
 // builds the same world, font, themes, interface and scene, runs the loop body
 // `--frames` times (two by default) and writes the window's picture, and with
 // `--capture-view` the first scene view's too, all counted and written by
-// capture.h. It first
-// waits out a running refresh (session.h), for at most 120 s of the frame clock.
-// EVERY READ OF THE WINDOW IS GUARDED.
+// capture.h. It first waits out a running refresh (session.h), for at most
+// 120 s of the frame clock. EVERY READ OF THE WINDOW IS GUARDED.
 //
 // THE START AND NEW AND OPEN'S LOADS RUN ON A WORKER BEHIND A LIVE SPLASH
 // (0362, 0370): the font, themes and interface are made right after the
@@ -55,8 +53,10 @@
 // wait ends the program as a closed window does. The start's steps are timed
 // (app/start_log.h) and written after the first frame to stderr and appended
 // to `<settings>/voe3d/start.log`, stderr only under --capture. Everything
-// lives in one arena made first. Each frame the breakdown's timings are taken
-// and a stalled frame writes an `editor: hitch:` line (frame_hitches.h).
+// lives in one arena made first. Each frame the hitch watch's stretches are
+// marked, the breakdown's timings taken and a stalled frame's `editor: hitch:`
+// line written (frame_hitches.h); edited landscapes are written before the
+// passes, saved with the project and read back on another (models.h).
 #include "assets_drag.h"
 #include "browser.h"
 #include "capture.h"
