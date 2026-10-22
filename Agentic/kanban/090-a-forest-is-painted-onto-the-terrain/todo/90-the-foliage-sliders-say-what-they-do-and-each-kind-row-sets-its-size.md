@@ -1,6 +1,6 @@
-# 79 — The foliage sliders say what they do, and each kind row sets its size
+# 90 — The foliage sliders say what they do, and each kind row sets its size
 folder: editor
-after: 78
+after: 89
 decisions: 0168, 0379, 0442, 0452, 0459, 0460
 
 ## Change
