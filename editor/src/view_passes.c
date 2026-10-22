@@ -7,8 +7,9 @@
 // light's, every point light's (0360) and every meshless place's (0365)
 // markers, the selected one's in the outline's colour, the brush's rings on
 // the hovered ground with the gizmo hidden while brushing a landscape (0379
-// point 3), the landscapes' foliage as instanced groups gathered first (0442
-// point 5), and the pass ended; and
+// point 3), the landscapes' foliage as instanced groups gathered after the
+// lights and before the shadows (0442 point 5, 0464 point 4), and the pass
+// ended, its counts recorded in `views` (0465); and
 // the preview's shadow passes and pass, drawn with the world's camera while the
 // selected entity has one and marking nothing. Every pass is lit by every
 // directional light, the first as `light` and the rest from the frame (0357
@@ -101,6 +102,19 @@ static void foliage_watched(voe_ecs_world *world, voe_render_device *gpu,
 	VOE_BASE_ASSERT(watch->gather >= 0.0, "a gather that took negative time");
 }
 
+// One drawn picture's counts appended to `views`' list for the Frame panel
+// (0465 point 1); there is room for every view and the preview.
+static void picture_add(voe_editor_views *views, voe_3d_view_counts counts,
+			uint32_t view, bool preview)
+{
+	VOE_BASE_ASSERT(views != NULL, "recording a picture with no views");
+	VOE_BASE_ASSERT(views->picture_count < VOE_EDITOR_VIEWS + 1,
+			"more pictures than views and the preview");
+	views->pictures[views->picture_count++] = (voe_editor_picture_counts){
+		.counts = counts, .view = view, .preview = preview
+	};
+}
+
 // The shadows call, its seconds added to the watch's `shadows` and the parts
 // it timed by `frame->clock` to its `parts`.
 static bool shadows_watched(voe_ecs_world *world, voe_render_device *gpu,
@@ -150,6 +164,7 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 			"drawing the preview with no views, scene or watch");
 
 	views->preview_shown = false;
+	views->picture_count = 0;
 	if (voe_scene_camera_get(world, voe_editor_scene_selected(scene)) ==
 	    NULL)
 		return true;
@@ -170,17 +185,18 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	frame.clock = voe_platform_clock_now;
 
 	foliage = voe_base_arena_mark(arena);
-	// Before the shadows, whose cascades draw the same groups (0442 point
-	// 5), and before the mark, so the groups outlive its rewind until the
-	// pass has drawn them.
-	foliage_watched(world, gpu, &frame, arena, watch);
-	mark = voe_base_arena_mark(arena);
 	// False leaves the preview unblocked or unlit by points, which is no
 	// failed frame. Before the shadows: their point-shadow pass reads the
 	// slots (0325) and their bounce the blockers (0347 point 4).
 	(void)voe_3d_draw_system_light_blockers(world, &frame, arena);
 	(void)voe_3d_draw_system_lights(world, &frame, arena);
 	(void)voe_3d_draw_system_point_lights(world, &frame, arena);
+	// After the lights, so it knows every sun whose cascades sort its
+	// copies (0464 point 4); before the shadows, whose cascades draw the
+	// same groups (0442 point 5); and before the mark, so the groups and
+	// the lights outlive its rewind until the pass has drawn them.
+	foliage_watched(world, gpu, &frame, arena, watch);
+	mark = voe_base_arena_mark(arena);
 	// Timed apart for the hitch watch (frame_hitches.h): the bounce is in it.
 	passed = shadows_watched(world, gpu, &frame, watch);
 	if (!passed) {
@@ -194,7 +210,8 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 		voe_base_arena_rewind(arena, foliage);
 		return false;
 	}
-	voe_3d_draw_system_run(world, gpu, arena, frame);
+	picture_add(views, voe_3d_draw_system_run(world, gpu, arena, frame), 0,
+		    true);
 	voe_render_pass_end(gpu);
 	voe_base_arena_rewind(arena, foliage);
 	views->preview_shown = true;
@@ -257,20 +274,21 @@ bool voe_editor_view_passes_draw(
 					.target = view->target,
 					.casters = &view->casters,
 					.clock = voe_platform_clock_now };
-		// Before the shadows, whose cascades draw the same groups (0442
-		// point 5), and before the mark, so the groups outlive its rewind
-		// until _run.
+		// The points come before the shadows, whose point-shadow pass
+		// reads their slots (0325), and so do the blockers, whose bounce
+		// reads them (0347 point 4), and the lights after the first, which
+		// read the blockers' masks; a false leaves this pass unblocked or
+		// unlit by points, no failed frame.
 		struct voe_base_arena_mark foliage = voe_base_arena_mark(arena);
-		foliage_watched(world, gpu, &frame, arena, watch);
-		// The points live until the pass has taken them, and come before
-		// the shadows, whose point-shadow pass reads their slots (0325), and
-		// so do the blockers, whose bounce reads them (0347 point 4), and the
-		// lights after the first, which read the blockers' masks; a false
-		// leaves this pass unblocked or unlit by points, no failed frame.
-		struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
 		(void)voe_3d_draw_system_light_blockers(world, &frame, arena);
 		(void)voe_3d_draw_system_lights(world, &frame, arena);
 		(void)voe_3d_draw_system_point_lights(world, &frame, arena);
+		// After the lights, so it knows every sun whose cascades sort its
+		// copies (0464 point 4); before the shadows, whose cascades draw
+		// the same groups (0442 point 5); and before the mark, so the
+		// groups and the lights outlive its rewind until _run.
+		foliage_watched(world, gpu, &frame, arena, watch);
+		struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
 		// Timed apart, with its parts, for the hitch watch (frame_hitches.h).
 		bool shadowed = shadows_watched(world, gpu, &frame, watch);
 		if (!shadowed) {
@@ -294,6 +312,7 @@ bool voe_editor_view_passes_draw(
 				.models = models,
 				.foliage = frame.foliage,
 				.foliage_count = frame.foliage_count,
+				.counts = frame.counts,
 				.outlined = {
 					.models = models,
 					.entity = voe_editor_scene_selected(scene),
@@ -396,7 +415,8 @@ bool voe_editor_view_passes_draw(
 					size) };
 		if (brushing)
 			drawn.gizmo = (voe_3d_gizmoed){ 0 };
-		voe_3d_draw_system_run(world, gpu, arena, drawn);
+		picture_add(views, voe_3d_draw_system_run(world, gpu, arena, drawn),
+			    v, false);
 		voe_render_pass_end(gpu);
 		voe_base_arena_rewind(arena, foliage);
 	}

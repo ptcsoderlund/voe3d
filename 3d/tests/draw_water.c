@@ -17,6 +17,10 @@
 // as without it. The sun and the ground say `cast_shadows = true`, so the
 // passes draw the ground and the count means something (0324).
 //
+// WHAT THE CAMERA CANNOT SEE IS NOT HELD (0464): a water above the camera is
+// skipped and counted; a wide one whose middle is above it but whose edge
+// reaches into view draws.
+//
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_system.c does.
 #include <3d/draw_system.h>
@@ -63,8 +67,29 @@ static const voe_render_capacities CAPACITIES = {
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
 };
 
+// A `width` × `length` water placed by `place`, with its waves row added by one
+// run of the water system.
+static void add_a_water(voe_ecs_world *world, voe_scene_transform place,
+			float width, float length)
+{
+	voe_ecs_entity entity = { 0 };
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, place));
+	VOE_TEST_CHECK(voe_3d_water_add(
+		world, entity,
+		(voe_3d_water){ .width = width,
+				.length = length,
+				.wave_height = 0.05f,
+				.wave_length = 2.0f,
+				.deep = 3.0f,
+				.colour = { 0.02f, 0.12f, 0.15f },
+				.sky = { 0.6f, 0.75f, 0.95f } }));
+	voe_3d_water_system_run(world, 0.0f);
+}
+
 // The camera looking down, the sun, the ground and, with `water`, the 4 × 4
-// water with its waves row added by one run of the water system.
+// water at the origin.
 static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes,
 			      bool water)
 {
@@ -129,33 +154,24 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 				.cast_shadows = true }));
 	voe_3d_shape_system_run(world, shapes);
 
-	if (water) {
-		VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
-		VOE_TEST_CHECK(voe_scene_transform_add(
-			world, entity,
-			(voe_scene_transform){ .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-					       .scale = { 1.0f, 1.0f, 1.0f } }));
-		VOE_TEST_CHECK(voe_3d_water_add(
-			world, entity,
-			(voe_3d_water){ .width = 4.0f,
-					.length = 4.0f,
-					.wave_height = 0.05f,
-					.wave_length = 2.0f,
-					.deep = 3.0f,
-					.colour = { 0.02f, 0.12f, 0.15f },
-					.sky = { 0.6f, 0.75f, 0.95f } }));
-	}
-	voe_3d_water_system_run(world, 0.0f);
+	if (water)
+		add_a_water(world,
+			    (voe_scene_transform){
+				    .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				    .scale = { 1.0f, 1.0f, 1.0f } },
+			    4.0f, 4.0f);
 	return world;
 }
 
 // One frame of `world` from `models`, with its shadows: the view pass's draws
-// in `drawn`, the shadow passes' in `cast`, and the picture.
+// in `drawn`, the shadow passes' in `cast`, _run's counts in `counts` when it
+// is not NULL, and the picture.
 static voe_render_picture a_frame(voe_ecs_world *world, voe_render_device *device,
 				  voe_base_arena *arena,
 				  const voe_3d_models *models, uint32_t *drawn,
-				  uint32_t *cast)
+				  uint32_t *cast, voe_3d_view_counts *counts)
 {
+	voe_3d_view_counts counted;
 	voe_platform_size size = { SIDE, SIDE };
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_render_pass_camera camera;
@@ -177,7 +193,9 @@ static voe_render_picture a_frame(voe_ecs_world *world, voe_render_device *devic
 	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 					     &camera));
 	before = voe_render_frame_draw_count(device);
-	voe_3d_draw_system_run(world, device, arena, frame);
+	counted = voe_3d_draw_system_run(world, device, arena, frame);
+	if (counts != NULL)
+		*counts = counted;
 	*drawn = voe_render_frame_draw_count(device) - before;
 	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
@@ -219,11 +237,11 @@ static void water_is_drawn(voe_base_arena *arena, voe_render_device *device,
 	uint32_t dry_drawn = 0, dry_cast = 0, wet_drawn = 0, wet_cast = 0;
 	uint32_t bare_drawn = 0, bare_cast = 0;
 	voe_render_picture none = a_frame(dry, device, arena, models, &dry_drawn,
-					  &dry_cast);
+					  &dry_cast, NULL);
 	voe_render_picture still = a_frame(wet, device, arena, models,
-					   &wet_drawn, &wet_cast);
+					   &wet_drawn, &wet_cast, NULL);
 	voe_render_picture bare = a_frame(wet, device, arena, empty, &bare_drawn,
-					  &bare_cast);
+					  &bare_cast, NULL);
 	voe_render_picture moved;
 
 	// The centre is water, and the water is one draw more.
@@ -238,8 +256,51 @@ static void water_is_drawn(voe_base_arena *arena, voe_render_device *device,
 	VOE_TEST_CHECK_INT(centre(bare), centre(none));
 	// The clock at 1.3 s moves the waves.
 	voe_3d_water_system_run(wet, 1.3f);
-	moved = a_frame(wet, device, arena, models, &wet_drawn, &wet_cast);
+	moved = a_frame(wet, device, arena, models, &wet_drawn, &wet_cast, NULL);
 	VOE_TEST_CHECK(differ(still, moved));
+}
+
+// A 4 × 4 water six metres above the camera, which looks down, is behind it,
+// its 2.9 m sphere wholly behind the near plane: not held, counted skipped, the picture the dry world's. A 4 × 20 water a
+// metre above the camera, turned 100° about X so its far edge runs down past
+// the camera's feet, has its middle behind and that edge ahead: held, counted
+// drawn, and it changes the picture (0464).
+static void water_behind_is_skipped(voe_base_arena *arena,
+				    voe_render_device *device,
+				    const voe_3d_shapes *shapes,
+				    const voe_3d_models *models)
+{
+	voe_ecs_world *dry = a_world(arena, shapes, false);
+	voe_ecs_world *behind = a_world(arena, shapes, false);
+	voe_ecs_world *wide = a_world(arena, shapes, false);
+	uint32_t dry_drawn = 0, drawn = 0, cast = 0;
+	voe_3d_view_counts dry_counts = { 0 };
+	voe_3d_view_counts counts = { 0 };
+	voe_render_picture none;
+	voe_render_picture seen;
+
+	add_a_water(behind,
+		    (voe_scene_transform){ .position = { 0.0, 10.0, 0.0 },
+					   .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+					   .scale = { 1.0f, 1.0f, 1.0f } },
+		    4.0f, 4.0f);
+	add_a_water(wide,
+		    (voe_scene_transform){
+			    .position = { 0.0, 5.0, 0.0 },
+			    .rotation = { 0.76604444f, 0.0f, 0.0f, 0.64278761f },
+			    .scale = { 1.0f, 1.0f, 1.0f } },
+		    4.0f, 20.0f);
+	none = a_frame(dry, device, arena, models, &dry_drawn, &cast, &dry_counts);
+	seen = a_frame(behind, device, arena, models, &drawn, &cast, &counts);
+	VOE_TEST_CHECK_INT(drawn, dry_drawn);
+	VOE_TEST_CHECK_INT(counts.drawn, dry_counts.drawn);
+	VOE_TEST_CHECK_INT(counts.skipped, dry_counts.skipped + 1);
+	VOE_TEST_CHECK(!differ(none, seen));
+	seen = a_frame(wide, device, arena, models, &drawn, &cast, &counts);
+	VOE_TEST_CHECK_INT(drawn, dry_drawn + 1);
+	VOE_TEST_CHECK_INT(counts.drawn, dry_counts.drawn + 1);
+	VOE_TEST_CHECK_INT(counts.skipped, dry_counts.skipped);
+	VOE_TEST_CHECK(differ(none, seen));
 }
 
 int main(void)
@@ -268,6 +329,7 @@ int main(void)
 	VOE_TEST_CHECK(voe_3d_models_load_water(models, device, &error));
 
 	water_is_drawn(arena, device, &shapes, models, empty);
+	water_behind_is_skipped(arena, device, &shapes, models);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);

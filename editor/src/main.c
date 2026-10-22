@@ -732,7 +732,7 @@ int main(int argc, char *argv[])
 			break;
 		}
 		// Once a frame, after it ends, with the frame's seconds.
-		voe_editor_frame_breakdown_take(&breakdown, gpu,
+		voe_editor_frame_breakdown_take(&breakdown, gpu, &views,
 						(float)opened.tick.step);
 		voe_editor_frame_hitches_end(&hitches, gpu, opened.waited);
 		if (!start_logged) {

@@ -7,6 +7,9 @@ again, or to find where a claim that has started failing is written down.
 - `projection.c` — reversed depth in the lens and the box, the aspect ratio, that nothing in the
   projection flips Y, and the view of a pose and a lens, a flattened pose seeing
   nothing. Needs no graphics card.
+- `cull.c` — that a camera sees a sphere ahead, not behind or past far, and one reaching in at its
+  left edge; that a cascade open on its sun side keeps one toward the sun and drops one aside; and
+  a scaled sphere's radius. Needs no graphics card.
 - `shadow_cascades.c` — that the splits rise to the reach, each slice lies in
   its cascade's box, and a moved and turned eye moves the map by whole texels,
   near the origin and 100 km out. Needs no graphics card.
@@ -28,6 +31,9 @@ again, or to find where a claim that has started failing is written down.
 - `model_data.inc` — that hand-built `.glb`, as bytes.
 - `draw_system.c` — that a hidden entity is exactly the one not drawn, a camera scaled to nothing
   frames blind, the eye lags the last step and a red shape reads red. Skips without a graphics card.
+- `view_culling.c` — that of three cubes ahead, behind and aside only the one ahead draws and
+  shows, one straddling the picture's edge draws, and a model row behind is skipped, by _run's
+  counts. Skips without a graphics card.
 - `draw_material.c` — that a cube wears an unlit material's colour, a model's part wears what its
   parts set names, and a double-sided material draws both sides. Skips without a graphics card.
 - `draw_gizmo.c` — that a gizmo's arrows and rings show through the cube it stands in. Skips
@@ -35,22 +41,25 @@ again, or to find where a claim that has started failing is written down.
 - `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
   and a zeroed marker none, and that a ray picks each sun. Skips without a graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
-  none with no store, and that a glowing one is unlit. Skips without a graphics card.
-- `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
-  and 1.3 differ, a store without the record draws none, and the shadow passes draw the same with
-  or without it. Skips without a graphics card.
+  none with no store, a glowing one is unlit, and one behind the camera holds none, five skipped.
+  Skips without a graphics card.
+- `draw_water.c` — that a 4 × 4 water over a ground cube changes the centre, clocks 0 and 1.3
+  differ, a store without the record draws none, it casts nothing, one above the camera is
+  skipped, and a wide one with only its edge ahead draws. Skips without a graphics card.
 - `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
   and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
 - `draw_levels.c` — that a levelled sphere 400 m away draws under a quarter of the triangles it
   draws 3 m away, one loaded without levels draws whole, and in level 1's band it dissolves into
   level 0 unless fading. Skips without a graphics card.
 - `draw_foliage.c` — that a landscape's copies of a model gather into groups summing to three per
-  opaque part, none without the row, kind or room, and that their shadow shows and three draw as
-  many draws as one. Skips without a card.
+  opaque part, none without the row, kind or room, that their shadow shows and three draw as
+  many draws as one, and that copies behind the camera count skipped yet still shadow. Skips
+  without one.
 - `draw_switched_off.c` — that a sphere on a child draws as no model row does when the child or
   its parent is off, and whole again when both are back on. Skips without a graphics card.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up draws its far ridge and ground
-  within the node budgets, and a painted one draws its layers. Skips without a graphics card.
+  within the node budgets, every node skipped looking up from 1 km, looking down the unculled
+  picture, both counts level, and a painted one draws its layers. Skips without a graphics card.
 - `terrain_shadow.c` — that a 512 m landscape's 40 m ridge, under a low sun behind it, darkens
   the ground behind it and not the ground in front, in one frame, its nodes drawn into each
   cascade. Skips without a graphics card.
@@ -67,6 +76,9 @@ again, or to find where a claim that has started failing is written down.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
+- `shadow_culling.c` — that a tall box behind the camera, and one beside the picture, still shadow
+  the floor in it under a low sun, and one 2 km aside is skipped by the cascades, the picture
+  unchanged. Skips without a graphics card.
 - `shadow_times.c` — that the shadows call times nothing without a clock, and with one times the
   casters and no bounce, or a bouncing sun's one bounce call by its parts within it. Skips without
   a graphics card.

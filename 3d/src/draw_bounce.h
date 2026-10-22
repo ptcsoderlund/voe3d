@@ -25,6 +25,8 @@
 // box (0332 point 1), so a camera that moves never moves it.
 #pragma once
 
+#include "cull.h"
+
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <ecs/world.h>
@@ -46,11 +48,18 @@ bool voe_3d_draw_casts(const voe_3d_material *material);
 // caster draws at most `landscape_nodes` nodes, the cast's capacity (0397).
 // With `coarsest` false each model row draws at the level the frame's camera
 // chooses for it, with true at its last: the bounce passes true, so the camera
-// never changes the bounce (0331, 0425 point 5). False when render refuses a
-// draw. draw_shadows.c.
+// never changes the bounce (0331, 0425 point 5). After `within`, a mesh or
+// model caster whose sphere (voe_3d_bounce_caster_sphere at the lag, about the
+// eye) `cull` cannot see is skipped, a landscape's nodes culled one by one,
+// each thing counted into `counts`' `cast` or `cast_skipped` (0464 point 3).
+// A cascade passes its cull and the frame's counts; the point-shadow pass and
+// the bounce pass NULL, NULL, drawing every caster and counting none. False
+// when render refuses a draw. draw_shadows.c.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame, uint32_t within,
-			 uint32_t landscape_nodes, bool coarsest);
+			 uint32_t landscape_nodes, bool coarsest,
+			 const struct voe_3d_cull *cull,
+			 voe_3d_view_counts *counts);
 
 // Whether light row `light`, in table order, casts (0324 point 4); false past
 // the count and for a row whose owner is off, so no cascade is drawn for it

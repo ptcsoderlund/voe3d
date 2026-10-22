@@ -9,16 +9,19 @@
 //             break;
 //     if (!frame.minimised &&
 //         !voe_game_frame(app, world, &shapes, models, scratch, frame.size, lag,
-//                         casters, voe_game_interface_context(interface)))
+//                         casters, voe_game_interface_context(interface),
+//                         NULL))
 //             ...                        // the device stopped answering
 //
 // THE ORDER: the world step — the structural queue applied, the project's
 // replaces (game/project.h), the transform, identity, light, sky, haze,
 // picture and light blocker systems, the shape system, the model system, the collider and body systems, then the
 // sound system with no mixer, which applies edits and plays nothing — then a draw opened, the
-// foliage gathered (voe_3d_draw_system_foliage, 0442), the light blockers (voe_3d_draw_system_light_blockers, 0347; nothing is drawn
+// light blockers (voe_3d_draw_system_light_blockers, 0347; nothing is drawn
 // for them), the point lights with their shadow slots (voe_3d_draw_system_point_lights, 0320,
-// 0325), the lights after the first (voe_3d_draw_system_lights, 0357), each
+// 0325), the lights after the first (voe_3d_draw_system_lights, 0357), the
+// foliage gathered after them so it knows every sun (voe_3d_draw_system_foliage,
+// 0442, 0464 point 4), each
 // casting light's shadow passes and the lamps' one (voe_3d_draw_system_shadows,
 // 0258, 0325), one pass onto the window with voe_3d_draw_system_camera's
 // camera, lights, shadows, point lights and blockers, the draw
@@ -130,7 +133,12 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes);
 // its model rows from `models` (NULL for none), its bounce remembering its
 // casters in `casters`, the caller's one for this window (NULL for none: a
 // removed caster then marks nothing),
-// then `ui`'s element records over it; NULL, or no records, draws none. True when the frame was
+// then `ui`'s element records over it; NULL, or no records, draws none.
+// `counts`, NULL for none, is given what the view and its shadows drew and
+// skipped (voe_3d_draw_system_run, 0464 point 5), written only when the world
+// is drawn: a frame with nothing to draw into, or a refused pass, leaves it as
+// it was.
+// True when the frame was
 // drawn or there was nothing to draw into; false when the device refused the
 // draw, the pass or the present, with render's line on stderr — the program
 // should stop.
@@ -140,4 +148,5 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes);
 				  voe_base_arena *scratch,
 				  voe_platform_size size, float lag,
 				  voe_3d_bounce_casters *casters,
-				  const voe_ui_context *ui);
+				  const voe_ui_context *ui,
+				  voe_3d_view_counts *counts);

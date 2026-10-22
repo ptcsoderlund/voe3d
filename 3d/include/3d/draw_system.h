@@ -39,9 +39,10 @@
 // and has to be in the mesh table before this walk; a draw system that opened
 // and closed the frame itself left no moment for that.
 //
-// ONE DRAW PER MESH, FROM THE CPU. No indirect command buffer, no culling and no
-// extract step into a second layout; the data is already in the shape those
-// would need — geometry in shared pools, one record per object, textures by id.
+// ONE DRAW PER MESH, FROM THE CPU, OF WHAT THE VIEW CAN SEE. No indirect command
+// buffer and no extract step into a second layout; the data is already in the
+// shape those would need. A thing whose world sphere the view cannot see is
+// skipped and counted (0464); panels, marks, the outline and the gizmo never are.
 // Two exceptions: a panel is one draw however many rectangles are on it, and
 // foliage is one instanced draw per group of copies (0442 point 5), gathered
 // once a frame by voe_3d_draw_system_foliage before the passes.
@@ -267,11 +268,22 @@ typedef struct {
 // program gives its device as `instances`.
 #define VOE_3D_FOLIAGE_INSTANCES (1u << 17)
 // Groups one frame's view gathers at most, which a program adds to its objects
-// for each pass drawing foliage: each group is one instanced draw.
-#define VOE_3D_FOLIAGE_GROUPS 256
+// for each pass drawing foliage: each group is one instanced draw. Three tiers
+// of 256 (0464 point 4), a group being of one tier.
+#define VOE_3D_FOLIAGE_GROUPS 768
+
+// Which passes draw a foliage copy (0464 point 4), sorted once a view: seen by
+// the camera; else cast, inside a cascade of a casting sun; else unseen. The
+// camera draws the seen, the cascades the seen and cast, the bounce sun maps
+// all three.
+typedef enum {
+	VOE_3D_FOLIAGE_SEEN,
+	VOE_3D_FOLIAGE_CAST,
+	VOE_3D_FOLIAGE_UNSEEN,
+} voe_3d_foliage_tier;
 
 // One group of foliage copies (0442 point 5): every copy of one kind at one
-// level, wearing one part, drawn by one instanced draw.
+// level, wearing one part, of one tier, drawn by one instanced draw.
 typedef struct {
 	// The part's range at the group's level.
 	voe_render_geometry geometry;
@@ -281,6 +293,8 @@ typedef struct {
 	uint32_t first, count;
 	// A band's level-before copies, dithered the other way (0432 point 3).
 	bool rest;
+	// Which passes draw it (0464 point 4).
+	voe_3d_foliage_tier tier;
 } voe_3d_foliage_group;
 
 // Seconds the shadows call spent on each of its parts, summed over the calls
@@ -312,6 +326,17 @@ typedef struct {
 	// The bounce calls made with a clock.
 	uint32_t bounced;
 } voe_3d_shadow_times;
+
+// What a view drew and skipped (0464 point 5). A thing is a mesh row, a model
+// row, a landscape node, a foliage copy (a band's `rest` copies not counted), a
+// particle or a water; panels, marks, the outline and the gizmo are none.
+typedef struct {
+	// The camera pass's things drawn, a held one among them, and skipped.
+	uint32_t drawn, skipped;
+	// The cascades' things drawn and skipped, summed over every cascade of
+	// every light.
+	uint32_t cast, cast_skipped;
+} voe_3d_view_counts;
 
 // What one frame is drawn with, in the shape `render` takes it: the camera and
 // the sun. Computed once by voe_3d_draw_system_frame, handed to
@@ -483,6 +508,11 @@ typedef struct {
 	// What each part of the shadows call took, by `clock`; only the
 	// shadows call writes it, adding to what is there. _frame zeroes it.
 	voe_3d_shadow_times shadow_times;
+	// What the view drew and skipped (0464 point 5). _frame zeroes it; the
+	// foliage gather and the shadows call add their part, the caller hands
+	// it on to _run as it does `foliage`, and _run returns it with the
+	// camera pass's own things added.
+	voe_3d_view_counts counts;
 } voe_3d_frame;
 
 // The share of D, the 17th casting lamp's distance, where a point light's
@@ -673,8 +703,18 @@ voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world);
 // per opaque or cut-out part that level has: the top three rows of its matrix
 // about the eye, dithered as a dissolving model row is. Under a whole share it
 // is also one instance of each such part of the level before, with the other
-// dither, in a `rest` group. A group is one (kind, level, part, rest), shared
-// by every row naming that file.
+// dither, in a `rest` group. A group is one (kind, level, part, rest, tier),
+// shared by every row naming that file.
+//
+// EACH COPY IS SORTED INTO A TIER (0464 point 4). It runs after
+// voe_3d_draw_system_lights, so it knows every sun. A copy's sphere is its
+// kind's entry `centre` and `radius` under the copy's world matrix about the
+// eye. Seen when the view's six planes see it; else cast when a cascade of a
+// casting sun of the frame sees it with its sun side open, the cascades fitted
+// as voe_3d_draw_system_shadows fits them, a casting sun being `frame->light`
+// and each of `more_lights` shaded, of some strength and whose light row casts;
+// else unseen. `frame->counts` gains each copy not `rest`: seen as `drawn`,
+// cast or unseen as `skipped`.
 //
 // Instances are counted per group, then filled contiguously and written with
 // one voe_render_frame_instances. False with none when render refuses the room
@@ -712,9 +752,15 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // solid, and panels and marks cast nothing. A model part in `frame->models` casts under the same rule, its
 // material the part's. A mesh whose shape, or a model whose row, has
 // `cast_shadows` false is no caster, though still drawn and shadowed; nor is a
-// model row with `fade` at or above 1, and a fading one casts as ever (0336). The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
-// passes and 4 × the drawn objects more per casting light per view: every
-// caster is drawn once into each of its cascades.
+// model row with `fade` at or above 1, and a fading one casts as ever (0336).
+// A CASTER IS DRAWN INTO A CASCADE ONLY WHEN ITS SPHERE IS INSIDE THE
+// CASCADE'S SIDES AND FAR PLANE (0464 point 3); the sun side is open, so what
+// stands behind the camera or beside the picture still shadows it. Each mesh
+// or model row, and each landscape node, is counted into `frame->counts`'
+// `cast` or `cast_skipped`, summed over every cascade of every light. The
+// device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4 passes and
+// 4 × the drawn objects more per casting light per view, unchanged as a
+// ceiling: every caster may be drawn once into each of its cascades.
 //
 // THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun cast: when
 // voe_render_point_shadows_ready and a light in `frame->points` has a slot, it
@@ -906,8 +952,20 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // not call _end. Calling this with no pass open is the caller's bug and asserts,
 // the same rule render applies to a draw outside a pass.
 //
+// WHAT THE CAMERA CANNOT SEE IS SKIPPED AND COUNTED (0464 points 2 and 5). A
+// mesh row whose geometry box (voe_render_geometry_box), as its centre and half
+// diagonal under the row's object matrix about the eye at the lag, lies wholly
+// outside one of `frame.view`'s six planes is neither drawn nor held; so is a
+// model row whose entry's `centre` and `radius` under its world matrix do. A
+// mesh whose id has no box is seen. Panels, marks, the outline and the gizmo
+// are never culled and never counted.
+//
+// IT RETURNS `frame.counts` WITH ITS OWN THINGS ADDED: each mesh or model row
+// drawn or held one `drawn`, each skipped one `skipped`; a blind frame returns
+// `frame.counts` as it came. A caller ignoring it draws the same.
+//
 // NOTHING IN HERE FAILS IN A WAY THE LOOP SHOULD STOP FOR, WHICH IS WHY IT
-// RETURNS NOTHING. A draw the device refuses — more objects than it was made
+// RETURNS NO VERDICT. A draw the device refuses — more objects than it was made
 // for, an id naming nothing — stops its group, says so on stderr and leaves the
 // frame to be ended and presented as usual; the device having stopped answering
 // is _begin's and _end's to report, and both return false when it has.
@@ -923,5 +981,7 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // it takes is bounded by the number of drawables in the world, each loaded part
 // of each model row, VOE_3D_LANDSCAPE_NODES per landscape row, each live particle and each water counted as one — three groups' worth of it, because which group a drawable is in is not known until the walks
 // have finished and each of them therefore has room for all of them.
-void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
-			    voe_base_arena *arena, voe_3d_frame frame);
+voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
+					  voe_render_device *device,
+					  voe_base_arena *arena,
+					  voe_3d_frame frame);

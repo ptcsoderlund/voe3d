@@ -116,15 +116,34 @@ static voe_render_object object_of(const voe_3d_frame *frame,
 	return object;
 }
 
+// Whether `cull` sees the particle drawn with `world`: its centre the matrix's
+// place about the eye, its radius half the quad's diagonal under the matrix's
+// scale, which is the size; NULL sees everything.
+static bool particle_seen(const struct voe_3d_cull *cull,
+			  voe_math_float4x4 world)
+{
+	VOE_BASE_ASSERT(world.m[3][3] == 1.0f, "a particle's matrix not affine");
+	if (cull == NULL)
+		return true;
+	return voe_3d_cull_sees(
+		cull,
+		voe_math_float4x4_transform_point(world, (voe_math_float3){ 0 }),
+		voe_3d_cull_radius(world, 0.70710678f));
+}
+
 void voe_3d_draw_particles_hold(const voe_ecs_world *world,
 				const voe_3d_frame *frame,
-				struct voe_3d_draw_group *world_blended)
+				struct voe_3d_draw_group *world_blended,
+				const struct voe_3d_cull *cull,
+				voe_3d_view_counts *counts)
 {
 	const voe_3d_particles *rows;
 	const voe_ecs_entity *owners;
 
 	VOE_BASE_ASSERT(world != NULL && frame != NULL && world_blended != NULL,
 			"drawing particles with no world, frame or group");
+	VOE_BASE_ASSERT(counts != NULL,
+			"drawing particles with nothing to count in");
 	if (frame->models == NULL || !has_particles(world))
 		return;
 	rows = voe_3d_particles_rows(world);
@@ -153,6 +172,11 @@ void voe_3d_draw_particles_hold(const voe_ecs_world *world,
 							      &rows[row].particles[i]) },
 			};
 
+			if (!particle_seen(cull, entry.mesh.object.world)) {
+				counts->skipped++;
+				continue;
+			}
+			counts->drawn++;
 			voe_3d_draw_group_hold(world_blended, entry,
 					       entry.mesh.object.world,
 					       frame->view.view);

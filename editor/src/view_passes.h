@@ -219,6 +219,9 @@
 // Adds to `watch` the seconds its voe_3d_draw_system_shadows call took and
 // that call's parts, timed by the platform clock it is handed, and its
 // voe_3d_draw_system_foliage call's seconds to `gather` (frame_hitches.h).
+// That gather follows the lights, so it knows every sun (0464 point 4). Sets
+// `views`' `picture_count` to nought, then records the preview's counts in
+// `pictures` when it draws (0465 point 1).
 [[nodiscard]] bool voe_editor_view_passes_preview(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
 	voe_editor_views *views, voe_render_light light,
@@ -228,13 +231,17 @@
 // Draws every view `root`'s tree shows, in order, models and the selected model's
 // outline through `models` (NULL for none), and returns false at the first
 // pass the device refuses. Called inside an open draw, never inside a pass.
-// `views` is written only by 3d, into each view's remembered casters (0394).
+// `views` is written by 3d into each view's remembered casters (0394), and
+// here only in its pictures' counts.
 // A REFUSED PASS STOPS THE REST, a shadow pass as much as a view's: no later
 // view is begun and the call returns false, the caller's `drawn`, and the frame
 // is still the caller's to close. Adds to `watch` the seconds its
 // voe_3d_draw_system_shadows calls took and their parts, timed by the platform
 // clock each is handed, and its voe_3d_draw_system_foliage calls' seconds to
-// `gather`, for the hitch watch (frame_hitches.h).
+// `gather`, for the hitch watch (frame_hitches.h); each gather follows the
+// lights, so it knows every sun (0464 point 4). Records each drawn view's
+// counts, with its index, in `views`' `pictures` after the preview's; a
+// refused pass records nothing for it (0465 point 1).
 [[nodiscard]] bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
 	voe_editor_views *views, const voe_editor_dock_root *root,

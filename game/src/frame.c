@@ -1,10 +1,11 @@
-// The systems, the foliage's groups in `scratch`, rewound once the window pass
-// has drawn them, the light blockers, the point lights and the lights after the
-// first in `scratch`, rewound once the window pass has copied them, the shadow
+// The systems, the light blockers, the point lights, the lights after the first
+// and the foliage's groups in `scratch`, rewound once the window pass has drawn
+// them, the shadow
 // passes (each casting light's cascades, the frame's target left zero, the
 // window's, and the lamps'), then the bounce's capture passes, each bouncing
 // sun's map when it relights, then the relight when a light bounces, and the
-// window pass, its camera voe_3d_draw_system_camera's, with the interface over
+// window pass, its camera voe_3d_draw_system_camera's, its counts handed back,
+// with the interface over
 // the world, in the order game/include/game/frame.h gives. A refused pass, shadow or window, still
 // closes the draw, so the frame ends as render expects and the caller is told
 // once. The world step drains in order, the haze's after the sky's, the
@@ -87,7 +88,8 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 		    const voe_3d_shapes *shapes, const voe_3d_models *models,
 		    voe_base_arena *scratch,
 		    voe_platform_size size, float lag,
-		    voe_3d_bounce_casters *casters, const voe_ui_context *ui)
+		    voe_3d_bounce_casters *casters, const voe_ui_context *ui,
+		    voe_3d_view_counts *counts)
 {
 	voe_render_device *device;
 	voe_render_pass_camera camera;
@@ -115,12 +117,9 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	frame = voe_3d_draw_system_frame(world, size, lag);
 	frame.models = models;
 	frame.casters = casters;
+	// The lights and the foliage's groups stay on `scratch` until the
+	// window pass has drawn them.
 	foliage = voe_base_arena_mark(scratch);
-	// False draws no foliage, which is no failed frame. Before the shadows:
-	// each of their cascades draws the same groups (0442 point 5). They
-	// stay on `scratch` until the window pass has drawn them.
-	(void)voe_3d_draw_system_foliage(world, device, &frame, scratch);
-	mark = voe_base_arena_mark(scratch);
 	// False leaves the pass unblocked, which is no failed frame. Before
 	// the shadows: the bounce is handed the same blockers (0347 point 4).
 	(void)voe_3d_draw_system_light_blockers(world, &frame, scratch);
@@ -131,13 +130,22 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	// failed frame. After the blockers, whose masks it reads, and before
 	// the shadows, which set its lights' shadows (0357 point 1).
 	(void)voe_3d_draw_system_lights(world, &frame, scratch);
+	// False draws no foliage, which is no failed frame. After the lights,
+	// so it knows every sun (0464 point 4), and before the shadows: each
+	// of their cascades draws the same groups (0442 point 5).
+	(void)voe_3d_draw_system_foliage(world, device, &frame, scratch);
+	mark = voe_base_arena_mark(scratch);
 	shadowed = voe_3d_draw_system_shadows(world, device, &frame);
 	camera = voe_3d_draw_system_camera(&frame);
 	passed = voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 				       &camera);
 	voe_base_arena_rewind(scratch, mark);
 	if (passed) {
-		voe_3d_draw_system_run(world, device, scratch, frame);
+		const voe_3d_view_counts drawn =
+			voe_3d_draw_system_run(world, device, scratch, frame);
+
+		if (counts != NULL)
+			*counts = drawn;
 		passed = draw_interface(device, ui, size);
 		voe_render_pass_end(device);
 	}

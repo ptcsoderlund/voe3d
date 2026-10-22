@@ -5,6 +5,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
 
 - `projection.c` — the projection arithmetic, written out, because the signs are
   the whole thing, and the render view a pose and a lens become.
+- `cull.h` — a view's planes and whether a sphere about the eye is inside them, a cascade's sun
+  side open, and why a sphere and why here; internal.
+- `cull.c` — the six planes from the rows of projection × view, each normalised, the sphere's
+  test and its radius under a world matrix.
 - `shadow_cascades.c` — the splits, each slice's sphere from the inverted
   projection, and each cascade's snapped light view and box.
 - `light_box.h` — the sun's basis, the snap to whole texels in double and the
@@ -90,26 +94,28 @@ here is included from outside the folder — `include/3d/` is the whole public s
   is the whole of it.
 - `draw_system.c` — the camera's view, the first light, the first on sky, Haze and picture rows,
   the frame's pass camera, and each drawable's draw into the frame the loop opened, foliage after
-  the landscapes.
+  the landscapes, a mesh, landscape node, particle or water the camera cannot see skipped and
+  counted.
 - `draw_models.h` — the model rows' walk, its part count for the blended group's room and the
   entry and landscape test the landscape walk shares; internal.
 - `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
   the level before in its band, and blended or fading ones held, a faded-out row and a landscape
-  skipped.
-- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part and rest, and
-  the groups' solid and cast draws, one each, why rest groups do not cast, and why the bounce sun
-  maps draw them and captures and point shadows do not; internal.
-- `draw_foliage.c` — the foliage gathering: each drawn landscape row's copies given their level,
-  counted per group, filled contiguously and written as render instances in one call; then each
-  group's instanced draw.
+  skipped, and a row the camera cannot see skipped and counted.
+- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part, rest and tier,
+  and the groups' solid and cast draws by tier, why a copy is sorted once a view, why rest groups
+  do not cast, and why the bounce sun maps draw every tier; internal.
+- `draw_foliage.c` — the foliage gathering: each drawn landscape row's copies given their level
+  and tier by the camera's and the suns' cascades' planes, counted, filled contiguously and
+  written as render instances in one call; then each group's instanced draw.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
-  held blended, and why one eye chooses the same nodes in every pass; internal.
+  held blended unless the pass's cull cannot see them, and why one eye chooses the same nodes in
+  every pass and the cull comes after; internal.
 - `draw_terrain.c` — the eye taken into the grid's space, the nodes selected on scratch or, in
-  the cast, on the stack, and each node's record over the heights texture, its layers looked up
-  once per row per call.
+  the cast, on the stack, each node's record over the heights texture, its layers looked up
+  once per row per call, and its box's sphere tested and counted.
 - `draw_shadows.c` — the shadow passes as one call: each casting sun's cascades in its slot, of
-  only what its blockers hold, the point-shadow pass and the probe bounce, a landscape by the
-  view's nodes, foliage in a free sun's cascades, each part timed by the frame's clock if any.
+  what its blockers hold and its sides see, counted, the point-shadow pass and the bounce, a
+  landscape by the view's nodes, foliage in free suns' cascades, each part timed by any clock.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0, an
   off owner's and those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
@@ -120,7 +126,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the sun's mask, and light rows 2 to 4 each masked at its place.
 - `draw_bounce.h` — the frame's probe bounce with foliage in free suns' maps, its stale and
   removed casters' spheres, the caster walk and measure bounce_casters.c shares, the still casters'
-  box, and the cascades' caster walk, casting test and clock helpers; internal.
+  box, and the cascades' culled caster walk, casting test and clock helpers; internal.
 - `bounce_casters.c` — a removed caster's sphere where the target's memory saw it last, then the
   memory refilled with this frame's casters.
 - `draw_bounce.c` — the frame's probe bounce, when a light bounces: the volumes fitted to the
@@ -134,13 +140,14 @@ here is included from outside the folder — `include/3d/` is the whole public s
   store, for its record; internal.
 - `draw_material.c` — the empty path refused, then the store's linear find.
 - `draw_particles.h` — every live particle as one blended world draw, counted for the group's room
-  and held in it; internal.
+  and held in it unless the camera cannot see it; internal.
 - `draw_particles.c` — the emitter's picture from the frame's store, the camera-facing matrix
-  about the eye, and size, colour and alpha lerped at age over life.
+  about the eye, size, colour and alpha lerped at age over life, and the quad's sphere tested.
 - `draw_water.h` — every water as one blended world draw, counted for the group's room and held
-  in it, why the quad is turned and why it casts no shadow; internal.
-- `draw_water.c` — the eye-relative matrix times the turned, scaled quad, and the row's colour,
-  waves at its clock and sky in the object record.
+  in it unless the camera cannot see it, why the quad is turned, why its sphere holds the wave
+  height and why it casts no shadow; internal.
+- `draw_water.c` — the eye-relative matrix times the turned, scaled quad, the row's colour,
+  waves at its clock and sky in the object record, and the quad's sphere tested.
 - `draw_marks.h` — the editor's marks over the world, bare places', the brush's and every
   blocker's among them, and why each has its own depth; internal.
 - `draw_marks.c` — the camera's marker, every sun's, lamp's and bare place's, the brush's rings on

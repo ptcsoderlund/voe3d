@@ -28,6 +28,10 @@
 // Their foliage follows, draw_foliage.c's groups solid in the world layer.
 // A mesh or model part whose worn material is double-sided is drawn two-sided,
 // solid or held, through draw_group.c's mesh draw (0421 point 2).
+// A mesh or model row, landscape node, particle or water whose world sphere the
+// camera's planes (cull.h) cannot see is skipped and counted, and _run returns
+// the counts (0464).
+#include "cull.h"
 #include "draw_foliage.h"
 #include "draw_group.h"
 #include "draw_marks.h"
@@ -311,6 +315,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	// Nothing timed unless the caller hands a clock (0461 point 2).
 	frame.clock = NULL;
 	frame.shadow_times = (voe_3d_shadow_times){ 0 };
+	// Nothing counted until a pass adds its things (0464 point 5).
+	frame.counts = (voe_3d_view_counts){ 0 };
 
 	return frame;
 }
@@ -364,10 +370,13 @@ static bool range_is_this_frame_s(voe_3d_panel panel, uint32_t submitted)
 // `world_blended`, the rest drawn solid inside one "terrain" span, opened at
 // the first solid row so a frame of none times nothing (0388). Rows past
 // VOE_3D_LANDSCAPES_DRAWN are not drawn, said once on stderr; a refused draw
-// stops this walk only. The nodes are on `arena`, given back by _run's rewind.
+// stops this walk only. The nodes are on `arena`, given back by _run's rewind;
+// those `cull` cannot see are skipped and counted into `counts` (0464).
 static void draw_landscapes(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, const voe_3d_frame *frame,
-			    struct voe_3d_draw_group *world_blended)
+			    struct voe_3d_draw_group *world_blended,
+			    const struct voe_3d_cull *cull,
+			    voe_3d_view_counts *counts)
 {
 	static bool told;
 	const voe_ecs_entity *owners;
@@ -408,17 +417,41 @@ static void draw_landscapes(voe_ecs_world *world, voe_render_device *device,
 						  voe_3d_normal_matrix(place), arena);
 		if (fade > 0.0f && fade < 1.0f) {
 			voe_3d_draw_terrain_hold(world_blended, &nodes, fade,
-						 frame->view.view);
+						 frame->view.view, cull, counts);
 			continue;
 		}
 		if (!timing)
 			voe_render_frame_span_begin(device, "terrain");
 		timing = true;
-		if (!voe_3d_draw_terrain_solid(device, &nodes))
+		if (!voe_3d_draw_terrain_solid(device, &nodes, cull, counts))
 			break;
 	}
 	if (timing)
 		voe_render_frame_span_end(device);
+}
+
+// Whether `cull` sees `geometry`'s box, as its centre and half diagonal, under
+// `place` about the eye (0464 point 2). An id with no box is seen, so render
+// refuses its draw as ever.
+static bool mesh_seen(const struct voe_3d_cull *cull,
+		      const voe_render_device *device,
+		      voe_render_geometry geometry, voe_math_float4x4 place)
+{
+	voe_math_float3 low;
+	voe_math_float3 high;
+
+	VOE_BASE_ASSERT(cull != NULL && device != NULL,
+			"culling a mesh with no planes or device");
+	if (!voe_render_geometry_box(device, geometry, &low, &high))
+		return true;
+	return voe_3d_cull_sees(
+		cull,
+		voe_math_float4x4_transform_point(
+			place, voe_math_float3_scale(
+				       voe_math_float3_add(low, high), 0.5f)),
+		voe_3d_cull_radius(place, 0.5f * voe_math_float3_length(
+						      voe_math_float3_sub(high,
+									  low))));
 }
 
 // THE MESHES FIRST AND THEN THE PANELS, AND THE ORDER OF THE TWO WALKS DECIDES
@@ -466,10 +499,16 @@ static void draw_landscapes(voe_ecs_world *world, voe_render_device *device,
 // line on stderr rather than a black window — which is also why this returns
 // nothing: there is no answer here the loop should act on. The alternative —
 // abandoning the recording — would leave the slot's fence unsignalled.
-void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
-			    voe_base_arena *arena, voe_3d_frame frame)
+voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
+					  voe_render_device *device,
+					  voe_base_arena *arena,
+					  voe_3d_frame frame)
 {
 	voe_render_view view = frame.view;
+	// The camera's six planes, built once the frame is known to see, and
+	// what it adds to the frame's counts (0464 points 2 and 5).
+	struct voe_3d_cull cull;
+	voe_3d_view_counts counts = frame.counts;
 	const voe_3d_mesh *meshes;
 	const voe_ecs_entity *owners;
 	uint32_t count;
@@ -507,8 +546,9 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			      "drawing the world with no pass open — the loop calls voe_render_pass_begin with the frame's camera first; see 3d/draw_system.h");
 	// A camera that sees nothing draws no world (3d/draw_system.h, `blind`).
 	if (frame.blind)
-		return;
+		return counts;
 
+	cull = voe_3d_cull_of(view, false);
 	has_shapes = voe_3d_draw_group_shape_type(world, &shapes);
 	meshes = voe_3d_mesh_rows(world);
 	owners = voe_3d_mesh_entities(world);
@@ -560,6 +600,14 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 			continue;
 		// Where it was `lag` of a step ago (0254).
 		drawn = voe_scene_transform_between(world, owners[row], frame.lag);
+		// Neither drawn nor held when the camera cannot see its sphere,
+		// tested before the record is built (0464 point 2).
+		if (!mesh_seen(&cull, device, meshes[row].geometry,
+			       voe_scene_transform_matrix(drawn, frame.eye))) {
+			counts.skipped++;
+			continue;
+		}
+		counts.drawn++;
 
 		// Two-sided when the material it wears is (0421 point 2).
 		entry = voe_3d_draw_group_mesh_of(
@@ -595,15 +643,18 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 
 	// The model rows' parts, world layer only (0277 point 3); a refused
 	// draw stops this walk and not the frame.
-	(void)voe_3d_draw_models(world, device, &frame, &world_blended);
+	(void)voe_3d_draw_models(world, device, &frame, &world_blended, &cull,
+				 &counts);
 	// The landscape rows' nodes, inside the "terrain" span (0396, 0388).
-	draw_landscapes(world, device, arena, &frame, &world_blended);
+	draw_landscapes(world, device, arena, &frame, &world_blended, &cull,
+			&counts);
 	// Their foliage, one instanced draw a group in the "foliage" span (0442).
 	(void)voe_3d_draw_foliage_solid(device, &frame);
 	// Every live particle, held blended in the world (0298 point 6).
-	voe_3d_draw_particles_hold(world, &frame, &world_blended);
+	voe_3d_draw_particles_hold(world, &frame, &world_blended, &cull, &counts);
 	// Every water, held blended in the world (0305 point 7).
-	waters = voe_3d_draw_water_hold(world, &frame, &world_blended);
+	waters = voe_3d_draw_water_hold(world, &frame, &world_blended, &cull,
+					&counts);
 
 	// THE SECOND TABLE, AND EVERY ROW IN IT IS HELD BACK. A panel is drawn
 	// by the element pipeline, which is blended, tests depth and writes
@@ -704,4 +755,5 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	// Everything above is this frame's, and the caller's arena is handed
 	// back exactly as it arrived. Ending the frame is the loop's.
 	voe_base_arena_rewind(arena, mark);
+	return counts;
 }

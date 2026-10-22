@@ -1,7 +1,8 @@
 // Each live particle is drawn (ADR-0298 point 6): an emitter of burst 5, run
 // once through the emitter system with the soft dot loaded, is five more draws
 // than the same world without it; with no store it is none; and a glowing one
-// draws with part 1's shading, the unlit glow.
+// draws with part 1's shading, the unlit glow. An emitter behind the camera
+// holds none of its particles, each counted skipped (ADR-0464).
 //
 // DRAWS ARE COUNTED AS 3d/tests/draw_system.c COUNTS THEM: every draw is one
 // command, and voe_render_frame_draw_count is what a frame issued. The worlds
@@ -87,9 +88,11 @@ static voe_ecs_world *a_world(voe_base_arena *arena, bool emitters)
 	return world;
 }
 
-// An emitter three metres in front of the camera, stopped, bursting `burst`
-// still, white, opaque particles a metre across, run once so they are live.
-static void add_an_emitter(voe_ecs_world *world, uint32_t burst, float glow)
+// An emitter three metres from the camera, in front of it or with `behind`
+// behind it, stopped, bursting `burst` still, white, opaque particles a metre
+// across, run once so they are live.
+static void add_an_emitter(voe_ecs_world *world, uint32_t burst, float glow,
+			   bool behind)
 {
 	voe_ecs_entity entity = { 0 };
 	voe_3d_emitter emitter = {
@@ -108,7 +111,8 @@ static void add_an_emitter(voe_ecs_world *world, uint32_t burst, float glow)
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, entity,
-		(voe_scene_transform){ .position = { 0.0, 0.0, -3.0 },
+		(voe_scene_transform){ .position = { 0.0, 0.0,
+						     behind ? 3.0 : -3.0 },
 				       .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
 				       .scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_3d_emitter_add(world, entity, emitter));
@@ -119,12 +123,13 @@ static void add_an_emitter(voe_ecs_world *world, uint32_t burst, float glow)
 	VOE_TEST_CHECK_INT(voe_3d_particles_get(world, entity)->count, burst);
 }
 
-// One frame of `world` drawn from `models`: how many commands it issued, and its
-// picture in `picture` when that is not NULL.
+// One frame of `world` drawn from `models`: how many commands it issued, its
+// picture in `picture` and _run's counts in `counts` when each is not NULL.
 static uint32_t a_frame(voe_ecs_world *world, voe_render_device *device,
 			voe_base_arena *arena, const voe_3d_models *models,
-			voe_render_picture *picture)
+			voe_render_picture *picture, voe_3d_view_counts *counts)
 {
+	voe_3d_view_counts counted;
 	voe_platform_size size = { SIDE, SIDE };
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_render_pass_camera camera = { .view = frame.view,
@@ -140,7 +145,9 @@ static uint32_t a_frame(voe_ecs_world *world, voe_render_device *device,
 		return 0;
 	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 					     &camera));
-	voe_3d_draw_system_run(world, device, arena, frame);
+	counted = voe_3d_draw_system_run(world, device, arena, frame);
+	if (counts != NULL)
+		*counts = counted;
 	drawn = voe_render_frame_draw_count(device);
 	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
@@ -159,11 +166,36 @@ static void each_live_particle_is_one_draw(voe_base_arena *arena,
 {
 	voe_ecs_world *without = a_world(arena, false);
 	voe_ecs_world *with = a_world(arena, true);
-	uint32_t base = a_frame(without, device, arena, models, NULL);
+	uint32_t base = a_frame(without, device, arena, models, NULL, NULL);
 
-	add_an_emitter(with, 5, 0.0f);
-	VOE_TEST_CHECK_INT(a_frame(with, device, arena, models, NULL), base + 5);
-	VOE_TEST_CHECK_INT(a_frame(with, device, arena, NULL, NULL), base);
+	add_an_emitter(with, 5, 0.0f, false);
+	VOE_TEST_CHECK_INT(a_frame(with, device, arena, models, NULL, NULL),
+			   base + 5);
+	VOE_TEST_CHECK_INT(a_frame(with, device, arena, NULL, NULL, NULL), base);
+}
+
+// An emitter behind the camera holds none of its five live particles, each
+// counted skipped; one ahead draws its five, each counted drawn (0464).
+static void one_behind_is_skipped(voe_base_arena *arena,
+				  voe_render_device *device,
+				  const voe_3d_models *models)
+{
+	voe_ecs_world *empty = a_world(arena, true);
+	voe_ecs_world *behind = a_world(arena, true);
+	voe_ecs_world *ahead = a_world(arena, true);
+	voe_3d_view_counts counts = { 0 };
+	uint32_t base = a_frame(empty, device, arena, models, NULL, NULL);
+
+	add_an_emitter(behind, 5, 0.0f, true);
+	add_an_emitter(ahead, 5, 0.0f, false);
+	VOE_TEST_CHECK_INT(a_frame(behind, device, arena, models, NULL, &counts),
+			   base);
+	VOE_TEST_CHECK_INT(counts.drawn, 0);
+	VOE_TEST_CHECK_INT(counts.skipped, 5);
+	VOE_TEST_CHECK_INT(a_frame(ahead, device, arena, models, NULL, &counts),
+			   base + 5);
+	VOE_TEST_CHECK_INT(counts.drawn, 5);
+	VOE_TEST_CHECK_INT(counts.skipped, 0);
 }
 
 // The red channel of the picture's centre pixel.
@@ -189,11 +221,12 @@ static void a_glowing_one_is_unlit(voe_base_arena *arena,
 	uint8_t dark;
 	uint8_t bright;
 
-	add_an_emitter(lit, 1, 0.0f);
-	add_an_emitter(glowing, 1, 1.0f);
-	VOE_TEST_CHECK_INT(a_frame(lit, device, arena, models, &picture), 1);
+	add_an_emitter(lit, 1, 0.0f, false);
+	add_an_emitter(glowing, 1, 1.0f, false);
+	VOE_TEST_CHECK_INT(a_frame(lit, device, arena, models, &picture, NULL), 1);
 	dark = centre_red(picture);
-	VOE_TEST_CHECK_INT(a_frame(glowing, device, arena, models, &picture), 1);
+	VOE_TEST_CHECK_INT(
+		a_frame(glowing, device, arena, models, &picture, NULL), 1);
 	bright = centre_red(picture);
 	VOE_TEST_CHECK(bright > 200);
 	VOE_TEST_CHECK(dark < bright / 2);
@@ -222,6 +255,7 @@ int main(void)
 
 	each_live_particle_is_one_draw(arena, device, models);
 	a_glowing_one_is_unlit(arena, device, models);
+	one_behind_is_skipped(arena, device, models);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
