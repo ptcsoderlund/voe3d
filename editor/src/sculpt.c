@@ -1,6 +1,7 @@
 // The brush's start, its put-down, whether a thing wears a landscape, and the
 // held drag that sculpts, paints, scatters or erases it: hover, press with its
-// heights or paint copy or changed list, stamps and the release's undo step.
+// heights or paint copy or changed list, stamps and the release's undo step;
+// and a kind's base-size edit settled each frame before the brush.
 // See the header for why the brush is never saved or undone.
 #include "sculpt.h"
 
@@ -47,8 +48,11 @@ void voe_editor_sculpt_start(voe_editor_sculpt *sculpt)
 		sculpt->brush_sliders[i] = VOE_UI_NODE_NONE;
 	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_LAYER_ROWS; i++)
 		sculpt->layer_rows[i] = VOE_UI_NODE_NONE;
+	for (uint32_t i = 0; i < VOE_ASSETS_LANDSCAPE_KINDS; i++)
+		sculpt->kind_sliders[i] = VOE_UI_NODE_NONE;
 
-	VOE_BASE_ASSERT(!sculpt->chosen, "a started brush already chosen");
+	VOE_BASE_ASSERT(!sculpt->chosen && !sculpt->sizing && !sculpt->size_asked,
+			"a started brush already chosen or sizing");
 }
 
 void voe_editor_sculpt_choose_none(voe_editor_sculpt *sculpt)
@@ -434,6 +438,71 @@ static void end(voe_editor_sculpt *sculpt, const voe_editor_models *models,
 	VOE_BASE_ASSERT(sculpt->before == NULL, "a stroke's copy kept");
 }
 
+// The open base-size edit closed: when its kind's size changed, a size stroke
+// handed to the undo line and the project marked edited.
+static void size_close(voe_editor_sculpt *sculpt,
+		       const voe_editor_models *models,
+		       struct voe_editor_undo *undo,
+		       struct voe_editor_session *session, voe_base_arena *scratch)
+{
+	const voe_assets_landscape *land = grid(models, sculpt->sizing_path);
+	const uint32_t kind = sculpt->sizing_kind;
+
+	VOE_BASE_ASSERT(sculpt->sizing, "closing no base-size edit");
+	if (land != NULL && kind < land->kind_count &&
+	    land->kind_sizes[kind] != sculpt->sizing_before) {
+		voe_editor_undo_stroke(undo, session->project, scratch,
+				       voe_editor_stroke_new_kind_size(
+					       sculpt->sizing_path, kind,
+					       sculpt->sizing_before,
+					       land->kind_sizes[kind]));
+		voe_editor_session_edited(session);
+	}
+	sculpt->sizing = false;
+	VOE_BASE_ASSERT(!sculpt->sizing, "a base-size edit left open");
+}
+
+// The Foliage read's ask settled: it opens an edit on the selection's loaded
+// landscape when none is open, another kind's edit closed first, and sets the
+// size live; with no kind slider held the open edit closes. A selection with
+// no loaded landscape, or a kind it no longer has, drops the ask.
+static void sizes_settle(voe_editor_sculpt *sculpt,
+			 const voe_editor_scene *scene,
+			 voe_editor_models *models,
+			 struct voe_editor_undo *undo,
+			 struct voe_editor_session *session,
+			 voe_base_arena *scratch)
+{
+	const char *path;
+	const voe_assets_landscape *land;
+
+	if (sculpt->size_asked && sculpt->sizing &&
+	    sculpt->size_kind != sculpt->sizing_kind)
+		size_close(sculpt, models, undo, session, scratch);
+	if (sculpt->size_asked && !sculpt->sizing) {
+		path = worn(scene, models);
+		land = path != NULL ? grid(models, path) : NULL;
+		if (land != NULL && sculpt->size_kind < land->kind_count) {
+			memcpy(sculpt->sizing_path, path, strlen(path) + 1);
+			sculpt->sizing_kind = sculpt->size_kind;
+			sculpt->sizing_before = land->kind_sizes[sculpt->size_kind];
+			sculpt->sizing = true;
+		}
+	}
+	if (sculpt->size_asked && sculpt->sizing)
+		voe_editor_models_kind_size_set(models, sculpt->sizing_path,
+						sculpt->sizing_kind,
+						sculpt->size_to);
+	if (sculpt->sizing && !sculpt->size_held)
+		size_close(sculpt, models, undo, session, scratch);
+	sculpt->size_asked = false;
+	sculpt->size_held = false;
+	VOE_BASE_ASSERT(!sculpt->sizing || sculpt->sizing_path[0] != '\0',
+			"a base-size edit with no landscape");
+}
+
+// The base-size edit is settled first, whether or not a brush is chosen: the
+// Foliage section's kind sliders are not a brush (sizes_settle).
 bool voe_editor_sculpt_read(voe_editor_sculpt *sculpt,
 			    struct voe_editor_scene *scene,
 			    const voe_editor_views *views,
@@ -451,6 +520,7 @@ bool voe_editor_sculpt_read(voe_editor_sculpt *sculpt,
 	VOE_BASE_ASSERT(models != NULL && undo != NULL && session != NULL &&
 				scratch != NULL,
 			"sculpting with no store, undo, session or scratch");
+	sizes_settle(sculpt, scene, models, undo, session, scratch);
 	sculpt->left_was = left;
 	path = sculpt->chosen ? worn(scene, models) : NULL;
 	if (path != NULL && sculpt->stroking &&

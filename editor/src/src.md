@@ -268,11 +268,11 @@ carries it out.
 - `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, and a
   rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
 - `sculpt.h` — the brush a person holds: its kind, layer, radius, strength and softness with
-  their ranges, never saved or undone, its sections' nodes, whether a thing wears a landscape, and
-  the held drag that sculpts, paints, scatters or erases as one undo step.
-- `sculpt.c` — the defaults set, the brush put down, the `.landscape` ending matched on a thing
-  not a prefab's part, the ground under the pointer, the press's heights or paint copy, the stamps
-  along the drag, scattering or erasing copies, and the release's heights, paint or foliage stroke.
+  their ranges, never saved or undone, its sections' nodes, whether a thing wears a landscape, the
+  held drag that sculpts, paints, scatters or erases as one undo step, and a kind's base-size edit.
+- `sculpt.c` — the defaults, the brush put down, the `.landscape` ending matched, the base-size
+  edit set live and closed as a stroke, the ground under the pointer, the press's copy, the stamps
+  along the drag, and the release's heights, paint or foliage stroke.
 - `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
   chosen one lit, none while painting or brushing foliage, and the Strength slider, read after the
   frame.
@@ -288,10 +288,11 @@ carries it out.
 - `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
   read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
 - `inspector_foliage.h` — the Inspector's Foliage section under Layers: Scatter and Erase, a row per
-  kind by its model's file name toggling it picked, the add row a dropped `.glb` lands on, and
-  Density, Size, Turn and Lean sliders, Radius and Softness being the Brush section's.
+  kind toggling it picked with its base-size slider, the add row a dropped `.glb` lands on, and
+  Density, Size ±%, Turn ±° and Tilt with slope % sliders.
 - `inspector_foliage.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
-  the read: a fired button chooses its kind or none, a fired row flips its pick, sliders clamped.
+  the read: a fired button chooses its kind or none, a fired row flips its pick, sliders clamped,
+  a kind slider's size asked.
 - `inspector_level.h` — the Inspector's LOD section after Brush or Foliage: per view in use, the LOD it
   draws of a loaded model, of how many, made or own, asked with the draws' own function.
 - `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,
