@@ -127,6 +127,45 @@ typedef struct {
 					 voe_assets_bytes *out,
 					 voe_base_error *error);
 
+// What a picture's texels mean, which decides how four of them become one
+// (0466 point 3): a picture any material names as its normal map is NORMAL,
+// else one named as a base colour or emission map is COLOUR, and every other
+// one, the merged ORM included, is DATA.
+typedef enum {
+	VOE_ASSETS_IMAGE_COLOUR,
+	VOE_ASSETS_IMAGE_NORMAL,
+	VOE_ASSETS_IMAGE_DATA
+} voe_assets_image_kind;
+
+// A picture no larger than `largest` on its longest side.
+//
+// THE SIZE (0453, 0466 point 1). A picture whose longest side is at most
+// `largest` is `image` itself, its pixels untouched and nothing pushed: nothing
+// is ever enlarged. Otherwise the longest side becomes `largest` exactly and the
+// other is scaled by the same factor, rounded, at least 1, and the result is a
+// new picture in `arena`.
+//
+// AN AREA AVERAGE (0466 point 2): each written texel is the mean of the source
+// texels under its footprint, an edge texel weighted by the part of it
+// covered. It is the cheapest filter that is right at any ratio and keeps the
+// picture's mean; a bilinear sample at a quarter skips three texels in four and
+// shimmers.
+//
+// EACH KIND BY ITS USE. DATA averages each channel as stored. NORMAL decodes
+// rgb to a vector (2c − 1), averages, makes it unit length again and encodes it
+// back, so bumps neither flatten nor turn to noise; its alpha is averaged
+// plainly. COLOUR averages rgb in linear light, sRGB decoded and encoded again,
+// so contrast does not darken, and weighted by alpha, so a cut-out's hidden
+// texels do not bleed into its edge (plain weights where all are transparent);
+// alpha is averaged plainly.
+//
+// The working memory is one row of floats in `arena`, given back before the
+// return, never a float copy of the picture. Row zero stays the top: no flip.
+// `largest` of 0 and NULL pixels are the caller's bug and assert (rule 13).
+voe_assets_image voe_assets_image_fit(voe_base_arena *arena,
+				      voe_assets_image image, uint32_t largest,
+				      voe_assets_image_kind kind);
+
 // Decode a baseline JPEG. False on failure, and `image` is untouched when it
 // fails.
 //
