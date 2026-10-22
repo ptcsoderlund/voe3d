@@ -1,4 +1,4 @@
-# 098 — Panels can be dragged and docked anywhere
+# 099 — Panels can be dragged and docked anywhere
 
 ## What
 Decision 0439. "I want the frame panel to be movable. I would like to be able to drag it around and place it

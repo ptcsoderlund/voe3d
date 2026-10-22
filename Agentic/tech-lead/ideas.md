@@ -31,7 +31,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   After the coin game, whose GUI is written in code (0194). The editor then sets the file format, from what
   that game actually needed.
 - **A toggle for the move and rotate gizmos** to follow the entity's own axes rather than the world's (left
-  out of 015 and 035). The scale gizmo is 097's (0438).
+  out of 015 and 035). The scale gizmo is 098's (0438, 0467).
 - **A developer picks the graphics card from code**, and a finished game lets the player pick one in its
   settings — both later, once 0201's automatic choice is in and proven.
 - **A view recorder**: something in the game that films from its own place and renders to a texture, for a
@@ -102,7 +102,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   go, never in part: a cursor moved by ←/→, Home/End and a click; Ctrl+←/→ by word; Backspace/Delete at the
   cursor; selection by Shift+keys, drag and double-click; copy, cut and paste through the system clipboard
   (Wayland's is a piece of `platform` work). Every field gets it at once: Rename, Inspector names, typed
-  numbers, hex. Waits until after 096 (was 094, 0455); amends 0192.
+  numbers, hex. Waits until after 097 (was 094, 0455, 0467); amends 0192.
 
 - **Light glows tint the haze, and fog beyond haze** (sponsor, 2026-10-13, 0411). Distance turning golden
   towards a low sun: each directional light's glow colouring the haze in its direction. Kept out of 087 so the
@@ -133,8 +133,3 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **Loading models on every core** (sponsor, 2026-10-20; was 0447, withdrawn by 0456). A worker pool splitting
   import and cooking by file, picture and part, with uploads on one thread. Only if loads are still too slow
   once the cooked copy (092) exists.
-
-- **Mesh and terrain blending, like CryEngine 5.6** (sponsor, 2026-10-22: "It looks awesome."). A model
-  placed on the terrain, a rock, a log or a wall, takes on the ground's painted layers where it meets it,
-  fading into its own material higher up, so no hard seam shows where the mesh enters the ground. Not
-  in the 0.3 queue (091–098); weigh it once the hill has rocks and buildings standing in it.
