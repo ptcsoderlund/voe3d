@@ -17,10 +17,10 @@
 // main.c calls both each frame, between opening the draw and the window pass:
 //
 //     drawn = voe_editor_view_passes_preview(gpu, arena, world, &views,
-//                                            light, &scene, models);
+//                                            light, &scene, models, &shadows);
 //     drawn = drawn && voe_editor_view_passes_draw(gpu, arena, world, &views, &root,
 //                                         light, &scene, &geometries, models,
-//                                         &shapes, palette, &gizmo, ppmm);
+//                                         &shapes, palette, &gizmo, ppmm, &shadows);
 //
 // WHAT THE DEVICE'S CAPACITIES MUST COVER is VOE_EDITOR_CAPACITIES below, kept
 // beside the passes so the next capacity a pass needs is added here. The
@@ -215,10 +215,13 @@
 // target, lit by `light`, with `models`' rows (NULL for none) and no outline,
 // gizmo or marker. False only when
 // the device refuses the pass. Called inside an open draw, never inside a pass.
+// Adds to `shadows` the seconds its voe_3d_draw_system_shadows call took, read
+// with the platform clock around it, for the hitch watch (frame_hitches.h).
 [[nodiscard]] bool voe_editor_view_passes_preview(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
 	voe_editor_views *views, voe_render_light light,
-	const voe_editor_scene *scene, const voe_3d_models *models);
+	const voe_editor_scene *scene, const voe_3d_models *models,
+	double *shadows);
 
 // Draws every view `root`'s tree shows, in order, models and the selected model's
 // outline through `models` (NULL for none), and returns false at the first
@@ -226,11 +229,13 @@
 // `views` is written only by 3d, into each view's remembered casters (0394).
 // A REFUSED PASS STOPS THE REST, a shadow pass as much as a view's: no later
 // view is begun and the call returns false, the caller's `drawn`, and the frame
-// is still the caller's to close.
+// is still the caller's to close. Adds to `shadows` the seconds its
+// voe_3d_draw_system_shadows calls took, read with the platform clock around
+// each, for the hitch watch (frame_hitches.h).
 [[nodiscard]] bool voe_editor_view_passes_draw(
 	voe_render_device *gpu, voe_base_arena *arena, voe_ecs_world *world,
 	voe_editor_views *views, const voe_editor_dock_root *root,
 	voe_render_light light, const voe_editor_scene *scene,
 	const voe_3d_shape_geometries *geometries, const voe_3d_models *models,
 	const voe_3d_shapes *shapes, const voe_ui_theme *palette, const voe_editor_gizmo *gizmo,
-	float pixels_per_millimetre);
+	float pixels_per_millimetre, double *shadows);

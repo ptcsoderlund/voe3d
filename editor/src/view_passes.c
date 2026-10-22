@@ -30,6 +30,8 @@
 
 #include <base/assert.h>
 
+#include <platform/clock.h>
+
 #include <scene/camera_component.h>
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
@@ -87,18 +89,20 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 				    voe_editor_views *views,
 				    voe_render_light light,
 				    const voe_editor_scene *scene,
-				    const voe_3d_models *models)
+				    const voe_3d_models *models,
+				    double *shadows)
 {
 	voe_3d_frame frame;
 	voe_render_pass_camera camera;
 	struct voe_base_arena_mark foliage;
 	struct voe_base_arena_mark mark;
 	bool passed;
+	double before;
 
 	VOE_BASE_ASSERT(gpu != NULL && arena != NULL && world != NULL,
 			"drawing the preview with no device, arena or world");
-	VOE_BASE_ASSERT(views != NULL && scene != NULL,
-			"drawing the preview with no views or scene");
+	VOE_BASE_ASSERT(views != NULL && scene != NULL && shadows != NULL,
+			"drawing the preview with no views, scene or shadows");
 
 	views->preview_shown = false;
 	if (voe_scene_camera_get(world, voe_editor_scene_selected(scene)) ==
@@ -131,7 +135,11 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	(void)voe_3d_draw_system_light_blockers(world, &frame, arena);
 	(void)voe_3d_draw_system_lights(world, &frame, arena);
 	(void)voe_3d_draw_system_point_lights(world, &frame, arena);
-	if (!voe_3d_draw_system_shadows(world, gpu, &frame)) {
+	// Timed apart for the hitch watch (frame_hitches.h): the bounce is in it.
+	before = voe_platform_clock_now();
+	passed = voe_3d_draw_system_shadows(world, gpu, &frame);
+	*shadows += voe_platform_clock_now() - before;
+	if (!passed) {
 		voe_base_arena_rewind(arena, foliage);
 		return false;
 	}
@@ -155,10 +163,11 @@ bool voe_editor_view_passes_draw(
 	voe_render_light light, const voe_editor_scene *scene,
 	const voe_3d_shape_geometries *geometries, const voe_3d_models *models,
 	const voe_3d_shapes *shapes, const voe_ui_theme *palette, const voe_editor_gizmo *gizmo,
-	float pixels_per_millimetre)
+	float pixels_per_millimetre, double *shadows)
 {
-	VOE_BASE_ASSERT(gpu != NULL && arena != NULL && world != NULL,
-			"drawing views with no device, arena or world");
+	VOE_BASE_ASSERT(gpu != NULL && arena != NULL && world != NULL &&
+				shadows != NULL,
+			"drawing views with no device, arena, world or shadows");
 	VOE_BASE_ASSERT(views != NULL && root != NULL && scene != NULL,
 			"drawing views with no views, root or scene");
 	VOE_BASE_ASSERT(geometries != NULL && shapes != NULL &&
@@ -217,7 +226,11 @@ bool voe_editor_view_passes_draw(
 		(void)voe_3d_draw_system_light_blockers(world, &frame, arena);
 		(void)voe_3d_draw_system_lights(world, &frame, arena);
 		(void)voe_3d_draw_system_point_lights(world, &frame, arena);
-		if (!voe_3d_draw_system_shadows(world, gpu, &frame)) {
+		// Timed apart for the hitch watch (frame_hitches.h).
+		double before = voe_platform_clock_now();
+		bool shadowed = voe_3d_draw_system_shadows(world, gpu, &frame);
+		*shadows += voe_platform_clock_now() - before;
+		if (!shadowed) {
 			voe_base_arena_rewind(arena, foliage);
 			return false;
 		}

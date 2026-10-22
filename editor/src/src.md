@@ -6,7 +6,8 @@ carries it out.
 
 - `main.c` — opens the project, window and device, starts and loads scenes on a worker behind a
   live splash, and runs the loop until a close goes ahead or the picture is written, taking the
-  frame breakdown's timings each frame and writing, saving and reverting landscapes.
+  frame breakdown's timings and marking the hitch watch's stretches each frame and writing,
+  saving and reverting landscapes.
 - `loading.h` — the start's, a New or Open load's and an import's prepare works for a splash wait:
   shaders with the editor's pipeline cache, shapes and models, the scene and its models, or an
   imported model's levels file, made again for Make LODs, and what the worker owns.
@@ -164,6 +165,10 @@ carries it out.
   with its ×, anchored at a point.
 - `frame_breakdown.c` — the quarter-second copy with the triangle and draw counts, keeping the last
   on no measurement, the panel's one frame of `ui` calls, and the read of its × afterwards.
+- `frame_hitches.h` — the editor's hitch watch: a frame's CPU stretches and its shadows timed, and
+  an `editor: hitch:` line on stderr for each frame stalled on the CPU or the card (0458).
+- `frame_hitches.c` — the stretches read off the platform clock, then app/hitches.h asked about the
+  frame and the card's lagging measurement, each hitch's line written.
 - `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock
   to open a project, save into a folder or import a model or picture, in its own arena, a showing
   able to start beside a given folder.
@@ -337,7 +342,8 @@ carries it out.
   collider and gizmo, every blocker's box, the markers, the brush circle, and the device capacities.
 - `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, foliage
   gathered first, lit by every light and kept out of the blockers, every place marked and blocker
-  lined, the brush's rings with the gizmo hidden while brushing, stopping at the first refused pass.
+  lined, the brush's rings with the gizmo hidden while brushing, the shadow calls timed for the
+  hitch watch, stopping at the first refused pass.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or on asking, emptied on a different project, a broken file in the notice, where landscapes with
   their foliage and the project's materials are edited, and models given their parts.
