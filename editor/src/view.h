@@ -58,6 +58,7 @@
 #pragma once
 
 #include <3d/bounce_casters.h>
+#include <3d/draw_system.h>
 
 #include <base/error.h>
 
@@ -153,6 +154,14 @@ typedef struct {
 	bool middle;
 } voe_editor_fly_keys;
 
+// One picture drawn this frame and what `3d` drew and skipped in it (0465
+// point 1): `view` is the view's index, unread when `preview` is set.
+typedef struct {
+	voe_3d_view_counts counts;
+	uint32_t view;
+	bool preview;
+} voe_editor_picture_counts;
+
 // Every view, the middle-button drag and the right-button fly. `captured` is
 // the view the drag started over; `pointer` is where the pointer was last frame,
 // in the root surface's millimetres, which is what a drag's travel is measured
@@ -178,6 +187,12 @@ typedef struct {
 	// Where the casters of the preview's last bounce stood, feeding the
 	// bounce of `preview_target` alone; only 3d writes it (0394).
 	voe_3d_bounce_casters preview_casters;
+
+	// The pictures drawn this frame, in drawing order: the preview, then
+	// each shown view. Only view_passes writes them; the Frame panel reads
+	// them.
+	voe_editor_picture_counts pictures[VOE_EDITOR_VIEWS + 1];
+	uint32_t picture_count;
 } voe_editor_views;
 
 // Sets every view in use to its initial camera — view 0 from the front and

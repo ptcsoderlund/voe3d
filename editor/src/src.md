@@ -332,17 +332,17 @@ carries it out.
   label.
 - `view.h` — a scene view: its orbit, target, remembered casters and input, the fly's speed the
   wheel sets and a middle press resets, the glide to a focus,
-  the view under the pointer, the colours it is drawn with, and the preview of what the world's
-  camera sees.
+  the view under the pointer, its colours, the preview of what the world's camera sees, and each
+  picture's counts.
 - `view.c` — the views' orbit, which owns the eye, the drag's and fly's rates, the glide, their
   targets, the focus set to the world camera's position, the world's first light row and the
   selection's outline colour, dimmed for a gizmo handle at rest and fainter still for a blocker's box.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
   passes, lit by every light, with the world, its models and foliage, the selection's outline,
-  collider and gizmo, every blocker's box, the markers, the brush circle, and the device capacities.
+  collider and gizmo, blockers' boxes, the markers, the brush, each picture's counts, and the capacities.
 - `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, foliage
-  gathered first, lit by every light and kept out of the blockers, every place marked and blocker
-  lined, stopping at the first refused pass, the shadows, their parts and gathers timed.
+  gathered after the lights, kept out of the blockers, every place marked and blocker lined,
+  stopping at the first refused pass, the shadows, their parts and gathers timed, counts recorded.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or on asking, emptied on a different project, a broken file in the notice, where landscapes with
   foliage and kinds' base sizes and the project's materials are edited, and models given parts.
