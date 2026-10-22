@@ -20,6 +20,8 @@
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
+#include <math.h>
+
 // Whether the world registered the water table: a walk of the types, as
 // draw_particles.c's, because asking for an unregistered key asserts.
 static bool has_water(const voe_ecs_world *world)
@@ -83,9 +85,33 @@ static voe_render_object object_of(const voe_3d_frame *frame,
 	return object;
 }
 
+// Whether `cull` sees `water` placed by `drawn` about `eye`: the quad's half
+// diagonal under the entity's matrix, plus the wave height (draw_water.h);
+// NULL sees everything.
+static bool water_seen(const struct voe_3d_cull *cull,
+		       const voe_scene_transform *drawn,
+		       const voe_3d_water *water, voe_math_double3 eye)
+{
+	voe_math_float4x4 place;
+
+	VOE_BASE_ASSERT(drawn != NULL && water != NULL,
+			"culling no water or no place");
+	if (cull == NULL)
+		return true;
+	place = voe_scene_transform_matrix(*drawn, eye);
+	return voe_3d_cull_sees(
+		cull,
+		voe_math_float4x4_transform_point(place, (voe_math_float3){ 0 }),
+		voe_3d_cull_radius(place, 0.5f * hypotf(fabsf(water->width),
+							fabsf(water->length))) +
+			fabsf(water->wave_height));
+}
+
 uint32_t voe_3d_draw_water_hold(const voe_ecs_world *world,
 				const voe_3d_frame *frame,
-				struct voe_3d_draw_group *world_blended)
+				struct voe_3d_draw_group *world_blended,
+				const struct voe_3d_cull *cull,
+				voe_3d_view_counts *counts)
 {
 	const voe_3d_model_part *part;
 	const voe_3d_water *rows;
@@ -94,6 +120,7 @@ uint32_t voe_3d_draw_water_hold(const voe_ecs_world *world,
 
 	VOE_BASE_ASSERT(world != NULL && frame != NULL && world_blended != NULL,
 			"drawing water with no world, frame or group");
+	VOE_BASE_ASSERT(counts != NULL, "drawing water with nothing to count in");
 	if (voe_3d_draw_water_count(world, frame->models) == 0)
 		return 0;
 	part = voe_3d_models_water(frame->models);
@@ -111,6 +138,11 @@ uint32_t voe_3d_draw_water_hold(const voe_ecs_world *world,
 		    voe_scene_transform_get(world, owners[row]) == NULL)
 			continue;
 		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
+		if (!water_seen(cull, &drawn, &rows[row], frame->eye)) {
+			counts->skipped++;
+			continue;
+		}
+		counts->drawn++;
 		entry.mesh.geometry = part->geometry;
 		entry.mesh.object = object_of(frame, part, &drawn, &rows[row],
 					      waves->seconds);

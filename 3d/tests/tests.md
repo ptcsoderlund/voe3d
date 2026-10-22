@@ -41,10 +41,11 @@ again, or to find where a claim that has started failing is written down.
 - `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
   and a zeroed marker none, and that a ray picks each sun. Skips without a graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
-  none with no store, and that a glowing one is unlit. Skips without a graphics card.
-- `draw_water.c` — that a 4 × 4 water over a ground cube changes the picture's centre, clocks 0
-  and 1.3 differ, a store without the record draws none, and the shadow passes draw the same with
-  or without it. Skips without a graphics card.
+  none with no store, a glowing one is unlit, and one behind the camera holds none, five skipped.
+  Skips without a graphics card.
+- `draw_water.c` — that a 4 × 4 water over a ground cube changes the centre, clocks 0 and 1.3
+  differ, a store without the record draws none, it casts nothing, one above the camera is
+  skipped, and a wide one with only its edge ahead draws. Skips without a graphics card.
 - `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
   and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
 - `draw_levels.c` — that a levelled sphere 400 m away draws under a quarter of the triangles it

@@ -28,8 +28,8 @@
 // Their foliage follows, draw_foliage.c's groups solid in the world layer.
 // A mesh or model part whose worn material is double-sided is drawn two-sided,
 // solid or held, through draw_group.c's mesh draw (0421 point 2).
-// A mesh or model row whose world sphere the camera's planes (cull.h) cannot
-// see is skipped and counted, and _run returns the counts (0464).
+// A mesh or model row, particle or water whose world sphere the camera's planes
+// (cull.h) cannot see is skipped and counted, and _run returns the counts (0464).
 #include "cull.h"
 #include "draw_foliage.h"
 #include "draw_group.h"
@@ -646,9 +646,10 @@ voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
 	// Their foliage, one instanced draw a group in the "foliage" span (0442).
 	(void)voe_3d_draw_foliage_solid(device, &frame);
 	// Every live particle, held blended in the world (0298 point 6).
-	voe_3d_draw_particles_hold(world, &frame, &world_blended);
+	voe_3d_draw_particles_hold(world, &frame, &world_blended, &cull, &counts);
 	// Every water, held blended in the world (0305 point 7).
-	waters = voe_3d_draw_water_hold(world, &frame, &world_blended);
+	waters = voe_3d_draw_water_hold(world, &frame, &world_blended, &cull,
+					&counts);
 
 	// THE SECOND TABLE, AND EVERY ROW IN IT IS HELD BACK. A panel is drawn
 	// by the element pipeline, which is blended, tests depth and writes

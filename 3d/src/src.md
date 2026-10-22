@@ -94,7 +94,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   is the whole of it.
 - `draw_system.c` — the camera's view, the first light, the first on sky, Haze and picture rows,
   the frame's pass camera, and each drawable's draw into the frame the loop opened, foliage after
-  the landscapes, a mesh the camera cannot see skipped and counted.
+  the landscapes, a mesh, particle or water the camera cannot see skipped and counted.
 - `draw_models.h` — the model rows' walk, its part count for the blended group's room and the
   entry and landscape test the landscape walk shares; internal.
 - `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
@@ -138,13 +138,14 @@ here is included from outside the folder — `include/3d/` is the whole public s
   store, for its record; internal.
 - `draw_material.c` — the empty path refused, then the store's linear find.
 - `draw_particles.h` — every live particle as one blended world draw, counted for the group's room
-  and held in it; internal.
+  and held in it unless the camera cannot see it; internal.
 - `draw_particles.c` — the emitter's picture from the frame's store, the camera-facing matrix
-  about the eye, and size, colour and alpha lerped at age over life.
+  about the eye, size, colour and alpha lerped at age over life, and the quad's sphere tested.
 - `draw_water.h` — every water as one blended world draw, counted for the group's room and held
-  in it, why the quad is turned and why it casts no shadow; internal.
-- `draw_water.c` — the eye-relative matrix times the turned, scaled quad, and the row's colour,
-  waves at its clock and sky in the object record.
+  in it unless the camera cannot see it, why the quad is turned, why its sphere holds the wave
+  height and why it casts no shadow; internal.
+- `draw_water.c` — the eye-relative matrix times the turned, scaled quad, the row's colour,
+  waves at its clock and sky in the object record, and the quad's sphere tested.
 - `draw_marks.h` — the editor's marks over the world, bare places', the brush's and every
   blocker's among them, and why each has its own depth; internal.
 - `draw_marks.c` — the camera's marker, every sun's, lamp's and bare place's, the brush's rings on

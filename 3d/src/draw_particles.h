@@ -5,16 +5,21 @@
 //
 //     uint32_t room = ... + voe_3d_draw_particles_count(world, frame.models);
 //     struct voe_3d_draw_group blended = voe_3d_draw_group_new(arena, room, true);
-//     voe_3d_draw_particles_hold(world, &frame, &blended);
+//     voe_3d_draw_particles_hold(world, &frame, &blended, &cull, &counts);
 //
 // A PARTICLE IS HELD, NEVER DRAWN AS FOUND: its picture is blended, so it waits
 // for the sort. It goes to no shadow pass (3d/src/draw_shadows.c reads none).
+//
+// ONE NOT SEEN IS NOT HELD (0464 points 2 and 5): its sphere is its place about
+// the eye and half its size × √2, the camera-facing quad's corner, however the
+// quad turns. Each live particle the walk reaches is one thing in the counts.
 //
 // Constraints: a world that never registered the emitter draws no particles
 // rather than asserting, as a world without shapes draws white; with a NULL
 // store neither table is read.
 #pragma once
 
+#include "cull.h"
 #include "draw_group.h"
 
 #include <3d/draw_system.h>
@@ -30,7 +35,10 @@ uint32_t voe_3d_draw_particles_count(const voe_ecs_world *world,
 
 // Holds one draw per live particle whose emitter's picture `frame->models` has
 // loaded in `world_blended`, the frame's hidden entity's particles and what is
-// switched off left out.
+// switched off left out. One whose sphere `cull` does not see is not held and
+// is `counts->skipped`, a held one `counts->drawn`; a NULL `cull` tests nothing.
 void voe_3d_draw_particles_hold(const voe_ecs_world *world,
 				const voe_3d_frame *frame,
-				struct voe_3d_draw_group *world_blended);
+				struct voe_3d_draw_group *world_blended,
+				const struct voe_3d_cull *cull,
+				voe_3d_view_counts *counts);
