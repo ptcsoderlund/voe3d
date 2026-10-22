@@ -398,8 +398,15 @@
 // NODES, the row and its two labels, and FIFTEEN ELEMENTS: "Draws", five, and
 // at most ten digits; on top of the levels question's sums. 2648 + 3 = 2651
 // nodes, 52259 + 15 = 52274 elements. No scroll area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2651
-#define VOE_EDITOR_INTERFACE_ELEMENTS 52274
+//
+// THE FRAME BREAKDOWN'S PICTURE ROWS (frame_breakdown.h, ADR-0465) ADD THIRTY
+// NODES, two rows and their two labels each for each of VOE_EDITOR_VIEWS + 1
+// (5) pictures, and 425 ELEMENTS: per picture its name, at most "Camera"'s
+// six, "  shadows", nine, and two counts of at most thirty-five, eighty-five
+// apiece. 2651 + 30 = 2681 nodes, 52274 + 425 = 52699 elements. No scroll
+// area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2681
+#define VOE_EDITOR_INTERFACE_ELEMENTS 52699
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

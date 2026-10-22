@@ -1,5 +1,6 @@
-// The Frame panel's quarter-second copy of render's timings, its one frame of
-// `ui` calls and the read of its × afterwards. See the header for the lag.
+// The Frame panel's quarter-second copy of render's timings and the pictures'
+// counts, its one frame of `ui` calls and the read of its × afterwards. See the
+// header for the lag.
 #include "frame_breakdown.h"
 
 #include "themes.h"
@@ -43,8 +44,43 @@ void voe_editor_frame_breakdown_hide(voe_editor_frame_breakdown *breakdown)
 	breakdown->showing = false;
 }
 
+// Copies `views`' pictures and writes each one's name and two counts labels.
+static void pictures_take(voe_editor_frame_breakdown *breakdown,
+			  const voe_editor_views *views)
+{
+	VOE_BASE_ASSERT(views->picture_count <= VOE_EDITOR_VIEWS + 1,
+			"more pictures drawn than there is room for");
+
+	breakdown->picture_count = views->picture_count;
+	memcpy(breakdown->pictures, views->pictures,
+	       views->picture_count * sizeof views->pictures[0]);
+	for (uint32_t i = 0; i < breakdown->picture_count; i++) {
+		const voe_editor_picture_counts *picture =
+			&breakdown->pictures[i];
+
+		// A number past a line is cut by snprintf, never overrun.
+		if (picture->preview)
+			(void)snprintf(breakdown->picture_names[i],
+				       VOE_EDITOR_FRAME_PICTURE, "Camera");
+		else
+			(void)snprintf(breakdown->picture_names[i],
+				       VOE_EDITOR_FRAME_PICTURE, "View %" PRIu32,
+				       picture->view + 1);
+		(void)snprintf(breakdown->drawn_labels[i], VOE_EDITOR_FRAME_COUNTS,
+			       "%" PRIu32 " drawn, %" PRIu32 " skipped",
+			       picture->counts.drawn, picture->counts.skipped);
+		(void)snprintf(breakdown->cast_labels[i], VOE_EDITOR_FRAME_COUNTS,
+			       "%" PRIu32 " drawn, %" PRIu32 " skipped",
+			       picture->counts.cast, picture->counts.cast_skipped);
+	}
+	VOE_BASE_ASSERT(breakdown->picture_count <= VOE_EDITOR_VIEWS + 1,
+			"more pictures kept than there is room for");
+}
+
 void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
-				     const voe_render_device *gpu, float seconds)
+				     const voe_render_device *gpu,
+				     const voe_editor_views *views,
+				     float seconds)
 {
 	voe_render_pass_time passes[VOE_EDITOR_FRAME_PASSES];
 	uint32_t count;
@@ -52,6 +88,7 @@ void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
 
 	VOE_BASE_ASSERT(breakdown != NULL, "taking into no frame breakdown");
 	VOE_BASE_ASSERT(gpu != NULL, "taking the timings of no device");
+	VOE_BASE_ASSERT(views != NULL, "taking the counts of no views");
 	VOE_BASE_ASSERT(seconds >= 0.0f, "a frame that took negative time");
 
 	if (!breakdown->showing)
@@ -59,14 +96,16 @@ void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
 	breakdown->since_refresh += seconds;
 	if (breakdown->since_refresh < FRAME_REFRESH)
 		return;
-	// Nothing measured keeps the last shown, and tries again next frame.
+	// The counts need no timestamps, so every refresh takes them; nothing
+	// measured keeps the times last shown until the next refresh.
+	breakdown->since_refresh = 0.0f;
+	pictures_take(breakdown, views);
 	if (!voe_render_frame_gpu_time(gpu, &total))
 		return;
 	count = voe_render_frame_pass_times(gpu, passes, VOE_EDITOR_FRAME_PASSES);
 	if (count == 0)
 		return;
 
-	breakdown->since_refresh = 0.0f;
 	breakdown->measured = true;
 	breakdown->count = count;
 	memcpy(breakdown->passes, passes, count * sizeof passes[0]);
@@ -133,6 +172,11 @@ void voe_editor_frame_breakdown_draw(voe_ui_context *ui,
 		row_draw(ui, "Total", breakdown->total_milliseconds);
 		row_draw(ui, "Triangles", breakdown->triangles_label);
 		row_draw(ui, "Draws", breakdown->draws_label);
+	}
+	for (uint32_t i = 0; i < breakdown->picture_count; i++) {
+		row_draw(ui, breakdown->picture_names[i],
+			 breakdown->drawn_labels[i]);
+		row_draw(ui, "  shadows", breakdown->cast_labels[i]);
 	}
 
 	voe_ui_end(ui); // panel

@@ -159,10 +159,11 @@ carries it out.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
   calls, and the read of its × afterwards.
 - `frame_breakdown.h` — the Frame panel: each GPU pass by name with its milliseconds, the total,
-  triangles and draws, copied from render's lagging timings four times a second, under a title row
-  with its ×, anchored at a point.
-- `frame_breakdown.c` — the quarter-second copy with the triangle and draw counts, keeping the last
-  on no measurement, the panel's one frame of `ui` calls, and the read of its × afterwards.
+  triangles, draws and each picture's drawn and skipped with its shadows', copied four times a
+  second, under a title row with its ×, anchored at a point.
+- `frame_breakdown.c` — the quarter-second copy of the pictures' counts and the triangle and draw
+  counts, keeping the last times on no measurement, the panel's one frame of `ui` calls, and the
+  read of its × afterwards.
 - `frame_hitches.h` — the editor's hitch watch: its own span's CPU stretches, the pace's wait, the
   shadows' and bounce's parts and foliage gathers timed, and an `editor: hitch:` line on stderr for
   each frame stalled on the CPU or the card, saying whether a light bounced (0458, 0461, 0463).
