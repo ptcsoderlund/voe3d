@@ -175,7 +175,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   copies, each placed, uploaded as heights, paint and a pyramid on the shared grid; brushes and
   puts growing its dirt, written a budget at a time, and placing copies again; renames following.
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
-  handed to foliage.c, the entry marked edited and the store's count raised on a change.
+  handed to foliage.c, a kind's base size set placing its copies again, the entry marked edited
+  and the store's count raised on a change.
 - `models_material.c` — a `.material`'s four maps, decoded by the load under each map's name as
   the subject or already by the caller, put mipped with its record, cutout, emission and sides
   and its twin as one part with no geometry; the set marking it and the frame rewriting both records.
@@ -187,7 +188,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   heights or, painting, on a layer's weights.
 - `brush_weight.h` — a brush's soft weight by radius and softness, shared by the sculpt, paint and
   foliage stamps; internal.
-- `foliage.c` — a copy placed on the bilinear ground's normal, a scatter stamp's tries drawn up
+- `foliage.c` — a copy placed on the bilinear ground's normal at its kind's base size, a scatter stamp's tries drawn up
   front and refused against the near copies in one walk, erase and undo by moving the last in, and
   the replace over a rect.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the

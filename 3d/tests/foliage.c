@@ -2,8 +2,9 @@
 // kinds and room for the cap: a held scatter stamp filling to about its
 // density and stopping, spaced, of the picked kind and within its radius; a
 // seed giving the same copies twice; erase by kind and undo's put both ways; a
-// copy leaning on a 45° plane or standing upright; and _replace following a
-// raised height. Needs no graphics card.
+// copy leaning on a 45° plane or standing upright; _replace following a
+// raised height; and a kind's base size scaling its copy. Needs no graphics
+// card.
 #include <3d/foliage.h>
 #include <3d/landscape.h>
 #include <assets/landscape.h>
@@ -189,6 +190,33 @@ static void replace_follows_a_raised_height(voe_base_arena *arena)
 	VOE_TEST_CHECK_FLOAT((float)g.placed[0].position.y, 2.0f, 1e-5f);
 }
 
+// Two copies alike but for their kind, kind 1 at base size 2×: kind 1 stands
+// twice kind 0's scale, where kind 0 does, turned alike.
+static void a_kinds_base_size_scales_its_copies(voe_base_arena *arena)
+{
+	struct grown g = flat_with_room(arena);
+	const voe_assets_landscape_copy small = { .x = 2000, .z = -3000,
+						  .turn = 9000, .scale = 1200 };
+	voe_assets_landscape_copy big = small;
+
+	big.kind = 1;
+	g.land.kind_sizes[1] = 2000;
+	const voe_scene_transform a = voe_3d_foliage_place(&g.land, small);
+	const voe_scene_transform b = voe_3d_foliage_place(&g.land, big);
+
+	VOE_TEST_CHECK_FLOAT(a.scale.x, 1.2f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(b.scale.x, 2.0f * a.scale.x, 0.0f);
+	VOE_TEST_CHECK_FLOAT(b.scale.y, 2.0f * a.scale.y, 0.0f);
+	VOE_TEST_CHECK_FLOAT(b.scale.z, 2.0f * a.scale.z, 0.0f);
+	VOE_TEST_CHECK(b.position.x == a.position.x &&
+		       b.position.y == a.position.y &&
+		       b.position.z == a.position.z);
+	VOE_TEST_CHECK(b.rotation.x == a.rotation.x &&
+		       b.rotation.y == a.rotation.y &&
+		       b.rotation.z == a.rotation.z &&
+		       b.rotation.w == a.rotation.w);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(ARENA);
@@ -198,6 +226,7 @@ int main(void)
 	erase_and_put_by_value(arena);
 	a_copy_leans_on_a_slope(arena);
 	replace_follows_a_raised_height(arena);
+	a_kinds_base_size_scales_its_copies(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

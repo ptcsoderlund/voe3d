@@ -113,7 +113,8 @@ voe_scene_transform voe_3d_foliage_place(const voe_assets_landscape *landscape,
 		(voe_math_float3){ -slope_x, 1.0f, -slope_z });
 	// +Y × normal: the axis that takes up toward the normal.
 	const voe_math_float3 axis = { normal.z, 0.0f, -normal.x };
-	const float scale = (float)copy.scale * 0.001f;
+	const float scale = voe_assets_landscape_kind_size(landscape, copy.kind) *
+			    ((float)copy.scale * 0.001f);
 	voe_math_quat rotation = voe_math_quat_from_axis_angle(
 		(voe_math_float3){ 0.0f, 1.0f, 0.0f },
 		(float)copy.turn / TURN_UNITS * TWO_PI);

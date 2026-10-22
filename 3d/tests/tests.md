@@ -157,7 +157,7 @@ again, or to find where a claim that has started failing is written down.
   materials refused. Skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget, and its foliage placed, kept standing by a
-  sculpt, scattered, erased, put back, a kind set and renamed. Skips without a card.
+  sculpt, scattered, erased, put back, kinds set, sized and renamed. Skips without a card.
 - `models_material.c` — a `.material` with four maps loaded as one part, its cutout, emission and
   sides, a set written by a frame, a decoded put alike, a non-picture map MALFORMED, and a rename.
   Skips without a card.
@@ -166,7 +166,7 @@ again, or to find where a claim that has started failing is written down.
   Needs no graphics card.
 - `foliage.c` — a held scatter stamp filling to about its density, spaced, picked and within its
   radius; a seed repeating; erase by kind and undo's put both ways; a copy leaning 45° or upright on
-  a slope; and a replace following a raised height. Needs no graphics card.
+  a slope; a replace following a raised height; a kind's base size. Needs no graphics card.
 - `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
   once, neighbours within a level, within capacity, bounding their heights; an update equal to a
   fresh build and the pyramid's box. Needs no graphics card.

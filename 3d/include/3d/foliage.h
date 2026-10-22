@@ -11,7 +11,8 @@
 // PLACED ON THE GROUND (0442 point 2): a copy stands at (x, height(x, z), z)
 // in the grid's own space, its up tilted from +Y toward the ground's normal
 // (central differences one cell apart) by lean / 255, then turned about +Y,
-// then scaled uniformly. No height is stored, so `placed` is the caller's
+// then scaled uniformly by its kind's base size times its own scale (0460
+// point 3). No height is stored, so `placed` is the caller's
 // cache, one transform per copy in step with `copies`, and _replace keeps it
 // true after a sculpt.
 //
