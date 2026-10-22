@@ -12,6 +12,10 @@ Per decision 0459:
 - Each kind's row in the Foliage section has a base size, 1× by default. Changing it resizes every
   tree of that kind already painted, as well as the ones painted later. It is kept on save.
 
+## How to reproduce
+Open lumberhill and pick a thing that wears the landscape. Under Foliage the sliders read Size,
+Turn and Lean, and a kind's row has nothing but its name: no control makes every pine bigger.
+
 ## How to test
 1. Open lumberhill and pick a thing that wears the landscape. Under Foliage, the sliders read
    Size ±%, Turn ±° and Tilt with slope %.
