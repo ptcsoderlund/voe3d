@@ -22,9 +22,12 @@
 // With kind PAINT the drag paints `layer` instead (0402 points 3 and 7), and
 // the release's step carries the rectangle's weights. With SCATTER or ERASE
 // it stamps foliage copies (0442 point 3); the step carries those it changed.
+// A kind's base-size edit (0460 point 5) is settled each frame first, brush
+// chosen or none: set live while its slider is held, one step when let go.
 //
 // Constraints: the numbers are kept inside the ranges below by whoever writes
-// them, the Sculpt, Brush and Foliage sliders clamping. A stroke mallocs a copy of the
+// them, the Sculpt, Brush and Foliage sliders clamping, a kind slider to
+// VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN–_MAX thousandths. A stroke mallocs a copy of the
 // whole grid at the press, up to 513² heights, or for paint its weights at 8
 // bytes a point, and frees it at the release; a foliage stroke's changed list
 // doubles to fit a stamp's most, an erase's the landscape's copy count; a
@@ -146,6 +149,22 @@ typedef struct {
 	voe_ui_node kind_rows[VOE_EDITOR_SCULPT_KIND_ROWS];
 	voe_ui_rect kinds_seen[VOE_EDITOR_SCULPT_KIND_ROWS];
 	uint32_t kinds_drawn;
+	// Each kind row's base-size slider and its figure, slider i kind i.
+	voe_ui_node kind_sliders[VOE_ASSETS_LANDSCAPE_KINDS];
+	char kind_figures[VOE_ASSETS_LANDSCAPE_KINDS][VOE_EDITOR_SCULPT_FIGURE];
+	// The last read's base-size ask, when `size_asked`: kind `size_kind` to
+	// `size_to` thousandths; `size_held` that a kind slider is held. Both
+	// taken and cleared by the next voe_editor_sculpt_read.
+	bool size_asked;
+	uint32_t size_kind;
+	uint16_t size_to;
+	bool size_held;
+	// The base-size edit open, when `sizing`: its kind, that kind's stored
+	// size before it (0 meaning 1×), and its landscape's path.
+	bool sizing;
+	uint32_t sizing_kind;
+	uint16_t sizing_before;
+	char sizing_path[VOE_3D_MODEL_PATH];
 	// The ground under the pointer this frame, when `hit`: (x, z) in the
 	// grid's own space of `entity`'s landscape.
 	bool hit;
@@ -186,7 +205,8 @@ void voe_editor_sculpt_choose_none(voe_editor_sculpt *sculpt);
 // in any case, on a thing that is not a prefab's part. False for a dead one.
 bool voe_editor_sculpt_wears(const voe_ecs_world *world, voe_ecs_entity entity);
 
-// One frame of the brush on the selection's ground. Acts only while a brush is
+// One frame of the brush on the selection's ground, after settling the
+// base-size edit the Foliage read asked for. Acts only while a brush is
 // chosen and the selection wears a loaded landscape; else clears the hover,
 // ends a held stroke and takes nothing. `pointer` is in the root surface's
 // millimetres, `left` the left button down with the pointer in the window,

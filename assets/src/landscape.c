@@ -268,6 +268,7 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 	to.layer_count = from->layer_count;
 	to.paint = voe_assets_landscape_paint_resample(from, cells, arena);
 	memcpy(to.kinds, from->kinds, sizeof(to.kinds));
+	memcpy(to.kind_sizes, from->kind_sizes, sizeof(to.kind_sizes));
 	to.kind_count = from->kind_count;
 	if (from->copy_count > 0) {
 		const size_t bytes = (size_t)from->copy_count * sizeof(*to.copies);

@@ -1,8 +1,8 @@
 // The landscape file: a written grid reads back as itself up to 2048 cells,
 // heights round to the millimetre, a resample keeps a plane and its corners,
 // layers and paint round-trip byte for byte and resample to sums of 255,
-// foliage kinds and copies round-trip byte for byte and a resample keeps them,
-// and each refusal comes with its category.
+// foliage kinds, their base sizes and copies round-trip byte for byte and a
+// resample keeps them, and each refusal comes with its category.
 //
 // The files refused are written by hand at four cells, the smallest a file may
 // have, so each case shows the one thing wrong with it.
@@ -557,6 +557,84 @@ static void a_resample_keeps_the_copies(voe_base_arena *arena)
 			       .copies == NULL);
 }
 
+static void kind_sizes_round_trip_byte_for_byte(voe_base_arena *arena)
+{
+	voe_assets_landscape grid = forested(arena);
+	voe_assets_landscape_text text;
+	voe_assets_landscape_text again;
+	voe_assets_landscape back;
+
+	grid.kind_sizes[1] = 2000;
+	text = voe_assets_landscape_write(&grid, arena);
+	VOE_TEST_CHECK(strstr(text.text, "kind0=\"Assets/pine.glb\"\nkind1=") !=
+		       NULL);
+	VOE_TEST_CHECK(strstr(text.text, "\\\"birch\\\".glb\"\nsize1=2000\n\n"
+					 "[Heights]\n") != NULL);
+	VOE_TEST_CHECK(strstr(text.text, "size0=") == NULL);
+
+	VOE_TEST_CHECK(voe_assets_landscape_read(text.text, text.size, arena,
+						 &back, NULL));
+	VOE_TEST_CHECK_INT(back.kind_sizes[0], 0);
+	VOE_TEST_CHECK_INT(back.kind_sizes[1], 2000);
+	VOE_TEST_CHECK(voe_assets_landscape_kind_size(&back, 0) == 1.0f);
+	VOE_TEST_CHECK(voe_assets_landscape_kind_size(&back, 1) == 2.0f);
+	again = voe_assets_landscape_write(&back, arena);
+	VOE_TEST_CHECK_INT(again.size, text.size);
+	VOE_TEST_CHECK(strcmp(again.text, text.text) == 0);
+
+	// A kind at exactly 1× is written without its size line.
+	grid.kind_sizes[0] = 1000;
+	text = voe_assets_landscape_write(&grid, arena);
+	VOE_TEST_CHECK(strstr(text.text, "size0=") == NULL);
+	VOE_TEST_CHECK(strstr(text.text, "size1=2000\n") != NULL);
+}
+
+static void a_bad_kind_size_is_malformed(voe_base_arena *arena)
+{
+	const char *const bad[] = { "0", "99", "10001", "1.5" };
+	char text[512];
+
+	for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+		snprintf(text, sizeof(text), "%ssize0=%s\n%s", two_kinds,
+			 bad[i], four_flat_rows);
+		refused_as(arena, text, VOE_BASE_ERROR_MALFORMED);
+	}
+	// And the range's ends are read.
+	snprintf(text, sizeof(text), "%ssize0=100\nsize1=10000\n%s", two_kinds,
+		 four_flat_rows);
+	{
+		voe_assets_landscape out;
+
+		VOE_TEST_CHECK(read_text(arena, text, &out, NULL));
+		VOE_TEST_CHECK(voe_assets_landscape_kind_size(&out, 0) == 0.1f);
+		VOE_TEST_CHECK(voe_assets_landscape_kind_size(&out, 1) ==
+			       10.0f);
+	}
+}
+
+static void a_resample_keeps_the_kind_sizes(voe_base_arena *arena)
+{
+	voe_assets_landscape grid = forested(arena);
+	voe_assets_landscape eight;
+
+	grid.kind_sizes[0] = 250;
+	grid.kind_sizes[1] = 2000;
+	eight = voe_assets_landscape_resample(&grid, 8, arena);
+	VOE_TEST_CHECK_INT(eight.kind_sizes[0], 250);
+	VOE_TEST_CHECK_INT(eight.kind_sizes[1], 2000);
+	VOE_TEST_CHECK(voe_assets_landscape_kind_size(&eight, 1) == 2.0f);
+}
+
+static void a_flat_grids_kind_added_by_hand_is_1x(voe_base_arena *arena)
+{
+	voe_assets_landscape flat = voe_assets_landscape_flat(64.0f, 4, arena);
+
+	snprintf(flat.kinds[0], sizeof(flat.kinds[0]), "Assets/oak.glb");
+	flat.kind_count = 1;
+	VOE_TEST_CHECK_INT(flat.kind_sizes[0], 0);
+	VOE_TEST_CHECK(voe_assets_landscape_kind_size(&flat, 0) == 1.0f);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
@@ -578,6 +656,10 @@ int main(void)
 	no_copies_read_as_none(arena);
 	bad_copies_are_malformed(arena);
 	a_resample_keeps_the_copies(arena);
+	kind_sizes_round_trip_byte_for_byte(arena);
+	a_bad_kind_size_is_malformed(arena);
+	a_resample_keeps_the_kind_sizes(arena);
+	a_flat_grids_kind_added_by_hand_is_1x(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

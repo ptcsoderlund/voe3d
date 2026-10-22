@@ -1,10 +1,18 @@
 // The Inspector's Foliage section, under Layers on a thing that wears a loaded
 // landscape (0442 point 3): a "Foliage" heading as Layers', Scatter and Erase
 // with the chosen one drawn chosen, one row per kind of the landscape's grid
-// by its model's file name, the picked ones drawn chosen, then "Drop a model
-// to add a kind" while it holds fewer than sixteen, and Density, Size (%),
-// Turn (deg) and Lean (%) as sliders. Radius and Softness are the Brush
-// section's (inspector_brush.h), shared by every brush.
+// by its model's file name, the picked ones drawn chosen, each followed by its
+// Base size slider, then "Drop a model to add a kind" while it holds fewer
+// than sixteen, and the brush's sliders (0459 point 3): Density; Size ±%, how
+// far a painted copy's size strays from its kind's base size; Turn ±°, how far
+// it is spun at random; Tilt with slope %, from upright at 0 to square to the
+// ground at 100. Radius and Softness are the Brush section's
+// (inspector_brush.h), shared by every brush.
+//
+// A KIND'S BASE SIZE (0460 point 5), 0.10× to 10.00×, resizes that kind's
+// copies already painted as well as later ones, live while dragged, and is one
+// undo step when the slider lets go or a typed value is taken: the read only
+// asks, and voe_editor_sculpt_read (sculpt.h) sets it and records the step.
 //
 // Pressing Scatter or Erase chooses that brush; pressing the chosen one again
 // chooses none. Pressing a kind row flips whether it is picked, and only
@@ -48,6 +56,7 @@ void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
 
 // After voe_ui_frame_end: a fired button chooses its kind, or none when it was
 // the chosen one; a fired kind row flips its picked bit; each drawn slider's
-// value taken inside sculpt.h's range; each row's rectangle kept.
+// value taken inside sculpt.h's range; a changed kind slider asks for its
+// size in thousandths and a held one is recorded; each row's rectangle kept.
 void voe_editor_inspector_foliage_read(const voe_ui_context *ui,
 				       voe_editor_sculpt *sculpt);

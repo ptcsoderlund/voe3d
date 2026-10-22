@@ -57,6 +57,14 @@ bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 // (0428 point 4). draw_shadows.c.
 bool voe_3d_draw_light_casts(const voe_ecs_world *world, uint32_t light);
 
+// The frame's clock now, read only when it has one, else nought (0461 point
+// 2). draw_shadows.c, so the shadows call and the bounce time alike.
+double voe_3d_draw_clock_read(const voe_3d_frame *frame);
+
+// The seconds since `since` added to `part`, one of the frame's times; with no
+// clock nothing is read or written. draw_shadows.c.
+void voe_3d_draw_clock_add(const voe_3d_frame *frame, double *part, double since);
+
 // The stale spheres of this step into `spheres`, xyz about the frame's eye and
 // w the caster's world bounding radius at that lag, half the diagonal of its
 // world box grown as voe_3d_bounce_box grows one from `device`'s geometry
@@ -135,7 +143,10 @@ bool voe_3d_bounce_box(const voe_ecs_world *world,
 // on an axis from the eye `frame->casters` remembers, which then takes
 // `frame->eye` whatever the outcome (0397 point 2). False
 // when a pass or a draw is refused; every volume after that one is still
-// begun, opening no pass, so each queues this step's stale spheres.
+// begun, opening no pass, so each queues this step's stale spheres. With
+// `frame->clock` it times its six parts into `frame->shadow_times`, the
+// bounce_ fields, and adds one to `bounced` (0463 point 3); without one
+// nothing is read or written.
 [[nodiscard]] bool voe_3d_draw_bounce(voe_ecs_world *world,
 				      voe_render_device *device,
 				      voe_3d_frame *frame);

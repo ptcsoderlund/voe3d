@@ -108,8 +108,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the cast, on the stack, and each node's record over the heights texture, its layers looked up
   once per row per call.
 - `draw_shadows.c` — the shadow passes as one call: each casting sun's cascades in its slot, of
-  only what its blockers hold, the point-shadow pass and the probe bounce, a model at the camera's
-  level, a gone one casting nothing, a landscape by the view's nodes, foliage in a free sun's cascades.
+  only what its blockers hold, the point-shadow pass and the probe bounce, a landscape by the
+  view's nodes, foliage in a free sun's cascades, each part timed by the frame's clock if any.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0, an
   off owner's and those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
@@ -120,12 +120,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the sun's mask, and light rows 2 to 4 each masked at its place.
 - `draw_bounce.h` — the frame's probe bounce with foliage in free suns' maps, its stale and
   removed casters' spheres, the caster walk and measure bounce_casters.c shares, the still casters'
-  box, and the cascades' caster walk and casting test; internal.
+  box, and the cascades' caster walk, casting test and clock helpers; internal.
 - `bounce_casters.c` — a removed caster's sphere where the target's memory saw it last, then the
   memory refilled with this frame's casters.
-- `draw_bounce.c` — the frame's probe bounce, run only when a light bounces: the volumes fitted to
-  the still casters, each begun with the store's count, the casters drawn into each pass and sun
-  map, the foliage into a free sun's map, a landscape coarse at 16 nodes, and the relight.
+- `draw_bounce.c` — the frame's probe bounce, when a light bounces: the volumes fitted to the
+  still casters, begun with the store's count, the casters drawn into each pass and sun map, the
+  foliage into a free sun's map, a landscape coarse at 16 nodes, the relight; six parts timed.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, the record a mesh is drawn with, a double-sided mesh drawn between two
@@ -175,7 +175,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   copies, each placed, uploaded as heights, paint and a pyramid on the shared grid; brushes and
   puts growing its dirt, written a budget at a time, and placing copies again; renames following.
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
-  handed to foliage.c, the entry marked edited and the store's count raised on a change.
+  handed to foliage.c, a kind's base size set placing its copies again, the entry marked edited
+  and the store's count raised on a change.
 - `models_material.c` — a `.material`'s four maps, decoded by the load under each map's name as
   the subject or already by the caller, put mipped with its record, cutout, emission and sides
   and its twin as one part with no geometry; the set marking it and the frame rewriting both records.
@@ -187,7 +188,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   heights or, painting, on a layer's weights.
 - `brush_weight.h` — a brush's soft weight by radius and softness, shared by the sculpt, paint and
   foliage stamps; internal.
-- `foliage.c` — a copy placed on the bilinear ground's normal, a scatter stamp's tries drawn up
+- `foliage.c` — a copy placed on the bilinear ground's normal at its kind's base size, a scatter stamp's tries drawn up
   front and refused against the near copies in one walk, erase and undo by moving the last in, and
   the replace over a rect.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the

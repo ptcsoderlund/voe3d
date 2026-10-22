@@ -12,6 +12,7 @@
 //
 //     [Foliage]
 //     kind0="Assets/pine.glb"
+//     size0=2000
 //
 //     [Heights]
 //     row0=0 0 0 0 0
@@ -43,16 +44,16 @@
 // reads as all layer 0. NULL PAINT IS ALL LAYER 0 too, so a struct built by
 // hand (the game, 3d's tests) stays valid and no layers holds no paint.
 //
-// RESAMPLING IS BILINEAR. Each new height and layer weight is the old grid's at
-// the same point, so corners and edges keep theirs and a plane stays a plane;
-// layers 1-7 round and layer 0 takes the rest.
+// RESAMPLING IS BILINEAR: each height and weight is the old grid's at the same
+// point, so corners, edges and planes keep; layers 1-7 round, 0 takes the rest.
 // HEIGHTS ARE WHOLE MILLIMETRES, so the text is exact and short and a value
 // read back is the value written; writing rounds to the nearest millimetre.
 //
-// KINDS ARE QUOTED .glb PATHS from kind0=, read as layers are. COPY i IS
-// `c<i>=kind x z turn scale lean`, as voe_assets_landscape_copy. NO HEIGHT: a
-// copy stands on the ground, so a sculpt never buries or floats it. [Copies]
-// IS WALKED ONCE IN ORDER: 65536 lookups by name would be 2·10⁹ compares.
+// KINDS ARE QUOTED .glb PATHS from kind0=, read as layers are. A KIND'S SIZE
+// `size<k>` is a factor on every copy of it in thousandths, 0 and a missing key
+// 1×. COPY i IS `c<i>=kind x z turn scale lean`, as voe_assets_landscape_copy.
+// NO HEIGHT: a copy stands on the ground, so a sculpt never buries or floats
+// it. [Copies] IS WALKED ONCE IN ORDER: 65536 lookups would be 2·10⁹ compares.
 //
 // THE GAME NEVER READS THIS (0236): the editor does, and the cook turns it into
 // a table. Nothing here opens a file; `platform` owns files. The result and the
@@ -79,6 +80,9 @@
 #define VOE_ASSETS_LANDSCAPE_KINDS 16
 #define VOE_ASSETS_LANDSCAPE_COPIES 65536
 #define VOE_ASSETS_LANDSCAPE_KIND_PATH 128
+// A kind's base size in thousandths: the file's range and the editor's slider's.
+#define VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN 100
+#define VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX 10000
 
 // One foliage copy, in the order a cooked `{x, z, turn, scale, kind, lean}`
 // fills. Compare field by field, never with memcmp: the struct has padding.
@@ -114,6 +118,9 @@ typedef struct {
 	// are the landscape's foliage kinds.
 	char kinds[VOE_ASSETS_LANDSCAPE_KINDS][VOE_ASSETS_LANDSCAPE_KIND_PATH];
 	uint32_t kind_count;
+	// Each kind's base size in thousandths, KIND_SIZE_MIN to KIND_SIZE_MAX, 0
+	// meaning 1×; read as a factor only through voe_assets_landscape_kind_size.
+	uint16_t kind_sizes[VOE_ASSETS_LANDSCAPE_KINDS];
 	// `copy_count` copies, NULL with none.
 	voe_assets_landscape_copy *copies;
 	uint32_t copy_count;
@@ -124,17 +131,22 @@ typedef struct {
 	size_t size;
 } voe_assets_landscape_text;
 
-// Every height 0, no layers, paint NULL, no kinds, copies NULL. Asserts size in range and cells a
-// multiple of 4 from 4 to VOE_ASSETS_LANDSCAPE_CELLS_MAX.
+// Every height 0, no layers, paint NULL, no kinds, every kind size 0, copies NULL. Asserts size
+// in range and cells a multiple of 4 from 4 to VOE_ASSETS_LANDSCAPE_CELLS_MAX.
 voe_assets_landscape voe_assets_landscape_flat(float size, uint32_t cells,
 					       voe_base_arena *arena);
+
+// Kind `kind`'s base size as a factor on its copies' scale: kind_sizes[kind]
+// in thousandths, 1 for 0. Asserts kind below VOE_ASSETS_LANDSCAPE_KINDS.
+float voe_assets_landscape_kind_size(const voe_assets_landscape *landscape,
+				     uint32_t kind);
 
 // `from` at the same size and `cells` cells a side, each height and each
 // layer's weight bilinear from `from`'s at the same point of the square, layers
 // 1-7 rounded and layer 0 given the rest; the same count is an exact copy. The
-// layers are carried, and paint NULL stays NULL. Kinds and copies are carried
-// unchanged, the copies copied onto `arena`. Asserts cells a multiple of 4
-// from 4 to VOE_ASSETS_LANDSCAPE_CELLS_MAX.
+// layers are carried, and paint NULL stays NULL. Kinds, their sizes and copies
+// are carried unchanged, the copies copied onto `arena`. Asserts cells a
+// multiple of 4 from 4 to VOE_ASSETS_LANDSCAPE_CELLS_MAX.
 voe_assets_landscape
 voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 			      voe_base_arena *arena);
@@ -144,13 +156,14 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 // or too many numbers or one not a whole number, a layer path not quoted or of
 // VOE_ASSETS_MATERIAL_PATH bytes or more, a weight past 255, or a point whose
 // layers 1-7 pass 255. MALFORMED too for a kind path not quoted or of
-// VOE_ASSETS_LANDSCAPE_KIND_PATH bytes or more, and a copy key out of order or
+// VOE_ASSETS_LANDSCAPE_KIND_PATH bytes or more, a kind's size not a whole
+// number from KIND_SIZE_MIN to KIND_SIZE_MAX, and a copy key out of order or
 // misnamed, of other than six whole numbers, with a kind not below kind_count,
 // or a turn, scale or lean out of range or a scale of 0. UNSUPPORTED for a size
 // out of range, cells not a multiple of 4 from 4 to
 // VOE_ASSETS_LANDSCAPE_CELLS_MAX, or past VOE_ASSETS_LANDSCAPE_COPIES copies.
 // Paint is allocated when there are layers and NULL with none; no [Copies] is
-// no copies. A line on stderr names what. `out` untouched on failure; `error`
+// no copies; a kind with no size is 0. A line on stderr names what. `out` untouched on failure; `error`
 // may be NULL.
 [[nodiscard]] bool voe_assets_landscape_read(const char *text, size_t size,
 					     voe_base_arena *arena,
@@ -160,9 +173,10 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 // The text voe_assets_landscape_read takes, NUL-terminated, `size` not
 // counting the NUL. [Layers] only when there are any; [Paint] only when paint
 // is not NULL and there are two layers or more, runs of 3 or more as `v*n`;
-// [Foliage] only when there are kinds and [Copies] only when there are copies,
-// one line a copy. Cannot fail; asserts each layer and kind path is
-// NUL-terminated with no line break.
+// [Foliage] only when there are kinds, a kind's size line omitted when it is 0
+// or 1000, and [Copies] only when there are copies, one line a copy. Cannot
+// fail; asserts each layer and kind path is NUL-terminated with no line break
+// and each kind's size 0 or in range.
 voe_assets_landscape_text
 voe_assets_landscape_write(const voe_assets_landscape *landscape,
 			   voe_base_arena *arena);

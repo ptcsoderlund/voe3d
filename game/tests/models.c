@@ -43,9 +43,10 @@
 // map loads it into the emissive slot.
 //
 // THE FOLIAGE, on a ninth store and an empty world: a landscape naming the
-// `.glb` as its one kind, with two copies, makes an update load the kind and
-// the grid hold and place both copies as cooked; a kind naming a missing file
-// is one failure, named.
+// `.glb` as its one kind, at a base size of 2×, with two copies, makes an
+// update load the kind and the grid hold both copies as cooked, placed at
+// twice their own scale; with no sizes, at their own; a kind naming a missing
+// file is one failure, named.
 //
 // The levels cases are tests/models_levels.c; the `.glb` and the world helpers
 // both use are tests/glb_build.h.
@@ -80,6 +81,7 @@
 
 #include <testing/test.h>
 
+#include <math.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -135,7 +137,8 @@ static const int32_t HILL[25] = {
 
 static const voe_game_landscapes HILLS = {
 	(const voe_game_landscape[]){
-		{ LANDSCAPE, 64.0f, 4, HILL, NULL, 0, NULL, NULL, 0, NULL, 0 } },
+		{ LANDSCAPE, 64.0f, 4, HILL, NULL, 0, NULL, NULL, 0, NULL, 0,
+		  NULL } },
 	1
 };
 
@@ -185,7 +188,7 @@ static const voe_game_landscapes LAYERED = {
 	(const voe_game_landscape[]){
 		{ LAYERED_LANDSCAPE, 64.0f, 4, HILL,
 		  (const char *const[]){ MATERIAL, GREY_MATERIAL }, 2, paint, NULL,
-		  0, NULL, 0 } },
+		  0, NULL, 0, NULL } },
 	1
 };
 
@@ -193,7 +196,7 @@ static const voe_game_landscapes UNKNOWN_LAYER = {
 	(const voe_game_landscape[]){
 		{ LAYERED_LANDSCAPE, 64.0f, 4, HILL,
 		  (const char *const[]){ NO_MATERIAL }, 1, NULL, NULL, 0, NULL,
-		  0 } },
+		  0, NULL } },
 	1
 };
 
@@ -203,17 +206,25 @@ static const voe_assets_landscape_copy COPIES[2] = {
 	{ .x = -5000, .z = 3000, .scale = 1500, .lean = 255 },
 };
 
+// The copies with their kind at twice its size, and with no sizes: 1×.
 static const voe_game_landscapes FOREST = {
 	(const voe_game_landscape[]){ { LANDSCAPE, 64.0f, 4, HILL, NULL, 0, NULL,
 					(const char *const[]){ GOOD }, 1, COPIES,
-					2 } },
+					2, (const uint16_t[]){ 2000 } } },
+	1
+};
+
+static const voe_game_landscapes GROVE = {
+	(const voe_game_landscape[]){ { LANDSCAPE, 64.0f, 4, HILL, NULL, 0, NULL,
+					(const char *const[]){ GOOD }, 1, COPIES,
+					2, NULL } },
 	1
 };
 
 static const voe_game_landscapes THICKET = {
 	(const voe_game_landscape[]){ { LANDSCAPE, 64.0f, 4, HILL, NULL, 0, NULL,
 					(const char *const[]){ MISSING }, 1,
-					NULL, 0 } },
+					NULL, 0, NULL } },
 	1
 };
 
@@ -574,8 +585,26 @@ static void check_parts(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
-// The forest's grid: both copies as cooked, field by field, and placed.
-static void check_forest(const voe_3d_models *models)
+// Each placed copy scaled `base` times its own scale, on every axis.
+static void check_placed_scale(const voe_3d_models *models,
+			       const voe_3d_model_entry *entry, float base)
+{
+	const voe_scene_transform *placed =
+		voe_3d_models_landscape_placed(models, entry);
+
+	VOE_TEST_CHECK(placed != NULL);
+	for (uint32_t i = 0; placed != NULL && i < 2; i++) {
+		const float want = base * (float)COPIES[i].scale * 0.001f;
+
+		VOE_TEST_CHECK(fabsf(placed[i].scale.x - want) < 1e-4f &&
+			       fabsf(placed[i].scale.y - want) < 1e-4f &&
+			       fabsf(placed[i].scale.z - want) < 1e-4f);
+	}
+}
+
+// The forest's grid: both copies as cooked, field by field, and placed at
+// `base` times their own scale.
+static void check_forest(const voe_3d_models *models, float base)
 {
 	const voe_3d_model_entry *entry = voe_3d_models_find(models, LANDSCAPE);
 
@@ -594,7 +623,8 @@ static void check_forest(const voe_3d_models *models)
 			       copy->kind == COPIES[i].kind &&
 			       copy->lean == COPIES[i].lean);
 	}
-	VOE_TEST_CHECK(voe_3d_models_landscape_placed(models, entry) != NULL);
+	if (entry->landscape->copy_count == 2)
+		check_placed_scale(models, entry, base);
 }
 
 static void check_foliage(voe_ecs_world *world, voe_render_device *device,
@@ -604,7 +634,7 @@ static void check_foliage(voe_ecs_world *world, voe_render_device *device,
 	const voe_3d_model_entry *kind;
 	voe_game_models_failures failures;
 
-	// ---- a kind naming the `.glb`: loaded, both copies held and placed
+	// ---- a kind naming the `.glb` at 2×: loaded, both copies held, placed
 	failures = voe_game_models_landscapes(models, device, &FOREST, scratch);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
@@ -612,7 +642,13 @@ static void check_foliage(voe_ecs_world *world, voe_render_device *device,
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	kind = voe_3d_models_find(models, GOOD);
 	VOE_TEST_CHECK(kind != NULL && kind->loaded);
-	check_forest(models);
+	check_forest(models, 2.0f);
+	voe_3d_models_clear(models, device);
+
+	// ---- no sizes: each copy at its own scale
+	failures = voe_game_models_landscapes(models, device, &GROVE, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	check_forest(models, 1.0f);
 	voe_3d_models_clear(models, device);
 
 	// ---- a kind naming a missing file: one failure, named

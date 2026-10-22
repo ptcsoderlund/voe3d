@@ -1,8 +1,9 @@
 // The model store's foliage calls (3d/models_foliage.h): each finds a loaded
 // landscape's entry, hands its grid and its held placed transforms to
 // 3d/foliage.h, and marks the entry edited when a copy or a kind changed. A
-// scatter or erase that changed a copy, every put of copies and every kind set
-// raise the store's `changes`, so the bounce relights (0451 point 3).
+// scatter or erase that changed a copy, every put of copies, every kind set
+// and every changed kind size raise the store's `changes`, so the bounce
+// relights (0451 point 3); a kind size places that kind's copies again.
 //
 // Used by the editor: the scatter and erase brushes while a stroke is held,
 // the put for its undo step, the kind set for a dropped model; and by what
@@ -115,8 +116,39 @@ void voe_3d_models_landscape_kind_set(voe_3d_models *models, const char *path,
 				index < VOE_ASSETS_LANDSCAPE_KINDS,
 			"a held kind or the next of sixteen");
 	memcpy(land->kinds[index], model, strlen(model) + 1);
-	if (index == land->kind_count)
+	if (index == land->kind_count) {
+		land->kind_sizes[index] = 0;
 		land->kind_count++;
+	}
+	models->entries[at].edited = true;
+	models->changes++;
+}
+
+// One walk of the copies, each of kind `index` placed again at the new size.
+void voe_3d_models_landscape_kind_size_set(voe_3d_models *models,
+					   const char *path, uint32_t index,
+					   uint16_t size)
+{
+	VOE_BASE_ASSERT(models != NULL && path != NULL,
+			"setting a kind's size needs a store and a path");
+	VOE_BASE_ASSERT(size == 0 ||
+				(size >= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN &&
+				 size <= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX),
+			"a kind size the file can hold");
+	const uint32_t at = voe_3d_models_landscape_index(models, path);
+
+	if (at == VOE_3D_MODELS)
+		return;
+	voe_assets_landscape *land = models->entries[at].landscape;
+	voe_scene_transform *placed = models->held[at].placed;
+
+	VOE_BASE_ASSERT(index < land->kind_count, "a held kind");
+	if (land->kind_sizes[index] == size)
+		return;
+	land->kind_sizes[index] = size;
+	for (uint32_t i = 0; i < land->copy_count; i++)
+		if (land->copies[i].kind == index)
+			placed[i] = voe_3d_foliage_place(land, land->copies[i]);
 	models->entries[at].edited = true;
 	models->changes++;
 }

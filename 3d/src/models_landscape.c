@@ -60,7 +60,8 @@ static voe_3d_material ground(void)
 	};
 }
 
-// `from`'s grid copied onto `memory`, its layers and kinds carried and its
+// `from`'s grid copied onto `memory`, its layers, kinds and kind sizes
+// carried by the struct's copy and its
 // paint owned, every point all layer 0 when `from` has none; its copies owned
 // with room for the cap, so a scatter never grows them.
 static voe_assets_landscape *copy_grid(voe_base_arena *memory,

@@ -27,7 +27,8 @@ bool voe_assets_landscape_written_quoted(const voe_assets_sectioned *doc,
 void voe_assets_landscape_quote(const char *path, char *quoted);
 
 // `[Foliage]`'s kinds and `[Copies]`' copies of `text`, `size` bytes, into
-// `into`: kinds from kind0= to the first missing key, the copies pushed on
+// `into`: kinds from kind0= to the first missing key, each with its optional
+// `size<k>` or 0, the copies pushed on
 // `arena`, none and NULL with no `[Copies]`. False and a line on stderr for
 // what voe_assets_landscape_read refuses of them; `into` may be partly written.
 [[nodiscard]] bool
@@ -37,8 +38,8 @@ voe_assets_landscape_foliage_read(const voe_assets_sectioned *doc,
 				  voe_assets_landscape *into,
 				  voe_base_error *error);
 
-// `[Foliage]` and a blank line after it when there are kinds; nothing
-// otherwise.
+// `[Foliage]` and a blank line after it when there are kinds, a kind's
+// `size<k>` after its path unless 0 or 1000; nothing otherwise.
 void voe_assets_landscape_kinds_print(
 	struct voe_assets_landscape_printer *printer,
 	const voe_assets_landscape *landscape);

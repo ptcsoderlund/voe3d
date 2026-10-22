@@ -20,7 +20,8 @@ way out: a decoder takes a buffer and an encoder hands one back, since
   are `//`.
 - `include/assets/landscape.h` — a `.landscape` file's text to a grid of up
   to 2048 cells of heights in whole millimetres, up to eight material layers,
-  each point's paint weights and the foliage kinds and copies, and back, and a
+  each point's paint weights and the foliage kinds, their base sizes and copies,
+  and back, and a
   grid resampled bilinearly.
 - `include/assets/material.h` — a `.material` file's text to a shader, its
   factors, repeat and three map paths, and back. Its header says the defaults

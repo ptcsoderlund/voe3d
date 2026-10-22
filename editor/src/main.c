@@ -445,8 +445,6 @@ int main(int argc, char *argv[])
 		// The light every view is shown with this frame (view.h), read
 		// once rather than once per view: every view is lit the same.
 		voe_render_light light = { 0 };
-		// The seconds this frame's shadow calls took (view_passes.h).
-		double shadows = 0.0;
 
 		voe_editor_frame_hitches_begin(&hitches);
 		// AN IMPORTED MODEL'S LEVELS MADE BEHIND THE SPLASH (loading.h),
@@ -550,22 +548,25 @@ int main(int argc, char *argv[])
 
 		// The history's step, before world_step.h (frame_commands.h).
 		voe_editor_frame_commands_history(&commands);
+		voe_editor_frame_hitches_mark(&hitches, "open");
 
 		// The queue applied and every owning system run (world_step.h).
 		voe_editor_world_step(session.project->world, &shapes,
 				      last_seconds, session.project->folder,
 				      arena, &session.notice);
+		voe_editor_frame_hitches_mark(&hitches, "world");
 
 		// THE STEP LAST FRAME'S EDIT SETTLES INTO, once the world holds
 		// it: an edit reaches it through an intent or the structural
 		// queue, so nothing above this line has it yet (undo.h).
 		voe_editor_undo_settle(&undo, session.project, arena,
 				       commands.at_rest);
+		voe_editor_frame_hitches_mark(&hitches, "undo");
 
 		// The clock, the poll, and what the window says afterwards, in
 		// that order and once.
 		opened = voe_app_frame_open(app);
-		voe_editor_frame_hitches_mark(&hitches, "open");
+		voe_editor_frame_hitches_mark(&hitches, "pace");
 		last_seconds = options.capture != NULL ?
 				       0.0f :
 				       (float)(opened.tick.step > MAX_FRAME_SECONDS ?
@@ -675,6 +676,7 @@ int main(int argc, char *argv[])
 		}
 		if (!drawing)
 			continue;
+		voe_editor_frame_hitches_mark(&hitches, "fence");
 
 		// The landscapes' sculpted heights, written before this frame's
 		// passes (models.h).
@@ -688,13 +690,13 @@ int main(int argc, char *argv[])
 		drawn = voe_editor_view_passes_preview(
 				gpu, arena, session.project->world, &views,
 				light, &scene, voe_editor_models_store(models),
-				&shadows) &&
+				&hitches) &&
 			voe_editor_view_passes_draw(
 			gpu, arena, session.project->world, &views,
 			&roots[0], light, &scene, &geometries,
 			voe_editor_models_store(models), &shapes,
 			&voe_editor_themes_chosen(&themes)->palette, &gizmo,
-			pixels_per_millimetre, &shadows);
+			pixels_per_millimetre, &hitches);
 		voe_editor_frame_hitches_mark(&hitches, "views");
 
 		// Then one pass onto the window, with no camera, for the
@@ -732,8 +734,7 @@ int main(int argc, char *argv[])
 		// Once a frame, after it ends, with the frame's seconds.
 		voe_editor_frame_breakdown_take(&breakdown, gpu,
 						(float)opened.tick.step);
-		voe_editor_frame_hitches_end(&hitches, gpu, opened.tick.elapsed,
-					     shadows);
+		voe_editor_frame_hitches_end(&hitches, gpu, opened.waited);
 		if (!start_logged) {
 			voe_app_start_log_step(&start, "first frame");
 			voe_base_arena_clear(scratch);

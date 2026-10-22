@@ -12,7 +12,8 @@
 // The update's and the watch's gathering and the dot and water are internal
 // calls (models_batch.h).
 // A cooked landscape's millimetres become metres in scratch, rewound after it,
-// its layer and kind paths copied, its copies handed on for the store to copy,
+// its layer and kind paths and kinds' base sizes copied, its copies handed on
+// for the store to copy,
 // its paint widened to both planes in scratch too. The public prepare reads
 // its `.glb` and levels file on scratch, rewound; the triangle counts of a
 // `.glb`'s levels are read for the LODs panel, nothing made or written.
@@ -356,8 +357,9 @@ static void copy_layers(voe_assets_landscape *landscape,
 		memset(landscape->paint + plane, 0, plane);
 }
 
-// `cooked`'s kind paths into `landscape`, and its copies handed on as they
-// are: the store copies them into its own room and never writes these.
+// `cooked`'s kind paths and base sizes into `landscape`, NULL sizes left 0
+// (1×), and its copies handed on as they are: the store copies them into its
+// own room and never writes these.
 static void copy_foliage(voe_assets_landscape *landscape,
 			 const voe_game_landscape *cooked)
 {
@@ -371,6 +373,15 @@ static void copy_foliage(voe_assets_landscape *landscape,
 		VOE_BASE_ASSERT(length < VOE_ASSETS_LANDSCAPE_KIND_PATH,
 				"a cooked kind path too long");
 		memcpy(landscape->kinds[k], cooked->kinds[k], length + 1);
+		if (cooked->kind_sizes == NULL)
+			continue;
+		VOE_BASE_ASSERT(cooked->kind_sizes[k] == 0 ||
+					(cooked->kind_sizes[k] >=
+						 VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN &&
+					 cooked->kind_sizes[k] <=
+						 VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX),
+				"a cooked kind size out of range");
+		landscape->kind_sizes[k] = cooked->kind_sizes[k];
 	}
 	landscape->kind_count = cooked->kind_count;
 	landscape->copies = (voe_assets_landscape_copy *)cooked->copies;

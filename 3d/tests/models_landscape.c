@@ -9,7 +9,9 @@
 // A forest of one kind and two copies: each placed on the ground, a raise
 // under copy 0 lifting it alone and a put of the old heights setting it back;
 // a scatter adding placed copies and marking the entry edited; an erase put
-// back by undo's put; a kind set adding a second; a rename following a kind.
+// back by undo's put; a kind set adding a second at size 0; a rename following
+// a kind. A kind's base size at 2× doubling its copies' scales and back at 0
+// restoring them; a file with size0=2000 loading its copies at twice scale.
 //
 // THE GRID IS 16 METRES OF 8 CELLS, a cell 2 m. A brush of radius 3 at the
 // centre touches heights 3 to 5 on each axis. The wide one is 1024 cells, so
@@ -49,13 +51,14 @@
 #define PINE "Trees/pine.glb"
 #define MOVED_PINE "Forest/pine.glb"
 #define FIR "Woods/fir.glb"
+#define SIZED_FOREST "Woods/Sized.landscape"
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 33 * 33,
 	.indices = 32 * 32 * 6,
 	.geometries = 1,
 	.objects = 8,
-	.shadings = 8,
+	.shadings = 10,
 	.passes = 1,
 	.heights_texels = VOE_3D_LANDSCAPE_WRITE_TEXELS,
 };
@@ -390,11 +393,12 @@ static void rename_moves_the_entry(voe_3d_models *models)
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 4);
 }
 
-// The forest's text: 8 cells, kind 0 PINE, copy 0 at the centre and copy 1
-// at (6, 6) m, loaded through _load as a file is.
+// The forest's text: 8 cells, kind 0 PINE at base size `size0`, copy 0 at the
+// centre and copy 1 at (6, 6) m, loaded at `path` through _load as a file is.
 static const voe_3d_model_entry *load_forest(voe_3d_models *models,
 					     voe_render_device *device,
-					     voe_base_arena *arena)
+					     voe_base_arena *arena,
+					     const char *path, uint16_t size0)
 {
 	voe_assets_landscape land = voe_assets_landscape_flat(16.0f, 8, arena);
 	voe_assets_landscape_copy copies[2] = {
@@ -407,13 +411,14 @@ static const voe_3d_model_entry *load_forest(voe_3d_models *models,
 
 	snprintf(land.kinds[0], sizeof(land.kinds[0]), "%s", PINE);
 	land.kind_count = 1;
+	land.kind_sizes[0] = size0;
 	land.copies = copies;
 	land.copy_count = 2;
 	text = voe_assets_landscape_write(&land, arena);
-	VOE_TEST_CHECK(voe_3d_models_load(models, device, FOREST, 1,
+	VOE_TEST_CHECK(voe_3d_models_load(models, device, path, 1,
 					  (const uint8_t *)text.text, text.size,
 					  &error));
-	entry = voe_3d_models_find(models, FOREST);
+	entry = voe_3d_models_find(models, path);
 	if (entry == NULL || !entry->loaded || entry->landscape == NULL) {
 		VOE_TEST_CHECK(false);
 		return NULL;
@@ -451,7 +456,8 @@ static void a_sculpt_keeps_copies_standing(voe_3d_models *models,
 				     .radius = 3.0f,
 				     .strength = 1.0f,
 				     .softness = 0.5f };
-	const voe_3d_model_entry *entry = load_forest(models, device, arena);
+	const voe_3d_model_entry *entry =
+		load_forest(models, device, arena, FOREST, 0);
 	const voe_scene_transform *placed;
 	float old[81], values[81];
 	voe_3d_landscape_rect rect;
@@ -476,6 +482,83 @@ static void a_sculpt_keeps_copies_standing(voe_3d_models *models,
 	voe_3d_models_landscape_put(models, FOREST, rect, values);
 	VOE_TEST_CHECK_FLOAT((float)placed[0].position.y, 0.0f, 0.0f);
 	VOE_TEST_CHECK(one_frame(models, device));
+}
+
+// `b` where `a` stands, turned as `a` is, at `factor` times its scale.
+static void scaled_alike(voe_scene_transform a, voe_scene_transform b,
+			 float factor)
+{
+	VOE_TEST_CHECK_FLOAT(b.scale.x, factor * a.scale.x, 0.0f);
+	VOE_TEST_CHECK_FLOAT(b.scale.y, factor * a.scale.y, 0.0f);
+	VOE_TEST_CHECK_FLOAT(b.scale.z, factor * a.scale.z, 0.0f);
+	VOE_TEST_CHECK(b.position.x == a.position.x &&
+		       b.position.y == a.position.y &&
+		       b.position.z == a.position.z);
+	VOE_TEST_CHECK(b.rotation.x == a.rotation.x &&
+		       b.rotation.y == a.rotation.y &&
+		       b.rotation.z == a.rotation.z &&
+		       b.rotation.w == a.rotation.w);
+}
+
+// Kind 0 at 2× doubles both copies' scales and marks the forest edited; the
+// same size again changes nothing; back to 0 gives the first transforms.
+static void a_kind_size_places_its_copies_again(voe_3d_models *models)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, FOREST);
+	const voe_scene_transform *placed;
+	voe_scene_transform first[2];
+	uint32_t changes;
+
+	if (entry == NULL || entry->landscape == NULL)
+		return;
+	placed = voe_3d_models_landscape_placed(models, entry);
+	VOE_TEST_CHECK(placed != NULL && entry->landscape->copy_count == 2);
+	if (placed == NULL || entry->landscape->copy_count != 2)
+		return;
+	memcpy(first, placed, sizeof(first));
+	voe_3d_models_landscape_kind_size_set(models, "Woods/none.landscape", 0,
+					      2000);
+	voe_3d_models_landscape_saved(models, FOREST);
+	changes = models->changes;
+	voe_3d_models_landscape_kind_size_set(models, FOREST, 0, 2000);
+	VOE_TEST_CHECK_INT(entry->landscape->kind_sizes[0], 2000);
+	VOE_TEST_CHECK(entry->edited);
+	VOE_TEST_CHECK(models->changes > changes);
+	scaled_alike(first[0], placed[0], 2.0f);
+	scaled_alike(first[1], placed[1], 2.0f);
+
+	voe_3d_models_landscape_saved(models, FOREST);
+	changes = models->changes;
+	voe_3d_models_landscape_kind_size_set(models, FOREST, 0, 2000);
+	VOE_TEST_CHECK(!entry->edited);
+	VOE_TEST_CHECK_INT(models->changes, changes);
+
+	voe_3d_models_landscape_kind_size_set(models, FOREST, 0, 0);
+	VOE_TEST_CHECK(entry->edited);
+	scaled_alike(first[0], placed[0], 1.0f);
+	scaled_alike(first[1], placed[1], 1.0f);
+}
+
+// The same forest written with size0=2000 loads its copies at twice their
+// own scales.
+static void a_sized_file_loads_its_copies_scaled(voe_3d_models *models,
+						 voe_render_device *device,
+						 voe_base_arena *arena)
+{
+	const voe_3d_model_entry *entry =
+		load_forest(models, device, arena, SIZED_FOREST, 2000);
+	const voe_scene_transform *placed;
+
+	if (entry == NULL)
+		return;
+	placed = voe_3d_models_landscape_placed(models, entry);
+	VOE_TEST_CHECK(placed != NULL);
+	if (placed == NULL)
+		return;
+	VOE_TEST_CHECK_INT(entry->landscape->kind_sizes[0], 2000);
+	VOE_TEST_CHECK_FLOAT(placed[0].scale.x, 2.0f, 1e-6f);
+	VOE_TEST_CHECK_FLOAT(placed[1].scale.x, 3.0f, 1e-6f);
+	on_the_ground(models, entry, 1);
 }
 
 static void scatter_erase_and_put_back(voe_3d_models *models)
@@ -531,6 +614,7 @@ static void kinds_are_set_and_renamed(voe_3d_models *models)
 	voe_3d_models_landscape_kind_set(models, FOREST, 1, FIR);
 	VOE_TEST_CHECK_INT(entry->landscape->kind_count, 2);
 	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[1], FIR) == 0);
+	VOE_TEST_CHECK_INT(entry->landscape->kind_sizes[1], 0);
 	VOE_TEST_CHECK(entry->edited);
 	voe_3d_models_rename(models, "Trees", "Forest");
 	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[0], MOVED_PINE) == 0);
@@ -567,8 +651,10 @@ int main(void)
 	rename_follows_a_layer(models);
 	rename_moves_the_entry(models);
 	a_sculpt_keeps_copies_standing(models, device, arena);
+	a_kind_size_places_its_copies_again(models);
 	scatter_erase_and_put_back(models);
 	kinds_are_set_and_renamed(models);
+	a_sized_file_loads_its_copies_scaled(models, device, arena);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
