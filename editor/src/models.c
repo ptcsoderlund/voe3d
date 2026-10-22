@@ -5,7 +5,7 @@
 // materials loaded and parts given after, cleared through the device and
 // destroyed, and handed out read-only; its landscapes' heights and paint
 // stamped, put back and their layers set, their foliage scattered, erased,
-// put back and its kinds set, heights and materials' records
+// put back and its kinds and their base sizes set, heights and materials' records
 // written in the frame, landscapes written on Save and read again, and one
 // reshaped, written at once and loaded again at the next update; an edited
 // material set live, or loaded again at the next update when a map changed,
@@ -471,6 +471,16 @@ void voe_editor_models_kind_set(voe_editor_models *models, const char *path,
 	VOE_BASE_ASSERT(path != NULL && model != NULL,
 			"setting no model or onto no path");
 	voe_3d_models_landscape_kind_set(models->store, path, index, model);
+}
+
+void voe_editor_models_kind_size_set(voe_editor_models *models,
+				     const char *path, uint32_t index,
+				     uint16_t size)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"setting a kind's size in no store");
+	VOE_BASE_ASSERT(path != NULL, "setting a kind's size on no path");
+	voe_3d_models_landscape_kind_size_set(models->store, path, index, size);
 }
 
 void voe_editor_models_rename(voe_editor_models *models, const char *from,

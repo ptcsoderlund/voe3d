@@ -179,6 +179,14 @@ void voe_editor_models_put_copies(voe_editor_models *models, const char *path,
 void voe_editor_models_kind_set(voe_editor_models *models, const char *path,
 				uint32_t index, const char *model);
 
+// Kind `index` of `path`'s landscape takes base size `size` in thousandths, 0
+// meaning 1×, its copies placed again (0460 points 3 and 5): a slider's live
+// value or a size stroke put back (strokes.h). Save writes the sizes with the
+// kinds, the writer carrying them.
+void voe_editor_models_kind_size_set(voe_editor_models *models,
+				     const char *path, uint32_t index,
+				     uint16_t size);
+
 // Every entry at `from` or under `from/` takes `to` in its place, both under
 // `Assets/`: a rename or move keeps a landscape's unsaved heights (0379 point 6).
 void voe_editor_models_rename(voe_editor_models *models, const char *from,

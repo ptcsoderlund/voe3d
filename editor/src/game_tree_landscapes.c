@@ -14,6 +14,7 @@
 //     static const char *const landscape_0_kinds[] = {
 //             "Assets/Pine.glb",
 //     };
+//     static const uint16_t landscape_0_kind_sizes[] = { 2000 };
 //     static const voe_assets_landscape_copy landscape_0_copies[2] = {
 //             {0, -1500, 16384, 1000, 0, 0},
 //             {9000, 2500, 0, 1200, 0, 0},
@@ -22,7 +23,8 @@
 //             (const voe_game_landscape[]){
 //                     { "Assets/Hill.landscape", 0x1p+8f, 4, landscape_0,
 //                       landscape_0_layers, 2, landscape_0_paint,
-//                       landscape_0_kinds, 1, landscape_0_copies, 2 },
+//                       landscape_0_kinds, 1, landscape_0_copies, 2,
+//                       landscape_0_kind_sizes },
 //             },
 //             1,
 //     };
@@ -30,10 +32,11 @@
 // None is `{ NULL, 0 }`. The size is printed `%a`, so the float the game reads
 // is exactly the one the file read gave. A landscape with no layers names
 // `NULL, 0, NULL`; one with layers but no [Paint] is cooked all layer 0, its
-// paint built in the scratch first. The last four fields are the foliage
-// (0442 point 1): kind paths, kind count, copies, copy count, or
-// `NULL, 0, NULL, 0` with no copies, kinds then not cooked. Paths are escaped
-// as C strings.
+// paint built in the scratch first. The last five fields are the foliage
+// (0442 point 1, 0460 point 4): kind paths, kind count, copies, copy count and
+// the kinds' base sizes in thousandths as the grid holds them, 0 for 1×, or
+// `NULL, 0, NULL, 0, NULL` with no copies, kinds then not cooked. Paths are
+// escaped as C strings.
 //
 // Each file is read, parsed and cooked in one scratch arena rewound after it,
 // sized in blocks; only the cooked text is copied out. The arrays are joined
@@ -54,11 +57,13 @@
 
 // The scratch one landscape is read and cooked in, from a Created landscape's
 // points at 64 bytes each: its text, heights, 8 bytes of paint and both cooked,
-// and the most copies at 40 bytes each: their line in the file and cooked.
+// and the most copies at 40 bytes each: their line in the file and cooked,
+// and the most kinds' sizes at 32 bytes each: their keys and the sizes' line.
 // A block size, not a limit: a larger landscape chains blocks.
 #define LANDSCAPE_SCRATCH                                                        \
 	((size_t)(VOE_ASSETS_LANDSCAPE_CELLS + 1u) * (VOE_ASSETS_LANDSCAPE_CELLS + 1u) * 64u + \
-	 (size_t)VOE_ASSETS_LANDSCAPE_COPIES * 40u)
+	 (size_t)VOE_ASSETS_LANDSCAPE_COPIES * 40u +                             \
+	 (size_t)VOE_ASSETS_LANDSCAPE_KINDS * 32u)
 
 // One landscape cooked: its arrays' text and what its table entry names.
 struct landscape_cooked {
@@ -115,8 +120,9 @@ static const char *landscape_layers_text(voe_assets_landscape *landscape, uint32
 	return text;
 }
 
-// landscape's kind paths as landscape_<n>_kinds and its copies cooked as
-// landscape_<n>_copies, after before, as one string in scratch. The kinds are
+// landscape's kind paths as landscape_<n>_kinds, their base sizes as
+// landscape_<n>_kind_sizes and its copies cooked as landscape_<n>_copies, after
+// before, as one string in scratch. The kinds are
 // gathered apart and joined to before once, so before is copied once, not per
 // kind.
 static const char *landscape_foliage_text(const voe_assets_landscape *landscape,
@@ -125,25 +131,33 @@ static const char *landscape_foliage_text(const voe_assets_landscape *landscape,
 {
 	voe_authoring_text copies;
 	const char *kinds = "";
+	const char *sizes = "";
 
 	VOE_BASE_ASSERT(landscape->copy_count > 0 && landscape->kind_count > 0 &&
 				landscape->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
 			"cooking foliage of a landscape with none");
-	for (uint32_t k = 0; k < landscape->kind_count; k++)
+	for (uint32_t k = 0; k < landscape->kind_count; k++) {
 		kinds = voe_editor_game_tree_format(
 			scratch, "%s\t\"%s\",\n", kinds,
 			voe_editor_game_tree_c_string(scratch, landscape->kinds[k]));
+		sizes = voe_editor_game_tree_format(scratch, "%s%s%u", sizes,
+						    k == 0 ? "" : ", ",
+						    (unsigned)landscape->kind_sizes[k]);
+	}
 	copies = voe_authoring_landscape_cook_copies(
 		landscape, voe_editor_game_tree_format(scratch, "landscape_%u_copies", n),
 		scratch);
 	VOE_BASE_ASSERT(copies.text != NULL, "no copies text");
 	return voe_editor_game_tree_format(
-		scratch, "%sstatic const char *const landscape_%u_kinds[] = {\n%s};\n%s",
-		before, n, kinds, copies.text);
+		scratch,
+		"%sstatic const char *const landscape_%u_kinds[] = {\n%s};\n"
+		"static const uint16_t landscape_%u_kind_sizes[] = { %s };\n%s",
+		before, n, kinds, n, sizes, copies.text);
 }
 
 // landscape_<n>'s table entry, path its path under Assets/: size, cells and
-// heights, then layers and paint, then kinds and copies, NULLs where none.
+// heights, then layers and paint, then kinds, copies and kind sizes, NULLs
+// where none.
 static const char *landscape_entry(const char *path, uint32_t n,
 				   const struct landscape_cooked *cooked,
 				   voe_base_arena *arena)
@@ -156,10 +170,12 @@ static const char *landscape_entry(const char *path, uint32_t n,
 				  cooked->layer_count, n);
 	const char *foliage =
 		cooked->copy_count == 0
-			? "NULL, 0, NULL, 0"
+			? "NULL, 0, NULL, 0, NULL"
 			: voe_editor_game_tree_format(
-				  arena, "landscape_%u_kinds, %u, landscape_%u_copies, %u", n,
-				  cooked->kind_count, n, cooked->copy_count);
+				  arena,
+				  "landscape_%u_kinds, %u, landscape_%u_copies, %u, "
+				  "landscape_%u_kind_sizes",
+				  n, cooked->kind_count, n, cooked->copy_count, n);
 
 	VOE_BASE_ASSERT(path != NULL, "a landscape entry with no path");
 	return voe_editor_game_tree_format(
