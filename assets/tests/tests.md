@@ -18,6 +18,9 @@ belongs to.
   here, each refusal read for its code and its kept line's words, and the
   writer round-tripped through the reader.
 - `png_data.inc` — those files, as bytes.
+- `image_fit.c` — the sizes a largest side gives, a constant picture kept
+  constant for each kind, colour averaged in linear light and by alpha, two
+  leaning normals averaged to a unit one, and data averaged as stored.
 - `json.c` — a document read back as its values, every shape of broken input
   a tolerant reader would let past, and too many values or too deep refused as
   limits.

@@ -1,6 +1,6 @@
 // The project being worked on, its notice, Play, Refresh and Ship, open prefab
 // and the refuse-once rule: no one click or shortcut throws unsaved work away.
-// It holds the Delete and levels questions interface.c draws and answers.
+// It holds the questions interface.c draws and answers.
 //
 // ONE ARMED COMMAND IS THE WHOLE OF THE RULE. With unsaved work, CLOSE, NEW,
 // OPEN and BACK are refused the first time: the notice says so and `armed`
@@ -70,6 +70,7 @@
 #include "refresh.h"
 #include "scene.h"
 #include "ship.h"
+#include "textures_ask.h"
 
 #include <3d/model_component.h>
 
@@ -123,6 +124,9 @@ typedef struct voe_editor_session {
 	// The levels question (levels_ask.h), opened by a `.glb`'s import here
 	// and by Make levels, drawn and answered by interface.c as `asking` is.
 	voe_editor_levels_ask levels_asking;
+	// The Import textures question (textures_ask.h), opened by the Assets
+	// menu, drawn by interface.c and answered in interface_assets.c.
+	voe_editor_textures_ask textures_asking;
 	// A different project is in session->project, set by whichever call
 	// put it there and cleared by whoever acts on it.
 	bool replaced;

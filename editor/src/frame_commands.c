@@ -162,12 +162,17 @@ voe_editor_frame_commands_read(voe_editor_frame_commands *commands,
 	commands->step_forward = shortcuts.redo;
 
 	// ESCAPE'S ORDER IS THIS FILE'S, out of the free edge that read
-	// leaves: an open Delete question is cancelled first, then a Scene
-	// list drag under way, then the picker closes and goes no further,
-	// otherwise it is the browser's Cancel or Preferences' Close.
+	// leaves: an open Delete question is cancelled first, then an open
+	// Import textures question, writing nothing, then a Scene list drag
+	// under way, then the picker closes and goes no further, otherwise it
+	// is the browser's Cancel or Preferences' Close.
 	commands->escape_free = shortcuts.escape_free;
 	if (commands->escape_free && session->asking.open) {
 		voe_editor_assets_ask_close(&session->asking);
+		commands->escape_free = false;
+	}
+	if (commands->escape_free && session->textures_asking.open) {
+		voe_editor_textures_ask_close(&session->textures_asking);
 		commands->escape_free = false;
 	}
 	if (commands->escape_free && voe_editor_scene_list_cancel(scene))

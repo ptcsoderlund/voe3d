@@ -5,8 +5,8 @@ and the questions each header answers, stays on `assets/assets.md`.
 
 - `model.h` — `.glb` files, read into vertex attributes, materials, pictures
   decoded or left encoded, and a node tree.
-- `image.h` — pictures, both directions: PNG and JPEG decoded to RGBA8, and
-  RGBA8 encoded back as a PNG.
+- `image.h` — pictures, both directions: PNG and JPEG decoded to RGBA8,
+  RGBA8 encoded back as a PNG, and a picture shrunk to a largest side.
 - `sectioned.h` — the engine's own authored text format: `[Section]` headers and
   `key=value` lines, handed back as text and never interpreted.
 - `landscape.h` — a `.landscape` file's text to a grid of up to 2048 cells of

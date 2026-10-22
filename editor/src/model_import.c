@@ -8,7 +8,8 @@
 // unique before any path is built from it. Import reads with
 // voe_assets_model_read_glb_encoded, no picture decoded, since it only names
 // the materials; Import textures, which writes the pictures out, reads with
-// voe_assets_model_read_glb.
+// voe_assets_model_read_glb, and shrinks each picture to the largest size
+// through voe_assets_image_fit by its kind, worked out once per image.
 #include "model_import.h"
 
 #include <assets/image.h>
@@ -406,15 +407,39 @@ static bool pictures_named(const char *glb, const voe_assets_model *model,
 	return true;
 }
 
-// `image` encoded as a PNG and written to `path`, scratch rewound after.
+// Image `image`'s use (0466 point 3): NORMAL when any material names it as
+// its normal map, else COLOUR when any names it as a base colour or emission
+// map, else DATA.
+static voe_assets_image_kind image_kind(const voe_assets_model *model, uint32_t image)
+{
+	bool colour = false;
+
+	VOE_BASE_ASSERT(model != NULL && image < model->image_count,
+			"the kind of an image out of range");
+	for (uint32_t i = 0; i < model->material_count; i++) {
+		const voe_assets_material *material = &model->materials[i];
+
+		if (material->normal_image == image)
+			return VOE_ASSETS_IMAGE_NORMAL;
+		colour = colour || material->base_colour_image == image ||
+			 material->emissive_image == image;
+	}
+	return colour ? VOE_ASSETS_IMAGE_COLOUR : VOE_ASSETS_IMAGE_DATA;
+}
+
+// `image` shrunk to `largest` by `kind`, encoded as a PNG and written to
+// `path`, scratch rewound after.
 static bool picture_written(const char *project_folder, const char *path,
-			    voe_assets_image image, voe_base_arena *scratch,
+			    voe_assets_image image, uint32_t largest,
+			    voe_assets_image_kind kind, voe_base_arena *scratch,
 			    voe_editor_notice *why)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	voe_assets_bytes png;
 	bool ok = false;
 
+	VOE_BASE_ASSERT(path != NULL && largest > 0, "writing a picture to no size");
+	image = voe_assets_image_fit(scratch, image, largest, kind);
 	if (!voe_assets_png_encode(scratch, image, &png, NULL))
 		voe_editor_notice_set(why, "%s: a picture too large to write", path);
 	else
@@ -423,15 +448,15 @@ static bool picture_written(const char *project_folder, const char *path,
 	return ok;
 }
 
-// Every picture and every ORM picture written. False with `why` naming the
-// first that fails.
+// Every picture and every ORM picture written no larger than `largest`, the
+// ORM picture as DATA. False with `why` naming the first that fails.
 static bool pictures_written(const char *project_folder, const voe_assets_model *model,
-			     const struct pictures *pictures, voe_base_arena *scratch,
-			     voe_editor_notice *why)
+			     const struct pictures *pictures, uint32_t largest,
+			     voe_base_arena *scratch, voe_editor_notice *why)
 {
 	for (uint32_t i = 0; i < model->image_count; i++)
 		if (!picture_written(project_folder, pictures->images[i], model->images[i],
-				     scratch, why))
+				     largest, image_kind(model, i), scratch, why))
 			return false;
 	for (uint32_t i = 0; i < model->material_count; i++) {
 		struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
@@ -442,7 +467,8 @@ static bool pictures_written(const char *project_folder, const voe_assets_model 
 			continue;
 		ok = voe_assets_model_orm(model, i, scratch, &orm);
 		VOE_BASE_ASSERT(ok, "an ORM picture named but not made");
-		ok = picture_written(project_folder, pictures->orms[i], orm, scratch, why);
+		ok = picture_written(project_folder, pictures->orms[i], orm, largest,
+				     VOE_ASSETS_IMAGE_DATA, scratch, why);
 		voe_base_arena_rewind(scratch, mark);
 		if (!ok)
 			return false;
@@ -493,7 +519,8 @@ static bool material_dressed(const char *project_folder, const char *path,
 }
 
 bool voe_editor_model_import_textures(const char *project_folder, const char *glb,
-				      voe_base_arena *scratch, voe_editor_notice *why)
+				      uint32_t largest, voe_base_arena *scratch,
+				      voe_editor_notice *why)
 {
 	struct voe_base_arena_mark mark;
 	voe_assets_model model;
@@ -504,11 +531,12 @@ bool voe_editor_model_import_textures(const char *project_folder, const char *gl
 
 	VOE_BASE_ASSERT(project_folder != NULL && glb != NULL, "dressing no .glb");
 	VOE_BASE_ASSERT(scratch != NULL && why != NULL, "dressing with no scratch or why");
+	VOE_BASE_ASSERT(largest > 0, "dressing with no largest size");
 	mark = voe_base_arena_mark(scratch);
 	if (!glb_quotable(glb, why) || !model_read(project_folder, glb, true, scratch, &model, why) ||
 	    !parts_read(project_folder, glb, scratch, &parts, why) ||
 	    !pictures_named(glb, &model, scratch, &pictures, why) ||
-	    !pictures_written(project_folder, &model, &pictures, scratch, why))
+	    !pictures_written(project_folder, &model, &pictures, largest, scratch, why))
 		goto rewind;
 	// A re-export with fewer materials leaves keys past the file's: no
 	// glTF material there to dress them from.

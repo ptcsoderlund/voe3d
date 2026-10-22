@@ -20,8 +20,8 @@
 // IT DRAWS IN THE THEME IT IS HANDED, at pixels per millimetre from the
 // window's height (voe_editor_interface_surface). Each root is the top bar
 // above its dock tree, with the browser, Preferences, Project, Errors or the
-// frame breakdown over the dock when one shows, and the Delete and levels
-// questions or the colour picker over that.
+// frame breakdown over the dock when one shows, and the Delete, levels and
+// Import textures questions or the colour picker over that.
 #pragma once
 
 #include "assets_drag.h"
@@ -405,8 +405,19 @@
 // six, "  shadows", nine, and two counts of at most thirty-five, eighty-five
 // apiece. 2651 + 30 = 2681 nodes, 52274 + 425 = 52699 elements. No scroll
 // area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2681
-#define VOE_EDITOR_INTERFACE_ELEMENTS 52699
+//
+// THE IMPORT TEXTURES QUESTION (textures_ask.h, ADR-0466) ADDS SEVENTEEN
+// NODES, counted on top as the levels question is: the panel, one; its title,
+// one; the size row and its "Largest size" label, two; 512, 1024, 2048 and
+// 4096, each a choice and a label, eight; the button row, one; Import and
+// Cancel, each a button and a label, four. 2681 + 17 = 2698 nodes. AND 1095
+// ELEMENTS: the panel's border and fill, two; the title cut at its kept room,
+// VOE_EDITOR_ASSETS_PATH (1024) and "Import textures of " less the zero, 1043;
+// "Largest size", eleven; each of the six buttons' border and fill, twelve;
+// "512", "1024", "2048" and "4096", fifteen; "Import" and "Cancel", twelve.
+// 52699 + 1095 = 53794 elements. No scroll area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2698
+#define VOE_EDITOR_INTERFACE_ELEMENTS 53794
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

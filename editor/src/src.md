@@ -126,7 +126,7 @@ carries it out.
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
 - `session.h` — the project being worked on, the commands a person asks of it, and the
-  questions it holds.
+  questions it holds: Delete, levels and Import textures.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
   build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
   once a frame, and what a browser action does to the session.
@@ -199,10 +199,10 @@ carries it out.
   fired row's path, Up and Import afterwards, and the import's copy.
 - `model_import.h` — what Import writes beside a `.glb`: one `<stem>-<name>.material` per glTF
   material and `<stem>.parts` naming them, both overwritten every import, the levels kept (0403,
-  0420 point 3); and Import textures: its pictures as PNGs and the materials' four maps set to them.
+  0420 point 3); and Import textures: its pictures as PNGs within a largest size, the four maps set.
 - `model_import.c` — the file read and parsed, its pictures decoded only for Import textures, each
   name cleaned and made unique, every path checked before the first write, then the materials and
-  the parts, or the PNGs and the dressed materials, written.
+  the parts, or the PNGs shrunk to the largest size by use and the dressed materials, written.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
   over a row and Import textures and Make LODs over a `.glb`'s, Create with its Folder, Landscape and Material
   submenu over the empty part, anchored at the pointer.
@@ -218,6 +218,10 @@ carries it out.
 - `levels_ask.c` — the open with its quiet `.parts` read and triangle count, the panel's one frame
   of `ui` calls with its column headers, LOD rows and swap line, the read of its buttons, boxes and
   a press outside, and the save into the `.parts`.
+- `textures_ask.h` — the anchored panel Import textures asks: a largest size of 512, 1024, 2048
+  or 4096, 2048 on every opening, with Import and Cancel; the caller carries out the answer.
+- `textures_ask.c` — the open with its title, the panel's one frame of `ui` calls with the chosen
+  size lit, and the read of its buttons and a press outside.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
   folder row or Up, a new thing or copy placed in a scene view, or over the Inspector a swap, a
   shape's material, a filled map, a landscape layer or a foliage kind, elsewhere nothing.
@@ -250,10 +254,11 @@ carries it out.
 - `interface.c` — one `ui` frame per root: the dock walk, the draws over the dock, and the one read
   of its clicks as calls, in order, into the two below.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
-  row, Delete and levels questions and a fired prefab, landscape or material opened.
-- `interface_assets.c` — the Assets panel's requests and menu rows carried out, Make LODs
-  opening the levels question, and the Delete and levels questions answered, Make's asking the
-  prepare or, for swaps alone, a reload.
+  row, Delete, levels and Import textures questions and a fired prefab, landscape or material
+  opened.
+- `interface_assets.c` — the Assets panel's requests and menu rows carried out, Make LODs and
+  Import textures opening their questions, and the Delete, levels and Import textures questions
+  answered, Make's asking the prepare or, for swaps alone, a reload, Import's importing at its size.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
 - `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,

@@ -30,6 +30,9 @@ of them is internal to this folder rather than reachable from outside it.
 - `png_write.c` — the writer: colour type 6, filter 0 on every row, one
   `IDAT`. Its header says why each of those is the only shape it writes, and
   where the size of every buffer it pushes comes from.
+- `image_fit.c` — a picture shrunk to a largest side by an area average, one
+  output row of float sums at a time, colour in linear light weighted by alpha
+  and normals made unit length again.
 - `sectioned.c` — two passes over one line lexer. Its header says why the
   caller states no capacity here where the JSON reader demands one, and why
   there is nothing for rule 14 to worry about.
