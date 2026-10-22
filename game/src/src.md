@@ -13,7 +13,7 @@ defines, and `models.h`, which has two and an internal batch.
 - `progress.c` — the progress record's atomic stores and loads and its line.
 - `run.c` — the run's steps in the handed window and its threads, and the only file naming the cooked scene, prefabs, landscapes, materials and parts, the materials and parts loaded after each models update.
 - `splashscreen.png` — the engine's splash, read by the editor from the source and put beside a game's program by `cmake/game.cmake` when the project has none (0356).
-- `models.c` — an update's, watch's or reload's paths loaded one file at a time as batches of one, a cooked landscape with its kinds and copies and each landscape's kind paths, each failure counted.
+- `models.c` — an update's, watch's or reload's paths loaded one file at a time as batches of one, a cooked landscape with its kinds, their base sizes and copies and each landscape's kind paths, each failure counted.
 - `models_batch.h` — internal: a batch of files through timed phases in order on the caller, then put; the phases' times and their line; the levels file helpers `models.c` shares.
 - `models_batch.c` — each phase's tasks in order under the file's path, a `.glb`'s levels file read or made and written, the put keeping a refused file failed, and the times' line.
 - `models_materials.c` — each loaded model given its parts; each material a shape, a part's `wears` or a landscape layer names that the store lacks gathered from the table or kept failed, its maps read, decoded and uploaded one material at a time on the caller, and the materials' times line.
