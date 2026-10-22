@@ -1,8 +1,7 @@
 // The frame's probe bounce, run only when a light bounces and ended by the
-// relight, and this step's stale spheres (ADR-0326 points 2, 4 and 8), and the
-// relight's own sun maps (0329 point 2). The contract is
-// draw_bounce.h's; voe_3d_draw_system_shadows in 3d/draw_system.h states what
-// the caller pays for it.
+// relight, this step's stale spheres (ADR-0326 points 2, 4 and 8) and the
+// relight's own sun maps (0329 point 2). The contract is draw_bounce.h's;
+// voe_3d_draw_system_shadows in 3d/draw_system.h states what the caller pays.
 //
 // THE BOUNCE TAKES EVERY SUN (0357 points 1 and 4): the first with row 0's
 // bounces and strength, the frame's further lights as the begin's `more`, and
@@ -26,7 +25,8 @@
 // the frame's store's `changes` (0451), as no stale sphere marks a copy.
 //
 // THE GRID IS FITTED TO THE LEVEL, NOT THE EYE (0331, 0332): the still casters'
-// box goes to voe_3d_bounce_grid_fit, and its spacing to the begin.
+// box goes to voe_3d_bounce_grid_fit and its spacing to the begin, which also
+// carries `frame->blockers`, filled by _light_blockers first (0347 point 4).
 //
 // THEN THE NESTS, COARSE TO FINE (0389 points 1 to 3): each nest finer than
 // the level grid, volume i + 1 for nest i, placed from where render last put
@@ -47,8 +47,8 @@
 // matrix, so where the eye stands cannot move the box by a rounding. A
 // landscape's box is its pyramid's, not the shared grid's unit cube (0396).
 //
-// THE BOUNCE KEEPS TO THE FRAME'S BLOCKERS (0347 point 4): the begin carries
-// `frame->blockers`, filled by voe_3d_draw_system_light_blockers before this.
+// WITH A CLOCK IT TIMES SIX PARTS (0463 point 3) into `frame->shadow_times`,
+// summed over the volumes, and adds one to `bounced`; the rest is in none.
 //
 // Constraints: at most STALE_ROOM spheres a frame, on the stack, because the
 // shadows call takes no arena. Sixty-four spheres, each out to a probe's reach,
@@ -475,17 +475,19 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 struct bouncing {
 	voe_ecs_world *world;
 	voe_render_device *device;
-	const voe_3d_frame *frame;
+	voe_3d_frame *frame;
 	struct voe_render_bounce_frame shared;
 	uint32_t captured;
 };
 
 // Volume `volume` at `grid` begun with the call's shared record, so render
-// places it and queues this step's stale spheres in it; no pass opened.
+// places it and queues this step's stale spheres in it; no pass opened. With
+// a clock the begin goes to `bounce_begin`.
 static void begin_volume(struct bouncing *call, voe_3d_bounce_grid grid,
 			 uint32_t volume)
 {
 	struct voe_render_bounce_frame bounce = call->shared;
+	double since;
 
 	VOE_BASE_ASSERT(volume < VOE_RENDER_BOUNCE_VOLUMES,
 			"a volume past render's");
@@ -495,45 +497,64 @@ static void begin_volume(struct bouncing *call, voe_3d_bounce_grid grid,
 	bounce.cell[2] = grid.cell[2];
 	bounce.corner = grid.corner;
 	bounce.volume = volume;
+	since = voe_3d_draw_clock_read(call->frame);
 	voe_render_bounce_begin(call->device, call->frame->target, &bounce);
+	voe_3d_draw_clock_add(call->frame, &call->frame->shadow_times.bounce_begin,
+			      since);
 }
 
 // Volume `volume` at `grid` (0389 points 1 and 3): begun, then capture passes
 // while render opens one and this call's count is below `until`, one sun map
 // per casting sun, and the relight. False when a pass or a draw is refused.
+// With a clock each capture pass, a begin that opens none among them, goes to
+// `bounce_captures`, each sun map to `bounce_suns`, the relight to
+// `bounce_relight`.
 static bool bounce_volume(struct bouncing *call, voe_3d_bounce_grid grid,
 			  uint32_t volume, uint32_t until)
 {
-	const voe_3d_frame *frame = call->frame;
+	voe_3d_frame *frame = call->frame;
 	bool opened = true;
+	double since;
 
 	VOE_BASE_ASSERT(until <= VOE_RENDER_BOUNCE_CAPTURE_PASSES,
 			"a capture budget past render's");
 	begin_volume(call, grid, volume);
 	while (opened && call->captured < until) {
+		bool begun;
+		bool drawn = true;
+
+		since = voe_3d_draw_clock_read(frame);
+		begun = voe_render_bounce_capture_pass_begin(call->device, &opened);
+		if (begun && opened) {
+			call->captured++;
+			drawn = voe_3d_draw_casters(call->world, call->device, frame,
+						    0, VOE_3D_TERRAIN_BOUNCE_NODES,
+						    true);
+			voe_render_pass_end(call->device);
+		}
+		voe_3d_draw_clock_add(frame, &frame->shadow_times.bounce_captures,
+				      since);
+		if (!begun || !drawn)
+			return false;
+	}
+	for (uint32_t sun = 0; sun <= frame->more_count; sun++) {
+		voe_math_float3 direction =
+			sun == 0 ? frame->light.direction :
+				   frame->more_lights[sun - 1].light.direction;
 		bool drawn;
 
-		if (!voe_render_bounce_capture_pass_begin(call->device, &opened))
-			return false;
-		if (!opened)
-			break;
-		call->captured++;
-		drawn = voe_3d_draw_casters(call->world, call->device, frame, 0,
-					    VOE_3D_TERRAIN_BOUNCE_NODES, true);
-		voe_render_pass_end(call->device);
+		if (!voe_3d_draw_light_casts(call->world, sun))
+			continue;
+		since = voe_3d_draw_clock_read(frame);
+		drawn = draw_sun_map(call->world, call->device, frame, grid, sun,
+				     direction);
+		voe_3d_draw_clock_add(frame, &frame->shadow_times.bounce_suns, since);
 		if (!drawn)
 			return false;
 	}
-	if (voe_3d_draw_light_casts(call->world, 0) &&
-	    !draw_sun_map(call->world, call->device, frame, grid, 0,
-			  frame->light.direction))
-		return false;
-	for (uint32_t i = 0; i < frame->more_count; i++)
-		if (voe_3d_draw_light_casts(call->world, i + 1) &&
-		    !draw_sun_map(call->world, call->device, frame, grid, i + 1,
-				  frame->more_lights[i].light.direction))
-			return false;
+	since = voe_3d_draw_clock_read(frame);
 	voe_render_bounce_relight(call->device);
+	voe_3d_draw_clock_add(frame, &frame->shadow_times.bounce_relight, since);
 	VOE_BASE_ASSERT(call->captured <= until, "more capture passes than budgeted");
 	return true;
 }
@@ -548,6 +569,7 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 	struct bouncing call = { world, device, frame, { 0 }, 0 };
 	uint32_t first = 0;
 	uint32_t stale;
+	double since;
 	bool moving;
 	bool drawn;
 
@@ -560,13 +582,19 @@ bool voe_3d_draw_bounce(voe_ecs_world *world, voe_render_device *device,
 		 (fabs(frame->eye.x - frame->casters->eye.x) > 1e-3 ||
 		  fabs(frame->eye.y - frame->casters->eye.y) > 1e-3 ||
 		  fabs(frame->eye.z - frame->casters->eye.z) > 1e-3);
+	if (frame->clock != NULL)
+		frame->shadow_times.bounced++;
 	// No still caster leaves min above max, which the fit takes as no box.
+	since = voe_3d_draw_clock_read(frame);
 	(void)voe_3d_bounce_box(world, device, frame, &min, &max);
 	level = voe_3d_bounce_grid_fit(min, max, frame->eye);
+	voe_3d_draw_clock_add(frame, &frame->shadow_times.bounce_fit, since);
 	// The removed casters' spheres follow the stale ones in the room left.
+	since = voe_3d_draw_clock_read(frame);
 	stale = voe_3d_bounce_stale(world, device, frame, spheres, STALE_ROOM);
 	stale += voe_3d_bounce_removed(world, device, frame, spheres + stale,
 				       STALE_ROOM - stale);
+	voe_3d_draw_clock_add(frame, &frame->shadow_times.bounce_stale, since);
 	call.shared = (struct voe_render_bounce_frame){
 		.stale = spheres,
 		.stale_count = stale,

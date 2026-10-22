@@ -68,7 +68,8 @@ again, or to find where a claim that has started failing is written down.
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
 - `shadow_times.c` — that the shadows call times nothing without a clock, and with one times the
-  casters and no bounce. Skips without a graphics card.
+  casters and no bounce, or a bouncing sun's one bounce call by its parts within it. Skips without
+  a graphics card.
 - `shadow_lights.c` — that a sun and a moon each cast their own shadow, a sun not casting leaves
   the moon's, one casting light fits one light's passes, a moon bounces, and each bouncing sun
   draws its own map per volume. Skips without a graphics card.

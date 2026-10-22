@@ -120,12 +120,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the sun's mask, and light rows 2 to 4 each masked at its place.
 - `draw_bounce.h` — the frame's probe bounce with foliage in free suns' maps, its stale and
   removed casters' spheres, the caster walk and measure bounce_casters.c shares, the still casters'
-  box, and the cascades' caster walk and casting test; internal.
+  box, and the cascades' caster walk, casting test and clock helpers; internal.
 - `bounce_casters.c` — a removed caster's sphere where the target's memory saw it last, then the
   memory refilled with this frame's casters.
-- `draw_bounce.c` — the frame's probe bounce, run only when a light bounces: the volumes fitted to
-  the still casters, each begun with the store's count, the casters drawn into each pass and sun
-  map, the foliage into a free sun's map, a landscape coarse at 16 nodes, and the relight.
+- `draw_bounce.c` — the frame's probe bounce, when a light bounces: the volumes fitted to the
+  still casters, begun with the store's count, the casters drawn into each pass and sun map, the
+  foliage into a free sun's map, a landscape coarse at 16 nodes, the relight; six parts timed.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, the record a mesh is drawn with, a double-sided mesh drawn between two

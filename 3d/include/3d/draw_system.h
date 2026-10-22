@@ -296,6 +296,21 @@ typedef struct {
 	double lamps;
 	// The probe bounce, the whole call.
 	double bounce;
+	// Within `bounce`, each summed over the volumes (0463 point 3): the
+	// still casters' box and the grid fit.
+	double bounce_fit;
+	// The stale and removed casters' spheres' walks.
+	double bounce_stale;
+	// Render's bounce begins.
+	double bounce_begin;
+	// The capture passes: each begin, its caster draws and its end.
+	double bounce_captures;
+	// The bounce sun maps, their casters and foliage.
+	double bounce_suns;
+	// Render's relights.
+	double bounce_relight;
+	// The bounce calls made with a clock.
+	uint32_t bounced;
 } voe_3d_shadow_times;
 
 // What one frame is drawn with, in the shape `render` takes it: the camera and
@@ -748,7 +763,14 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // into every cascade, `ground` the landscape nodes' draws into them, `foliage`
 // the groups' draws into them, `lamps` the point-shadow pass's draws and
 // `bounce` the probe bounce call. Fitting cascades and opening passes fall in
-// none. With NULL nothing is read or written. The clock is handed in because
+// none. Within `bounce` (0463 point 3), each summed over the volumes:
+// `bounce_fit` the still casters' box and the grid fit, `bounce_stale` the
+// stale and removed spheres' walks, `bounce_begin` render's bounce begins,
+// `bounce_captures` the capture passes opened, drawn and closed, `bounce_suns`
+// the bounce sun maps with foliage and `bounce_relight` render's relights; the
+// rest of the bounce call is in none, and `bounced` counts the bounce calls.
+// The bounce's caster walks add nothing to `ground`.
+// With NULL nothing is read or written. The clock is handed in because
 // 3d names no platform (0461), and a game that times nothing pays nothing.
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
 					      voe_render_device *device,

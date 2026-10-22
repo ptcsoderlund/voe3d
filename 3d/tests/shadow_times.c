@@ -8,11 +8,17 @@
 // cascades draw two casters and nothing bounces.
 //
 // UNTIMED: a frame as voe_3d_draw_system_frame gives it, no clock, comes back
-// from the call with all five parts at 0.
+// from the call with every part and `bounced` at 0.
 //
 // TIMED: a fake clock that reads one more second each time it is read. Each
 // cascade's walk is a read either side, so `casters` is above 0; nothing
-// bounces, so `bounce` is never read around and stays 0.
+// bounces, so `bounce` is never read around and stays 0, and `bounced` too.
+//
+// BOUNCED: the sun at bounces 1 and strength 1, as bounce_world.inc's, one
+// call on the same clock. The first bounce only asks for its volumes, so no
+// capture pass opens, but the fit, the stale walks, the begins and the
+// relights are each read around: each above 0, the six below `bounce`, which
+// reads around them all, and `bounced` 1.
 //
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/shadows.c does.
@@ -86,8 +92,10 @@ static void add_a_shape(voe_ecs_world *world, double x, double y, double z,
 				.cast_shadows = true }));
 }
 
-// The camera, the floor, the cube and the casting sun straight down.
-static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes)
+// The camera, the floor, the cube and the casting sun straight down, of
+// `bounces` at strength 1.
+static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes,
+			      uint32_t bounces)
 {
 	voe_ecs_limits limits = {
 		.entities = 8,
@@ -129,7 +137,8 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 		world, entity,
 		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
 				   .intensity = 3.0f,
-				   .bounces = 0,
+				   .bounces = bounces,
+				   .bounce_strength = 1.0f,
 				   .cast_shadows = true }));
 	add_a_shape(world, 0.0, -1.0, -5.0, (voe_math_float3){ 20.0f, 0.1f, 20.0f });
 	add_a_shape(world, 0.0, 1.0, -5.0, (voe_math_float3){ 1.0f, 1.0f, 1.0f });
@@ -137,14 +146,15 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const voe_3d_shapes *shapes
 	return world;
 }
 
-// The shadow times of one frame of a_world's world through the shadows call,
-// with `clock` as its clock; the frame is begun and ended with no view pass.
+// The shadow times of one frame of a_world's world, its sun of `bounces`,
+// through the shadows call with `clock` as its clock; the frame is begun and
+// ended with no view pass.
 static voe_3d_shadow_times a_frame(voe_render_device *device,
 				   const voe_3d_shapes *shapes,
-				   double (*clock)(void))
+				   double (*clock)(void), uint32_t bounces)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_ecs_world *world = a_world(arena, shapes);
+	voe_ecs_world *world = a_world(arena, shapes, bounces);
 	voe_platform_size size = { SIDE, SIDE };
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
 	voe_3d_shadow_times times = { 0 };
@@ -165,20 +175,32 @@ static voe_3d_shadow_times a_frame(voe_render_device *device,
 	printf("casters %g, ground %g, foliage %g, lamps %g, bounce %g\n",
 	       times.casters, times.ground, times.foliage, times.lamps,
 	       times.bounce);
+	printf("bounce: fit %g, stale %g, begin %g, captures %g, suns %g, "
+	       "relight %g, bounced %u\n",
+	       times.bounce_fit, times.bounce_stale, times.bounce_begin,
+	       times.bounce_captures, times.bounce_suns, times.bounce_relight,
+	       times.bounced);
 	return times;
 }
 
-// A frame with no clock leaves all five at 0.
+// A frame with no clock leaves every part and the count at 0.
 static void shadow_times_untimed(voe_render_device *device,
 				 const voe_3d_shapes *shapes)
 {
-	voe_3d_shadow_times times = a_frame(device, shapes, NULL);
+	voe_3d_shadow_times times = a_frame(device, shapes, NULL, 0);
 
 	VOE_TEST_CHECK(times.casters == 0.0);
 	VOE_TEST_CHECK(times.ground == 0.0);
 	VOE_TEST_CHECK(times.foliage == 0.0);
 	VOE_TEST_CHECK(times.lamps == 0.0);
 	VOE_TEST_CHECK(times.bounce == 0.0);
+	VOE_TEST_CHECK(times.bounce_fit == 0.0);
+	VOE_TEST_CHECK(times.bounce_stale == 0.0);
+	VOE_TEST_CHECK(times.bounce_begin == 0.0);
+	VOE_TEST_CHECK(times.bounce_captures == 0.0);
+	VOE_TEST_CHECK(times.bounce_suns == 0.0);
+	VOE_TEST_CHECK(times.bounce_relight == 0.0);
+	VOE_TEST_CHECK_INT(times.bounced, 0);
 }
 
 // With the fake clock the casters took time and the bounce, never called,
@@ -186,10 +208,29 @@ static void shadow_times_untimed(voe_render_device *device,
 static void shadow_times_casters(voe_render_device *device,
 				 const voe_3d_shapes *shapes)
 {
-	voe_3d_shadow_times times = a_frame(device, shapes, fake_clock);
+	voe_3d_shadow_times times = a_frame(device, shapes, fake_clock, 0);
 
 	VOE_TEST_CHECK(times.casters > 0.0);
 	VOE_TEST_CHECK(times.bounce == 0.0);
+	VOE_TEST_CHECK_INT(times.bounced, 0);
+}
+
+// A sun of bounces 1 under the fake clock: one bounce call, its fit, stale
+// walks, begins and relights each timed, the six inside the whole call.
+static void shadow_times_bounce(voe_render_device *device,
+				const voe_3d_shapes *shapes)
+{
+	voe_3d_shadow_times times = a_frame(device, shapes, fake_clock, 1);
+	double parts = times.bounce_fit + times.bounce_stale +
+		       times.bounce_begin + times.bounce_captures +
+		       times.bounce_suns + times.bounce_relight;
+
+	VOE_TEST_CHECK_INT(times.bounced, 1);
+	VOE_TEST_CHECK(times.bounce_fit > 0.0);
+	VOE_TEST_CHECK(times.bounce_stale > 0.0);
+	VOE_TEST_CHECK(times.bounce_begin > 0.0);
+	VOE_TEST_CHECK(times.bounce_relight > 0.0);
+	VOE_TEST_CHECK(parts < times.bounce);
 }
 
 int main(void)
@@ -214,6 +255,7 @@ int main(void)
 
 	shadow_times_untimed(device, &shapes);
 	shadow_times_casters(device, &shapes);
+	shadow_times_bounce(device, &shapes);
 
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);
