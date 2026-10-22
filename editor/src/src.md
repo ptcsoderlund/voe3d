@@ -163,10 +163,11 @@ carries it out.
   with its ×, anchored at a point.
 - `frame_breakdown.c` — the quarter-second copy with the triangle and draw counts, keeping the last
   on no measurement, the panel's one frame of `ui` calls, and the read of its × afterwards.
-- `frame_hitches.h` — the editor's hitch watch: a frame's CPU stretches and its shadows timed, and
-  an `editor: hitch:` line on stderr for each frame stalled on the CPU or the card (0458).
-- `frame_hitches.c` — the stretches read off the platform clock, then app/hitches.h asked about the
-  frame and the card's lagging measurement, each hitch's line written.
+- `frame_hitches.h` — the editor's hitch watch: a frame's CPU stretches, its shadows' parts and
+  foliage gathers timed, and an `editor: hitch:` line on stderr for each frame stalled on the CPU or
+  the card, the card's with triangles and draws (0458, 0461).
+- `frame_hitches.c` — the stretches read off the platform clock, the shadows' sums added, then
+  app/hitches.h asked about the frame and the card's lagging measurement, each hitch's line written.
 - `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock
   to open a project, save into a folder or import a model or picture, in its own arena, a showing
   able to start beside a given folder.
@@ -341,7 +342,7 @@ carries it out.
   collider and gizmo, every blocker's box, the markers, the brush circle, and the device capacities.
 - `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, foliage
   gathered first, lit by every light and kept out of the blockers, every place marked and blocker
-  lined, stopping at the first refused pass.
+  lined, stopping at the first refused pass, the shadows, their parts and gathers timed.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or on asking, emptied on a different project, a broken file in the notice, where landscapes with
   foliage and kinds' base sizes and the project's materials are edited, and models given parts.
