@@ -133,3 +133,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **Loading models on every core** (sponsor, 2026-10-20; was 0447, withdrawn by 0456). A worker pool splitting
   import and cooking by file, picture and part, with uploads on one thread. Only if loads are still too slow
   once the cooked copy (092) exists.
+
+- **Mesh and terrain blending, like CryEngine 5.6** (sponsor, 2026-10-22: "It looks awesome."). A model
+  placed on the terrain, a rock, a log or a wall, takes on the ground's painted layers where it meets it,
+  fading into its own material higher up, so no hard seam shows where the mesh enters the ground. Not
+  in the 0.3 queue (091–098); weigh it once the hill has rocks and buildings standing in it.
