@@ -13,6 +13,9 @@
 //   with the run.
 // - The window's remembered bounce casters are kept for the whole run, across
 //   frames and restarts.
+// - VOE_GAME_COUNTS=1, read once at start, puts the view's and its shadows'
+//   drawn and skipped things on stderr once a second (0465 point 2); unset or
+//   anything else, nothing is said and no frame counts.
 // - The only file naming the project's cooked C: voe_game_scene_build,
 //   voe_game_prefabs_cooked, voe_game_landscapes_cooked, the landscapes
 //   loaded before the first models, and voe_game_materials_cooked with
@@ -49,10 +52,13 @@
 #include <base/error.h>
 #include <base/report.h>
 
+#include <platform/environment.h>
 #include <platform/path.h>
 #include <platform/sound.h>
 
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 // The app's arena, the world's own, the scratch startup and each frame's
 // draw system work in, and the start's worker's own scratch. Block sizes, not
@@ -208,20 +214,41 @@ static bool run_starting(voe_app *app, voe_game_interface *interface,
 	return started;
 }
 
+// The elapsed time banked toward the next counts line (0465 point 2): `banked`
+// as it came under a second; at a second or more, `counts`' line on stderr and
+// an empty bank.
+static double run_counts_said(voe_3d_view_counts counts, double banked)
+{
+	VOE_BASE_ASSERT(banked >= 0.0, "a counts bank below nought");
+	if (banked < 1.0)
+		return banked;
+	// A stderr that will not take the line leaves nobody to tell.
+	(void)fprintf(stderr,
+		      "game: view: drawn %u, skipped %u; shadows: drawn %u, "
+		      "skipped %u\n",
+		      counts.drawn, counts.skipped, counts.cast,
+		      counts.cast_skipped);
+	return 0.0;
+}
+
 // The frames, until the window is closing or the project's interface ends
 // the run. False, with a line on stderr, when one was refused. A device whose
 // pump fails is destroyed and the sound's device set to NULL, and the game
 // goes on silent. Paused, no step runs and the draw keeps the last lag. The
 // start's log gets its last step here and is written after the first frame.
 // `casters` is the window's bounce memory, kept across frames and restarts.
+// `counting` hands each frame a counts record and says it once a second.
 static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 		       voe_ecs_world *world, const voe_3d_shapes *shapes,
 		       voe_base_arena *scratch, voe_game_interface *interface,
 		       struct run_sound *sound, const struct run_models *models,
-		       voe_3d_bounce_casters *casters, voe_app_start_log *log)
+		       voe_3d_bounce_casters *casters, voe_app_start_log *log,
+		       bool counting)
 {
 	voe_game_project_asks asks = { 0 };
 	voe_game_steps steps = { 0 };
+	voe_3d_view_counts counts = { 0 };
+	double banked = 0.0;
 	float lag = 1.0f;
 	bool logged = false;
 
@@ -276,10 +303,14 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 		}
 		if (!voe_game_frame(app, world, shapes, models->store, scratch,
 				    frame.size, lag, casters,
-				    voe_game_interface_context(interface))) {
+				    voe_game_interface_context(interface),
+				    counting ? &counts : NULL)) {
 			VOE_BASE_ERROR("game", "the device stopped drawing");
 			return false;
 		}
+		if (counting)
+			banked = run_counts_said(counts,
+						 banked + frame.tick.elapsed);
 		if (!logged) {
 			voe_app_start_log_step(log, "first frame");
 			voe_base_arena_clear(scratch);
@@ -311,11 +342,16 @@ int voe_game_run(const char *title, voe_game_window window)
 	struct run_models models;
 	struct run_sound sound;
 	voe_app *app;
+	const char *counts_asked;
+	bool counting;
 	int status = 1;
 
 	VOE_BASE_ASSERT(window.width > 0 && window.height > 0,
 			"a game window with no width or height");
 	voe_app_start_log_begin(&log);
+	// Read once, so a frame reads nothing (0465 point 2).
+	counts_asked = voe_platform_environment_read("VOE_GAME_COUNTS", arena);
+	counting = counts_asked != NULL && strcmp(counts_asked, "1") == 0;
 	app = voe_app_new(arena, scratch, settings, &error);
 	if (app == NULL) {
 		VOE_BASE_ERROR("game", "the window would not open: %s",
@@ -354,7 +390,7 @@ int voe_game_run(const char *title, voe_game_window window)
 		casters = voe_base_arena_push(arena, sizeof(*casters));
 		if (run_frames(app, world_arena, start.world, &start.shapes,
 			       scratch, interface, &sound, &models, casters,
-			       &log))
+			       &log, counting))
 			status = 0;
 		voe_platform_sound_destroy(sound.device);
 		voe_audio_mixer_destroy(sound.mixer);
