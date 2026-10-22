@@ -54,7 +54,7 @@ holds the allowed edges, so a new edge is a decision, not a card. The standing r
 - 0307, 0312, 0316–0319, 0328, 0331 — Bounce per light, on the level; not screen space; opt-in.
 - 0333–0338, 0340, 0342, 0343, 0346 — Pause; waves; ids; fade; Release; copy; browse; splash.
 - 0348, 0349, 0351–0355, 0358, 0359, 0361–0364, 0370, 0371 — Blocks; moon; GPU ms; mips; splash; F.
-- 0374–0381, 0384–0388, 0392, 0395–0401, 0403, 0404, 0420 — Loghouse; bindless; 60 fps; models.
+- 0374–0381, 0384–0388, 0392, 0396–0401, 0403, 0404, 0420 — Loghouse; bindless; 60 fps; models.
 - 0405, 0406, 0411, 0413–0416, 0418, 0423 — Sky, Haze, Picture; only lights light; env via platform.
 - 0425, 0427–0430, 0432–0437, 0441 — LODs: made, chosen by error on screen, dissolved; off switch.
-- 0442–0445, 0449, 0450, 0452–0459, 0461–0463 — Foliage; import errors; Cache/; hitches; cull.
+- 0442–0445, 0449, 0450, 0452–0459, 0461–0463, 0465 — Foliage; import errors; Cache/; hitches; cull.

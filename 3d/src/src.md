@@ -108,7 +108,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and tier by the camera's and the suns' cascades' planes, counted, filled contiguously and
   written as render instances in one call; then each group's instanced draw.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
-  held blended unless the pass's cull cannot see them, and why one eye chooses the same nodes in
+  held blended unless outside the pass's planes, and why one eye chooses the same nodes in
   every pass and the cull comes after; internal.
 - `draw_terrain.c` — the eye taken into the grid's space, the nodes selected on scratch or, in
   the cast, on the stack, each node's record over the heights texture, its layers looked up
