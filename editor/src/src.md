@@ -163,11 +163,11 @@ carries it out.
   with its ×, anchored at a point.
 - `frame_breakdown.c` — the quarter-second copy with the triangle and draw counts, keeping the last
   on no measurement, the panel's one frame of `ui` calls, and the read of its × afterwards.
-- `frame_hitches.h` — the editor's hitch watch: a frame's CPU stretches, its shadows' parts and
-  foliage gathers timed, and an `editor: hitch:` line on stderr for each frame stalled on the CPU or
-  the card, the card's with triangles and draws (0458, 0461).
-- `frame_hitches.c` — the stretches read off the platform clock, the shadows' sums added, then
-  app/hitches.h asked about the frame and the card's lagging measurement, each hitch's line written.
+- `frame_hitches.h` — the editor's hitch watch: its own span's CPU stretches, the pace's wait, the
+  shadows' and bounce's parts and foliage gathers timed, and an `editor: hitch:` line on stderr for
+  each frame stalled on the CPU or the card, saying whether a light bounced (0458, 0461, 0463).
+- `frame_hitches.c` — the stretches read off the platform clock, the wait and the shadows' sums
+  added, then app/hitches.h asked about the frame since _begin and the card's lagging measurement.
 - `browser.h` — the editor's own file browser: a folder listing as an anchored panel over the dock
   to open a project, save into a folder or import a model or picture, in its own arena, a showing
   able to start beside a given folder.

@@ -734,7 +734,7 @@ int main(int argc, char *argv[])
 		// Once a frame, after it ends, with the frame's seconds.
 		voe_editor_frame_breakdown_take(&breakdown, gpu,
 						(float)opened.tick.step);
-		voe_editor_frame_hitches_end(&hitches, gpu, opened.tick.elapsed);
+		voe_editor_frame_hitches_end(&hitches, gpu, opened.waited);
 		if (!start_logged) {
 			voe_app_start_log_step(&start, "first frame");
 			voe_base_arena_clear(scratch);

@@ -118,6 +118,13 @@ static bool shadows_watched(voe_ecs_world *world, voe_render_device *gpu,
 	watch->parts.foliage += frame->shadow_times.foliage;
 	watch->parts.lamps += frame->shadow_times.lamps;
 	watch->parts.bounce += frame->shadow_times.bounce;
+	watch->parts.bounce_fit += frame->shadow_times.bounce_fit;
+	watch->parts.bounce_stale += frame->shadow_times.bounce_stale;
+	watch->parts.bounce_begin += frame->shadow_times.bounce_begin;
+	watch->parts.bounce_captures += frame->shadow_times.bounce_captures;
+	watch->parts.bounce_suns += frame->shadow_times.bounce_suns;
+	watch->parts.bounce_relight += frame->shadow_times.bounce_relight;
+	watch->parts.bounced += frame->shadow_times.bounced;
 	VOE_BASE_ASSERT(watch->shadows >= 0.0, "shadows that took negative time");
 	return passed;
 }
