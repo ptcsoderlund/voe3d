@@ -13,8 +13,10 @@
 //
 // THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn by interface.c
 // after the panels list and read here after the panel: Rename, Delete, Folder,
-// Landscape and Material begin on the panel, Duplicate goes through assets_manage.h,
-// and Import textures through model_import.h, the tables read again after.
+// Landscape and Material begin on the panel, Duplicate goes through assets_manage.h.
+// Import textures asks a largest size first (textures_ask.h), drawn by
+// interface.c and read here after the levels one: Import runs model_import.h at
+// that size, the tables read again after, and Cancel writes nothing.
 // Make LODs asks first: it opens the session's levels question
 // (levels_ask.h), drawn by interface.c and read here after the Delete one —
 // Make saves the levels and asks the session's prepare, which main.c runs
@@ -28,6 +30,7 @@
 #include "levels_ask.h"
 #include "model_import.h"
 #include "notice.h"
+#include "textures_ask.h"
 
 #include <base/assert.h>
 
@@ -161,21 +164,23 @@ static void voe_editor_interface_assets_material_open(voe_editor_scene *scene,
 	scene->material_before = row->values;
 }
 
-// Import textures on `path`, relative to `Assets/`, then the materials and
-// parts read again, the open material refreshed and the panel listed again,
-// as after an import (session.c). A failure is the notice.
+// Import textures on `path`, relative to `Assets/`, no picture above `largest`
+// on its longest side, then the materials and parts read again, the open
+// material refreshed and the panel listed again, as after an import
+// (session.c). A failure is the notice.
 static void voe_editor_interface_assets_textures_do(voe_editor_session *session,
 						    voe_editor_scene *scene,
 						    voe_editor_models *models,
 						    voe_base_arena *arena,
-						    const char *path)
+						    const char *path,
+						    uint32_t largest)
 {
 	const char *folder = session->project->folder;
 
 	voe_editor_notice_clear(&session->notice);
 	(void)voe_editor_model_import_textures(
-		folder, voe_editor_assets_join(arena, "Assets", path), 2048, arena,
-		&session->notice);
+		folder, voe_editor_assets_join(arena, "Assets", path), largest,
+		arena, &session->notice);
 	voe_editor_models_materials_read(models, folder, arena);
 	voe_editor_scene_material_refresh(scene, voe_editor_models_materials(models));
 	voe_editor_assets_list_due(&scene->assets);
@@ -243,6 +248,32 @@ static void voe_editor_interface_assets_levels_answer(
 		voe_editor_levels_ask_close(ask);
 }
 
+// The Import textures question as it was drawn answered: Import runs the
+// import on its path at its chosen size; Import, Cancel or a press outside
+// closes it, Cancel and the press writing nothing (0466 point 4).
+static void voe_editor_interface_assets_textures_answer(
+	voe_ui_context *ui, voe_base_arena *arena,
+	const voe_editor_dock_root *root, voe_editor_scene *scene,
+	voe_editor_models *models, voe_editor_session *session)
+{
+	voe_editor_textures_ask *ask = &session->textures_asking;
+	voe_editor_textures_ask_answer answer;
+
+	VOE_BASE_ASSERT(ui != NULL && arena != NULL && root != NULL,
+			"answering the textures question with no frame, scratch or root");
+	VOE_BASE_ASSERT(scene != NULL && models != NULL && session != NULL,
+			"answering the textures question with no scene, store or session");
+	answer = voe_editor_textures_ask_read(ui, ask, root->pointer.down,
+					      root->pointer.at);
+	if (answer == VOE_EDITOR_TEXTURES_ASK_IMPORT &&
+	    session->project->folder != NULL)
+		voe_editor_interface_assets_textures_do(session, scene, models,
+							arena, ask->path,
+							ask->largest);
+	if (answer != VOE_EDITOR_TEXTURES_ASK_NONE)
+		voe_editor_textures_ask_close(ask);
+}
+
 // A fired row of the Assets menu carried out on the selected row or the shown
 // folder (assets_panel.h, assets_manage.h).
 static void voe_editor_interface_assets_menu_do(voe_editor_session *session,
@@ -277,8 +308,7 @@ static void voe_editor_interface_assets_menu_do(voe_editor_session *session,
 		 session->project->folder != NULL &&
 		 voe_editor_assets_selected_path(&scene->assets, path,
 						 sizeof path))
-		voe_editor_interface_assets_textures_do(session, scene, models,
-							arena, path);
+		voe_editor_textures_ask_open(&session->textures_asking, path);
 	else if (item == VOE_EDITOR_ASSETS_MENU_MAKE_LEVELS &&
 		 session->project->folder != NULL &&
 		 voe_editor_assets_selected_path(&scene->assets, path,
@@ -294,7 +324,7 @@ void voe_editor_interface_assets_read(
 	voe_editor_preferences *preferences,
 	voe_editor_project_panel *project_panel,
 	voe_editor_landscape_panel *landscape_panel, bool over_assets,
-	bool menuing, bool asking, bool levels_asking)
+	bool menuing, bool asking, bool levels_asking, bool textures_asking)
 {
 	// A landscape Create made this frame, `Assets/...`.
 	char made[VOE_SCENE_PREFAB_PATH];
@@ -351,6 +381,10 @@ void voe_editor_interface_assets_read(
 	if (levels_asking)
 		voe_editor_interface_assets_levels_answer(ui, arena, root,
 							  session);
+	if (textures_asking)
+		voe_editor_interface_assets_textures_answer(ui, arena, root,
+							    scene, models,
+							    session);
 	if (scene->assets.deleting[0] != '\0') {
 		if (!session->asking.open)
 			voe_editor_assets_ask_open(&session->asking,
