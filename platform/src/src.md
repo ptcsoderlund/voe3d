@@ -11,9 +11,6 @@ header.
   raw one.
 - `clock_win32.c` — the performance counter, the frequency asked for once, and the launch from the process's creation time.
   Its header says why not the millisecond tick counts.
-- `cores_wayland.c` — sysconf's online processors, 1 when not above 0. Linux only despite the name.
-- `cores_win32.c` — GetActiveProcessorCount over all processor groups, 1 when 0. Written, not
-  built here.
 - `file_wayland.c` — open, read/write, close, the rename that makes a write
   atomic, and renameat2 for a move that never replaces, on Linux.
 - `file_win32.c` — the Windows half of `platform/file.h` through CreateFileW,

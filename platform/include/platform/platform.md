@@ -9,7 +9,6 @@ stays on `platform/platform.md`.
   wheel, typed text, the pointer and its lock.
 - `clock.h` — how long something took, in seconds, from a clock that only goes
   forward.
-- `cores.h` — the machine's logical cores, at least 1, asked each time; a loading pool's size.
 - `file.h` — reading a whole file into an arena, testing a path, and writing a
   whole file atomically.
 - `trash.h` — a file or folder sent to the freedesktop home trash, where a file
