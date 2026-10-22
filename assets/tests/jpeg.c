@@ -23,7 +23,15 @@
 // by a level or two. Three is comfortably inside that and nowhere near enough to
 // hide a wrong pixel: every mistake this test is looking for moves samples by
 // tens or by hundreds.
+//
+// THE CASES: greyscale, 4:4:4 and 4:2:0 round-tripped; card 017's three
+// failures (a truncated file, a wrong magic number, an absurd declared size)
+// and a progressive file refused; and every refusal's kept line read for
+// `(JPEG: ` and the artist's words: progressive's "baseline", the huge size's
+// 16384 and a scan cut short's "save it again".
 #include <assets/image.h>
+
+#include <base/report.h>
 
 #include <testing/test.h>
 
@@ -55,15 +63,27 @@ static void close_enough(int got, int want)
 	return arena;
 }
 
+// Whether the line kept since the last clear contains `words`.
+static bool said(const char *words)
+{
+	const char *kept = voe_base_report_error_first();
+
+	return kept != NULL && strstr(kept, words) != NULL;
+}
+
+// A decode that must fail with `expected`, saying why with the format's words
+// for a developer. The kept line is left for the caller.
 static void refuses(const uint8_t *bytes, size_t size, voe_base_error expected)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	voe_assets_image image = { 0 };
 	voe_base_error error = VOE_BASE_OK;
 
+	voe_base_report_error_clear();
 	VOE_TEST_CHECK(!voe_assets_jpeg_decode(bytes, size, arena, &image,
 					       &error));
 	VOE_TEST_CHECK_INT((int)error, (int)expected);
+	VOE_TEST_CHECK(said("(JPEG: "));
 	voe_base_arena_destroy(arena);
 }
 
@@ -150,14 +170,21 @@ static void progressive_is_unsupported(void)
 {
 	refuses(JPEG_PROGRESSIVE, sizeof(JPEG_PROGRESSIVE),
 		VOE_BASE_ERROR_UNSUPPORTED);
+	// And the artist is told what to save instead.
+	VOE_TEST_CHECK(said("progressive"));
+	VOE_TEST_CHECK(said("baseline"));
 }
 
 // Sixty-five thousand square is the largest a JPEG header can even ask for, and
 // it is four thousand times more picture than this engine will decode. Refused
-// on the header, before anything is allocated.
+// on the header, before anything is allocated, as a limit the engine keeps
+// (ADR-0443) and not as damage.
 static void an_absurd_declared_size_is_refused(void)
 {
-	refuses(JPEG_HUGE, sizeof(JPEG_HUGE), VOE_BASE_ERROR_MALFORMED);
+	refuses(JPEG_HUGE, sizeof(JPEG_HUGE), VOE_BASE_ERROR_UNSUPPORTED);
+	VOE_TEST_CHECK(said("65535 × 65535"));
+	VOE_TEST_CHECK(said("16384"));
+	VOE_TEST_CHECK(said("scale it down"));
 }
 
 static void a_wrong_magic_number_is_refused(void)
@@ -186,6 +213,15 @@ static void every_truncation_is_refused(void)
 		refuses(JPEG_GREY, size, VOE_BASE_ERROR_MALFORMED);
 }
 
+// A file cut short inside its scan is damage, and the artist is told to save
+// it again rather than handed a picture missing its bottom.
+static void a_scan_cut_short_says_to_save_it_again(void)
+{
+	refuses(JPEG_GREY, sizeof(JPEG_GREY) - 20, VOE_BASE_ERROR_MALFORMED);
+	VOE_TEST_CHECK(said("damaged"));
+	VOE_TEST_CHECK(said("save it again"));
+}
+
 int main(void)
 {
 	greyscale_round_trips();
@@ -195,5 +231,6 @@ int main(void)
 	an_absurd_declared_size_is_refused();
 	a_wrong_magic_number_is_refused();
 	every_truncation_is_refused();
+	a_scan_cut_short_says_to_save_it_again();
 	return voe_test_result();
 }

@@ -6,11 +6,18 @@
 // bytes before it is used, and the walk advances at least eight bytes a chunk,
 // so it ends within size / 8 steps whatever the file says. Nothing is written
 // to `sound` until every check has passed.
+//
+// Every refusal prints one line (ADR-0445 point 2): the cause in the artist's
+// words with the numbers, what to do, then `(WAV: …)` for a developer. The
+// sound is never named here; whoever opened it pushed it as the subject.
 #include <assets/sound.h>
 
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 
 #define WAV_TAG_PCM 0x0001u
@@ -22,6 +29,13 @@
 // Extensible adds cbSize, valid bits, channel mask and a 16-byte subformat GUID.
 #define WAV_FMT_EXTENSIBLE_BYTES 40u
 #define WAV_SUBFORMAT_OFFSET 24u
+
+// The artist's half of every refusal that is damage rather than a choice.
+#define DAMAGED "the sound is damaged; export it again "
+// What to do about a sample format this reader does not take.
+#define EXPORT_AS                                                    \
+	"the engine reads 16-bit PCM and 32-bit float; export it as " \
+	"16-bit PCM or 32-bit float WAV"
 
 // The fourteen bytes every KSDATAFORMAT_SUBTYPE GUID shares after its tag.
 static const uint8_t SUBFORMAT_TAIL[14] = { 0x00, 0x00, 0x00, 0x00, 0x10,
@@ -46,14 +60,71 @@ static uint32_t le32(const uint8_t *bytes)
 	       (uint32_t)bytes[2] << 16 | (uint32_t)bytes[3] << 24;
 }
 
+// The one exit of every refusal: its line, then its code. The line is
+// composed here because report.h takes no va_list; report.h's cut still holds.
+[[gnu::format(printf, 3, 4)]]
 static bool refuse(voe_base_error *error, voe_base_error code,
-		   const char *message)
+		   const char *words, ...)
 {
-	VOE_BASE_ASSERT(message != NULL, "a refusal names its reason");
-	VOE_BASE_ERROR("assets", "wav: %s", message);
+	char line[512];
+	va_list arguments;
+
+	VOE_BASE_ASSERT(words != NULL, "a refusal names its reason");
+	va_start(arguments, words);
+	(void)vsnprintf(line, sizeof(line), words, arguments);
+	va_end(arguments);
+	VOE_BASE_ERROR("assets", "%s", line);
 	if (error != NULL)
 		*error = code;
 	return false;
+}
+
+// A format tag as an artist's export dialog names it, NULL for one it does
+// not. Only the tags a tool is likely to offer are named.
+static const char *tag_name(uint16_t tag)
+{
+	switch (tag) {
+	case WAV_TAG_PCM:
+		return "PCM";
+	case WAV_TAG_FLOAT:
+		return "float";
+	case 0x0002u:
+		return "ADPCM";
+	case 0x0006u:
+		return "A-law";
+	case 0x0007u:
+		return "µ-law";
+	case 0x0011u:
+		return "IMA ADPCM";
+	case 0x0055u:
+		return "MP3";
+	default:
+		return NULL;
+	}
+}
+
+// The sample format refused by name: depth and kind for PCM and float, the
+// codec's name for the rest, and the tag for a developer either way.
+static bool refuse_sample_format(voe_base_error *error, uint16_t tag,
+				 uint16_t bits)
+{
+	const char *name = tag_name(tag);
+
+	if (tag == WAV_TAG_PCM || tag == WAV_TAG_FLOAT)
+		return refuse(error, VOE_BASE_ERROR_UNSUPPORTED,
+			      "the sound is %u-bit %s; " EXPORT_AS
+			      " (WAV: format tag %u, %u bits)",
+			      (unsigned)bits, name, (unsigned)tag,
+			      (unsigned)bits);
+	if (name != NULL)
+		return refuse(error, VOE_BASE_ERROR_UNSUPPORTED,
+			      "the sound is %s; " EXPORT_AS
+			      " (WAV: format tag %u)",
+			      name, (unsigned)tag);
+	return refuse(error, VOE_BASE_ERROR_UNSUPPORTED,
+		      "the sound is in a format the engine does not read; "
+		      EXPORT_AS " (WAV: format tag or subformat %u)",
+		      (unsigned)tag);
 }
 
 // Walks the chunks between byte 12 and `end`, keeping the first `fmt ` and the
@@ -71,7 +142,8 @@ static bool find_chunks(const uint8_t *bytes, size_t end,
 
 		if (chunk_size > end - pos - 8)
 			return refuse(error, VOE_BASE_ERROR_MALFORMED,
-				      "a chunk runs past the end of the file");
+				      DAMAGED "(WAV: a chunk runs past the end "
+					      "of the file)");
 		if (memcmp(bytes + pos, "fmt ", 4) == 0 && chunks->fmt == NULL) {
 			chunks->fmt = body;
 			chunks->fmt_size = chunk_size;
@@ -85,7 +157,7 @@ static bool find_chunks(const uint8_t *bytes, size_t end,
 	VOE_BASE_ASSERT(pos >= 12, "the walk only moves forward");
 	if (chunks->fmt == NULL || chunks->data == NULL)
 		return refuse(error, VOE_BASE_ERROR_MALFORMED,
-			      "no fmt or no data chunk");
+			      DAMAGED "(WAV: no fmt or no data chunk)");
 	return true;
 }
 
@@ -117,22 +189,30 @@ static bool read_format(const struct wav_chunks *chunks, voe_assets_sound *out,
 	    (le16(chunks->fmt) == WAV_TAG_EXTENSIBLE &&
 	     chunks->fmt_size < WAV_FMT_EXTENSIBLE_BYTES))
 		return refuse(error, VOE_BASE_ERROR_MALFORMED,
-			      "fmt chunk too short for its tag");
+			      DAMAGED "(WAV: fmt chunk of %" PRIu32
+				      " bytes, too short for its tag)",
+			      chunks->fmt_size);
 	out->channels = le16(chunks->fmt + 2);
 	out->rate = le32(chunks->fmt + 4);
 	bits = le16(chunks->fmt + 14);
 	if (out->channels == 0 || out->rate == 0)
 		return refuse(error, VOE_BASE_ERROR_MALFORMED,
-			      "zero channels or a rate of zero");
+			      DAMAGED "(WAV: %" PRIu32 " channels at %" PRIu32
+				      " Hz)",
+			      out->channels, out->rate);
 	*tag = sample_tag(chunks);
 	if (!(*tag == WAV_TAG_PCM && bits == 16) &&
 	    !(*tag == WAV_TAG_FLOAT && bits == 32))
-		return refuse(error, VOE_BASE_ERROR_UNSUPPORTED,
-			      "only 16-bit PCM and 32-bit float are read");
+		return refuse_sample_format(error, *tag, bits);
 	if (out->channels > 2)
 		return refuse(error, VOE_BASE_ERROR_UNSUPPORTED,
-			      "more than two channels");
-	VOE_BASE_ASSERT(out->channels <= 2 && out->rate > 0, "format checked");
+			      "the sound has %" PRIu32 " channels, the most "
+			      "the engine takes is 2; mix it to stereo "
+			      "(WAV: %" PRIu32 " channels)",
+			      out->channels, out->channels);
+	VOE_BASE_ASSERT(out->channels >= 1 && out->channels <= 2 &&
+				out->rate > 0,
+			"format checked");
 	return true;
 }
 
@@ -171,15 +251,22 @@ bool voe_assets_wav_decode(const uint8_t *bytes, size_t size,
 	if (size < 12 || memcmp(bytes, "RIFF", 4) != 0 ||
 	    memcmp(bytes + 8, "WAVE", 4) != 0)
 		return refuse(error, VOE_BASE_ERROR_MALFORMED,
-			      "not a RIFF/WAVE file");
+			      DAMAGED "(WAV: not a RIFF/WAVE file)");
 	end = size - 8 < le32(bytes + 4) ? size : (size_t)le32(bytes + 4) + 8;
 	if (!find_chunks(bytes, end, &chunks, error) ||
 	    !read_format(&chunks, &out, &tag, error))
 		return false;
+	// Stated again here because the analyser does not follow the variadic
+	// refuse() and so cannot see read_format's refusals return false.
+	VOE_BASE_ASSERT(out.channels >= 1 && out.channels <= 2,
+			"read_format refused every other channel count");
 	sample_bytes = tag == WAV_TAG_PCM ? 2 : 4;
 	if (chunks.data_size % (sample_bytes * out.channels) != 0)
 		return refuse(error, VOE_BASE_ERROR_MALFORMED,
-			      "data is not a whole number of frames");
+			      DAMAGED "(WAV: data of %" PRIu32
+				      " bytes is not a whole number of "
+				      "%zu-byte frames)",
+			      chunks.data_size, sample_bytes * out.channels);
 	count = chunks.data_size / sample_bytes;
 	out.frames = count / out.channels;
 	out.samples = voe_base_arena_push(arena, (count ? count : 1) *

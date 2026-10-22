@@ -4,12 +4,15 @@
 // loaded again on asking, the tables'
 // materials loaded and parts given after, cleared through the device and
 // destroyed, and handed out read-only; its landscapes' heights and paint
-// stamped, put back and their layers set, heights and materials' records
+// stamped, put back and their layers set, their foliage scattered, erased,
+// put back and its kinds set, heights and materials' records
 // written in the frame, landscapes written on Save and read again, and one
 // reshaped, written at once and loaded again at the next update; an edited
 // material set live, or loaded again at the next update when a map changed,
 // as is every held material a read of the tables found new or changed. A read
-// that fails is said in the session's notice.
+// that fails is said in the session's notice, the kept line whole; a landscape
+// re-read names its path as the subject.
+// Between frames the update and the watch load whole (0459 point 3).
 #include "models.h"
 
 #include <base/assert.h>
@@ -115,24 +118,17 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 			"a cleared store still holds models");
 }
 
-// The notice for a call that failed: the first path and the reason, the last
-// phrase of the first error kept since the caller's clear.
+// The notice for a call that failed: the first error kept since the caller's
+// clear, whole, named by the first path when it does not name it (0445 point 6).
 static void say_failure(voe_editor_notice *notice,
 			voe_game_models_failures failures)
 {
-	const char *kept = voe_base_report_error_first();
-	const char *category = kept != NULL ? strrchr(kept, ':') : NULL;
-
 	VOE_BASE_ASSERT(notice != NULL, "saying a failure into no notice");
 	if (failures.count == 0)
 		return;
-	if (category != NULL)
-		category += category[1] == ' ' ? 2 : 1;
-	else
-		category = kept != NULL ? kept : "could not be read";
-	voe_editor_notice_set(notice, "Could not read %s: %s",
-			      failures.first != NULL ? failures.first : "a model",
-			      category);
+	voe_editor_notice_from_report(notice, failures.first != NULL ?
+						      failures.first :
+						      "a model");
 }
 
 // `path` waits to be loaded again at the next update, once however often it
@@ -321,9 +317,10 @@ bool voe_editor_models_save(voe_editor_models *models, const char *folder,
 	return true;
 }
 
-// Reads `path` under `folder` and loads it over its entry; a file that will
-// not read is kept failed as game/models.c keeps one. `path` is a copy, since
-// a load replaces the entry that held it.
+// Reads `path` under `folder` and loads it over its entry, `path` the reports'
+// subject; a file that will not read is kept failed as game/models.c keeps
+// one. A refused load says nothing here: its cause has its line (0445 point
+// 3). `path` is a copy, since a load replaces the entry that held it.
 static void reread(voe_3d_models *store, voe_render_device *device,
 		   const char *folder, const char *path,
 		   voe_base_arena *scratch)
@@ -335,18 +332,19 @@ static void reread(voe_3d_models *store, voe_render_device *device,
 	const uint8_t *bytes;
 
 	VOE_BASE_ASSERT(path[0] != '\0', "re-reading a landscape with no path");
+	voe_base_report_subject_push(path);
 	bytes = voe_platform_file_stamp(full, &stamp) ?
 			voe_platform_file_read(full, scratch, &size, &error) :
 			NULL;
 	if (bytes == NULL) {
 		voe_3d_models_fail(store, path, 0);
-		VOE_BASE_ERROR("editor", "could not read %s again", path);
-		return;
+		VOE_BASE_ERROR("editor", "could not be read again");
+	} else if (!voe_3d_models_load(store, device, path, stamp, bytes, size,
+				       &error)) {
+		VOE_BASE_ASSERT(error != VOE_BASE_OK,
+				"a refused re-read with no error");
 	}
-	if (!voe_3d_models_load(store, device, path, stamp, bytes, size,
-				&error))
-		VOE_BASE_ERROR("editor", "could not read %s again: %s", path,
-			       voe_base_error_string(error));
+	voe_base_report_subject_pop();
 }
 
 void voe_editor_models_revert(voe_editor_models *models, const char *folder,
@@ -424,6 +422,55 @@ void voe_editor_models_layer_set(voe_editor_models *models, const char *path,
 	VOE_BASE_ASSERT(path != NULL && material != NULL,
 			"setting no material or onto no path");
 	voe_3d_models_landscape_layer_set(models->store, path, index, material);
+}
+
+uint32_t voe_editor_models_scatter(voe_editor_models *models, const char *path,
+				   const voe_3d_foliage_brush *brush, float x,
+				   float z, float seconds, uint64_t *seed,
+				   voe_assets_landscape_copy *added)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"scattering into no store");
+	VOE_BASE_ASSERT(path != NULL && brush != NULL && seed != NULL &&
+				added != NULL,
+			"scattering no brush, onto no path, or with no seed or room");
+	return voe_3d_models_landscape_scatter(models->store, path, brush, x, z,
+					       seconds, seed, added);
+}
+
+uint32_t voe_editor_models_erase(voe_editor_models *models, const char *path,
+				 const voe_3d_foliage_brush *brush, float x,
+				 float z, voe_assets_landscape_copy *removed,
+				 uint32_t room)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"erasing from no store");
+	VOE_BASE_ASSERT(path != NULL && brush != NULL && removed != NULL,
+			"erasing with no brush, on no path or into no room");
+	return voe_3d_models_landscape_erase(models->store, path, brush, x, z,
+					     removed, room);
+}
+
+void voe_editor_models_put_copies(voe_editor_models *models, const char *path,
+				  const voe_assets_landscape_copy *copies,
+				  uint32_t count, bool add)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"putting copies into no store");
+	VOE_BASE_ASSERT(path != NULL && (count == 0 || copies != NULL),
+			"putting no copies or onto no path");
+	voe_3d_models_landscape_put_copies(models->store, path, copies, count,
+					   add);
+}
+
+void voe_editor_models_kind_set(voe_editor_models *models, const char *path,
+				uint32_t index, const char *model)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"setting a kind in no store");
+	VOE_BASE_ASSERT(path != NULL && model != NULL,
+			"setting no model or onto no path");
+	voe_3d_models_landscape_kind_set(models->store, path, index, model);
 }
 
 void voe_editor_models_rename(voe_editor_models *models, const char *from,

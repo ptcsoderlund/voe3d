@@ -15,9 +15,14 @@
 //
 // THE CALLER STATES HOW MANY TOKENS IT WILL ALLOW, for the same reason the
 // inflate reader makes the caller state the output size: a small file must not
-// be able to ask for a large allocation. A document with more values than that
-// is refused as unsupported — it is a well-formed file this reader will not
-// read, which is a different thing from a broken one.
+// be able to ask for a large allocation. A document with more values than that,
+// or nested past the depth limit, is refused as unsupported — a limit the
+// engine keeps, which is a different thing from a broken file.
+//
+// IT SPEAKS IN THE glTF READER'S TWO SHAPES (ADR-0445), BECAUSE THAT IS ITS ONE
+// CALLER. A syntax error is VOE_ASSETS_GLTF_DAMAGED then `(glTF: JSON at byte
+// <n>: <words>)`; a limit is the artist's sentence with the most the engine
+// reads, then `(glTF: …)`. One line, here, and no caller adds a second.
 //
 // IT IS STRICT. A trailing comma, a missing colon, a key that is not a string, a
 // number that is not a JSON number, a string with a bad escape in it, anything
@@ -44,6 +49,10 @@
 // trouble the stack — the stack is an array of this many uint32_t, on the
 // parser's own frame.
 #define VOE_ASSETS_JSON_MAX_DEPTH 64
+
+// The artist's half of every damaged file's line, here and in the glTF reader.
+#define VOE_ASSETS_GLTF_DAMAGED \
+	"the file is damaged; export it again from Blender"
 
 // What a token index holds when there is no such value: a member that is not
 // there, an element past the end of an array.

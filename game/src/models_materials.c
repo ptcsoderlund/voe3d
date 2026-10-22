@@ -1,33 +1,96 @@
 // The material loader of game/include/game/models.h: every loaded model entry
-// given its parts from the parts table; a table entry's four maps joined onto
-// the folder, read into scratch and handed to the store with the values; every
-// material path a shape names, then every model part's `wears` and loaded
-// landscape's layer, that the store lacks looked up in the table, loaded or
-// kept failed, each failure one line on stderr and counted. Scratch is rewound
-// after each material.
+// given its parts from the parts table; then every material path a shape
+// names, every model part's `wears` and loaded landscape's layer, that the
+// store lacks, gathered: one the table has, once, one it lacks kept failed at
+// 0 and counted, its line said here.
+//
+// THE PHASES (0448 points 3, 4, 0459 point 1), in order on the calling
+// thread, one material at a time: reading (its four maps joined onto the
+// folder and read onto an arena of its own, under its path as the subject),
+// decoding pictures (each map on an arena of its own, under its path and "the
+// <kind> map `path`" as 3d says it), uploading (through
+// voe_3d_models_put_material, under its path). A map that will not read or
+// decode keeps the material failed at its stamp, the cause said where it was
+// met (0445); every failure counted. Each material's arenas are destroyed
+// after its put; `scratch` holds only the call's lists. The one-material load
+// goes the same way.
+//
+// THE LINE, `game: materials: <n> files in <s> s: reading <s> s, decoding
+// pictures <s> s, uploading <s> s`, the maps read, once per call that read
+// one (game/src/models_batch.h).
+//
+// A full store ends the gathering, so every gathered material has room.
 //
 // Constraints: a path is found in a table by comparing it with every entry: a
 // scan per unread material path, once each since a failure is kept, and a scan
-// of the parts table per model entry per call, each frame in the game. Sorted
-// tables would lift it.
+// of the parts table per model entry per call, each frame in the game; a
+// gathered path is compared with every one gathered before it. Sorted tables
+// would lift it. Two broken maps of one material each say their line.
+#include "models_batch.h"
+
 #include <game/models.h>
 
+#include <3d/model_prepare.h>
 #include <3d/shape_component.h>
 
 #include <base/assert.h>
 #include <base/error.h>
 #include <base/report.h>
 
+#include <platform/clock.h>
 #include <platform/file.h>
 #include <platform/path.h>
 
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+
+// A material's four maps, in the order the put uploads them.
+#define MAPS 4
+// Block sizes, not limits: a push past one gets a block of its own.
+#define MATERIAL_BLOCK (1024 * 1024)
+#define PICTURE_BLOCK (1024 * 1024)
+
+static const char *const MAP_NAMES[MAPS] = { "colour", "normal", "ORM",
+					     "emission" };
+
+// One material of a chunk, from its read to its put.
+struct chunk_material {
+	const voe_game_material *material;
+	// Its maps' bytes, NULL until read and after its put.
+	voe_base_arena *arena;
+	voe_3d_material_map maps[MAPS];
+	// Every map read, or the category of the one that would not.
+	bool read;
+	voe_base_error error;
+	// Each map's picture on an arena of its own, written by its decode.
+	voe_base_arena *picture_arenas[MAPS];
+	voe_assets_image pictures[MAPS];
+	voe_base_error decoded[MAPS];
+};
+
+// A chunk of materials of `folder`: one, as each call loads them.
+struct chunk {
+	const char *folder;
+	struct chunk_material *materials;
+	uint32_t count;
+};
+
+// The `index`th map's path of `values`, "" for none.
+static const char *map_path(const voe_assets_material_file *values,
+			    uint32_t index)
+{
+	const char *const paths[MAPS] = { values->colormap, values->normalmap,
+					  values->ormmap, values->emissionmap };
+
+	VOE_BASE_ASSERT(index < MAPS, "a map past a material's four");
+	return paths[index];
+}
 
 // Reads `path` from `folder` into `map`; "" leaves it empty. False, with the
 // category in `error`, when the file will not read.
 static bool read_map(const char *folder, const char *path,
-		     voe_base_arena *scratch, voe_3d_material_map *map,
+		     voe_base_arena *arena, voe_3d_material_map *map,
 		     voe_base_error *error)
 {
 	VOE_BASE_ASSERT(path != NULL && map != NULL, "reading no map");
@@ -35,11 +98,128 @@ static bool read_map(const char *folder, const char *path,
 	if (path[0] == '\0')
 		return true;
 	map->bytes = voe_platform_file_read(
-		voe_platform_path_join(scratch, folder, path), scratch,
-		&map->size, error);
+		voe_platform_path_join(arena, folder, path), arena, &map->size,
+		error);
 	VOE_BASE_ASSERT(map->bytes != NULL || *error != VOE_BASE_OK,
 			"an unread map with no category");
 	return map->bytes != NULL;
+}
+
+// Reading: a material's maps in order onto its own arena, stopping at the
+// first that will not read.
+static void chunk_read(struct chunk *chunk, uint32_t index)
+{
+	struct chunk_material *read = &chunk->materials[index];
+	const voe_assets_material_file *values = &read->material->values;
+
+	VOE_BASE_ASSERT(index < chunk->count, "reading past the chunk");
+	VOE_BASE_ASSERT(read->arena == NULL, "reading a material twice");
+	voe_base_report_subject_push(read->material->path);
+	read->arena = voe_base_arena_new(MATERIAL_BLOCK);
+	read->read = true;
+	for (uint32_t k = 0; read->read && k < MAPS; k++)
+		read->read = read_map(chunk->folder, map_path(values, k),
+				      read->arena, &read->maps[k], &read->error);
+	voe_base_report_subject_pop();
+}
+
+// Decoding pictures: one map of a read material, as 3d's load decodes it: a
+// path that is no picture said here, a decoder's cause under the map.
+static void chunk_decode(struct chunk *chunk, uint32_t index)
+{
+	struct chunk_material *read = &chunk->materials[index / MAPS];
+	uint32_t k = index % MAPS;
+	const char *path = map_path(&read->material->values, k);
+	char subject[VOE_ASSETS_MATERIAL_PATH + 32];
+
+	VOE_BASE_ASSERT(index < chunk->count * MAPS, "decoding past the chunk");
+	if (!read->read || read->maps[k].size == 0)
+		return;
+	voe_base_report_subject_push(read->material->path);
+	if (!voe_3d_model_picture_is(path)) {
+		VOE_BASE_ERROR("game",
+			       "the %s map `%s` is not a PNG or JPEG picture; save it as PNG",
+			       MAP_NAMES[k], path);
+		read->decoded[k] = VOE_BASE_ERROR_MALFORMED;
+	} else {
+		(void)snprintf(subject, sizeof(subject), "the %s map `%s`",
+			       MAP_NAMES[k], path);
+		voe_base_report_subject_push(subject);
+		read->picture_arenas[k] = voe_base_arena_new(PICTURE_BLOCK);
+		if (!voe_3d_model_picture_decode(path, read->maps[k].bytes,
+						 read->maps[k].size,
+						 read->picture_arenas[k],
+						 &read->pictures[k],
+						 &read->decoded[k]))
+			read->decoded[k] = VOE_BASE_ERROR_MALFORMED;
+		voe_base_report_subject_pop();
+	}
+	voe_base_report_subject_pop();
+}
+
+// Reading, then decoding pictures, each timed, index by index in order.
+static void chunk_prepare(struct chunk *chunk, voe_game_models_times *times)
+{
+	double before = voe_platform_clock_now();
+
+	VOE_BASE_ASSERT(chunk != NULL && times != NULL, "no chunk or times");
+	for (uint32_t i = 0; i < chunk->count; i++)
+		chunk_read(chunk, i);
+	times->seconds[VOE_GAME_MODELS_READING] +=
+		voe_platform_clock_now() - before;
+	before = voe_platform_clock_now();
+	for (uint32_t i = 0; i < chunk->count * MAPS; i++)
+		chunk_decode(chunk, i);
+	times->seconds[VOE_GAME_MODELS_DECODING] +=
+		voe_platform_clock_now() - before;
+	for (uint32_t i = 0; i < chunk->count; i++)
+		for (uint32_t k = 0; k < MAPS; k++)
+			times->files += chunk->materials[i].maps[k].bytes != NULL;
+}
+
+// The material's arenas given back.
+static void material_release(struct chunk_material *read)
+{
+	for (uint32_t k = 0; k < MAPS; k++)
+		if (read->picture_arenas[k] != NULL)
+			voe_base_arena_destroy(read->picture_arenas[k]);
+	if (read->arena != NULL)
+		voe_base_arena_destroy(read->arena);
+	*read = (struct chunk_material){ .material = read->material };
+	VOE_BASE_ASSERT(read->arena == NULL, "a material's arena kept");
+}
+
+// Uploading: the material into the store at `stamp`, or kept failed there
+// when a map would not read or decode, under its path; then its arenas given
+// back. Whether it loaded, `error` its category.
+static bool material_put(struct chunk_material *read, voe_3d_models *models,
+			 voe_render_device *device, uint64_t stamp,
+			 voe_base_error *error, voe_game_models_times *times)
+{
+	double before = voe_platform_clock_now();
+	const char *path = read->material->path;
+	bool loaded = false;
+
+	*error = read->read ? VOE_BASE_OK : read->error;
+	for (uint32_t k = 0; k < MAPS && *error == VOE_BASE_OK; k++)
+		*error = read->decoded[k];
+	voe_base_report_subject_push(path);
+	if (*error != VOE_BASE_OK)
+		voe_3d_models_fail(models, path, stamp);
+	else
+		loaded = voe_3d_models_put_material(
+			models, device, path, stamp, &read->material->values,
+			(voe_3d_material_pictures){
+				read->pictures[0], read->pictures[1],
+				read->pictures[2], read->pictures[3] },
+			error);
+	voe_base_report_subject_pop();
+	material_release(read);
+	times->seconds[VOE_GAME_MODELS_UPLOADING] +=
+		voe_platform_clock_now() - before;
+	VOE_BASE_ASSERT(loaded || *error != VOE_BASE_OK,
+			"a failed material with no category");
+	return loaded;
 }
 
 bool voe_game_models_material_load(voe_3d_models *models,
@@ -50,27 +230,20 @@ bool voe_game_models_material_load(voe_3d_models *models,
 				   voe_base_error *error)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
-	const voe_assets_material_file *values = &material->values;
-	voe_3d_material_maps maps;
+	voe_game_models_times times = { 0 };
+	struct chunk chunk = { folder, NULL, 1 };
 	bool loaded;
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(material != NULL && material->path[0] != '\0',
 			"loading a material with no path");
-	*error = VOE_BASE_OK;
-	loaded = read_map(folder, values->colormap, scratch, &maps.colour,
-			  error) &&
-		 read_map(folder, values->normalmap, scratch, &maps.normal,
-			  error) &&
-		 read_map(folder, values->ormmap, scratch, &maps.orm, error) &&
-		 read_map(folder, values->emissionmap, scratch, &maps.emission,
-			  error);
-	if (!loaded)
-		voe_3d_models_fail(models, material->path, stamp);
-	else
-		loaded = voe_3d_models_load_material(models, device,
-						     material->path, stamp,
-						     values, maps, error);
+	chunk.materials = voe_base_arena_push(scratch, sizeof(*chunk.materials));
+	*chunk.materials = (struct chunk_material){ .material = material };
+	chunk_prepare(&chunk, &times);
+	loaded = material_put(chunk.materials, models, device, stamp, error,
+			      &times);
+	voe_game_models_times_write(&times, "materials",
+				    VOE_GAME_MATERIALS_LINE);
 	voe_base_arena_rewind(scratch, mark);
 	return loaded;
 }
@@ -122,55 +295,74 @@ static void parts_give(voe_3d_models *models, const voe_game_parts *parts)
 	}
 }
 
-// `path`'s entry in `table`, NULL when it has none.
-static const voe_game_material *find(const voe_game_materials *table,
-				     const char *path)
+// `path`'s index in `table`, its count when it has none.
+static uint32_t find(const voe_game_materials *table, const char *path)
 {
 	VOE_BASE_ASSERT(table != NULL && path != NULL, "no table or path");
 	for (uint32_t i = 0; i < table->count; i++)
 		if (strcmp(table->materials[i].path, path) == 0)
-			return &table->materials[i];
-	return NULL;
+			return i;
+	return table->count;
 }
 
-// Counts one failure of `path`, its kept entry's copy named when the first.
-static void count_failure(voe_game_models_failures *failures,
-			  const voe_3d_models *models, const char *path,
-			  voe_base_error error)
-{
-	const voe_3d_model_entry *entry = voe_3d_models_find(models, path);
+// The table's materials one call loads, by index, each once.
+struct gathered {
+	uint32_t *indices;
+	uint32_t count;
+};
 
-	VOE_BASE_ASSERT(failures != NULL && path != NULL, "no failures or path");
-	VOE_BASE_ERROR("game", "could not load the material %s: %s", path,
-		       voe_base_error_string(error));
-	if (failures->count == 0 && entry != NULL)
-		failures->first = entry->path;
-	failures->count++;
-}
-
-// Loads `path` from `table` when it is not empty and the store lacks it, or
-// keeps it failed and counts it when the table has none. False when the
-// store is full: it said so once, and the call ends.
-static bool load_missing(voe_3d_models *models, voe_render_device *device,
-			 const char *folder, const voe_game_materials *table,
-			 const char *path, voe_base_arena *scratch,
-			 voe_game_models_failures *failures)
+// Gathers `path` from `table` when it is not empty, the store lacks it and it
+// is not gathered yet, or keeps it failed and counts it when the table has
+// none. False when the store has no room for it: the call gathers no more.
+static bool gather(voe_3d_models *models, const voe_game_materials *table,
+		   const char *path, struct gathered *gathered,
+		   voe_game_models_failures *failures)
 {
-	const voe_game_material *material;
-	voe_base_error error = VOE_BASE_ERROR_UNAVAILABLE;
+	uint32_t index;
 
 	if (path[0] == '\0' || voe_3d_models_find(models, path) != NULL)
 		return true;
-	if (voe_3d_models_count(models) == VOE_3D_MODELS)
+	if (voe_3d_models_count(models) + gathered->count >= VOE_3D_MODELS)
 		return false;
-	material = find(table, path);
-	if (material == NULL)
+	index = find(table, path);
+	if (index == table->count) {
+		voe_base_report_subject_push(path);
+		VOE_BASE_ERROR("game", "the project has no such material");
+		voe_base_report_subject_pop();
 		voe_3d_models_fail(models, path, 0);
-	else if (voe_game_models_material_load(models, device, folder,
-					       material, 0, scratch, &error))
+		voe_game_models_failure_count(failures, models, path);
 		return true;
-	count_failure(failures, models, path, error);
+	}
+	for (uint32_t i = 0; i < gathered->count; i++)
+		if (gathered->indices[i] == index)
+			return true;
+	gathered->indices[gathered->count++] = index;
 	return true;
+}
+
+// Every path the world's shapes, then the store's entries, name.
+static void gather_all(const voe_ecs_world *world, voe_3d_models *models,
+		       const voe_game_materials *table,
+		       struct gathered *gathered,
+		       voe_game_models_failures *failures)
+{
+	uint32_t shapes = voe_3d_shape_count(world);
+	bool room = true;
+
+	for (uint32_t i = 0; room && i < shapes; i++)
+		room = gather(models, table, voe_3d_shape_rows(world)[i].material,
+			      gathered, failures);
+	// An entry's index is stable as the store grows, and only a failed
+	// material entry, naming none, is added.
+	for (uint32_t i = 0; room && i < voe_3d_models_count(models); i++) {
+		uint32_t named = entry_paths(voe_3d_models_at(models, i));
+
+		for (uint32_t k = 0; room && k < named; k++)
+			room = gather(models, table,
+				      entry_path_at(voe_3d_models_at(models, i),
+						    k),
+				      gathered, failures);
+	}
 }
 
 voe_game_models_failures
@@ -179,29 +371,36 @@ voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 			  const voe_game_materials *table,
 			  const voe_game_parts *parts, voe_base_arena *scratch)
 {
-	uint32_t shapes = voe_3d_shape_count(world);
+	struct voe_base_arena_mark mark;
 	voe_game_models_failures failures = { 0 };
-	bool room = true;
+	voe_game_models_times times = { 0 };
+	struct gathered gathered = { 0 };
+	struct chunk chunk = { folder, NULL, 1 };
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(folder != NULL && table != NULL && parts != NULL &&
 				scratch != NULL,
 			"no folder, table, parts or scratch");
+	mark = voe_base_arena_mark(scratch);
 	parts_give(models, parts);
-	for (uint32_t i = 0; room && i < shapes; i++)
-		room = load_missing(models, device, folder, table,
-				    voe_3d_shape_rows(world)[i].material,
-				    scratch, &failures);
-	// The parts' and landscapes' paths; an entry's index is stable as the
-	// store grows, and only a new material entry, naming none, is added.
-	for (uint32_t i = 0; room && i < voe_3d_models_count(models); i++) {
-		uint32_t named = entry_paths(voe_3d_models_at(models, i));
+	gathered.indices = voe_base_arena_push(
+		scratch, VOE_3D_MODELS * sizeof(*gathered.indices));
+	gather_all(world, models, table, &gathered, &failures);
+	chunk.materials = voe_base_arena_push(scratch, sizeof(*chunk.materials));
+	for (uint32_t i = 0; i < gathered.count; i++) {
+		voe_base_error error;
 
-		for (uint32_t k = 0; room && k < named; k++)
-			room = load_missing(
-				models, device, folder, table,
-				entry_path_at(voe_3d_models_at(models, i), k),
-				scratch, &failures);
+		*chunk.materials = (struct chunk_material){
+			.material = &table->materials[gathered.indices[i]]
+		};
+		chunk_prepare(&chunk, &times);
+		if (!material_put(chunk.materials, models, device, 0, &error,
+				  &times))
+			voe_game_models_failure_count(
+				&failures, models, chunk.materials->material->path);
 	}
+	voe_game_models_times_write(&times, "materials",
+				    VOE_GAME_MATERIALS_LINE);
+	voe_base_arena_rewind(scratch, mark);
 	return failures;
 }

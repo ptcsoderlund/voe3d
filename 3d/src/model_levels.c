@@ -1,5 +1,6 @@
-// The levels file made and read (3d/model_levels.h): a `.glb` parsed, baked at
-// level 0 and simplified a part at a time into the file's bytes, or its own
+// The levels file made and read (3d/model_levels.h): a `.glb` parsed with its
+// pictures left encoded, baked at level 0 and simplified by level and part
+// into the file's bytes, or its own
 // levels baked and measured against level 0, and those bytes read back field
 // by field against the `.glb` they were made from; each level's triangles; and
 // a view's level of a loaded model, walked from the top over bounds made
@@ -8,10 +9,11 @@
 // AN OWN LEVEL IS BAKED AND GIVEN BACK ONE AT A TIME, so making the file holds
 // level 0 and one own level at most; its error is measure.h's.
 //
-// A LEVEL IS MADE WHOLE BEFORE IT IS JUDGED: every part simplified, its
-// triangles summed, and only then held against the level before: one not below
-// it in triangles is dropped with the ones after (0436 point 5). A dropped
-// level's indices are given back to the arena at once.
+// THE LEVELS ARE SIMPLIFIED LEVEL BY LEVEL ON THE CALLER, each judged as it is
+// made (0459 point 2): every part simplified into a buffer of its level-0 index
+// count on the arena, the level's triangles summed and held against the level
+// before. One not below it is rewound to its mark and ends the list (0436
+// point 5), so at most one level's buffers are ever given back.
 //
 // A PART'S TARGET IS ITS OWN TRIANGLES × THE LEVEL'S SHARE ÷ 100, rounded down,
 // so every part keeps its share of the model and a small part may reach nought
@@ -105,16 +107,18 @@ static float radius_of(const voe_3d_model_bake *bake)
 }
 
 // Level k of every part, from level 0, each part aiming at `share` percent of
-// its triangles, into `levels`; false when it holds no fewer than `previous`
-// triangles, its indices then given back.
+// its triangles, into buffers on `arena`; false when it holds no fewer than
+// `previous` triangles, its indices then given back to the arena.
 static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
 			   uint32_t k, float share, float max_error,
 			   uint64_t *previous, voe_3d_model_levels *levels)
 {
-	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	const struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
 	uint64_t triangles = 0;
 	float error = 0.0f;
 
+	VOE_BASE_ASSERT(k >= 1 && k < VOE_3D_MODEL_LEVELS,
+			"simplifying past the last level");
 	VOE_BASE_ASSERT(share >= 0.0f && share <= 100.0f,
 			"a level's share out of range");
 	for (uint32_t p = 0; p < bake->part_count; p++) {
@@ -126,7 +130,7 @@ static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
 		uint32_t *out = voe_base_arena_push(
 			arena, (size_t)part->index_count * sizeof(*out));
 		float part_error = 0.0f;
-		uint32_t count = voe_3d_simplify(
+		const uint32_t count = voe_3d_simplify(
 			arena, bake->vertices + part->first_vertex,
 			part->vertex_count, bake->indices + part->first_index,
 			part->index_count, target, max_error,
@@ -150,6 +154,8 @@ static bool simplify_level(voe_base_arena *arena, const voe_3d_model_bake *bake,
 	return true;
 }
 
+// Levels 1 to `asked.count` − 1, made and judged in order on the caller: the
+// first not below the one before in triangles ends the list.
 static void simplify_levels(voe_base_arena *arena,
 			    const voe_3d_model_bake *bake,
 			    voe_assets_levels asked,
@@ -270,7 +276,8 @@ const uint8_t *voe_3d_model_levels_make(voe_base_arena *arena,
 		VOE_BASE_ASSERT(made.swaps[k] >= VOE_ASSETS_LEVELS_SWAP_LEAST &&
 					made.swaps[k] <= VOE_ASSETS_LEVELS_SWAP_MOST,
 				"a level swap out of range");
-	if (!voe_assets_model_read_glb(glb, glb_size, arena, &model, error) ||
+	if (!voe_assets_model_read_glb_encoded(glb, glb_size, arena, &model,
+					       error) ||
 	    !voe_3d_model_bake_create(arena, &model, 0, &bake, error))
 		return NULL;
 	if (voe_3d_model_bake_levels(&model) > 1) {
@@ -406,7 +413,8 @@ uint32_t voe_3d_model_levels_triangles(voe_base_arena *arena,
 	*fresh = levels != NULL &&
 		 voe_3d_model_levels_read(arena, levels, levels_size, glb,
 					  glb_size, &read);
-	if (!voe_assets_model_read_glb(glb, glb_size, arena, &model, NULL) ||
+	if (!voe_assets_model_read_glb_encoded(glb, glb_size, arena, &model,
+					       NULL) ||
 	    !voe_3d_model_bake_create(arena, &model, 0, &zero, NULL))
 		return 0;
 	if (voe_3d_model_bake_levels(&model) > 1) {

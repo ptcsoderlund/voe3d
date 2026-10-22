@@ -1,8 +1,8 @@
 // The geometry pools and the ranges into them. Two static pools — one vertex,
-// one index, both device-local, ranges taken and given back — plus a
-// transient pair in every frame slot, host-visible and emptied every frame; and
-// one slot per range so that a voe_render_geometry id can be refused when it
-// names nothing.
+// one index, both device-local, ranges taken and given back, each grown when a
+// create finds it full (0444, geometry_grow.c) — plus a transient pair in every
+// frame slot, host-visible and emptied every frame; and one slot per range so
+// that a voe_render_geometry id can be refused when it names nothing.
 //
 // A MESH IS A RANGE AND NOT A BUFFER, AND THAT IS THE WHOLE POINT OF THIS FILE.
 // A frame binds a pool pair once and then draws every mesh in it out of them, so
@@ -42,10 +42,16 @@
 // model does not fill the pools. Each static pool keeps a sorted list of the
 // ranges given back; a create takes the first that fits, splitting it, before
 // appending at `used`, and a range given back merges with a neighbour it
-// touches or lowers `used`. First fit and no compaction: fragmentation that
-// leaves no hole big enough is a returned failure, lifted only by a compacting
-// pass that rewrites every slot. The transient path frees nothing because it
-// empties everything.
+// touches or lowers `used`. First fit and no compaction: a mesh that no hole
+// holds and that does not fit past `used` grows the pool (0444) and appends, so
+// fragmentation costs room and never a create; only a compacting pass that
+// rewrites every slot would win that room back. The transient path frees
+// nothing because it empties everything.
+//
+// A SHARING SLOT WALKS ANOTHER'S VERTICES (0444): voe_render_geometry_create_sharing
+// uploads indices alone and takes its base's vertex range, sphere and box, so a
+// model's made levels cost only their indices. Its destroy gives back the
+// indices; a base still shared asserts on destroy, so the sharers go first.
 //
 // BOTH CREATES KEEP THE RANGE'S BOUNDING SPHERE, from point_shadow_faces.h, for
 // the point-shadow draw's face culling (ADR-0325 point 2), and its vertex box,
@@ -58,6 +64,15 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+// What each static pool's buffer is made with, at startup and at every grow: a
+// copy target for the uploads and a copy source for the next grow.
+static const VkBufferUsageFlags VERTEX_POOL_USAGE =
+	VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+	VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+static const VkBufferUsageFlags INDEX_POOL_USAGE =
+	VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+	VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 // A static pool, with room for as many holes as the static band has slots —
 // the bound device_parts.h gives for voe_render_pool.
@@ -74,8 +89,7 @@ static bool build_pool(voe_render_device *device, struct voe_render_pool *pool,
 			"out of memory making room for a pool's free ranges");
 
 	return voe_render_buffer_build(device, &pool->buffer,
-				       (VkDeviceSize)capacity * element,
-				       usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+				       (VkDeviceSize)capacity * element, usage,
 				       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, name);
 }
 
@@ -171,11 +185,10 @@ bool voe_render_geometry_startup(voe_render_device *device)
 	}
 
 	if (!build_pool(device, &device->vertices, device->capacities.vertices,
-			sizeof(voe_render_vertex),
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, "vertex pool") ||
+			sizeof(voe_render_vertex), VERTEX_POOL_USAGE,
+			"vertex pool") ||
 	    !build_pool(device, &device->indices, device->capacities.indices,
-			sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-			"index pool"))
+			sizeof(uint32_t), INDEX_POOL_USAGE, "index pool"))
 		return false;
 
 	if (device->capacities.transient_geometries == 0)
@@ -416,14 +429,73 @@ static void pool_give(struct voe_render_pool *pool, uint32_t offset,
 	}
 }
 
+// Grows a pool with no room for `count` more past `used`, so the create can
+// append; `what` names its elements. The card refusing is this one line in
+// 0445 point 5's terms; the 32-bit limit is the grow's own line. False with
+// *error set.
+static bool grow_pool(voe_render_device *device, struct voe_render_pool *pool,
+		      uint32_t count, size_t element, VkBufferUsageFlags usage,
+		      const char *name, const char *what, voe_base_error *error)
+{
+	uint64_t needed = (uint64_t)pool->used + count;
+	voe_base_error grown = voe_render_geometry_grow(device, pool, needed,
+							element, usage, name);
+
+	if (grown == VOE_BASE_ERROR_REFUSED)
+		VOE_BASE_ERROR("render",
+			       "the graphics card has run out of memory: %u more %s were asked for, the %s holds %u, and the card would not hold one of %llu bytes",
+			       count, what, name, pool->capacity,
+			       (unsigned long long)(needed * element));
+	if (grown != VOE_BASE_OK && error != NULL)
+		*error = grown;
+	return grown == VOE_BASE_OK;
+}
+
+// What pool_find finds, the pool grown first when nothing holds `count`;
+// UINT32_MAX with *error set when the card refuses the grow.
+static uint32_t pool_room(voe_render_device *device,
+			  struct voe_render_pool *pool, uint32_t count,
+			  size_t element, VkBufferUsageFlags usage,
+			  const char *name, const char *what,
+			  voe_base_error *error)
+{
+	uint32_t where = pool_find(pool, count);
+
+	if (where != UINT32_MAX)
+		return where;
+	if (!grow_pool(device, pool, count, element, usage, name, what, error))
+		return UINT32_MAX;
+	where = pool_find(pool, count);
+	VOE_BASE_DEBUG_ASSERT(where != UINT32_MAX,
+			      "a grown pool with no room for what it grew for");
+	return where;
+}
+
+// The lowest free slot of the static band, the transient one above it being
+// another create's; UINT32_MAX, said and with *error set, when all are taken.
+static uint32_t free_static_slot(const voe_render_device *device,
+				 voe_base_error *error)
+{
+	for (uint32_t i = 0; i < device->capacities.geometries; i++) {
+		if (!device->geometries[i].live)
+			return i;
+	}
+	VOE_BASE_ERROR("render",
+		       "all %u mesh slots are taken; the device was made with room for that many",
+		       device->capacities.geometries);
+	if (error != NULL)
+		*error = VOE_BASE_ERROR_REFUSED;
+	return UINT32_MAX;
+}
+
 static bool create_geometry(voe_render_device *device,
 			    const voe_render_vertex *vertices,
 			    uint32_t vertex_count, const uint32_t *indices,
 			    uint32_t index_count, voe_render_geometry *out,
 			    voe_base_error *error)
 {
-	struct voe_render_geometry_slot *slot = NULL;
-	uint32_t index = 0;
+	struct voe_render_geometry_slot *slot;
+	uint32_t index;
 	uint32_t vertex_at;
 	uint32_t index_at;
 	uint32_t first_vertex;
@@ -436,37 +508,24 @@ static bool create_geometry(voe_render_device *device,
 	VOE_BASE_DEBUG_ASSERT(vertex_count > 0 && index_count > 0,
 			      "uploading a mesh that has nothing in it");
 
-	// The static band only. The transient one above it is another create's.
-	for (uint32_t i = 0; i < device->capacities.geometries; i++) {
-		if (!device->geometries[i].live) {
-			index = i;
-			slot = &device->geometries[i];
-			break;
-		}
-	}
-	if (slot == NULL) {
-		VOE_BASE_ERROR("render",
-			       "all %u mesh slots are taken; the device was made with room for that many",
-			       device->capacities.geometries);
-		if (error != NULL)
-			*error = VOE_BASE_ERROR_REFUSED;
+	index = free_static_slot(device, error);
+	if (index == UINT32_MAX)
 		return false;
-	}
+	slot = &device->geometries[index];
 
-	// Both pools are checked before either is written, so a mesh that does
-	// not fit leaves neither pool half filled with it.
-	vertex_at = pool_find(&device->vertices, vertex_count);
-	index_at = pool_find(&device->indices, index_count);
-	if (vertex_at == UINT32_MAX || index_at == UINT32_MAX) {
-		VOE_BASE_ERROR("render",
-			       "no room for a mesh of %u vertices and %u indices — no free range fits and the pools are spent to %u of %u vertices and %u of %u indices",
-			       vertex_count, index_count, device->vertices.used,
-			       device->vertices.capacity, device->indices.used,
-			       device->indices.capacity);
-		if (error != NULL)
-			*error = VOE_BASE_ERROR_REFUSED;
+	// Both pools are found room in before either is written, so a mesh the
+	// card cannot hold leaves neither pool half filled with it; a pool that
+	// grew for it keeps its larger buffer and everything it held.
+	vertex_at = pool_room(device, &device->vertices, vertex_count,
+			      sizeof(*vertices), VERTEX_POOL_USAGE,
+			      "vertex pool", "vertices", error);
+	if (vertex_at == UINT32_MAX)
 		return false;
-	}
+	index_at = pool_room(device, &device->indices, index_count,
+			     sizeof(*indices), INDEX_POOL_USAGE, "index pool",
+			     "indices", error);
+	if (index_at == UINT32_MAX)
+		return false;
 	first_vertex = pool_offset(&device->vertices, vertex_at);
 	first_index = pool_offset(&device->indices, index_at);
 
@@ -498,6 +557,7 @@ static bool create_geometry(voe_render_device *device,
 	slot->first_index = first_index;
 	slot->index_count = index_count;
 	slot->vertex_count = vertex_count;
+	slot->shares = VOE_RENDER_OWN_VERTICES;
 	slot->generation++;
 	slot->live = true;
 	slot->transient = false;
@@ -505,6 +565,95 @@ static bool create_geometry(voe_render_device *device,
 	out->index = index;
 	out->generation = slot->generation;
 	return true;
+}
+
+// A sharer of a sharer walks the first one's base, so `shares` always names a
+// slot with vertices of its own and the destroy order is one level deep.
+static bool create_sharing(voe_render_device *device,
+			   voe_render_geometry vertices_of,
+			   const uint32_t *indices, uint32_t index_count,
+			   voe_render_geometry *out, voe_base_error *error)
+{
+	struct voe_render_geometry_slot *base;
+	struct voe_render_geometry_slot *slot;
+	uint32_t base_index = vertices_of.index;
+	uint32_t highest = 0;
+	uint32_t index;
+	uint32_t index_at;
+	uint32_t first_index;
+
+	VOE_BASE_DEBUG_ASSERT(indices != NULL, "sharing a mesh's vertices with no indices");
+	VOE_BASE_DEBUG_ASSERT(out != NULL, "sharing a mesh's vertices into nothing");
+	VOE_BASE_DEBUG_ASSERT(index_count > 0, "sharing a mesh's vertices with nothing to draw");
+	VOE_BASE_ASSERT(base_index < device->capacities.geometries &&
+				voe_render_geometry_at(device, vertices_of) != NULL,
+			"sharing the vertices of a mesh that is stale or transient");
+
+	base = &device->geometries[base_index];
+	if (base->shares != VOE_RENDER_OWN_VERTICES) {
+		base_index = base->shares;
+		base = &device->geometries[base_index];
+	}
+	for (uint32_t i = 0; i < index_count; i++)
+		highest = indices[i] > highest ? indices[i] : highest;
+	VOE_BASE_ASSERT(highest < base->vertex_count,
+			"an index at or past the shared mesh's vertex count");
+
+	index = free_static_slot(device, error);
+	if (index == UINT32_MAX)
+		return false;
+	index_at = pool_room(device, &device->indices, index_count,
+			     sizeof(*indices), INDEX_POOL_USAGE, "index pool",
+			     "indices", error);
+	if (index_at == UINT32_MAX)
+		return false;
+	first_index = pool_offset(&device->indices, index_at);
+
+	if (!voe_render_buffer_upload(device, &device->indices.buffer,
+				      (VkDeviceSize)first_index * sizeof(*indices),
+				      indices,
+				      (VkDeviceSize)index_count * sizeof(*indices))) {
+		if (error != NULL)
+			*error = VOE_BASE_ERROR_REFUSED;
+		return false;
+	}
+	pool_take(&device->indices, index_at, index_count);
+
+	slot = &device->geometries[index];
+	slot->sphere = base->sphere;
+	slot->box_min = base->box_min;
+	slot->box_max = base->box_max;
+	slot->first_vertex = base->first_vertex;
+	slot->vertex_count = base->vertex_count;
+	slot->first_index = first_index;
+	slot->index_count = index_count;
+	slot->shares = base_index;
+	slot->generation++;
+	slot->live = true;
+	slot->transient = false;
+	base->sharers++;
+
+	out->index = index;
+	out->generation = slot->generation;
+	return true;
+}
+
+bool voe_render_geometry_create_sharing(voe_render_device *device,
+					voe_render_geometry vertices_of,
+					const uint32_t *indices,
+					uint32_t index_count,
+					voe_render_geometry *out,
+					voe_base_error *error)
+{
+	bool created;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "sharing a mesh's vertices on no device");
+
+	voe_render_device_guard_take(device);
+	created = create_sharing(device, vertices_of, indices, index_count, out,
+				 error);
+	voe_render_device_guard_give(device);
+	return created;
 }
 
 // Under the device's guard (ADR-0370), as are the destroy and nothing transient.
@@ -544,10 +693,18 @@ static bool destroy_geometry(voe_render_device *device,
 	slot = &device->geometries[geometry.index];
 	if (!slot->live || slot->generation != geometry.generation)
 		return false;
+	VOE_BASE_ASSERT(slot->sharers == 0,
+			"destroying a mesh whose vertices another mesh still walks — destroy the sharing meshes first");
 
 	voe_render_vk.device_wait_idle(device->device);
 
-	pool_give(&device->vertices, slot->first_vertex, slot->vertex_count);
+	// A sharing slot's vertices are its base's, so it gives back its indices
+	// alone and lowers its base's count.
+	if (slot->shares == VOE_RENDER_OWN_VERTICES)
+		pool_give(&device->vertices, slot->first_vertex,
+			  slot->vertex_count);
+	else
+		device->geometries[slot->shares].sharers--;
 	pool_give(&device->indices, slot->first_index, slot->index_count);
 
 	// Bumped here as well as on a create, as a texture's is, so the id just
@@ -667,6 +824,7 @@ bool voe_render_geometry_create_transient(voe_render_device *device,
 	slot->first_vertex = vertex_pool->pool.used;
 	slot->first_index = index_pool->pool.used;
 	slot->index_count = index_count;
+	slot->shares = VOE_RENDER_OWN_VERTICES;
 	slot->live = true;
 	slot->transient = true;
 

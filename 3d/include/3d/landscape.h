@@ -97,6 +97,10 @@ typedef enum {
 	VOE_3D_BRUSH_FLATTEN,
 	// After the four sculpting kinds, which the editor indexes by value.
 	VOE_3D_BRUSH_PAINT,
+	// Foliage's (0442 point 3), stamped by 3d/foliage.h; this header's
+	// brush asserts on them.
+	VOE_3D_BRUSH_SCATTER,
+	VOE_3D_BRUSH_ERASE,
 } voe_3d_brush_kind;
 
 typedef struct {

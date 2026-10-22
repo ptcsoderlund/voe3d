@@ -1,11 +1,14 @@
 // The model store's landscapes (3d/models.h; 0379 points 2 and 6, 0396 points
-// 3 and 5, 0402 points 1, 3 and 4): a grid copied into its entry with its
-// layers and paint, uploaded as a heights texture and two paint textures and
-// built into a min/max pyramid, worn as one part on the store's shared grid; a
-// brush or a put updating the pyramid and growing the heights' dirty rect, or
-// a paint brush or put growing the paint's; a layer set; the frame writing
-// both kinds of dirt a shared budget at a time; the lookup the draw files ask;
-// the saved mark and the rename, layer paths following.
+// 3 and 5, 0402 points 1, 3 and 4, 0442 points 1 and 2): a grid copied into its
+// entry with its layers, paint, kinds and copies, every copy placed, uploaded
+// as a heights texture and two paint textures and built into a min/max
+// pyramid, worn as one part on the store's shared grid; a brush or a put
+// updating the pyramid, placing again the copies over it and growing the
+// heights' dirty rect, or a paint brush or put growing the paint's; a layer
+// set; the frame writing both kinds of dirt a shared budget at a time; the
+// lookup the draw files ask; the saved mark and the rename, layer and kind
+// paths following. The foliage calls are models_foliage.c's. A load raises
+// the store's `changes` through keep, and so does every placing again.
 //
 // Used by models.c's _load for a `.landscape` path, by the draw files through
 // voe_3d_models_terrain_of, and by the editor: the brush and the frame while a
@@ -16,9 +19,11 @@
 // write all the points between them; a list of rects would lift it. The frame
 // writes whole rows of the rect, the first entries first, so one big put can
 // hold another landscape's dirt back a few frames. The frame, the rename and
-// the lookup walk every entry. A layer path that would not fit renamed is kept.
+// the lookup walk every entry. A layer or kind path that would not fit renamed
+// is kept. A landscape holds room for every copy it may have, about 4 MB.
 #include "models_store.h"
 
+#include <3d/foliage.h>
 #include <3d/landscape.h>
 #include <3d/models.h>
 #include <assets/landscape.h>
@@ -55,8 +60,9 @@ static voe_3d_material ground(void)
 	};
 }
 
-// `from`'s grid copied onto `memory`, its layers carried and its paint owned:
-// every point all layer 0 when `from` has none.
+// `from`'s grid copied onto `memory`, its layers and kinds carried and its
+// paint owned, every point all layer 0 when `from` has none; its copies owned
+// with room for the cap, so a scatter never grows them.
 static voe_assets_landscape *copy_grid(voe_base_arena *memory,
 				       const voe_assets_landscape *from)
 {
@@ -64,6 +70,11 @@ static voe_assets_landscape *copy_grid(voe_base_arena *memory,
 	voe_assets_landscape *to = voe_base_arena_push(memory, sizeof(*to));
 
 	*to = *from;
+	to->copies = voe_base_arena_push(
+		memory, VOE_ASSETS_LANDSCAPE_COPIES * sizeof(*to->copies));
+	if (from->copy_count > 0)
+		memcpy(to->copies, from->copies,
+		       from->copy_count * sizeof(*to->copies));
 	to->heights = voe_base_arena_push(memory, points * sizeof(float));
 	memcpy(to->heights, from->heights, points * sizeof(float));
 	to->paint = voe_base_arena_push(memory, points * PAINT_BYTES);
@@ -203,11 +214,22 @@ bool voe_3d_models_load_landscape(voe_3d_models *models,
 			"loading a landscape of 1 to the most cells");
 	VOE_BASE_ASSERT(landscape->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS,
 			"loading a landscape of at most eight layers");
+	VOE_BASE_ASSERT(landscape->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS &&
+				landscape->copy_count <=
+					VOE_ASSETS_LANDSCAPE_COPIES &&
+				(landscape->copies != NULL ||
+				 landscape->copy_count == 0),
+			"loading a landscape of at most the kinds and copies");
+	const uint32_t n = landscape->cells + 1;
 
 	if (!voe_3d_models_room(models, path, error))
 		return false;
 	voe_3d_models_entry_new(path, stamp, &entry, &held);
 	entry.landscape = copy_grid(held.memory, landscape);
+	held.placed = voe_base_arena_push(
+		held.memory, VOE_ASSETS_LANDSCAPE_COPIES * sizeof(*held.placed));
+	voe_3d_foliage_replace(entry.landscape, held.placed,
+			       (voe_3d_landscape_rect){ 0, 0, n, n });
 	loaded = upload_landscape(models, device, &entry, &held, error);
 	if (!loaded) {
 		VOE_BASE_ERROR("3d", "could not load the landscape %s", path);
@@ -243,9 +265,11 @@ bool voe_3d_models_terrain_of(const voe_3d_models *models,
 	return false;
 }
 
-// `path`'s index when it is a loaded landscape, else VOE_3D_MODELS.
-static uint32_t landscape_index(const voe_3d_models *models, const char *path)
+uint32_t voe_3d_models_landscape_index(const voe_3d_models *models,
+				       const char *path)
 {
+	VOE_BASE_ASSERT(models != NULL && path != NULL,
+			"finding a landscape needs a store and a path");
 	const uint32_t index = voe_3d_models_index(models, path);
 
 	if (index == VOE_3D_MODELS || !models->entries[index].loaded ||
@@ -272,8 +296,9 @@ static void grow(voe_3d_landscape_rect *dirty, voe_3d_landscape_rect changed)
 	dirty->z1 = changed.z1 > dirty->z1 ? changed.z1 : dirty->z1;
 }
 
-// The heights `changed` refreshed in the pyramid, added to the dirty rect, and
-// the entry edited; nothing for an empty rect.
+// The heights `changed` refreshed in the pyramid, the copies over them placed
+// again, the store's changes raised, the rect added to the dirty rect, and the
+// entry edited; nothing for an empty rect.
 static void grow_dirt(voe_3d_models *models, uint32_t index,
 		      voe_3d_landscape_rect changed)
 {
@@ -283,6 +308,9 @@ static void grow_dirt(voe_3d_models *models, uint32_t index,
 		return;
 	voe_3d_landscape_lod_update(&held->lod,
 				    models->entries[index].landscape, changed);
+	voe_3d_foliage_replace(models->entries[index].landscape, held->placed,
+			       changed);
+	models->changes++;
 	grow(&held->dirty, changed);
 	models->entries[index].edited = true;
 }
@@ -307,7 +335,7 @@ voe_3d_models_landscape_brush(voe_3d_models *models, const char *path,
 			"brushing needs a store and a path");
 	VOE_BASE_ASSERT(brush != NULL && scratch != NULL,
 			"brushing needs a brush and scratch");
-	const uint32_t index = landscape_index(models, path);
+	const uint32_t index = voe_3d_models_landscape_index(models, path);
 	voe_3d_landscape_rect rect;
 
 	if (index == VOE_3D_MODELS)
@@ -326,7 +354,7 @@ void voe_3d_models_landscape_put(voe_3d_models *models, const char *path,
 {
 	VOE_BASE_ASSERT(models != NULL && path != NULL,
 			"putting heights needs a store and a path");
-	const uint32_t index = landscape_index(models, path);
+	const uint32_t index = voe_3d_models_landscape_index(models, path);
 
 	if (index == VOE_3D_MODELS || is_empty(rect))
 		return;
@@ -349,7 +377,7 @@ void voe_3d_models_landscape_put_paint(voe_3d_models *models, const char *path,
 {
 	VOE_BASE_ASSERT(models != NULL && path != NULL,
 			"putting paint needs a store and a path");
-	const uint32_t index = landscape_index(models, path);
+	const uint32_t index = voe_3d_models_landscape_index(models, path);
 
 	if (index == VOE_3D_MODELS || is_empty(rect))
 		return;
@@ -378,7 +406,7 @@ void voe_3d_models_landscape_layer_set(voe_3d_models *models, const char *path,
 	VOE_BASE_ASSERT(material != NULL &&
 				strlen(material) < VOE_ASSETS_MATERIAL_PATH,
 			"a layer's material path that fits");
-	const uint32_t at = landscape_index(models, path);
+	const uint32_t at = voe_3d_models_landscape_index(models, path);
 
 	if (at == VOE_3D_MODELS)
 		return;
@@ -513,29 +541,43 @@ static const char *tail_after(const char *path, const char *from,
 	return path + from_length;
 }
 
-// `land`'s layer paths under `from` take `to` in its place; one that would not
-// fit is kept and said on stderr.
-static void rename_layers(voe_assets_landscape *land, const char *from,
-			  const char *to)
+// `path`, of `room` bytes, takes `to` in place of `from` when under it; one
+// that would not fit is kept and said on stderr.
+static void rename_path(char *path, size_t room, const char *from,
+			const char *to)
 {
-	const size_t from_length = strlen(from);
+	VOE_BASE_ASSERT(path != NULL && room > 0, "a path and its room");
+	VOE_BASE_ASSERT(from != NULL && to != NULL, "a rename's two paths");
 	const size_t to_length = strlen(to);
+	const char *rest = tail_after(path, from, strlen(from));
 
-	for (uint32_t k = 0; k < land->layer_count; k++) {
-		const char *rest = tail_after(land->layers[k], from, from_length);
+	if (rest == NULL)
+		return;
+	const size_t rest_length = strlen(rest) + 1;
 
-		if (rest == NULL)
-			continue;
-		const size_t rest_length = strlen(rest) + 1;
-
-		if (to_length + rest_length > VOE_ASSETS_MATERIAL_PATH) {
-			VOE_BASE_ERROR("3d", "the layer %s is too long renamed; kept",
-				       land->layers[k]);
-			continue;
-		}
-		memmove(land->layers[k] + to_length, rest, rest_length);
-		memcpy(land->layers[k], to, to_length);
+	if (to_length + rest_length > room) {
+		VOE_BASE_ERROR("3d", "the path %s is too long renamed; kept",
+			       path);
+		return;
 	}
+	memmove(path + to_length, rest, rest_length);
+	memcpy(path, to, to_length);
+}
+
+// `land`'s layer and kind paths under `from` take `to` in its place.
+static void rename_paths(voe_assets_landscape *land, const char *from,
+			 const char *to)
+{
+	VOE_BASE_ASSERT(land->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS,
+			"at most eight layers");
+	VOE_BASE_ASSERT(land->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
+			"at most sixteen kinds");
+	for (uint32_t k = 0; k < land->layer_count; k++)
+		rename_path(land->layers[k], VOE_ASSETS_MATERIAL_PATH, from,
+			    to);
+	for (uint32_t k = 0; k < land->kind_count; k++)
+		rename_path(land->kinds[k], VOE_ASSETS_LANDSCAPE_KIND_PATH, from,
+			    to);
 }
 
 void voe_3d_models_rename(voe_3d_models *models, const char *from,
@@ -548,7 +590,7 @@ void voe_3d_models_rename(voe_3d_models *models, const char *from,
 
 	for (uint32_t i = 0; i < models->count; i++) {
 		if (models->entries[i].landscape != NULL)
-			rename_layers(models->entries[i].landscape, from, to);
+			rename_paths(models->entries[i].landscape, from, to);
 		const char *rest =
 			tail_after(models->entries[i].path, from, from_length);
 

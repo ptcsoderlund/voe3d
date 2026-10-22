@@ -48,8 +48,9 @@
 // numbers near four billion together to size an allocation. 16384 is above any
 // texture this engine will draw and below the point where width * height * 4
 // can overflow anything, so the multiply below is safe by construction rather
-// than by a checked-arithmetic dance. A file declaring more is refused as
-// malformed, which is the honest answer: it is not a picture, it is an ask.
+// than by a checked-arithmetic dance. A file declaring more is refused as a
+// limit the engine keeps (ADR-0443), VOE_BASE_ERROR_UNSUPPORTED and not
+// malformed: the file may be fine, and the artist is told to scale it down.
 #define VOE_ASSETS_IMAGE_MAX_SIDE 16384
 
 // A decoded picture. `pixels` is width * height * 4 bytes of RGBA, row zero
@@ -66,14 +67,18 @@ typedef struct {
 //
 // WHAT IS REFUSED, AND EACH OF THESE IS SAID OUT LOUD RATHER THAN GUESSED AT:
 // interlaced PNG (VOE_BASE_ERROR_UNSUPPORTED — the file is fine, this decoder
-// is not interested), and any bit depth but 8 (likewise). Everything else that
-// goes wrong is VOE_BASE_ERROR_MALFORMED: a bad signature, a chunk whose CRC
-// does not match, a truncated file, a declared size past
-// VOE_ASSETS_IMAGE_MAX_SIDE, a compressed stream that does not produce exactly
-// the number of bytes the header implies.
+// is not interested), bit depths below 8 and a palette at 16 (likewise), and a
+// side past VOE_ASSETS_IMAGE_MAX_SIDE (likewise, a limit the engine keeps).
+// Everything else that goes wrong is VOE_BASE_ERROR_MALFORMED: a bad
+// signature, a chunk whose CRC does not match, a truncated file, a compressed
+// stream that does not produce exactly the number of bytes the header implies.
+// Every refusal prints one line in the artist's words (ADR-0445): what is
+// wrong with the numbers, what to do, then `(PNG: …)`; the picture is the
+// report's subject, pushed by whoever has it.
 //
 // Colour types 0, 2, 3, 4 and 6 at depth 8 are all read — greyscale, RGB,
-// palette, greyscale with alpha, and RGBA — and all come out as RGBA8.
+// palette, greyscale with alpha, and RGBA — and all come out as RGBA8. Depth 16
+// is read in the four that allow it, each sample rounded to 8 bits (0446).
 [[nodiscard]] bool voe_assets_png_decode(const uint8_t *bytes, size_t size,
 					 voe_base_arena *arena,
 					 voe_assets_image *image,
@@ -125,11 +130,17 @@ typedef struct {
 // Decode a baseline JPEG. False on failure, and `image` is untouched when it
 // fails.
 //
-// WHAT IS REFUSED: progressive JPEG (VOE_BASE_ERROR_UNSUPPORTED — it is a
-// different decoder, not a broken file, and producing a corrupt picture from one
-// would be worse than saying no), arithmetic coding, twelve-bit samples, and
-// anything that is not one or three components — which means CMYK. Everything
-// else that goes wrong is VOE_BASE_ERROR_MALFORMED.
+// WHAT IS REFUSED, EACH IN ONE LINE TO THE ARTIST AND THEN `(JPEG: …)`
+// (ADR-0445); the picture is the report's subject, pushed by whoever has it:
+// - progressive, arithmetic-coded, lossless or 12-bit: UNSUPPORTED, a
+//   different decoder rather than a broken file; save it as a baseline JPEG
+//   (untick Progressive) or as PNG.
+// - a side past VOE_ASSETS_IMAGE_MAX_SIDE: UNSUPPORTED, a limit the engine
+//   keeps; scale it down.
+// - CMYK, or colours in separate scans: UNSUPPORTED; save it again as an RGB
+//   or greyscale JPEG, or as PNG.
+// - anything else is VOE_BASE_ERROR_MALFORMED: the picture is damaged, save
+//   it again.
 //
 // Greyscale and YCbCr are both read, at any chroma subsampling the format
 // allows, and both come out as RGBA8 with an opaque alpha. JPEG has no

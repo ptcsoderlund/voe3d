@@ -25,8 +25,10 @@
 // draw_marks.c's; this file walks and orders them.
 // A landscape row is draw_terrain.c's nodes, its solid draws inside the pass's
 // "terrain" span, at most VOE_3D_LANDSCAPES_DRAWN a frame (0396, 0388).
+// Their foliage follows, draw_foliage.c's groups solid in the world layer.
 // A mesh or model part whose worn material is double-sided is drawn two-sided,
 // solid or held, through draw_group.c's mesh draw (0421 point 2).
+#include "draw_foliage.h"
 #include "draw_group.h"
 #include "draw_marks.h"
 #include "draw_models.h"
@@ -304,6 +306,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.models = NULL;
 	frame.target = VOE_RENDER_TARGET_WINDOW;
 	frame.casters = NULL;
+	frame.foliage = NULL;
+	frame.foliage_count = 0;
 
 	return frame;
 }
@@ -591,6 +595,8 @@ void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
 	(void)voe_3d_draw_models(world, device, &frame, &world_blended);
 	// The landscape rows' nodes, inside the "terrain" span (0396, 0388).
 	draw_landscapes(world, device, arena, &frame, &world_blended);
+	// Their foliage, one instanced draw a group in the "foliage" span (0442).
+	(void)voe_3d_draw_foliage_solid(device, &frame);
 	// Every live particle, held blended in the world (0298 point 6).
 	voe_3d_draw_particles_hold(world, &frame, &world_blended);
 	// Every water, held blended in the world (0305 point 7).

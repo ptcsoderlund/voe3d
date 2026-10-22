@@ -1,22 +1,23 @@
 // The landscape file behind assets/landscape.h: the sectioned reader for the
 // lines, then each value turned into a number or a path here, and a printer for
-// the way back. `[Paint]` is `landscape_paint.c`'s.
+// the way back. `[Paint]` is `landscape_paint.c`'s, `[Foliage]` and `[Copies]`
+// `landscape_foliage.c`'s.
 //
 // A ROW IS FOUND BY NAME, one linear scan of its section's keys per row, so a
 // 2048-cell file is about two million string compares. That is tens of
 // milliseconds; an index from row number to key would lift it.
 //
-// A LAYER'S QUOTES ARE CHECKED IN THE TEXT. The sectioned reader strips them
-// and does not say, so the key's line is found by counting line breaks from
-// the start: eight scans at most, each ending at `[Layers]`, which the writer
-// puts before the heights. A reader that kept whether a value was quoted would
-// lift it.
+// A LAYER'S OR KIND'S QUOTES ARE CHECKED IN THE TEXT. The sectioned reader
+// strips them and does not say, so the key's line is found by counting line
+// breaks from the start: 24 scans at most, each ending at `[Layers]` or
+// `[Foliage]`, which the writer puts before the heights. A reader that kept
+// whether a value was quoted would lift it.
 //
 // THE WRITER MEASURES, THEN PRINTS. A height is any float, so a millimetre
 // count can be forty digits long; one pass with no buffer counts the bytes, one
 // push holds exactly them, and the same pass prints into it. Paths are written
 // quoted with `"` and `\` escaped, as the material writer does (0149).
-#include "landscape_paint.h"
+#include "landscape_foliage.h"
 
 #include <base/assert.h>
 #include <base/report.h>
@@ -27,9 +28,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-// One escaped path: every byte doubled at worst, two quotes and a NUL.
-#define QUOTED_PATH (2 * VOE_ASSETS_MATERIAL_PATH + 3)
 
 static bool cells_supported(int64_t cells)
 {
@@ -155,10 +153,10 @@ static bool read_shape(const voe_assets_sectioned *doc, double *size,
 	return true;
 }
 
-// Whether key `name` of `section` was written with its value in quotes: the
-// first non-blank after the `=` on the key's line is `"`.
-static bool written_quoted(const voe_assets_sectioned *doc, uint32_t section,
-			   const char *name, const char *text, size_t size)
+// The first non-blank after the `=` on the key's line is `"`.
+bool voe_assets_landscape_written_quoted(const voe_assets_sectioned *doc,
+					 uint32_t section, const char *name,
+					 const char *text, size_t size)
 {
 	const voe_assets_sectioned_section *keys = &doc->sections[section];
 	const char *const end = text + size;
@@ -199,7 +197,8 @@ static bool read_layers(const voe_assets_sectioned *doc, const char *text,
 		path = voe_assets_sectioned_value(doc, section, name);
 		if (path == NULL)
 			break;
-		if (!written_quoted(doc, section, name, text, size))
+		if (!voe_assets_landscape_written_quoted(doc, section, name,
+							 text, size))
 			return refuse_layer(error, k, "a path not quoted");
 		length = strlen(path);
 		if (length >= VOE_ASSETS_MATERIAL_PATH)
@@ -268,6 +267,15 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 	memcpy(to.layers, from->layers, sizeof(to.layers));
 	to.layer_count = from->layer_count;
 	to.paint = voe_assets_landscape_paint_resample(from, cells, arena);
+	memcpy(to.kinds, from->kinds, sizeof(to.kinds));
+	to.kind_count = from->kind_count;
+	if (from->copy_count > 0) {
+		const size_t bytes = (size_t)from->copy_count * sizeof(*to.copies);
+
+		to.copies = voe_base_arena_push(arena, bytes);
+		memcpy(to.copies, from->copies, bytes);
+		to.copy_count = from->copy_count;
+	}
 	return to;
 }
 
@@ -319,6 +327,9 @@ bool voe_assets_landscape_read(const char *text, size_t size,
 		if (result.paint == NULL)
 			return false;
 	}
+	if (!voe_assets_landscape_foliage_read(&doc, text, size, arena, &result,
+					       error))
+		return false;
 
 	*out = result;
 	return true;
@@ -341,15 +352,14 @@ void voe_assets_landscape_print(struct voe_assets_landscape_printer *printer,
 	printer->used += (size_t)written;
 }
 
-// `path` between quotes with `"` and `\` escaped, into `quoted`.
-static void quote(const char *path, char *quoted)
+void voe_assets_landscape_quote(const char *path, char *quoted)
 {
 	size_t at = 0;
 
 	VOE_BASE_ASSERT(memchr(path, '\0', VOE_ASSETS_MATERIAL_PATH) != NULL,
-			"a layer path not NUL-terminated in its room");
+			"a layer or kind path not NUL-terminated in its room");
 	VOE_BASE_ASSERT(strpbrk(path, "\r\n") == NULL,
-			"a layer path with a line break");
+			"a layer or kind path with a line break");
 	quoted[at++] = '"';
 	for (size_t i = 0; path[i] != '\0'; i++) {
 		if (path[i] == '"' || path[i] == '\\')
@@ -358,7 +368,8 @@ static void quote(const char *path, char *quoted)
 	}
 	quoted[at++] = '"';
 	quoted[at] = '\0';
-	VOE_BASE_ASSERT(at < QUOTED_PATH, "a quoted path outgrew its room");
+	VOE_BASE_ASSERT(at < VOE_ASSETS_LANDSCAPE_QUOTED_PATH,
+			"a quoted path outgrew its room");
 }
 
 static void print_landscape(struct voe_assets_landscape_printer *printer,
@@ -372,14 +383,15 @@ static void print_landscape(struct voe_assets_landscape_printer *printer,
 	if (landscape->layer_count > 0)
 		voe_assets_landscape_print(printer, "[Layers]\n");
 	for (uint32_t k = 0; k < landscape->layer_count; k++) {
-		char quoted[QUOTED_PATH];
+		char quoted[VOE_ASSETS_LANDSCAPE_QUOTED_PATH];
 
-		quote(landscape->layers[k], quoted);
+		voe_assets_landscape_quote(landscape->layers[k], quoted);
 		voe_assets_landscape_print(printer, "layer%u=%s\n", k, quoted);
 	}
-	voe_assets_landscape_print(printer, landscape->layer_count > 0 ?
-						    "\n[Heights]\n" :
-						    "[Heights]\n");
+	if (landscape->layer_count > 0)
+		voe_assets_landscape_print(printer, "\n");
+	voe_assets_landscape_kinds_print(printer, landscape);
+	voe_assets_landscape_print(printer, "[Heights]\n");
 	for (uint32_t row = 0; row <= cells; row++) {
 		const float *heights =
 			landscape->heights + (size_t)row * (cells + 1);
@@ -392,6 +404,7 @@ static void print_landscape(struct voe_assets_landscape_printer *printer,
 				round((double)heights[c] * 1000.0) + 0.0);
 	}
 	voe_assets_landscape_paint_print(printer, landscape);
+	voe_assets_landscape_copies_print(printer, landscape);
 }
 
 voe_assets_landscape_text

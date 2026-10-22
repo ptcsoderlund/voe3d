@@ -86,9 +86,11 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - Revisit 058 (several directional lights) once a real game needs a sun and moon or a lit cave; it was accepted on theory, without a concrete use to judge it by.
 - **F with nothing selected frames the whole scene** (sponsor, 2026-10-05): left out of 065, which frames only a selection.
 - **Wind in the foliage** (2026-10-07, from 0376's road): grass and leaves sway in a wind that has a
-  direction and strength. Left out of 090/091 to keep them testable in one sitting.
+  direction and strength. Left out of 090/093 (093 was 091, 0455) to keep them testable in one sitting.
 - **Backlit leaves** (2026-10-07, was work order 077): thin leaves glow on their shaded side when the sun
   is behind them. Cheap, and what makes trees read as trees from the tower.
+- **Leaves that block each other's bounce** (2026-10-21, from 0450): foliage in the bounce probes' captures, so
+  a canopy darkens its own bounce, not only its floor. Needs a draw per copy there or a new instance scheme.
 - **The rest of glTF** (2026-10-07, was work orders 067, 073–080): `.gltf` with side files, every
   primitive mode, a model's own and spot lights, specular, clearcoat, sheen, glass, iridescence,
   anisotropy, variants. Each waits until a game needs it. The loghouse's lamps may want spot lights.
@@ -100,7 +102,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   go, never in part: a cursor moved by ←/→, Home/End and a click; Ctrl+←/→ by word; Backspace/Delete at the
   cursor; selection by Shift+keys, drag and double-click; copy, cut and paste through the system clipboard
   (Wayland's is a piece of `platform` work). Every field gets it at once: Rename, Inspector names, typed
-  numbers, hex. Waits until after 094; amends 0192.
+  numbers, hex. Waits until after 096 (was 094, 0455); amends 0192.
 
 - **Light glows tint the haze, and fog beyond haze** (sponsor, 2026-10-13, 0411). Distance turning golden
   towards a low sun: each directional light's glow colouring the haze in its direction. Kept out of 087 so the
@@ -112,8 +114,9 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 
 - **Texture streaming** (sponsor, 2026-10-15, asked beside 0429: "If texture streaming helps, we need that as
   well."). Loading only the mip levels a texture is seen at, so far models cost less texture memory and load
-  time. It does not lower triangles, so it is not part of 089; weigh it after 092 (compressed textures) once a
-  forest of real models shows whether memory or load time hurts.
+  time. It does not lower triangles, so it is not part of 089; weigh it after 094 (compressed textures; mips
+  are what it streams, kept separable by 0454) once a forest of real models shows whether memory or load time
+  hurts.
 
 - **A contextual Inspector and Re-import** (sponsor, 2026-10-15, set aside when 089 was accepted as built). The
   Inspector shows whatever was pressed last, an entity or an Assets file, alike; a `.glb` shows its LOD
@@ -126,3 +129,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 
 - **No meshlets, no Nanite-style detail** (sponsor, 2026-10-16). Rejected: this engine offers performance and
   neither is performant yet. Do not propose it.
+
+- **Loading models on every core** (sponsor, 2026-10-20; was 0447, withdrawn by 0456). A worker pool splitting
+  import and cooking by file, picture and part, with uploads on one thread. Only if loads are still too slow
+  once the cooked copy (092) exists.

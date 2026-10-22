@@ -72,6 +72,7 @@ void voe_render_bounce_begun_lights(const voe_render_device *device,
 	lights->walls = device->bounce_frame.blockers.walls;
 	lights->indoors = device->bounce_frame.blockers.indoors;
 	lights->sun_mask = device->bounce_frame.blockers.sun;
+	lights->shade = device->bounce_frame.shade;
 	lights->more_count = device->bounce_frame.more.count;
 	for (uint32_t i = 0; i < lights->more_count; i++)
 		lights->more[i] = (voe_render_bounce_sun){

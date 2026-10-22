@@ -4,9 +4,8 @@
 // out of the order of the calls here, lists the project's authored entities,
 // follows a click on one, and draws the world into each view from that view's
 // own camera. The bar's New, Open and Save are session.h's: this file calls
-// voe_editor_session_do and takes a refused window close back.
-//
-// WHICH PROJECT IT OPENS ON IS startup.h's; THE WORLD'S STEP IS world_step.h's.
+// voe_editor_session_do and takes a refused window close back. Which project it
+// opens on is startup.h's; the world's step is world_step.h's.
 //
 // IT DRAWS IN THE THEME REMEMBERED IN `<settings>/voe3d/theme` (themes.h),
 // looked at again once a second at the top of the loop, in the one font the
@@ -42,9 +41,8 @@
 // builds the same world, font, themes, interface and scene, runs the loop body
 // `--frames` times (two by default) and writes the window's picture, and with
 // `--capture-view` the first scene view's too, all counted and written by
-// capture.h. It first
-// waits out a running refresh (session.h), for at most 120 s of the frame clock.
-// EVERY READ OF THE WINDOW IS GUARDED.
+// capture.h. It first waits out a running refresh (session.h), for at most
+// 120 s of the frame clock. EVERY READ OF THE WINDOW IS GUARDED.
 //
 // THE START AND NEW AND OPEN'S LOADS RUN ON A WORKER BEHIND A LIVE SPLASH
 // (0362, 0370): the font, themes and interface are made right after the
@@ -55,13 +53,17 @@
 // wait ends the program as a closed window does. The start's steps are timed
 // (app/start_log.h) and written after the first frame to stderr and appended
 // to `<settings>/voe3d/start.log`, stderr only under --capture. Everything
-// lives in one arena made first; the frame breakdown's timings are taken each frame.
+// lives in one arena made first. Each frame the hitch watch's stretches are
+// marked, the breakdown's timings taken and a stalled frame's `editor: hitch:`
+// line written (frame_hitches.h); edited landscapes are written before the
+// passes, saved with the project and read back on another (models.h).
 #include "assets_drag.h"
 #include "browser.h"
 #include "capture.h"
 #include "dock.h"
 #include "frame_breakdown.h"
 #include "frame_commands.h"
+#include "frame_hitches.h"
 #include "frame_pointer.h"
 #include "gizmo.h"
 #include "inspector_edit.h"
@@ -210,6 +212,8 @@ int main(int argc, char *argv[])
 	// Shown from the Panels list, hidden by it or its ×; never shown in a
 	// capture, so its take there copies nothing (frame_breakdown.h).
 	voe_editor_frame_breakdown breakdown = { 0 };
+	// Every frame's stretches, a stalled one's line on stderr (frame_hitches.h).
+	voe_editor_frame_hitches hitches = { 0 };
 	voe_app_settings settings;
 	voe_base_arena *arena;
 	voe_base_arena *scratch;
@@ -441,10 +445,15 @@ int main(int argc, char *argv[])
 		// The light every view is shown with this frame (view.h), read
 		// once rather than once per view: every view is lit the same.
 		voe_render_light light = { 0 };
+		// The seconds this frame's shadow calls took (view_passes.h).
+		double shadows = 0.0;
 
+		voe_editor_frame_hitches_begin(&hitches);
 		// AN IMPORTED MODEL'S LEVELS MADE BEHIND THE SPLASH (loading.h),
 		// before any load replaces the project it was imported into. The
-		// model is loaded again so its new levels draw at once (0431).
+		// model is loaded again so its new levels draw at once (0431); a
+		// refused prepare puts its line in the notice and is not reloaded,
+		// which would only meet the same cause again (0445 point 4).
 		if (session.prepare_due) {
 			voe_editor_loading_prepare prepare = {
 				.folder = session.project->folder,
@@ -459,8 +468,12 @@ int main(int argc, char *argv[])
 				break;
 			}
 			voe_base_arena_clear(scratch);
-			voe_editor_models_reload(models, &session, gpu,
-						 session.prepare_path, scratch);
+			if (prepare.refused)
+				session.notice = prepare.refusal;
+			else
+				voe_editor_models_reload(models, &session, gpu,
+							 session.prepare_path,
+							 scratch);
 			session.prepare_due = false;
 			session.prepare_remake = false;
 		}
@@ -552,6 +565,7 @@ int main(int argc, char *argv[])
 		// The clock, the poll, and what the window says afterwards, in
 		// that order and once.
 		opened = voe_app_frame_open(app);
+		voe_editor_frame_hitches_mark(&hitches, "open");
 		last_seconds = options.capture != NULL ?
 				       0.0f :
 				       (float)(opened.tick.step > MAX_FRAME_SECONDS ?
@@ -654,6 +668,7 @@ int main(int argc, char *argv[])
 					 opened.tick.now, NULL);
 		voe_editor_assets_update(&scene.assets, session.project->folder,
 					 opened.tick.now);
+		voe_editor_frame_hitches_mark(&hitches, "step");
 		if (!voe_app_draw_open(app, opened.size, &drawing)) {
 			status = 1;
 			break;
@@ -672,13 +687,15 @@ int main(int argc, char *argv[])
 		// entity has a camera.
 		drawn = voe_editor_view_passes_preview(
 				gpu, arena, session.project->world, &views,
-				light, &scene, voe_editor_models_store(models)) &&
+				light, &scene, voe_editor_models_store(models),
+				&shadows) &&
 			voe_editor_view_passes_draw(
 			gpu, arena, session.project->world, &views,
 			&roots[0], light, &scene, &geometries,
 			voe_editor_models_store(models), &shapes,
 			&voe_editor_themes_chosen(&themes)->palette, &gizmo,
-			pixels_per_millimetre);
+			pixels_per_millimetre, &shadows);
+		voe_editor_frame_hitches_mark(&hitches, "views");
 
 		// Then one pass onto the window, with no camera, for the
 		// interface and the pictures on it.
@@ -698,6 +715,7 @@ int main(int argc, char *argv[])
 			voe_editor_frame_commands_after_draw(&commands);
 			voe_render_pass_end(gpu);
 		}
+		voe_editor_frame_hitches_mark(&hitches, "interface");
 
 		// The frame is closed either way: a refused interface is this
 		// program's numbers being wrong, and abandoning a half-recorded
@@ -706,6 +724,7 @@ int main(int argc, char *argv[])
 			status = 1;
 			break;
 		}
+		voe_editor_frame_hitches_mark(&hitches, "end");
 		if (!drawn) {
 			status = 1;
 			break;
@@ -713,6 +732,8 @@ int main(int argc, char *argv[])
 		// Once a frame, after it ends, with the frame's seconds.
 		voe_editor_frame_breakdown_take(&breakdown, gpu,
 						(float)opened.tick.step);
+		voe_editor_frame_hitches_end(&hitches, gpu, opened.tick.elapsed,
+					     shadows);
 		if (!start_logged) {
 			voe_app_start_log_step(&start, "first frame");
 			voe_base_arena_clear(scratch);

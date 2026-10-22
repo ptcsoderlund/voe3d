@@ -1,5 +1,6 @@
 // The draws inside an open pass: voe_render_frame_draw and _draw_blended record
-// one mesh each, _clear_depth clears depth between two groups of them, and
+// one mesh each, _draw_instanced copies of one mesh from the records
+// _instances wrote, _clear_depth clears depth between two groups of them, and
 // _draw_count and _triangle_count report how many draw commands the frame held
 // and how many triangles they drew. Every call asserts
 // a pass is open, and a mesh draw that the pass was opened with a camera.
@@ -9,6 +10,14 @@
 // words of face mask and a fifth word `plain`, as the push constant; the shader
 // reads its own record with it. The buffer holds capacities.objects records,
 // and a draw past that is a returned failure.
+//
+// AN INSTANCED DRAW IS ONE OBJECT RECORD FOR ALL ITS COPIES (ADR-0442 point 6).
+// _instances copies the frame's instance records into the slot's instance
+// buffer at device->instance_count, once, for every pass to read; the draw
+// sets the record's `instances` to its first plus one and records `count`
+// instances from firstInstance 0, so copy i reads record instances − 1 + i by
+// its instance index. Never in the point-shadow or capture passes, which spend
+// that index on faces; a bounce shadow pass draws them as a cascade (ADR-0450).
 //
 // `plain` IS 1 FOR EVERY MESH DRAW AFTER THE PASS'S FIRST DEPTH CLEAR (ADR-0405
 // point 8): the overlay, drawn as authored, no exposure or tone. 0 before it.
@@ -148,8 +157,8 @@ static bool culls_by_draw(const voe_render_device *device, VkPipeline pipeline)
 	       pipeline == device->pipeline_blended;
 }
 
-// The whole of both draw calls; `pipeline` is the only thing that differs
-// between them.
+// The whole of the three draw calls: `pipeline` and `copies`, the instances
+// recorded outside a face pass, are what differ between them.
 //
 // THE BIND IS CONDITIONAL AND THAT IS THE ONLY REASON `bound` EXISTS. A frame is
 // a run of solid draws and then a run of blended ones, so this costs one bind at
@@ -157,14 +166,15 @@ static bool culls_by_draw(const voe_render_device *device, VkPipeline pipeline)
 // ever interleaves them, which is what makes it a condition and not an
 // assumption about the caller's order.
 static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
-		      voe_render_object object, VkPipeline pipeline)
+		      voe_render_object object, VkPipeline pipeline,
+		      uint32_t copies)
 {
 	const struct voe_render_geometry_slot *slot;
 	struct voe_render_frame *frame;
 	// The object's number, the face mask and `plain`: the twenty bytes
 	// pushed, inside pipeline.c's 64-byte range.
 	uint32_t push[5] = { 0 };
-	uint32_t instances = 1;
+	uint32_t instances = copies;
 
 	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
 	VOE_BASE_ASSERT(device->pass_open,
@@ -279,7 +289,8 @@ bool voe_render_frame_draw(voe_render_device *device,
 			   voe_render_object object)
 {
 	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
-	return draw_with(device, geometry, object, device->pipeline);
+	object.instances = 0;
+	return draw_with(device, geometry, object, device->pipeline, 1);
 }
 
 bool voe_render_frame_draw_blended(voe_render_device *device,
@@ -293,7 +304,57 @@ bool voe_render_frame_draw_blended(voe_render_device *device,
 			"drawing a blended mesh in a point-shadow pass — nothing see-through casts");
 	VOE_BASE_ASSERT(!device->pass_capture,
 			"drawing a blended mesh in a capture pass — nothing see-through bounces");
-	return draw_with(device, geometry, object, device->pipeline_blended);
+	object.instances = 0;
+	return draw_with(device, geometry, object, device->pipeline_blended, 1);
+}
+
+bool voe_render_frame_instances(voe_render_device *device,
+				const voe_render_instance *records,
+				uint32_t count, uint32_t *first)
+{
+	struct voe_render_frame *frame;
+
+	VOE_BASE_ASSERT(device != NULL, "writing instances on no device");
+	VOE_BASE_ASSERT(device->recording,
+			"writing instances outside a frame — they live in the open frame's slot");
+	VOE_BASE_ASSERT(records != NULL && first != NULL,
+			"writing instances from no records or into no index");
+
+	if (device->capacities.instances == 0) {
+		VOE_BASE_ERROR("render",
+			       "writing instances on a device made with no `instances` room");
+		return false;
+	}
+	if (count > device->capacities.instances - device->instance_count) {
+		VOE_BASE_ERROR("render",
+			       "%u more instances do not fit: this frame holds %u of the %u the device was made for",
+			       count, device->instance_count,
+			       device->capacities.instances);
+		return false;
+	}
+
+	frame = voe_render_frame_at(device, device->slot);
+	memcpy((unsigned char *)frame->instances_mapped +
+		       (size_t)device->instance_count * sizeof(*records),
+	       records, (size_t)count * sizeof(*records));
+	*first = device->instance_count;
+	device->instance_count += count;
+	return true;
+}
+
+bool voe_render_frame_draw_instanced(voe_render_device *device,
+				     voe_render_geometry geometry,
+				     voe_render_object object, uint32_t first,
+				     uint32_t count)
+{
+	VOE_BASE_ASSERT(device != NULL, "drawing on no device");
+	VOE_BASE_ASSERT(count > 0, "an instanced draw of no copies");
+	VOE_BASE_ASSERT((uint64_t)first + count <= device->instance_count,
+			"an instanced draw past the instances this frame wrote");
+	VOE_BASE_ASSERT(!device->pass_point_shadow && !device->pass_capture,
+			"an instanced draw in a point-shadow or capture pass — their instance index counts faces");
+	object.instances = first + 1;
+	return draw_with(device, geometry, object, device->pipeline, count);
 }
 
 // Only the wanted mode is kept here; draw_with records it before the next solid

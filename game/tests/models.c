@@ -30,6 +30,9 @@
 // in the table is one failure, named, and a second call counts none; with the
 // material on disk as text a watch reports nothing and leaves it loaded.
 //
+// THE BROKEN MAP, on a fresh store with nothing set: a material whose normal
+// map is text loads alone as failed, kept so, its map's path in the kept error.
+//
 // THE LAYERS, on a seventh store and an empty world: a landscape whose two
 // layers name table materials loads both, holds both paths and its painted
 // point's bytes as cooked; a layer naming no table material is one failure.
@@ -38,6 +41,11 @@
 // material for the `.glb`'s material 0 makes its part wear it and loads it; a
 // table without the `.glb` leaves `wears` empty; a material with an emission
 // map loads it into the emissive slot.
+//
+// THE FOLIAGE, on a ninth store and an empty world: a landscape naming the
+// `.glb` as its one kind, with two copies, makes an update load the kind and
+// the grid hold and place both copies as cooked; a kind naming a missing file
+// is one failure, named.
 //
 // The levels cases are tests/models_levels.c; the `.glb` and the world helpers
 // both use are tests/glb_build.h.
@@ -53,11 +61,13 @@
 #include <3d/emitter_component.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
+#include <3d/models_foliage.h>
 #include <3d/shape_component.h>
 #include <3d/water_component.h>
 
 #include <base/arena.h>
 #include <base/error.h>
+#include <base/report.h>
 
 #include <math/quat.h>
 
@@ -88,6 +98,9 @@
 #define NO_MATERIAL "Assets/none.material"
 #define GREY_MATERIAL "Assets/grey.material"
 #define GLOW_MATERIAL "Assets/glow.material"
+#define BROKEN_MATERIAL "Assets/broken.material"
+#define BROKEN_PICTURE "broken.png"
+#define BROKEN_ON_DISK FOLDER "/" BROKEN_PICTURE
 #define LAYERED_LANDSCAPE "layered.landscape"
 #define ASSETS_ON_DISK FOLDER "/Assets"
 #define MATERIAL_ON_DISK FOLDER "/" MATERIAL
@@ -121,12 +134,14 @@ static const int32_t HILL[25] = {
 };
 
 static const voe_game_landscapes HILLS = {
-	(const voe_game_landscape[]){ { LANDSCAPE, 64.0f, 4, HILL, NULL, 0, NULL } },
+	(const voe_game_landscape[]){
+		{ LANDSCAPE, 64.0f, 4, HILL, NULL, 0, NULL, NULL, 0, NULL, 0 } },
 	1
 };
 
 // A lit, white material with the PNG as its colour map, a grey one with no
-// maps, and a glowing one with the PNG as its emission map.
+// maps, a glowing one with the PNG as its emission map, and one whose normal
+// map is text.
 static const voe_game_materials MATERIALS = {
 	(const voe_game_material[]){ { MATERIAL,
 				       { .colour = { 1.0f, 1.0f, 1.0f },
@@ -143,8 +158,14 @@ static const voe_game_materials MATERIALS = {
 					 .repeat = 1.0f,
 					 .emission = { 1.0f, 1.0f, 1.0f },
 					 .emission_strength = 1.0f,
-					 .emissionmap = PICTURE } } },
-	3
+					 .emissionmap = PICTURE } },
+				     { BROKEN_MATERIAL,
+				       { .colour = { 1.0f, 1.0f, 1.0f },
+					 .roughness = 0.5f,
+					 .repeat = 1.0f,
+					 .colormap = PICTURE,
+					 .normalmap = BROKEN_PICTURE } } },
+	4
 };
 
 // No model's parts; the `.glb`'s material 0 wearing MATERIAL.
@@ -163,14 +184,36 @@ static uint8_t paint[25 * 4];
 static const voe_game_landscapes LAYERED = {
 	(const voe_game_landscape[]){
 		{ LAYERED_LANDSCAPE, 64.0f, 4, HILL,
-		  (const char *const[]){ MATERIAL, GREY_MATERIAL }, 2, paint } },
+		  (const char *const[]){ MATERIAL, GREY_MATERIAL }, 2, paint, NULL,
+		  0, NULL, 0 } },
 	1
 };
 
 static const voe_game_landscapes UNKNOWN_LAYER = {
 	(const voe_game_landscape[]){
 		{ LAYERED_LANDSCAPE, 64.0f, 4, HILL,
-		  (const char *const[]){ NO_MATERIAL }, 1, NULL } },
+		  (const char *const[]){ NO_MATERIAL }, 1, NULL, NULL, 0, NULL,
+		  0 } },
+	1
+};
+
+// Two copies of kind 0: one turned a quarter, one leaning along the ground.
+static const voe_assets_landscape_copy COPIES[2] = {
+	{ .x = 1000, .z = -2000, .turn = 16384, .scale = 1000 },
+	{ .x = -5000, .z = 3000, .scale = 1500, .lean = 255 },
+};
+
+static const voe_game_landscapes FOREST = {
+	(const voe_game_landscape[]){ { LANDSCAPE, 64.0f, 4, HILL, NULL, 0, NULL,
+					(const char *const[]){ GOOD }, 1, COPIES,
+					2 } },
+	1
+};
+
+static const voe_game_landscapes THICKET = {
+	(const voe_game_landscape[]){ { LANDSCAPE, 64.0f, 4, HILL, NULL, 0, NULL,
+					(const char *const[]){ MISSING }, 1,
+					NULL, 0 } },
 	1
 };
 
@@ -392,6 +435,30 @@ static void check_materials(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
+// The broken material loaded alone into a fresh store: refused, kept failed,
+// the broken map's path in the kept error.
+static void broken_load(voe_render_device *device, voe_base_arena *scratch)
+{
+	voe_3d_models *models = voe_3d_models_new();
+	voe_base_error error = VOE_BASE_OK;
+	const voe_3d_model_entry *entry;
+	const char *kept;
+
+	VOE_TEST_CHECK(voe_platform_file_write(BROKEN_ON_DISK, NOT_A_GLB,
+					       sizeof(NOT_A_GLB), NULL));
+	voe_base_report_error_clear();
+	VOE_TEST_CHECK(!voe_game_models_material_load(models, device, FOLDER,
+						      &MATERIALS.materials[3],
+						      0, scratch, &error));
+	VOE_TEST_CHECK(error != VOE_BASE_OK);
+	entry = voe_3d_models_find(models, BROKEN_MATERIAL);
+	VOE_TEST_CHECK(entry != NULL && !entry->loaded);
+	kept = voe_base_report_error_first();
+	VOE_TEST_CHECK(kept != NULL && strstr(kept, BROKEN_PICTURE) != NULL);
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 // `path` held in `models` as a loaded material.
 static bool holds_material(const voe_3d_models *models, const char *path)
 {
@@ -507,6 +574,60 @@ static void check_parts(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
+// The forest's grid: both copies as cooked, field by field, and placed.
+static void check_forest(const voe_3d_models *models)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, LANDSCAPE);
+
+	VOE_TEST_CHECK(entry != NULL && entry->landscape != NULL);
+	if (entry == NULL || entry->landscape == NULL)
+		return;
+	VOE_TEST_CHECK_INT(entry->landscape->kind_count, 1);
+	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[0], GOOD) == 0);
+	VOE_TEST_CHECK_INT(entry->landscape->copy_count, 2);
+	for (uint32_t i = 0; i < 2 && entry->landscape->copy_count == 2; i++) {
+		const voe_assets_landscape_copy *copy = &entry->landscape->copies[i];
+
+		VOE_TEST_CHECK(copy->x == COPIES[i].x && copy->z == COPIES[i].z &&
+			       copy->turn == COPIES[i].turn &&
+			       copy->scale == COPIES[i].scale &&
+			       copy->kind == COPIES[i].kind &&
+			       copy->lean == COPIES[i].lean);
+	}
+	VOE_TEST_CHECK(voe_3d_models_landscape_placed(models, entry) != NULL);
+}
+
+static void check_foliage(voe_ecs_world *world, voe_render_device *device,
+			  voe_base_arena *scratch)
+{
+	voe_3d_models *models = voe_3d_models_new();
+	const voe_3d_model_entry *kind;
+	voe_game_models_failures failures;
+
+	// ---- a kind naming the `.glb`: loaded, both copies held and placed
+	failures = voe_game_models_landscapes(models, device, &FOREST, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	kind = voe_3d_models_find(models, GOOD);
+	VOE_TEST_CHECK(kind != NULL && kind->loaded);
+	check_forest(models);
+	voe_3d_models_clear(models, device);
+
+	// ---- a kind naming a missing file: one failure, named
+	failures = voe_game_models_landscapes(models, device, &THICKET, scratch);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  NULL);
+	VOE_TEST_CHECK_INT(failures.count, 1);
+	VOE_TEST_CHECK(failures.first != NULL &&
+		       strcmp(failures.first, MISSING) == 0);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 static void check_files(voe_ecs_world *world, voe_render_device *device,
 			voe_base_arena *scratch, const uint8_t *glb,
 			uint32_t size)
@@ -559,6 +680,7 @@ static void remove_files(void)
 {
 	remove(GOOD_ON_DISK);
 	remove(PICTURE_ON_DISK);
+	remove(BROKEN_ON_DISK);
 	remove(LANDSCAPE_ON_DISK);
 	remove(MATERIAL_ON_DISK);
 	remove(ASSETS_ON_DISK);
@@ -604,8 +726,10 @@ int main(void)
 	voe_3d_models_clear(landscapes, device);
 	voe_3d_models_destroy(landscapes);
 	check_materials(voe_game_world_new(arena), device, scratch);
+	broken_load(device, scratch);
 	check_layers(voe_game_world_new(arena), device, scratch);
 	check_parts(voe_game_world_new(arena), device, scratch);
+	check_foliage(voe_game_world_new(arena), device, scratch);
 	remove_files();
 	voe_render_device_destroy(device);
 released:

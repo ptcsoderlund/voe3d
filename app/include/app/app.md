@@ -6,6 +6,7 @@ questions each answers, stays on `app/app.md`.
 - `app.h` — the whole public surface: the two startups, frame open, draw open
   and close, a capture, and the window and device to reach past them.
 - `clock.h` — the interval between two frames, as a value.
+- `hitches.h` — a frame past its mean, and the line naming what took the time.
 - `picture.h` — a PNG file read into a colour texture with its size.
 - `pipeline_cache.h` — the device's pipeline cache kept in the settings folder.
 - `start_log.h` — a start's named steps, timed and written out.

@@ -8,7 +8,8 @@ way out: a decoder takes a buffer and an encoder hands one back, since
 - `src` — the implementation. See `src/src.md`.
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
 - `include/assets/model.h` — `.glb` files, read into vertex attributes,
-  materials, decoded pictures and a node tree. Its header says why binary only,
+  materials, pictures decoded or left encoded, and a node tree. Its header says
+  why binary only,
   why no coordinate is converted, and which failures are malformed.
 - `include/assets/image.h` — pictures, both directions: PNG and JPEG decoded to
   RGBA8, and RGBA8 encoded back as a PNG. Its header says why output is always
@@ -18,8 +19,9 @@ way out: a decoder takes a buffer and an encoder hands one back, since
   interpreted. Its header says why it is layer one of three and why comments
   are `//`.
 - `include/assets/landscape.h` — a `.landscape` file's text to a grid of up
-  to 2048 cells of heights in whole millimetres, up to eight material layers and
-  each point's paint weights, and back, and a grid resampled bilinearly.
+  to 2048 cells of heights in whole millimetres, up to eight material layers,
+  each point's paint weights and the foliage kinds and copies, and back, and a
+  grid resampled bilinearly.
 - `include/assets/material.h` — a `.material` file's text to a shader, its
   factors, repeat and three map paths, and back. Its header says the defaults
   and why a missing key reads as one.

@@ -1,6 +1,7 @@
 // Buffers, and the staging upload that fills one. Two things live here: making a
 // buffer with the memory under it, and copying bytes into a buffer the CPU
-// cannot see. See device_internal.h for the contracts.
+// cannot see. See device_internal.h for the contracts. The upload's waited-on
+// submission also copies one buffer into another, for a growing pool.
 //
 // THE UPLOAD PATTERN MATTERS MORE THAN THE CUBE DOES. A vertex buffer the GPU
 // reads every frame belongs in device-local memory, which on a discrete card the
@@ -165,10 +166,10 @@ static bool fill_staging(voe_render_device *device,
 // The copy, recorded into a command buffer of its own and waited on. Its own,
 // because this runs before the first frame and borrowing a frame slot's buffer
 // would tie an upload to a slot for no reason; waited on, because the staging
-// buffer is destroyed the moment this returns.
+// buffer is destroyed the moment this returns. `source` is read from its start.
 static bool copy_and_wait(voe_render_device *device,
 			  const struct voe_render_buffer *destination,
-			  const struct voe_render_buffer *staging,
+			  const struct voe_render_buffer *source,
 			  VkDeviceSize offset, VkDeviceSize size)
 {
 	VkCommandBufferAllocateInfo allocate = {
@@ -203,7 +204,7 @@ static bool copy_and_wait(voe_render_device *device,
 	}
 
 	voe_render_vk.begin_command_buffer(commands, &begin);
-	voe_render_vk.cmd_copy_buffer(commands, staging->buffer,
+	voe_render_vk.cmd_copy_buffer(commands, source->buffer,
 				      destination->buffer, 1, &region);
 	voe_render_vk.end_command_buffer(commands);
 
@@ -257,4 +258,19 @@ bool voe_render_buffer_upload(voe_render_device *device,
 	// above has finished reading it.
 	voe_render_buffer_teardown(device, &staging);
 	return uploaded;
+}
+
+bool voe_render_buffer_copy(voe_render_device *device,
+			    const struct voe_render_buffer *destination,
+			    const struct voe_render_buffer *source,
+			    VkDeviceSize size)
+{
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "copying without a device");
+	VOE_BASE_DEBUG_ASSERT(destination != NULL && source != NULL,
+			      "copying into or out of nothing");
+	VOE_BASE_DEBUG_ASSERT(size > 0, "copying no bytes");
+	VOE_BASE_DEBUG_ASSERT(device->pool != VK_NULL_HANDLE,
+			      "copying before there is a command pool");
+
+	return copy_and_wait(device, destination, source, 0, size);
 }

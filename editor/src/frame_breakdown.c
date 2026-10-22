@@ -78,6 +78,9 @@ void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
 	breakdown->triangles = voe_render_frame_triangle_count(gpu);
 	(void)snprintf(breakdown->triangles_label, VOE_EDITOR_FRAME_TRIANGLES,
 		       "%" PRIu64, breakdown->triangles);
+	breakdown->draws = voe_render_frame_draw_count(gpu);
+	(void)snprintf(breakdown->draws_label, VOE_EDITOR_FRAME_DRAWS,
+		       "%" PRIu32, breakdown->draws);
 	VOE_BASE_ASSERT(breakdown->count <= VOE_EDITOR_FRAME_PASSES,
 			"more passes kept than there is room for");
 }
@@ -129,6 +132,7 @@ void voe_editor_frame_breakdown_draw(voe_ui_context *ui,
 				 breakdown->milliseconds[i]);
 		row_draw(ui, "Total", breakdown->total_milliseconds);
 		row_draw(ui, "Triangles", breakdown->triangles_label);
+		row_draw(ui, "Draws", breakdown->draws_label);
 	}
 
 	voe_ui_end(ui); // panel

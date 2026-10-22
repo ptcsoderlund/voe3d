@@ -18,10 +18,16 @@
 // - Over a folder row other than the dragged one, or over Up: the row moves
 //   there through voe_editor_assets_move, followed and refused as it says; a
 //   row marked dragged (assets_panel.h) enters no folder on the release.
+// - A `.glb` over the Foliage section's rows of a thing wearing a loaded
+//   landscape (inspector_foliage.h, 0442 point 3): over a kind row, that kind
+//   through voe_editor_models_kind_set; over the add row, a kind added;
+//   unsaved as a layer drop, no undo step. With sixteen kinds there is no add
+//   row. The kind's model loads at the next update.
 // - A model over a scene view: a new thing named after the file, wearing it,
 //   at the point below, selected, one undo step and unsaved as Add entity is;
 //   over the Inspector while the selected thing has a model, its path replaced
-//   through voe_3d_model_submit, one undo step and unsaved as an edit is.
+//   through voe_3d_model_submit, one undo step and unsaved as an edit is
+//   (why it replaces: above onto_inspector in assets_drag.c).
 // - A `.prefab` over a scene view: a placed copy's root at the same point,
 //   selected, one step and unsaved (0283 point 7), expanded the next frame;
 //   while a prefab is open, nothing.
@@ -44,17 +50,10 @@
 // pointer, refused (drag_ghost.h) wherever the release would do nothing: over
 // the dragged row itself too, or a folder inside a dragged folder.
 //
-// THE INSPECTOR DROP REPLACES THE PATH rather than adding a component: an
-// entity has at most one row of a type, so a second model is not a thing to
-// add, and swapping what a placed thing wears is what dropping onto its panel
-// is for. A thing with no model (or emitter, for a picture) is left alone, and
-// a prefab's part: not the person's to edit (0283). A path longer than its
-// field's room is no drag.
-//
 // CONSTRAINTS. The Inspector's rectangle is the dock tree laid out below the
-// bar, and the panel's rows, Up, the Inspector's fields, the map rows and the
-// layer rows are last frame's rectangles, not what `ui` drew, because the
-// frame's nodes are gone by the time this runs. A drop and
+// bar, and the panel's rows, Up, the Inspector's fields, the map rows, the
+// layer rows and the kind rows are last frame's rectangles, not what `ui`
+// drew, because the frame's nodes are gone by the time this runs. A drop and
 // Ctrl+D on one frame would give two new things one id (entities.h); nothing
 // guards that pair.
 #pragma once

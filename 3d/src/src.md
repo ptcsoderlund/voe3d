@@ -39,7 +39,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and the opt-in changes table.
 - `shape_geometry.c` — the three shapes kept on the CPU: the cube pointed at, the
   capsule and the cylinder built into an arena, and the build any triangles go
-  through, whose edges are found by welding by position and walking twice.
+  through, whose edges are found by welding by position through hashed cells and walking twice,
+  flat triangles skipped.
 - `cube.h` — the built-in cube's vertices and indices as the files that use them
   see them, internal to this folder.
 - `cube.c` — those twenty-four vertices and thirty-six indices written out by
@@ -88,20 +89,27 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
 - `draw_system.c` — the camera's view, the first light, the first on sky, Haze and picture rows,
-  the frame's pass camera, and each drawable's draw into the frame the loop opened.
+  the frame's pass camera, and each drawable's draw into the frame the loop opened, foliage after
+  the landscapes.
 - `draw_models.h` — the model rows' walk, its part count for the blended group's room and the
   entry and landscape test the landscape walk shares; internal.
 - `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
   the level before in its band, and blended or fading ones held, a faded-out row and a landscape
   skipped.
+- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part and rest, and
+  the groups' solid and cast draws, one each, why rest groups do not cast, and why the bounce sun
+  maps draw them and captures and point shadows do not; internal.
+- `draw_foliage.c` — the foliage gathering: each drawn landscape row's copies given their level,
+  counted per group, filled contiguously and written as render instances in one call; then each
+  group's instanced draw.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended, and why one eye chooses the same nodes in every pass; internal.
 - `draw_terrain.c` — the eye taken into the grid's space, the nodes selected on scratch or, in
   the cast, on the stack, and each node's record over the heights texture, its layers looked up
   once per row per call.
-- `draw_shadows.c` — the shadow passes as one call: each casting directional light's cascades in
-  its own slot of only the casters its blockers hold, the point-shadow pass and the probe bounce,
-  a model at the camera's level, a gone one casting nothing and a landscape by the view's nodes.
+- `draw_shadows.c` — the shadow passes as one call: each casting sun's cascades in its slot, of
+  only what its blockers hold, the point-shadow pass and the probe bounce, a model at the camera's
+  level, a gone one casting nothing, a landscape by the view's nodes, foliage in a free sun's cascades.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0, an
   off owner's and those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
@@ -110,14 +118,14 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
   the eye with its rows and sphere, flat ones, an off owner's and those past 32 left out, the Direct and Fill bits,
   the sun's mask, and light rows 2 to 4 each masked at its place.
-- `draw_bounce.h` — the frame's probe bounce, this step's stale spheres and the removed casters'
-  after them, the caster walk and measure bounce_casters.c shares, the still casters' box, and the
-  cascades' caster walk, at the camera's level or the last, and casting test; internal.
+- `draw_bounce.h` — the frame's probe bounce with foliage in free suns' maps, its stale and
+  removed casters' spheres, the caster walk and measure bounce_casters.c shares, the still casters'
+  box, and the cascades' caster walk and casting test; internal.
 - `bounce_casters.c` — a removed caster's sphere where the target's memory saw it last, then the
   memory refilled with this frame's casters.
 - `draw_bounce.c` — the frame's probe bounce, run only when a light bounces: the volumes fitted to
-  the still casters, the casters drawn into each pass and sun map, a landscape coarse at 16
-  nodes, and the relight.
+  the still casters, each begun with the store's count, the casters drawn into each pass and sun
+  map, the foliage into a free sun's map, a landscape coarse at 16 nodes, and the relight.
 - `draw_group.h` — the drawables held back until their turn, and the four groups; internal.
 - `draw_group.c` — a group's room in the arena, an entry held with its depth key, the draws sorted
   or in table order, the record a mesh is drawn with, a double-sided mesh drawn between two
@@ -144,32 +152,44 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `model_upload.c` — each picture once per colour space wanted, a record per material and
   one default shared by the primitives naming none.
 - `import.c` — the model's upload, its geometry and the tree walk that turns a read model
-  into one entity per drawn primitive.
+  into one entity per drawn primitive, a full world and a deep nesting said as limits.
 - `model_bake.h` — a read model's nodes of one level baked into its vertices, its vertex colours
   carried, and its primitives merged into one part per material, and the count of the file's own
   levels its node names tell; internal.
 - `model_bake.c` — the walk into a list of placed primitives, each part's room counted
   from it, the fill with each colour's complement, the mirrored node's turned triangles, and
-  each node's `_LOD<n>` level carried down the walk.
-- `models.c` — the store's table of entries with an arena each, and the load that reads, bakes,
-  uploads with each part's blended twin and glTF source and gives back what a failure made; the
-  parts set; pictures on the quad, the dot and the water apart.
-- `models_store.h` — the store's internal table and the helpers the store's files share.
-- `models_levels.c` — a `.glb`'s levels beside its parts: own levels baked and joined by
-  material, or a levels file's checked and each part's used vertices gathered, each bounded by
-  the file's error and swap; the sphere, the level-0 mirror and the free.
-- `models_landscape.c` — a landscape's grid copied with its layers and paint, uploaded as heights,
-  paint and a pyramid on the shared grid; brushes and puts growing its dirt, which the frame
-  writes a budget at a time.
-- `models_material.c` — a `.material`'s four maps decoded and uploaded mipped with its record,
-  cutout, emission and sides and its twin as one part with no geometry, the set marking it and the
-  frame rewriting both records.
-- `model_picture.h` — a picture's quad, decode by extension, the soft dot and the upload of one
-  texture and two blended materials; internal.
-- `model_picture.c` — the quad's leaning normals, the smoothstep dot, and the lit and glow
-  materials on one COLOUR texture, blended already so needing no twin.
+  each node's `_LOD<n>` level carried down the walk; its three refusals as limits with the file's
+  own counts.
+- `models.c` — the store's table of entries with an arena each, the `.glb` load as a prepare and
+  a put that uploads each part with its blended twin and gives back what a failure made; the parts
+  set; pictures on the quad, the dot and the water apart.
+- `models_store.h` — the store's internal table with its count of changes
+  the bounce relights by, the prepared `.glb` and the helpers the store's files share.
+- `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until
+  one matches no part, or a levels file read and checked against the bake, the shape built and
+  the sphere measured.
+- `models_levels.c` — a `.glb`'s levels beside its parts, as the prepare baked or read them: own
+  levels joined by material, or made levels' indices shared over level 0's vertices, each bounded
+  by the file's error and swap; the level-0 mirror and the free.
+- `models_landscape.c` — a landscape's grid copied with its layers, paint, foliage kinds and
+  copies, each placed, uploaded as heights, paint and a pyramid on the shared grid; brushes and
+  puts growing its dirt, written a budget at a time, and placing copies again; renames following.
+- `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
+  handed to foliage.c, the entry marked edited and the store's count raised on a change.
+- `models_material.c` — a `.material`'s four maps, decoded by the load under each map's name as
+  the subject or already by the caller, put mipped with its record, cutout, emission and sides
+  and its twin as one part with no geometry; the set marking it and the frame rewriting both records.
+- `model_picture.h` — a picture's quad, the soft dot and the upload of one texture and two
+  blended materials, the public decode by extension included; internal.
+- `model_picture.c` — the decode by extension, the quad's leaning normals, the smoothstep dot,
+  and the lit and glow materials on one COLOUR texture, blended already so needing no twin.
 - `landscape.c` — the bilinear height, the marched and bisected ray, and the brush's stamp on the
   heights or, painting, on a layer's weights.
+- `brush_weight.h` — a brush's soft weight by radius and softness, shared by the sculpt, paint and
+  foliage stamps; internal.
+- `foliage.c` — a copy placed on the bilinear ground's normal, a scatter stamp's tries drawn up
+  front and refused against the near copies in one walk, erase and undo by moving the last in, and
+  the replace over a rect.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
 - `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, borders
@@ -178,8 +198,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `simplify.c` — the weld, each vertex's side, the plane sums and a heap of stamped collapses
   popped cheapest first, a seam line's re-pointed by side and a soft position's onto the kept
   vertex, each refused past 90° of turn.
-- `model_levels.c` — a `.glb`'s levels file made (level 0 baked, each level simplified to its
-  share, or own levels baked and measured), written and read back with stale fields refused,
+- `model_levels.c` — a `.glb`'s levels file made with no picture decoded (level 0 baked, each
+  part simplified to its share level by level, no pool, or own levels baked and measured),
+  written and read back with stale fields refused,
   its swaps patched in place, and each level's triangles.
 - `measure.h` — how far apart two bakes are, both ways, vertex to nearest triangle, for an own
   level's error; internal.

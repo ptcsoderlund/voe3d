@@ -151,8 +151,9 @@ struct voe_render_free_range {
 // sorted by offset, no two entries touch, and none touches `used` — a range
 // given back there lowers `used` instead. So there are never more holes than
 // live ranges, and `hole_room` is the static band's slot count. There is no
-// compaction: a pool whose holes are too small is a returned failure. A
-// transient pool has no list; it is emptied whole every frame.
+// compaction: a static pool whose holes are too small grows instead (0444,
+// geometry_grow.c), its buffer and `capacity` replaced. A transient pool's
+// capacity never changes, and it has no list; it is emptied whole every frame.
 struct voe_render_pool {
 	struct voe_render_buffer buffer;
 	// Elements, not bytes: vertices in one pool and indices in the other.
@@ -210,6 +211,11 @@ struct voe_render_transient_pool {
 // `box_min` AND `box_max` ARE THE SAME VERTICES' BOX, corner to corner in the
 // mesh's own space, taken in the same create; voe_render_geometry_box hands
 // them back to a caller fitting the bounce grid to where meshes stand (0332).
+//
+// `shares` IS THE SLOT OF THE BASE WHOSE VERTICES A SHARING MESH WALKS (0444),
+// VOE_RENDER_OWN_VERTICES for a mesh with its own; every create writes it. On a
+// base, `sharers` is how many share it, raised by the sharing create and lowered
+// by a sharer's destroy, and nought whenever the slot is free.
 struct voe_render_geometry_slot {
 	voe_math_float4 sphere;
 	voe_math_float3 box_min;
@@ -218,10 +224,14 @@ struct voe_render_geometry_slot {
 	uint32_t first_index;
 	uint32_t index_count;
 	uint32_t vertex_count;
+	uint32_t shares;
+	uint32_t sharers;
 	uint32_t generation;
 	bool live;
 	bool transient;
 };
+
+#define VOE_RENDER_OWN_VERTICES (~0u)
 
 // What a voe_render_shading id names. The record itself lives in the GPU buffer
 // the fragment stage reads; this is only what the CPU needs in order to refuse a
@@ -576,6 +586,11 @@ struct voe_render_frame {
 	// finished with this slot's.
 	struct voe_render_buffer objects;
 	void *objects_mapped;
+	// And its instance records (ADR-0442 point 6): capacities.instances of
+	// them, one when that is nought for the binding, written by
+	// voe_render_frame_instances; the same lifetime and the same rules.
+	struct voe_render_buffer instances;
+	void *instances_mapped;
 
 	// One record per submitted element, this slot's own, written by
 	// voe_render_frame_submit_element. Per slot and safe to overwrite for

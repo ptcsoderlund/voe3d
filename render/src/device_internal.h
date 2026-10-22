@@ -313,6 +313,9 @@ struct voe_render_device {
 	bool recording;
 	uint32_t object_count;
 	uint32_t image_index;
+	// How many instance records the open frame has written, which is where
+	// the next write goes. Reset by _begin beside object_count.
+	uint32_t instance_count;
 
 	// How many elements have been submitted to the open frame, which is both
 	// where the next record goes and the instance count the one element draw

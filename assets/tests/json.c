@@ -210,7 +210,7 @@ static void broken_documents_are_malformed(voe_base_arena *arena)
 
 // Nesting deeper than the reader will follow is a refusal and not a crash: this
 // is the case rule 14 exists for, and a recursive reader would meet it with a
-// stack overflow instead.
+// stack overflow instead. It is a limit the engine keeps, so unsupported.
 static void deep_nesting_is_refused_rather_than_followed(voe_base_arena *arena)
 {
 	char deep[VOE_ASSETS_JSON_MAX_DEPTH * 2 + 8];
@@ -226,7 +226,7 @@ static void deep_nesting_is_refused_rather_than_followed(voe_base_arena *arena)
 
 	VOE_TEST_CHECK(!voe_assets_json_parse(deep, depth * 2, arena, TOKENS,
 					      &json, &error));
-	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_MALFORMED);
+	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_UNSUPPORTED);
 
 	// One shallower is fine, which is what says the limit is the limit and
 	// not something one off from it.

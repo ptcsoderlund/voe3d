@@ -8,6 +8,10 @@
 // right on every message anyone writes by hand; it shows only on the one message
 // long enough to matter, which is the one a person was trying to read.
 //
+// It checks ADR-0445's subjects: none leaves the line as it was, pushed ones
+// sit between module and message in the line and the kept error, and a pop
+// drops the last.
+//
 // It also checks ADR-0160's first-kept-error, through the real VOE_BASE_ERROR
 // and VOE_BASE_WARNING macros rather than voe_base_report_compose(), because
 // those macros are what feeds voe_base_report_error_first(). Each call still
@@ -105,6 +109,39 @@ int main(void)
 	const char *kept = voe_base_report_error_first();
 	VOE_TEST_CHECK_INT((long long)strlen(kept), (long long)fill);
 	VOE_TEST_CHECK(memcmp(kept + fill - 3, "...", 3) == 0);
+
+	// ADR-0445: with no subject pushed the line is exactly as before.
+	compose(line, VOE_BASE_LEVEL_ERROR, "m", "message");
+	VOE_TEST_CHECK(strcmp(line, "error: m: message\n") == 0);
+
+	// Two subjects, in the order pushed, between the module and the message.
+	voe_base_report_subject_push("a.glb");
+	voe_base_report_subject_push("the part `x`");
+	compose(line, VOE_BASE_LEVEL_ERROR, "m", "message");
+	VOE_TEST_CHECK(strcmp(line, "error: m: a.glb: the part `x`: message\n") ==
+		       0);
+
+	// The kept first error carries them before its message.
+	voe_base_report_error_clear();
+	VOE_BASE_ERROR("m", "message");
+	VOE_TEST_CHECK(strcmp(voe_base_report_error_first(),
+			      "a.glb: the part `x`: message") == 0);
+
+	// A line past the capacity is still cut and marked with subjects pushed.
+	length = compose(line, VOE_BASE_LEVEL_ERROR, "m", "%s", message);
+	VOE_TEST_CHECK_INT((long long)length, (long long)capacity);
+	VOE_TEST_CHECK(strncmp(line, "error: m: a.glb: the part `x`: x", 32) == 0);
+	VOE_TEST_CHECK(memcmp(line + capacity - 4, "...\n", 4) == 0);
+
+	// After a pop, one subject.
+	voe_base_report_subject_pop();
+	compose(line, VOE_BASE_LEVEL_ERROR, "m", "message");
+	VOE_TEST_CHECK(strcmp(line, "error: m: a.glb: message\n") == 0);
+
+	// After the last pop, none again.
+	voe_base_report_subject_pop();
+	compose(line, VOE_BASE_LEVEL_ERROR, "m", "message");
+	VOE_TEST_CHECK(strcmp(line, "error: m: message\n") == 0);
 
 	return voe_test_result();
 }

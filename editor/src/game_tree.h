@@ -41,8 +41,8 @@
 // prefab_<n> after Code/'s includes and named by its path under Assets/ less
 // .prefab; more than VOE_GAME_PREFAB_ENTITIES entities is refused. landscapes.c
 // and materials.c ARE EVERY `.landscape` AND `.material` AS SAVED (0379, 0399
-// point 7): landscape_<n> with its `Assets/…` path, size and cells, and its
-// layer paths and cooked paint when it has layers (0402 point 8); a
+// point 7): landscape_<n> with its `Assets/…` path, size and cells, its layers
+// and paint (0402 point 8) and its kinds and copies (0442), when it has them; a
 // material's path and values, floats in hex. materials.c also holds every
 // `.parts` AS SAVED (0420 point 1): its `.glb`'s path and its materials' paths.
 // A bad file is refused.

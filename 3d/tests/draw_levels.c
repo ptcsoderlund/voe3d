@@ -174,8 +174,8 @@ static void load_spheres(voe_base_arena *arena, voe_render_device *device,
 	size_t levels_size = 0;
 	const uint8_t *glb = sphere_glb(arena, RINGS, SEGMENTS, false, &glb_size);
 	const uint8_t *levels = voe_3d_model_levels_make(
-		arena, glb, glb_size, VOE_ASSETS_LEVELS_DEFAULT, &levels_size,
-		&error);
+		arena, glb, glb_size, VOE_ASSETS_LEVELS_DEFAULT,
+		&levels_size, &error);
 
 	VOE_TEST_CHECK(levels != NULL);
 	VOE_TEST_CHECK(voe_3d_models_load_levelled(models, device, LEVELLED, 1,

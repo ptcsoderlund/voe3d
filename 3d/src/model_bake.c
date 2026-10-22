@@ -23,6 +23,11 @@
 // A NODE'S LEVEL RIDES THE WALK beside its matrix. A node of another level is
 // walked, since its children may name their own, but its mesh is not placed; a
 // node past HIGHEST_LEVEL is not walked further.
+//
+// A REFUSAL IS A LIMIT THE ENGINE KEEPS (0445 point 5): materials past
+// VOE_3D_MODEL_PARTS, nodes nested past VOE_3D_IMPORT_MAX_DEPTH, vertices or
+// triangles past a 32-bit count, each said with the file's own number, counted
+// in full first, beside the most, and what to do in Blender.
 #include "model_bake.h"
 
 #include <3d/import.h>
@@ -33,6 +38,7 @@
 #include <math/float4x4.h>
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <math.h>
 #include <string.h>
 
@@ -60,6 +66,7 @@ struct frame {
 // wrapped.
 struct baking {
 	const voe_assets_model *model;
+	voe_base_arena *arena;
 	uint32_t level;
 	voe_3d_model_bake *out;
 	struct placement *placements;
@@ -113,6 +120,30 @@ static uint32_t part_of(voe_3d_model_bake *out, uint32_t material)
 	return out->part_count++;
 }
 
+// How many materials the file's drawn primitives wear, glTF's default as one,
+// for the refusal past VOE_3D_MODEL_PARTS: one flag a material, in `arena`.
+static uint32_t materials_worn(const voe_assets_model *model,
+			       voe_base_arena *arena)
+{
+	bool *worn = voe_base_arena_push(arena, (size_t)model->material_count + 1);
+	uint32_t count = 0;
+
+	memset(worn, 0, (size_t)model->material_count + 1);
+	for (uint32_t p = 0; p < model->primitive_count; p++) {
+		const voe_assets_primitive *primitive = &model->primitives[p];
+		uint32_t material = primitive->material < model->material_count ?
+					    primitive->material :
+					    model->material_count;
+
+		if (primitive->vertex_count == 0 || primitive->index_count == 0 ||
+		    worn[material])
+			continue;
+		worn[material] = true;
+		count++;
+	}
+	return count;
+}
+
 // Every drawn primitive of the node's mesh, placed at the node's world matrix.
 static bool place(struct baking *baking, const struct frame *frame,
 		  voe_base_error *error)
@@ -143,7 +174,8 @@ static bool place(struct baking *baking, const struct frame *frame,
 		part = part_of(baking->out, material);
 		if (part == VOE_3D_MODEL_PARTS) {
 			VOE_BASE_ERROR("3d",
-				       "a model wearing more than %u materials",
+				       "the model uses %u materials, and the most the engine takes is %u; join materials in Blender, or split the model into files",
+				       materials_worn(model, baking->arena),
 				       VOE_3D_MODEL_PARTS);
 			return refuse(error, VOE_BASE_ERROR_UNSUPPORTED);
 		}
@@ -156,14 +188,16 @@ static bool place(struct baking *baking, const struct frame *frame,
 	return true;
 }
 
-static bool walk(struct baking *baking, voe_base_arena *arena,
-		 voe_base_error *error)
+// The walk goes on past a node too deep, placing nothing more, so the refusal
+// names the file's deepest nesting and not the first past the limit.
+static bool walk(struct baking *baking, voe_base_error *error)
 {
 	const voe_assets_model *model = baking->model;
 	struct frame *stack;
+	uint32_t deepest = 0;
 	uint32_t open = 0;
 
-	stack = voe_base_arena_push(arena,
+	stack = voe_base_arena_push(baking->arena,
 				    (size_t)model->node_count * sizeof(*stack));
 
 	for (uint32_t i = 0; i < model->root_count; i++) {
@@ -179,15 +213,12 @@ static bool walk(struct baking *baking, voe_base_arena *arena,
 		struct frame frame = stack[--open];
 		const voe_assets_node *node = &model->nodes[frame.node];
 
-		if (frame.depth > VOE_3D_IMPORT_MAX_DEPTH) {
-			VOE_BASE_ERROR("3d",
-				       "a model whose nodes nest more than %u deep",
-				       VOE_3D_IMPORT_MAX_DEPTH);
-			return refuse(error, VOE_BASE_ERROR_UNSUPPORTED);
-		}
+		if (frame.depth > deepest)
+			deepest = frame.depth;
 		if (frame.level > HIGHEST_LEVEL)
 			continue;
-		if (frame.level == baking->level && !place(baking, &frame, error))
+		if (deepest <= VOE_3D_IMPORT_MAX_DEPTH &&
+		    frame.level == baking->level && !place(baking, &frame, error))
 			return false;
 
 		// The parent's matrix on the left: the child's own transform is
@@ -204,6 +235,13 @@ static bool walk(struct baking *baking, voe_base_arena *arena,
 			};
 		}
 	}
+	if (deepest > VOE_3D_IMPORT_MAX_DEPTH) {
+		VOE_BASE_ERROR("3d",
+			       "the model's objects are parented %" PRIu32
+			       " deep, and the most the engine takes is %u; in Blender, use Clear Parent and Keep Transform on the deepest",
+			       deepest, VOE_3D_IMPORT_MAX_DEPTH);
+		return refuse(error, VOE_BASE_ERROR_UNSUPPORTED);
+	}
 	return true;
 }
 
@@ -215,6 +253,31 @@ static bool lay_out(struct baking *baking, voe_base_arena *arena,
 	uint64_t vertices = 0;
 	uint64_t indices = 0;
 
+	// At most VOE_3D_MODEL_PARTS sums of 32-bit counts, so 64 bits hold
+	// the whole model's.
+	for (uint32_t p = 0; p < out->part_count; p++) {
+		vertices += baking->vertices[p];
+		indices += baking->indices[p];
+	}
+	if (vertices > UINT32_MAX) {
+		VOE_BASE_ERROR("3d",
+			       "the model has %" PRIu64
+			       " vertices, and the most the engine takes is %" PRIu32
+			       "; reduce it with Decimate in Blender",
+			       vertices, UINT32_MAX);
+		return refuse(error, VOE_BASE_ERROR_REFUSED);
+	}
+	if (indices > UINT32_MAX) {
+		VOE_BASE_ERROR("3d",
+			       "the model has %" PRIu64
+			       " triangles, and the most the engine takes is %" PRIu32
+			       "; reduce it with Decimate in Blender",
+			       indices / 3, UINT32_MAX / 3);
+		return refuse(error, VOE_BASE_ERROR_REFUSED);
+	}
+
+	vertices = 0;
+	indices = 0;
 	for (uint32_t p = 0; p < out->part_count; p++) {
 		out->parts[p].first_vertex = (uint32_t)vertices;
 		out->parts[p].first_index = (uint32_t)indices;
@@ -222,11 +285,6 @@ static bool lay_out(struct baking *baking, voe_base_arena *arena,
 		out->parts[p].index_count = (uint32_t)baking->indices[p];
 		vertices += baking->vertices[p];
 		indices += baking->indices[p];
-		if (vertices > UINT32_MAX || indices > UINT32_MAX) {
-			VOE_BASE_ERROR("3d",
-				       "a model with more vertices or indices than a count holds");
-			return refuse(error, VOE_BASE_ERROR_REFUSED);
-		}
 	}
 
 	out->vertex_count = (uint32_t)vertices;
@@ -316,7 +374,9 @@ bool voe_3d_model_bake_create(voe_base_arena *arena, const voe_assets_model *mod
 			      uint32_t level, voe_3d_model_bake *out,
 			      voe_base_error *error)
 {
-	struct baking baking = { .model = model, .level = level, .out = out };
+	struct baking baking = {
+		.model = model, .arena = arena, .level = level, .out = out
+	};
 	uint32_t next_vertex[VOE_3D_MODEL_PARTS];
 	uint32_t next_index[VOE_3D_MODEL_PARTS];
 	size_t most = 0;
@@ -337,7 +397,7 @@ bool voe_3d_model_bake_create(voe_base_arena *arena, const voe_assets_model *mod
 	baking.placements = voe_base_arena_push(
 		arena, (most == 0 ? 1 : most) * sizeof(*baking.placements));
 
-	if (!walk(&baking, arena, error) || !lay_out(&baking, arena, error))
+	if (!walk(&baking, error) || !lay_out(&baking, arena, error))
 		return false;
 
 	for (uint32_t p = 0; p < out->part_count; p++) {

@@ -15,15 +15,24 @@
 //
 // THE TRIANGLES ARE WALKED TWICE, once to count the edges and once to fill them,
 // so that what is left in the arena is an array exactly edge_count long. The
-// alternative is one walk into an array sized at the upper bound, which leaves a
-// third of a megabyte of slack an arena cannot give back. Both walks are a
-// startup one-shot over a few thousand triangles.
+// alternative is one walk into an array sized at the upper bound, which leaves
+// slack an arena cannot give back. Both walks are linear in the triangles, a
+// model's millions as well as a shape's few thousand.
 //
-// THE WELD COMPARES EVERY VERTEX WITH EVERY REPRESENTATIVE BEFORE IT, which is
-// quadratic: 594 vertices for the capsule, the largest shape here, is a third of
-// a million comparisons once at startup. A shape with tens of thousands of
-// vertices — a model read from a file — wants a grid or a sorted key instead,
-// and that is the card that brings the mesh table in.
+// THE WELD GOES THROUGH CELLS the weld's size a side, hashed by their three
+// coordinates into an open-addressed table of each cell's chain of
+// representatives (ADR-0448 point 6). Two positions within the weld are at most
+// one cell apart on every axis, so a vertex compared with the representatives of
+// its own cell and the 26 around it meets every one it welds to, and taking the
+// lowest-numbered of them gives the representative the old walk over every
+// earlier vertex gave, in time linear in the vertices: two representatives in
+// one cell would be within the weld, so a cell holds one but for rounding.
+//
+// A TRIANGLE WITH NO AREA HAS NO FACING, so it gives no edges: two corners on
+// one point or three on one line make a cross of nought, and it is skipped in
+// both walks alike. Exported models are full of them and they are not a fault.
+// A real triangle whose neighbour along an edge was flat keeps that edge as a
+// boundary edge, always on the silhouette, as an open surface's is.
 #include "capsule.h"
 #include "cube.h"
 #include "cylinder.h"
@@ -43,9 +52,21 @@
 #define KIND_COUNT (sizeof(((voe_3d_shape_geometries *)0)->kinds) / \
 		    sizeof(voe_3d_shape_geometry))
 
-// An empty slot. No welded vertex number can be this: they are indices into an
-// array of at most a few hundred vertices.
+// An empty slot or the end of a chain. No vertex number can be this: there are
+// fewer than 2^31 vertices, which the weld asserts.
 #define EMPTY UINT32_MAX
+
+// A cell coordinate is held inside this, so that it and its neighbours fit an
+// int64_t whatever the float; holding is monotonic, so cells within the weld
+// stay at most one apart.
+#define CELL_LIMIT ((float)(INT64_C(1) << 40))
+
+// Where a position falls in the weld's grid.
+struct cell {
+	int64_t x;
+	int64_t y;
+	int64_t z;
+};
 
 // One edge of the surface, as the table holds it while the triangles are walked:
 // its two welded vertex numbers and which edge of the answer it is.
@@ -62,23 +83,32 @@ static bool same_position(voe_math_float3 a, voe_math_float3 b)
 	       fabsf(a.z - b.z) < VOE_3D_SHAPE_GEOMETRY_WELD;
 }
 
-// Fills `welded` with one representative vertex number per vertex: the first
-// vertex in the array at the same position, which is itself for a vertex that is
-// the first at its own position.
-static void weld(const voe_3d_shape_geometry *geometry, uint32_t *welded)
+// A NaN goes to the lowest cell; it welds with nothing wherever it is.
+static int64_t cell_coordinate(float x)
 {
-	for (uint32_t i = 0; i < geometry->vertex_count; i++) {
-		welded[i] = i;
-		for (uint32_t j = 0; j < i; j++) {
-			if (welded[j] != j)
-				continue;
-			if (same_position(geometry->vertices[i].position,
-					  geometry->vertices[j].position)) {
-				welded[i] = j;
-				break;
-			}
-		}
-	}
+	const float cell = floorf(x / VOE_3D_SHAPE_GEOMETRY_WELD);
+
+	if (!(cell > -CELL_LIMIT))
+		return -(INT64_C(1) << 40);
+	if (cell > CELL_LIMIT)
+		return INT64_C(1) << 40;
+	return (int64_t)cell;
+}
+
+static struct cell cell_of(voe_math_float3 p)
+{
+	return (struct cell){ cell_coordinate(p.x), cell_coordinate(p.y),
+			      cell_coordinate(p.z) };
+}
+
+static uint32_t hash_cell(struct cell c)
+{
+	uint64_t h = (uint64_t)c.x * 0x9e3779b97f4a7c15u;
+
+	h = (h ^ (uint64_t)c.y) * 0xc2b2ae3d27d4eb4fu;
+	h = (h ^ (uint64_t)c.z) * 0x165667b19e3779f9u;
+	h ^= h >> 33;
+	return (uint32_t)(h ^ (h >> 29));
 }
 
 static uint32_t hash_pair(uint32_t a, uint32_t b)
@@ -98,6 +128,72 @@ static uint32_t power_of_two_above(uint32_t n)
 	return size;
 }
 
+// The slot of `heads` that holds cell `c`'s chain, or the empty slot it would
+// go in. A slot's cell is not stored: it is its first representative's.
+static uint32_t find_cell(const uint32_t *heads, uint32_t slots,
+			  const voe_3d_shape_geometry *geometry, struct cell c)
+{
+	uint32_t at = hash_cell(c) & (slots - 1);
+
+	for (uint32_t probes = 0; probes < slots; probes++) {
+		struct cell held;
+
+		if (heads[at] == EMPTY)
+			break;
+		held = cell_of(geometry->vertices[heads[at]].position);
+		if (held.x == c.x && held.y == c.y && held.z == c.z)
+			break;
+		at = (at + 1) & (slots - 1);
+	}
+	return at;
+}
+
+// Fills `welded` with one representative vertex number per vertex: the
+// lowest-numbered earlier representative within the weld, or itself, which
+// then joins its cell's chain. Cells and chains are this arena's and are given
+// back before it returns.
+static void weld(voe_base_arena *arena, const voe_3d_shape_geometry *geometry,
+		 uint32_t *welded)
+{
+	const uint32_t count = geometry->vertex_count;
+	const uint32_t slots = power_of_two_above(count * 2);
+	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	uint32_t *heads = voe_base_arena_push(arena, sizeof *heads * slots);
+	uint32_t *next = voe_base_arena_push(arena, sizeof *next * count);
+
+	VOE_BASE_ASSERT(welded != NULL, "welding into nothing");
+	memset(heads, 0xff, sizeof *heads * slots);
+	for (uint32_t i = 0; i < count; i++) {
+		const voe_math_float3 p = geometry->vertices[i].position;
+		const struct cell home = cell_of(p);
+
+		welded[i] = i;
+		for (int64_t n = 0; n < 27; n++) {
+			const struct cell around = { home.x + n % 3 - 1,
+						     home.y + n / 3 % 3 - 1,
+						     home.z + n / 9 - 1 };
+			uint32_t j = heads[find_cell(heads, slots, geometry,
+						     around)];
+
+			// A chain holds earlier vertices only, each once.
+			for (; j != EMPTY; j = next[j])
+				if (j < welded[i] &&
+				    same_position(p,
+						  geometry->vertices[j].position))
+					welded[i] = j;
+		}
+		if (welded[i] == i) {
+			const uint32_t at =
+				find_cell(heads, slots, geometry, home);
+
+			next[i] = heads[at];
+			heads[at] = i;
+		}
+	}
+	voe_base_arena_rewind(arena, mark);
+	VOE_BASE_ASSERT(count == 0 || welded[0] == 0, "first vertex not its own");
+}
+
 // Walks `geometry`'s triangles and returns how many edges its surface has,
 // filling `edges` with them unless it is NULL — which is how the count is had
 // before there is anywhere to put them. Its working memory is this arena's and
@@ -112,10 +208,11 @@ static uint32_t walk_edges(voe_base_arena *arena,
 	uint32_t *welded =
 		voe_base_arena_push(arena,
 				    sizeof *welded * geometry->vertex_count);
-	struct slot *table = voe_base_arena_push(arena, sizeof *table * slots);
+	struct slot *table;
 	uint32_t count = 0;
 
-	weld(geometry, welded);
+	weld(arena, geometry, welded);
+	table = voe_base_arena_push(arena, sizeof *table * slots);
 	memset(table, 0xff, sizeof *table * slots);
 	for (uint32_t t = 0; t < triangles; t++) {
 		const uint32_t corner[3] = {
@@ -131,10 +228,14 @@ static uint32_t walk_edges(voe_base_arena *arena,
 			geometry->vertices[corner[2]].position;
 		// Outward because every built-in shape is wound
 		// counter-clockwise seen from outside (src/cube.h).
-		const voe_math_float3 normal = voe_math_float3_normalize(
-			voe_math_float3_cross(voe_math_float3_sub(b, a),
-					      voe_math_float3_sub(c, a)));
+		const voe_math_float3 cross = voe_math_float3_cross(
+			voe_math_float3_sub(b, a), voe_math_float3_sub(c, a));
+		voe_math_float3 normal;
 
+		// No area, no facing: the test normalize asserts on.
+		if (!(voe_math_float3_length(cross) > 0.0f))
+			continue;
+		normal = voe_math_float3_normalize(cross);
 		for (uint32_t e = 0; e < 3; e++) {
 			const uint32_t p = welded[corner[e]];
 			const uint32_t q = welded[corner[(e + 1) % 3]];
@@ -177,6 +278,8 @@ void voe_3d_shape_geometry_build(voe_base_arena *arena,
 	VOE_BASE_ASSERT(arena != NULL, "building edges with no arena");
 	VOE_BASE_ASSERT(out != NULL, "building edges into nothing");
 	VOE_BASE_ASSERT(index_count % 3 == 0, "edges of a partial triangle");
+	VOE_BASE_ASSERT(vertex_count < UINT32_C(1) << 31,
+			"more vertices than the weld's table can number");
 
 	*out = (voe_3d_shape_geometry){
 		.vertices = vertices,
@@ -185,6 +288,9 @@ void voe_3d_shape_geometry_build(voe_base_arena *arena,
 		.index_count = index_count,
 	};
 	count = walk_edges(arena, out, NULL);
+	// Only flat triangles leave no edges, and an arena takes no empty push.
+	if (count == 0)
+		return;
 	edges = voe_base_arena_push(arena, sizeof *edges * count);
 	walk_edges(arena, out, edges);
 	out->edges = edges;

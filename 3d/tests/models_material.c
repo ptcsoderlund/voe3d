@@ -3,9 +3,10 @@
 // no geometry and a live record and twin, those values in its material, the ORM
 // map in the metal-roughness and occlusion slots both and the emission map a
 // fourth texture; a set changing cutout and emission, then a frame writing both
-// records; a colour map alone leaving the ORM slots none; a map that is no
-// picture failing MALFORMED as a failed entry; and a rename finding the
-// material at its new path.
+// records; the same maps decoded with voe_3d_model_picture_decode and put
+// with voe_3d_models_put_material giving a like entry; a colour map alone
+// leaving the ORM slots none; a map that is no picture failing MALFORMED as a
+// failed entry; and a rename finding the material at its new path.
 //
 // THE DEVICE HOLDS THREE MATERIALS' RECORDS, a record and a twin each, and no
 // geometry: a material's part draws nothing of its own.
@@ -146,6 +147,30 @@ static void check_set(voe_3d_models *models, voe_render_device *device,
 		       NULL);
 }
 
+// The four maps decoded by voe_3d_model_picture_decode and put give an entry
+// like the load's of the same bytes.
+static void check_put(voe_3d_models *models, voe_render_device *device,
+		      voe_base_arena *arena,
+		      const voe_assets_material_file *material,
+		      voe_3d_material_map map)
+{
+	voe_base_error error = VOE_BASE_OK;
+	voe_3d_material_pictures pictures = { 0 };
+	const voe_3d_model_entry *entry;
+
+	VOE_TEST_CHECK(voe_3d_model_picture_decode(material->colormap, map.bytes,
+						   map.size, arena,
+						   &pictures.colour, &error));
+	pictures.normal = pictures.orm = pictures.emission = pictures.colour;
+	VOE_TEST_CHECK(voe_3d_models_put_material(models, device,
+						  "Assets/put.material", 1,
+						  material, pictures, &error));
+	entry = voe_3d_models_find(models, "Assets/put.material");
+	VOE_TEST_CHECK(entry != NULL);
+	if (entry != NULL)
+		check_loaded(entry);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -185,6 +210,9 @@ int main(void)
 		check_loaded(entry);
 
 	check_set(models, device, material);
+
+	// ---- the same maps decoded first and put: an entry like the load's
+	check_put(models, device, arena, &material, map);
 
 	// ---- a colour map alone leaves the ORM map's two slots none
 	VOE_TEST_CHECK(voe_3d_models_load_material(

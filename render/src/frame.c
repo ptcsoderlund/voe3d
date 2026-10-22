@@ -390,6 +390,7 @@ static bool begin_frame(voe_render_device *device, voe_platform_size size,
 				false;
 	}
 	device->object_count = 0;
+	device->instance_count = 0;
 	// Both start again with the frame: the elements because this slot's
 	// record buffer is written from the top, and the draw count because it
 	// is a measurement of one frame and not a running total.

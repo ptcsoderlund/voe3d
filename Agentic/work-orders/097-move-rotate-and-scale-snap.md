@@ -1,4 +1,4 @@
-# 095 — Move, rotate and scale snap
+# 097 — Move, rotate and scale snap
 
 ## What
 Decision 0438. "I would like to have some snap movement when moving or rotating stuff", and scaling too. The top

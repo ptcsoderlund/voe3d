@@ -1,0 +1,49 @@
+// Where a mesh vertex stage's draw places its copy: from the object record and
+// SV_InstanceID, the world matrix, the normal matrix and the dither. A part
+// (ADR-0308): included by draw.slang after bindings.slangh, whose records and
+// binding 12 it reads, never compiled alone.
+//
+// ADR-0442 POINT 6. An instanced draw is one object record for all its copies;
+// the record's `instances` is its first instance record plus one, and copy i
+// reads record instances − 1 + i, 64 bytes: the top three rows of its
+// camera-relative world matrix and its dither, which replace the record's
+// `world` and `dither`. Everything else is the record's. A record whose
+// `instances` is nought is placed by its own matrices and dither, as every draw
+// was before.
+//
+// THE NORMAL MATRIX IS WORKED OUT HERE, NOT HANDED OVER. For a turn R times a
+// uniform scale s the inverse transpose is R / s, which is the 3×3 over s²,
+// and s² is the first row's squared length. Exact for a turn and a uniform
+// scale, wrong under any other, which an instance does not carry.
+
+// What voe_render_placed hands back.
+struct voe_render_placement {
+	float4x4 world;
+	float4x4 normal;
+	float dither;
+};
+
+voe_render_placement voe_render_placed(voe_render_object object, uint instance)
+{
+	voe_render_placement placed;
+
+	if (object.instances == 0) {
+		placed.world = object.world;
+		placed.normal = object.normal;
+		placed.dither = object.dither;
+		return placed;
+	}
+
+	voe_render_instance copy = voe_render_instances[object.instances - 1 + instance];
+	float3 first = copy.rows[0].xyz;
+	float squared = dot(first, first);
+
+	placed.world = float4x4(copy.rows[0], copy.rows[1], copy.rows[2],
+				float4(0.0, 0.0, 0.0, 1.0));
+	placed.normal = float4x4(float4(copy.rows[0].xyz / squared, 0.0),
+				 float4(copy.rows[1].xyz / squared, 0.0),
+				 float4(copy.rows[2].xyz / squared, 0.0),
+				 float4(0.0, 0.0, 0.0, 1.0));
+	placed.dither = copy.dither;
+	return placed;
+}

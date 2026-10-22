@@ -9,6 +9,18 @@
 // reads with the helpers below, so every rule model_gltf.c's header states —
 // lengths checked, no recursion, the one buffer — holds in every part by
 // construction rather than by each part restating it.
+//
+// EVERY REFUSAL IS ONE LINE, IN ONE OF TWO SHAPES (ADR-0445 point 2). A damaged
+// file, voe_assets_gltf_malformed: the sentence that it is damaged and to export
+// it again from Blender, then `(glTF: <words>)`. A file this reader will not
+// read, voe_assets_gltf_unsupported: the artist's sentence with its numbers and
+// what to do in Blender, then `(glTF: <words>)`. The step that meets the cause
+// says it; its callers only return false.
+//
+// A SUBJECT IS PUSHED BY THE PART THAT READS A THING: "the material `leaf`",
+// "picture 2", "the part `twig`" or "object 3" while that one is read, so a line
+// below names it and never has to. Two levels at most, a part and then the
+// material one of its primitives wears ("no material" for none).
 #pragma once
 
 #include "json.h"
@@ -46,6 +58,11 @@ struct gltf {
 	uint32_t nodes;
 	uint32_t scenes;
 
+	// The subjects pushed on base/report.h's stack, which keeps them by
+	// pointer: one a level, the words around a name included.
+	char subjects[2][VOE_ASSETS_MODEL_NAME + 32];
+	uint32_t subject_count;
+
 	voe_base_error error;
 };
 
@@ -64,9 +81,26 @@ struct view {
 	uint32_t components;
 };
 
-// A line on stderr and the error kept for the caller; always false.
-bool voe_assets_gltf_malformed(struct gltf *gltf, const char *message);
-bool voe_assets_gltf_unsupported(struct gltf *gltf, const char *message);
+// A damaged file: its line, printf over the format's words, and the error kept
+// for the caller; always false.
+[[gnu::format(printf, 2, 3)]]
+bool voe_assets_gltf_malformed(struct gltf *gltf, const char *format_words,
+			       ...);
+
+// A file this reader will not read: its line, printf over the artist's
+// sentence, the format's words after it; always false.
+[[gnu::format(printf, 3, 4)]]
+bool voe_assets_gltf_unsupported(struct gltf *gltf, const char *format_words,
+				 const char *artist, ...);
+
+// Pushes "the <kind> `name`", or "<kind> <index>" when `name` is NULL or "",
+// or `kind` alone when the index is also VOE_ASSETS_MODEL_NONE, as the report's
+// subject until the matching pop. Push, read, pop, then return the read's
+// answer, so a pushed subject is popped on every path.
+void voe_assets_gltf_subject_push(struct gltf *gltf, const char *kind,
+				  const voe_assets_model_name *name,
+				  uint32_t index);
+void voe_assets_gltf_subject_pop(struct gltf *gltf);
 
 // A member that has to be an array if it is there at all; count is nought when
 // it is not there.
@@ -128,7 +162,8 @@ uint32_t voe_assets_gltf_read_index(const struct view *view, uint32_t index);
 [[nodiscard]] bool voe_assets_gltf_read_materials(struct gltf *gltf,
 						  voe_assets_model *model);
 
-// The images, decoded. In model_gltf_materials.c.
+// The images' names and bytes, left encoded; a picture neither PNG nor JPEG is
+// refused. In model_gltf_materials.c.
 [[nodiscard]] bool voe_assets_gltf_read_images(struct gltf *gltf,
 					       voe_assets_model *model);
 

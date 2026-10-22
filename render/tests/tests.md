@@ -8,9 +8,8 @@ by reading the offscreen colour image back.
 - `card.c` — which graphics card is taken, and which vendor-tagged Best Practices message ids it
   drops, on made-up facts with no card.
 - `loader.c` — that a machine with a driver and no SDK reaches Vulkan.
-- `pools.c` — two meshes and two ranges, a full pool as a returned failure, and ids that stop naming
-  anything when destroyed: a texture, a shading record whose slot is reused, and a mesh whose range
-  the next mesh takes, and a mesh's own box handed back and refused once destroyed. Headless.
+- `pools.c` — two meshes and two ranges, a full pool that grows, ids refused once destroyed, a
+  mesh's own box, and a sharing mesh walking its base's vertices. Headless.
 - `textures.c` — 1024 texture slots: at least 1000 one-pixel textures made before one is refused,
   and a quad wearing the last of them, in the highest slot, drawn in its colour. Headless.
 - `transient.c` — geometry that lives one frame: an id refused by the frame after, the same slot
@@ -81,6 +80,9 @@ by reading the offscreen colour image back.
   its pixels drawn, and seen 16 pixels across, at level 4, at least a third still drawn. Headless.
 - `dither.c` — an object record's `dither` on an unlit quad filling the picture: 0 every pixel, 0.5
   half, 0.5 then −0.5 in another colour each pixel exactly once, 0.25 a quarter. Headless.
+- `instances.c` — three copies of a white quad in one instanced draw: each place white, a spot
+  between the clear colour, one draw and three quads' triangles, a write past `instances` refused
+  with the frame still ending. Headless.
 - `unshaded.c` — that `unshaded` draws a lit cube in its base colour and black without it, that a
   fill lifts a face the sun misses, and that a face the sun meets head-on or at N·L 0.5 reads the
   same with fill and without. Headless.
@@ -114,18 +116,18 @@ by reading the offscreen colour image back.
 - `shadow_lights.c` — the shadow array growing: one light ready at first and none without
   `shadow_size`, a second ready the frame after it is wanted, layer 7 drawn and slot 1 read, nine
   capped at four, and nought shrinking nothing. Headless.
-- `bounce_probes.c` — probes queued and relit, with no card: a sphere reaching a grid's reach
-  further or sixteen radii, no relight on a scroll under a still lamp, a new picture fading in over
-  sixteen places, a retaken one keeping its readiness, a scrolled-in one not ready.
+- `bounce_probes.c` — probes queued and relit, with no card: a sphere's reach, no relight on a
+  scroll under a still lamp, a new picture fading in over sixteen places, a retaken one keeping its
+  readiness, a scrolled-in one not ready, a new shade count relighting with nothing queued.
 - `bounce_volume.c` — a probe volume built the frame after its first begin, freed after 300
   idle frames, a window's and a target's and two of one target kept apart, each relit into its own
   record at its own spacing. Headless.
 - `bounce_capture.c` — the capture pass: open with a near cube one draw and a far one none, the
   fifth in a frame not open, refused with `passes` spent, a red cube in the albedo atlas, and at
   spacing 4 a cube 30 m off one draw. Headless.
-- `bounce_shadow.c` — the relight's sun map: opened after a frame's captures with a cube one draw
-  and a texel past the clear, not opened when settled, when only a lamp bounces, or with `passes`
-  spent, and opened for the window and a target in one frame, each record saying drawn. Headless.
+- `bounce_shadow.c` — the relight's sun map: a cube's draw, or a copy's instanced draw under a
+  new shade count, past the clear; not opened when settled, when only a lamp bounces, or with
+  `passes` spent; the window and a target in one frame. Headless.
 - `bounce_settle.c` — captured probes settling: validity and moments beside and inside a cube,
   readiness fading in over sixteen frames, a fading frame one settle, a settled one nothing, and
   `bounce relight` in the breakdown only when relit. Headless.

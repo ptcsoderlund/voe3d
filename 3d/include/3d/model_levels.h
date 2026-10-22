@@ -95,15 +95,19 @@ typedef struct {
 // FNV-1a 64 of `size` bytes.
 uint64_t voe_3d_model_levels_hash(const uint8_t *bytes, size_t size);
 
-// Parses `glb`, bakes level 0, makes at most `levels.count` levels in all, each
-// cut to its `levels.shares[k]`, and writes the file's bytes with `levels.swaps[1]` to `[5]`, each asserted within
-// VOE_ASSETS_LEVELS_SWAP_LEAST to _MOST, returned with their count in `*size`, all on `arena`. The bytes
+// Parses `glb` with its pictures left encoded (none is decoded), bakes level 0,
+// makes at most `levels.count` levels in all, each cut to its
+// `levels.shares[k]`, and writes the file's bytes with `levels.swaps[1]` to
+// `[5]`, each asserted within VOE_ASSETS_LEVELS_SWAP_LEAST to _MOST, returned
+// with their count in `*size`, all on `arena`. No task, no pool: the made
+// levels are simplified in order on the caller. The bytes
 // are the return and not an out-parameter, since rule 6 allows no `**`. NULL
 // with `error` set as the store's load would fail: MALFORMED or UNSUPPORTED as
 // the reader says, UNSUPPORTED or REFUSED as the bake says.
 [[nodiscard]] const uint8_t *
-voe_3d_model_levels_make(voe_base_arena *arena, const uint8_t *glb,
-			 size_t glb_size, voe_assets_levels levels, size_t *size,
+voe_3d_model_levels_make(voe_base_arena *arena,
+			 const uint8_t *glb, size_t glb_size,
+			 voe_assets_levels levels, size_t *size,
 			 voe_base_error *error);
 
 // Reads a levels file made for `glb` into `out`, its indices copied onto
@@ -131,7 +135,7 @@ void voe_3d_model_levels_swaps_set(uint8_t *bytes, size_t size,
 // its own levels, `*fresh` whether `levels` read as a fresh file of it. Own:
 // each own level's bake, ending as _make ends. Made: level 0's bake, then a
 // fresh file's index counts ÷ 3 per level; level 0 alone when `levels` is NULL
-// or stale. Everything on `arena`, the caller rewinding.
+// or stale. No picture decoded. Everything on `arena`, the caller rewinding.
 uint32_t voe_3d_model_levels_triangles(voe_base_arena *arena,
 				       const uint8_t *glb, size_t glb_size,
 				       const uint8_t *levels, size_t levels_size,

@@ -359,7 +359,9 @@ bool voe_editor_inspector_is_part(const voe_ecs_world *world,
 // `kept` holds `kept_count` types whose sections have no Remove button. After
 // the sections, a thing that wears a landscape gets `sculpt`'s Sculpt section
 // (inspector_sculpt.h) and, its grid loaded in `store`, the Layers section
-// (inspector_layers.h); after Layers, a thing whose model is loaded in `store`
+// (inspector_layers.h) then the Foliage section (inspector_foliage.h), then
+// the Brush section while a brush is chosen (inspector_brush.h); after
+// those, a thing whose model is loaded in `store`
 // gets the LOD section, the level each of `views` draws
 // (inspector_level.h). While `material_open` is not "", `material`'s section
 // is drawn in place of all of it into `controls` (inspector_material.h), and

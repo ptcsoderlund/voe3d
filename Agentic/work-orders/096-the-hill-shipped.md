@@ -1,4 +1,4 @@
-# 094 — The hill, shipped
+# 096 — The hill, shipped
 
 ## What
 A project whose world has no player ships as a build that flies through it with a free camera: mouse
@@ -16,3 +16,5 @@ runs smoothly on my laptop. With this, 0.3 is done (0374).
 4. Fly through the forest, low over the grass, and up to the hilltop. It stays smooth on my laptop.
 5. Climb to the tower's top and look out. Sky, haze, the far forest and the ridges show to the horizon.
 6. Quit and run it again. It starts as before, without preparing anything again.
+7. Look at the shipped folder's size. If it feels too big to hand someone, say so: that decides whether the
+   cooked files are squeezed and packed (0454).

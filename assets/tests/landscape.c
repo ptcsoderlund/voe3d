@@ -1,7 +1,8 @@
 // The landscape file: a written grid reads back as itself up to 2048 cells,
 // heights round to the millimetre, a resample keeps a plane and its corners,
-// layers and paint round-trip byte for byte and resample to sums of 255, and
-// each refusal comes with its category.
+// layers and paint round-trip byte for byte and resample to sums of 255,
+// foliage kinds and copies round-trip byte for byte and a resample keeps them,
+// and each refusal comes with its category.
 //
 // The files refused are written by hand at four cells, the smallest a file may
 // have, so each case shows the one thing wrong with it.
@@ -413,6 +414,149 @@ static void a_resample_of_paint_sums_to_255_and_keeps_corners(
 		       NULL);
 }
 
+// Field by field: the struct has padding, so never memcmp.
+static bool same_copy(voe_assets_landscape_copy a, voe_assets_landscape_copy b)
+{
+	return a.x == b.x && a.z == b.z && a.turn == b.turn &&
+	       a.scale == b.scale && a.kind == b.kind && a.lean == b.lean;
+}
+
+// Three copies of two kinds: a negative x, a lean of 255, a scale of 65535.
+static const voe_assets_landscape_copy three_copies[3] = {
+	{ -1500, 2000, 16384, 1000, 0, 0 },
+	{ 3000, -4000, 0, 500, 1, 255 },
+	{ 0, 7, 65535, 65535, 1, 9 },
+};
+
+// A 4-cell grid with two kinds and `three_copies`, copied onto `arena`.
+static voe_assets_landscape forested(voe_base_arena *arena)
+{
+	voe_assets_landscape grid = voe_assets_landscape_flat(64.0f, 4, arena);
+
+	snprintf(grid.kinds[0], sizeof(grid.kinds[0]), "Assets/pine.glb");
+	snprintf(grid.kinds[1], sizeof(grid.kinds[1]), "Assets/\"birch\".glb");
+	grid.kind_count = 2;
+	grid.copies = voe_base_arena_push(arena, sizeof(three_copies));
+	memcpy(grid.copies, three_copies, sizeof(three_copies));
+	grid.copy_count = 3;
+	return grid;
+}
+
+static void foliage_round_trips_byte_for_byte(voe_base_arena *arena)
+{
+	const voe_assets_landscape grid = forested(arena);
+	const voe_assets_landscape_text text =
+		voe_assets_landscape_write(&grid, arena);
+	voe_assets_landscape_text again;
+	voe_assets_landscape back;
+	bool same = true;
+
+	VOE_TEST_CHECK(strstr(text.text,
+			      "\n\n[Foliage]\nkind0=\"Assets/pine.glb\"\n"
+			      "kind1=\"Assets/\\\"birch\\\".glb\"\n\n"
+			      "[Heights]\n") != NULL);
+	VOE_TEST_CHECK(strstr(text.text,
+			      "\n\n[Copies]\nc0=0 -1500 2000 16384 1000 0\n"
+			      "c1=1 3000 -4000 0 500 255\n"
+			      "c2=1 0 7 65535 65535 9\n") != NULL);
+
+	VOE_TEST_CHECK(voe_assets_landscape_read(text.text, text.size, arena,
+						 &back, NULL));
+	VOE_TEST_CHECK_INT(back.kind_count, 2);
+	VOE_TEST_CHECK(strcmp(back.kinds[0], grid.kinds[0]) == 0);
+	VOE_TEST_CHECK(strcmp(back.kinds[1], grid.kinds[1]) == 0);
+	VOE_TEST_CHECK_INT(back.copy_count, 3);
+	VOE_TEST_CHECK_INT(back.copies[0].x, -1500);
+	VOE_TEST_CHECK_INT(back.copies[0].z, 2000);
+	VOE_TEST_CHECK_INT(back.copies[0].turn, 16384);
+	VOE_TEST_CHECK_INT(back.copies[1].lean, 255);
+	VOE_TEST_CHECK_INT(back.copies[1].kind, 1);
+	VOE_TEST_CHECK_INT(back.copies[2].scale, 65535);
+	for (uint32_t i = 0; i < 3; i++)
+		same = same && same_copy(back.copies[i], three_copies[i]);
+	VOE_TEST_CHECK(same);
+	again = voe_assets_landscape_write(&back, arena);
+	VOE_TEST_CHECK_INT(again.size, text.size);
+	VOE_TEST_CHECK(strcmp(again.text, text.text) == 0);
+}
+
+static const char *const two_kinds =
+	"[Landscape]\nsize=64\ncells=4\n[Foliage]\nkind0=\"a.glb\"\n"
+	"kind1=\"b.glb\"\n";
+
+static void no_copies_read_as_none(voe_base_arena *arena)
+{
+	char text[512];
+	voe_assets_landscape out;
+
+	snprintf(text, sizeof(text), "%s%s", two_kinds, four_flat_rows);
+	VOE_TEST_CHECK(read_text(arena, text, &out, NULL));
+	VOE_TEST_CHECK_INT(out.kind_count, 2);
+	VOE_TEST_CHECK_INT(out.copy_count, 0);
+	VOE_TEST_CHECK(out.copies == NULL);
+}
+
+static void bad_copies_are_malformed(voe_base_arena *arena)
+{
+	const char *const bad[] = {
+		// Out of order.
+		"c1=0 0 0 0 1000 0\nc0=0 0 0 0 1000 0\n",
+		// A kind 2 with two kinds.
+		"c0=2 0 0 0 1000 0\n",
+		// A scale of 0.
+		"c0=0 0 0 0 0 0\n",
+		// Five numbers.
+		"c0=0 0 0 0 1000\n",
+	};
+	char text[1024];
+
+	for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+		snprintf(text, sizeof(text), "%s%s[Copies]\n%s", two_kinds,
+			 four_flat_rows, bad[i]);
+		refused_as(arena, text, VOE_BASE_ERROR_MALFORMED);
+	}
+	// A kind path not quoted.
+	snprintf(text, sizeof(text),
+		 "[Landscape]\nsize=64\ncells=4\n[Foliage]\nkind0=a.glb\n%s",
+		 four_flat_rows);
+	refused_as(arena, text, VOE_BASE_ERROR_MALFORMED);
+	// And a good row is read.
+	snprintf(text, sizeof(text), "%s%s[Copies]\nc0=1 -2 3 4 1000 5\n",
+		 two_kinds, four_flat_rows);
+	{
+		voe_assets_landscape out;
+
+		VOE_TEST_CHECK(read_text(arena, text, &out, NULL));
+		VOE_TEST_CHECK_INT(out.copy_count, 1);
+		VOE_TEST_CHECK(same_copy(out.copies[0],
+					 (voe_assets_landscape_copy){
+						 -2, 3, 4, 1000, 1, 5 }));
+	}
+}
+
+static void a_resample_keeps_the_copies(voe_base_arena *arena)
+{
+	const voe_assets_landscape grid = forested(arena);
+	const voe_assets_landscape eight =
+		voe_assets_landscape_resample(&grid, 8, arena);
+	bool same = true;
+
+	VOE_TEST_CHECK_INT(eight.kind_count, 2);
+	VOE_TEST_CHECK(strcmp(eight.kinds[1], grid.kinds[1]) == 0);
+	VOE_TEST_CHECK_INT(eight.copy_count, 3);
+	VOE_TEST_CHECK(eight.copies != grid.copies);
+	for (uint32_t i = 0; i < 3; i++)
+		same = same && same_copy(eight.copies[i], three_copies[i]);
+	VOE_TEST_CHECK(same);
+	// No copies stays none.
+	VOE_TEST_CHECK(voe_assets_landscape_resample(
+			       &(voe_assets_landscape){ .size = 64.0f,
+							.cells = 4,
+							.heights = grid.heights },
+			       8, arena)
+			       .copies == NULL);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
@@ -430,6 +574,10 @@ int main(void)
 	layers_and_no_paint_read_as_all_layer_0(arena);
 	bad_paint_and_layers_are_malformed(arena);
 	a_resample_of_paint_sums_to_255_and_keeps_corners(arena);
+	foliage_round_trips_byte_for_byte(arena);
+	no_copies_read_as_none(arena);
+	bad_copies_are_malformed(arena);
+	a_resample_keeps_the_copies(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

@@ -280,7 +280,7 @@ void voe_editor_assets_delete_begin(voe_editor_assets *assets);
 // theirs said in why too; the caller reads the materials again. `imported`
 // is set to the copy's project-relative path, `Assets/...` with `/` between,
 // as model_import.h is given it, once the write succeeds; "" when the copy
-// failed or the path does not fit.
+// failed, the path does not fit, or the import refused the `.glb`.
 void voe_editor_assets_import(voe_editor_assets *assets,
 			      const char *project_folder, const char *source,
 			      voe_editor_notice *why,

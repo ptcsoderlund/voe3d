@@ -373,7 +373,7 @@ bool voe_render_bounce_probes_lights_changed(const voe_render_bounce_probes *p,
 	    r->blocker_count != lights->blocker_count ||
 	    r->walls != lights->walls || r->indoors != lights->indoors ||
 	    r->sun_mask != lights->sun_mask ||
-	    r->more_count != lights->more_count)
+	    r->more_count != lights->more_count || r->shade != lights->shade)
 		return true;
 	for (uint32_t i = 0; i < lights->more_count; i++) {
 		const voe_render_bounce_sun *a = &r->more[i];

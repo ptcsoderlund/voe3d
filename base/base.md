@@ -17,9 +17,9 @@ an operating system.
   failing function takes. Its header says why the codes are categories and never
   incidents.
 - `include/base/report.h` — the one call a recoverable problem is reported
-  through, at a warning or an error, and the first error's message kept per
-  thread since the last clear (ADR-0160) so a caller can read it back. Its
-  header says what a writer gets wrong and when to clear.
+  through, naming the thread's pushed subjects (ADR-0445), and the first error
+  kept per thread since the last clear (ADR-0160). Its header says what a
+  writer gets wrong and when to clear.
 - `include/base/samples.h` — a run of measurements, and the three things anything
   asks one: how many, the average, the worst. Its header says why it is a period
   and not a sliding window, and why `worst` presumes a direction.

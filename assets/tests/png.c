@@ -18,15 +18,25 @@
 //
 // THE BAD ONES ARE THE POINT OF THE FILE. Card 017 named three — a truncated
 // file, a wrong magic number and an absurd declared size — and each is a
-// recoverable failure with a test here. A decoder that crashed or allocated four
+// recoverable failure with a test here, as is a corrupt CRC. A decoder that crashed or allocated four
 // gigabytes on any of them would still pass a test that only ever decoded valid
 // pictures, which is why the valid ones are the smaller half of this file.
+//
+// THE 16-BIT AND 4-BIT FILES ARE BUILT HERE, one stored deflate block each with
+// the CRC through ../src/png_crc.h, so their samples are exactly the ones
+// 0446's rounding is checked on.
+//
+// EVERY REFUSAL IS ALSO READ BACK AS THE LINE IT KEPT (ADR-0445): `(PNG: ` on
+// all of them, and the artist's words on interlace, depth 4 and the huge size's
+// 16384. Interlace and depth 4 are refused rather than decoded wrong.
 #include <assets/image.h>
+#include <base/report.h>
 
 #include <testing/test.h>
 
 #include <string.h>
 
+#include "../src/png_crc.h"
 #include "png_data.inc"
 
 // Big enough for every picture below several times over, and rewound between
@@ -52,8 +62,16 @@
 	return arena;
 }
 
+// Whether the line kept since the last clear contains `words`.
+static bool said(const char *words)
+{
+	const char *kept = voe_base_report_error_first();
+
+	return kept != NULL && strstr(kept, words) != NULL;
+}
+
 // A decode that must fail, with the code it must fail with, and it must not
-// crash or run away while doing it.
+// crash or run away while doing it. The kept line is left for the caller.
 static void refuses(const char *what, const uint8_t *bytes, size_t size,
 		    voe_base_error expected)
 {
@@ -62,8 +80,12 @@ static void refuses(const char *what, const uint8_t *bytes, size_t size,
 	voe_base_error error = VOE_BASE_OK;
 
 	(void)what;
+	voe_base_report_error_clear();
 	VOE_TEST_CHECK(!voe_assets_png_decode(bytes, size, arena, &image, &error));
 	VOE_TEST_CHECK_INT((int)error, (int)expected);
+	// Every refusal says why, with the format's words for a developer.
+	VOE_TEST_CHECK(voe_base_report_error_first() != NULL);
+	VOE_TEST_CHECK(said("(PNG: "));
 
 	voe_base_arena_destroy(arena);
 }
@@ -204,10 +226,13 @@ static void a_wrong_magic_number_is_refused(void)
 }
 
 // A hundred thousand square is four hundred billion bytes. Refusing on the
-// header is the whole point: the allocation must never be attempted.
+// header is the whole point: the allocation must never be attempted. It is a
+// limit the engine keeps, so unsupported, and the line names both numbers.
 static void an_absurd_declared_size_is_refused(void)
 {
-	refuses("huge", HUGE_PNG, sizeof(HUGE_PNG), VOE_BASE_ERROR_MALFORMED);
+	refuses("huge", HUGE_PNG, sizeof(HUGE_PNG), VOE_BASE_ERROR_UNSUPPORTED);
+	VOE_TEST_CHECK(said("100000 × 100000"));
+	VOE_TEST_CHECK(said("16384"));
 }
 
 static void a_corrupt_chunk_is_refused(void)
@@ -216,20 +241,141 @@ static void a_corrupt_chunk_is_refused(void)
 		VOE_BASE_ERROR_MALFORMED);
 }
 
-// WELL-FORMED AND DECLINED IS A DIFFERENT ANSWER FROM BROKEN, AND THE CODE SAYS
-// WHICH. Another program would read both of these files perfectly well.
-static void interlaced_and_deep_are_unsupported_not_malformed(void)
-{
-	refuses("interlaced", INTERLACED_PNG, sizeof(INTERLACED_PNG),
-		VOE_BASE_ERROR_UNSUPPORTED);
-	refuses("16-bit", DEPTH16_PNG, sizeof(DEPTH16_PNG),
-		VOE_BASE_ERROR_UNSUPPORTED);
-}
-
-// The eight bytes a PNG starts with, read here rather than trusted: this is the
-// only test that looks at the file as a file.
+// The eight bytes a PNG starts with: written by build_png below, and read back
+// out of the writer's files rather than trusted.
 static const uint8_t PNG_SIGNATURE[8] = { 0x89, 'P', 'N', 'G', 0x0d,
 					  0x0a, 0x1a, 0x0a };
+
+static void put_be32(uint8_t *at, uint32_t word)
+{
+	for (int i = 0; i < 4; i++)
+		at[i] = (uint8_t)(word >> (24 - 8 * i));
+}
+
+// One chunk at `at`: length, type, data and the CRC over type and data. Its
+// size is returned.
+static size_t put_chunk(uint8_t *at, const char *type, const uint8_t *data,
+			uint32_t count)
+{
+	put_be32(at, count);
+	memcpy(at + 4, type, 4);
+	if (count > 0)
+		memcpy(at + 8, data, count);
+	put_be32(at + 8 + count, voe_assets_png_crc(at + 4, 4 + (size_t)count));
+	return 12 + (size_t)count;
+}
+
+// A PNG of `scanlines` (filter bytes included) into `out`, its size returned:
+// the IDAT is one stored deflate block in a zlib wrapper, so the bytes are the
+// test's own and no encoder chose them. `scanlines` is under 256 bytes.
+static size_t build_png(uint8_t *out, uint32_t width, uint32_t height,
+			uint8_t depth, uint8_t colour_type,
+			const uint8_t *scanlines, uint32_t count)
+{
+	uint8_t header[13] = { 0 };
+	uint8_t zlib[2 + 5 + 256 + 4];
+	uint32_t a = 1;
+	uint32_t b = 0;
+	size_t size = sizeof(PNG_SIGNATURE);
+
+	put_be32(header, width);
+	put_be32(header + 4, height);
+	header[8] = depth;
+	header[9] = colour_type;
+
+	zlib[0] = 0x78;
+	zlib[1] = 0x01;
+	zlib[2] = 0x01; // the last block, stored
+	zlib[3] = (uint8_t)count;
+	zlib[4] = (uint8_t)(count >> 8);
+	zlib[5] = (uint8_t)~count;
+	zlib[6] = (uint8_t)(~count >> 8);
+	memcpy(zlib + 7, scanlines, count);
+	for (uint32_t i = 0; i < count; i++) {
+		a = (a + scanlines[i]) % 65521;
+		b = (b + a) % 65521;
+	}
+	put_be32(zlib + 7 + count, (b << 16) | a);
+
+	memcpy(out, PNG_SIGNATURE, sizeof(PNG_SIGNATURE));
+	size += put_chunk(out + size, "IHDR", header, sizeof(header));
+	size += put_chunk(out + size, "IDAT", zlib, 7 + count + 4);
+	size += put_chunk(out + size, "IEND", NULL, 0);
+	return size;
+}
+
+// Two RGBA pixels at 16 bits, the second through the Sub filter so "left" is
+// eight bytes back. Each sample rounds to the nearest 8-bit value (0446).
+static void a_16_bit_rgba_png_rounds_to_8_bits(void)
+{
+	static const uint16_t SAMPLES[8] = { 0x0000, 0xffff, 0x807f, 0x7f80,
+					     0x7f80, 0x807f, 0xffff, 0x0000 };
+	static const uint8_t WANT[8] = { 0, 255, 128, 127, 127, 128, 255, 0 };
+	static uint8_t file[512];
+	uint8_t raw[16];
+	uint8_t row[17];
+	voe_assets_image image = { 0 };
+	voe_base_arena *arena;
+	size_t size;
+
+	for (int i = 0; i < 8; i++) {
+		raw[i * 2] = (uint8_t)(SAMPLES[i] >> 8);
+		raw[i * 2 + 1] = (uint8_t)SAMPLES[i];
+	}
+	row[0] = 1; // Sub
+	for (int i = 0; i < 16; i++)
+		row[1 + i] = (uint8_t)(raw[i] - (i >= 8 ? raw[i - 8] : 0));
+
+	size = build_png(file, 2, 1, 16, 6, row, sizeof(row));
+	arena = decodes_to(file, size, 2, 1, &image);
+	for (int i = 0; i < 8; i++)
+		VOE_TEST_CHECK_INT(image.pixels[i], WANT[i]);
+
+	voe_base_arena_destroy(arena);
+}
+
+// 16-bit grey widens like 8-bit grey: three equal channels, alpha 255.
+static void a_16_bit_greyscale_png_widens(void)
+{
+	static const uint8_t ROW[5] = { 0, 0x12, 0x34, 0xff, 0xff };
+	static uint8_t file[512];
+	voe_assets_image image = { 0 };
+	voe_base_arena *arena;
+	size_t size;
+
+	size = build_png(file, 2, 1, 16, 0, ROW, sizeof(ROW));
+	arena = decodes_to(file, size, 2, 1, &image);
+	// (0x1234 + 128) / 257 = 18.
+	VOE_TEST_CHECK_INT(image.pixels[0], 18);
+	VOE_TEST_CHECK_INT(image.pixels[1], 18);
+	VOE_TEST_CHECK_INT(image.pixels[2], 18);
+	VOE_TEST_CHECK_INT(image.pixels[3], 255);
+	VOE_TEST_CHECK_INT(image.pixels[4], 255);
+	VOE_TEST_CHECK_INT(image.pixels[6], 255);
+	VOE_TEST_CHECK_INT(image.pixels[7], 255);
+
+	voe_base_arena_destroy(arena);
+}
+
+// WELL-FORMED AND DECLINED IS A DIFFERENT ANSWER FROM BROKEN, AND THE CODE SAYS
+// WHICH. Another program would read the first two files perfectly well; the
+// third is a palette at 16 bits, which the format forbids.
+static void interlaced_and_shallow_are_unsupported_not_malformed(void)
+{
+	static const uint8_t SHALLOW[2] = { 0, 0x5a };
+	static const uint8_t WIDE[5] = { 0, 0, 0, 0, 1 };
+	static uint8_t file[512];
+	size_t size;
+
+	refuses("interlaced", INTERLACED_PNG, sizeof(INTERLACED_PNG),
+		VOE_BASE_ERROR_UNSUPPORTED);
+	VOE_TEST_CHECK(said("interlac"));
+	size = build_png(file, 2, 1, 4, 0, SHALLOW, sizeof(SHALLOW));
+	refuses("4-bit", file, size, VOE_BASE_ERROR_UNSUPPORTED);
+	VOE_TEST_CHECK(said("4-bit"));
+	size = build_png(file, 2, 1, 16, 3, WIDE, sizeof(WIDE));
+	refuses("16-bit palette", file, size, VOE_BASE_ERROR_UNSUPPORTED);
+}
 
 static uint32_t be32_at(const uint8_t *bytes)
 {
@@ -356,7 +502,9 @@ int main(void)
 	a_wrong_magic_number_is_refused();
 	an_absurd_declared_size_is_refused();
 	a_corrupt_chunk_is_refused();
-	interlaced_and_deep_are_unsupported_not_malformed();
+	a_16_bit_rgba_png_rounds_to_8_bits();
+	a_16_bit_greyscale_png_widens();
+	interlaced_and_shallow_are_unsupported_not_malformed();
 	a_picture_survives_the_round_trip();
 	one_pixel_is_a_picture();
 	an_odd_width_keeps_its_rows_apart();

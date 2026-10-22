@@ -18,10 +18,10 @@
 //
 // A `.glb` HAS LEVELS (0425 points 3, 4, 6; 0426; 0432; 0436): own levels
 // baked per level and joined to level 0's parts by material; made ones, from a
-// levels file, uploaded compacted to the vertices they use. Each bound is
-// 0.002 × radius ÷ the file's error (infinite for error nought) ÷ the level's
-// swap, an own level's 2^-k only without a fresh file; then made
-// non-increasing; freed with the parts.
+// levels file, walk level 0's vertices with indices of their own, not compacted
+// copies (0444). Each bound is 0.002 × radius ÷ the file's error (infinite for
+// error nought) ÷ the level's swap, an own level's 2^-k only without a fresh
+// file; then made non-increasing; freed with the parts.
 //
 // A FAILED ENTRY IS KEPT at its stamp, `loaded` false and no parts, so a broken
 // file asked for each frame is not parsed each frame. A PATH LOADED AGAIN
@@ -53,13 +53,13 @@
 // its own dirt, one budget for both.
 //
 // A `.material` IS AN ENTRY WITH NO SHAPE (0399 points 4, 5): one part with no
-// geometry holding its record, its blended twin and its own maps, here because
-// reload, rename, clear and the twin already live here. A map two materials
-// name is uploaded twice.
+// geometry holding its record, blended twin and own maps, here as reload,
+// rename, clear and the twin live here. A map two materials name goes up twice.
 #pragma once
 
 #include <3d/landscape.h>
 #include <3d/material_component.h>
+#include <3d/model_prepare.h>
 #include <3d/shape_geometry.h>
 
 #include <assets/landscape.h>
@@ -85,9 +85,8 @@
 // own capacities: 3074 geometries, four parts for each of the VOE_3D_MODELS
 // files at each of VOE_3D_MODEL_LEVELS levels, and one geometry more each for
 // the pictures' quad and the landscapes' shared grid; 3 M vertices and 9 M
-// indices, level 0's 2 M and 6 M and the levels' under thirty-one
-// thirty-seconds more, since they aim at a half, a quarter and so on down to a
-// thirty-second (0425 point 6, 0433); 1024
+// indices, the starting room only, which `render` grows (0444), made levels
+// adding indices alone and own levels their vertices too; 1024
 // shading records, two for each of those parts (its own and its blended twin),
 // and one more for the water. Each landscape also takes three textures: its
 // heights and two paint planes.
@@ -174,6 +173,12 @@ typedef struct {
 	voe_3d_material_map emission;
 } voe_3d_material_maps;
 
+// A material's four maps decoded (voe_3d_model_picture_decode); a map of width
+// 0 is none.
+typedef struct {
+	voe_assets_image colour, normal, orm, emission;
+} voe_3d_material_pictures;
+
 typedef struct voe_3d_models voe_3d_models;
 
 voe_3d_models *voe_3d_models_new(void);
@@ -192,7 +197,9 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 // nested past VOE_3D_IMPORT_MAX_DEPTH, REFUSED when the device or the store has
 // no room. What a failed load had put on the card is given back. A path already
 // held is replaced when this load succeeds and kept, at `stamp`, when it fails.
-// The same as _load_levelled with NULL levels.
+// Every failure is one line, at the step that met it, in the artist's words,
+// under the subject the caller pushed (base/report.h); nothing here names the
+// path. The same as _load_levelled with NULL levels.
 [[nodiscard]] bool voe_3d_models_load(voe_3d_models *models,
 				      voe_render_device *device,
 				      const char *path, uint64_t stamp,
@@ -203,10 +210,24 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 // ones `levels` holds, a levels file (3d/model_levels.h) read against `bytes`.
 // NULL `levels`, a stale file or one naming an index past its part loads level
 // 0 alone, never a failure; REFUSED when the device has no room for a level.
+// It is voe_assets_model_read_glb, voe_3d_model_prepare (3d/model_prepare.h)
+// and _put, unchanged in what it does.
 [[nodiscard]] bool voe_3d_models_load_levelled(
 	voe_3d_models *models, voe_render_device *device, const char *path,
 	uint64_t stamp, const uint8_t *bytes, size_t size, const uint8_t *levels,
 	size_t levels_size, voe_base_error *error);
+
+// `prepared` as `path`'s entry: its pictures and materials uploaded, each part
+// a geometry and its blended twin, its levels, and its shape copied into the
+// entry's own arena, so the prepare's arena may go after. Replaces and fails as
+// _load does: REFUSED when the device or the store has no room. Asserts the
+// model's pictures are decoded. On the thread that owns the device, between
+// frames.
+[[nodiscard]] bool voe_3d_models_put(voe_3d_models *models,
+				     voe_render_device *device,
+				     const char *path, uint64_t stamp,
+				     const voe_3d_model_prepared *prepared,
+				     voe_base_error *error);
 
 // `landscape`'s grid copied into `path`'s entry with its layers and paint (all
 // layer 0 when NULL), uploaded as its heights texture and two paint textures,
@@ -219,18 +240,27 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 	voe_base_error *error);
 
 // `material` as `path`'s entry: each map with bytes decoded as a picture by its
-// path's extension and uploaded mipped, colour and emission as COLOUR, normal
+// path's extension, under "the <name> map `path`" as the subject, then put by
+// _put_material. Fails as that does, and MALFORMED, kept as _load keeps a
+// failure, when a map will not decode or its path is no picture.
+[[nodiscard]] bool voe_3d_models_load_material(
+	voe_3d_models *models, voe_render_device *device, const char *path,
+	uint64_t stamp, const voe_assets_material_file *material,
+	voe_3d_material_maps maps, voe_base_error *error);
+
+// `material` as `path`'s entry, its maps decoded by the caller before the put:
+// each of width above 0 uploaded mipped, colour and emission as COLOUR, normal
 // and ORM as DATA, the ORM map's one texture in the metal-roughness and the
 // occlusion slots both (0400), the emission map in the emissive slot; colour,
 // metal, roughness, repeat and shader from the values, `cutout` > 0 as CUTOUT
 // at that cutoff else OPAQUE, `emission` × `emission_strength` as emissive, and
 // `double_sided` (0420 point 2); one part with no geometry and its blended
-// twin. Replaces and fails as _load does; MALFORMED when a map will not decode,
-// REFUSED when the device or the store has no room.
-[[nodiscard]] bool voe_3d_models_load_material(
+// twin. Replaces and fails as _load does: REFUSED when the device or the store
+// has no room. On the thread that owns the device, between frames.
+[[nodiscard]] bool voe_3d_models_put_material(
 	voe_3d_models *models, voe_render_device *device, const char *path,
 	uint64_t stamp, const voe_assets_material_file *material,
-	voe_3d_material_maps maps, voe_base_error *error);
+	voe_3d_material_pictures pictures, voe_base_error *error);
 
 // `material`'s colour, metal, roughness, repeat, shader, cutout, emission ×
 // strength and double_sided taken into `path`'s part as _load_material takes

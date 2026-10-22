@@ -34,7 +34,8 @@ and read through the description its own folder registered.
 - `prefab_cook.c` — the prefab cook: finds the root, orders the entities root
   first and writes the spawning function.
 - `landscape_cook.c` — the landscape cook: heights as one `int32_t` array of
-  whole millimetres and paint as one `uint8_t` array, grown through
+  whole millimetres, paint as one `uint8_t` array and copies as one
+  `voe_assets_landscape_copy` array, grown through
   `cook_text.h`'s buffer.
 - `project.c` — the project file reader and writer. Its header says how a scene
   path is checked the same way on both sides.

@@ -21,8 +21,9 @@ of them is internal to this folder rather than reachable from outside it.
   over a hashed chain. Its header carries the fixed code and the length and
   distance tables, and says which three rules keep a changed matcher legal.
 - `png.c` — the reader: signature, chunks, CRC, filters, palette. Its header
-  says why this file is flat and has no recursion in it, and the rule every
-  length read out of the file is checked by.
+  says why this file is flat and has no recursion in it, the rule every
+  length read out of the file is checked by, and that each refusal is one line
+  in the artist's words.
 - `png_crc.h` — PNG's CRC-32, shared by the reader and the writer and
   implemented in `png.c`. Its header says why there is no running value to
   chain from, and which bytes of a chunk it covers.
@@ -33,11 +34,16 @@ of them is internal to this folder rather than reachable from outside it.
   caller states no capacity here where the JSON reader demands one, and why
   there is nothing for rule 14 to worry about.
 - `landscape.c` — the landscape file over the sectioned reader: shape, quoted
-  layer paths and heights, and its measure-then-print writer.
+  layer paths and heights, and its measure-then-print writer, handing paint and
+  foliage to the two files below.
 - `landscape_paint.h` — the paint's read, print and resample, internal to this
   folder, with the printer and source index `landscape.c` shares with it.
 - `landscape_paint.c` — `[Paint]`'s rows and `v*n` runs into two RGBA8 planes,
   back out, and resampled per weight.
+- `landscape_foliage.h` — the foliage's read and print, internal to this
+  folder, with the quote helpers `landscape.c` shares with it.
+- `landscape_foliage.c` — `[Foliage]`'s quoted kind paths and `[Copies]`' six
+  numbers a copy, walked once in order, and back out.
 - `material.c` — the material file over the sectioned reader, with a scratch
   arena of its own, and a writer that quotes every path.
 - `parts.c` — the parts file over the sectioned reader: each `material<N>` key
@@ -45,28 +51,43 @@ of them is internal to this folder rather than reachable from outside it.
   shares and swaps, and a writer that quotes every path.
 - `json.h` — a JSON reader, internal to this folder. Its header says why it
   has an explicit stack and a depth limit rather than recursion, why the caller
-  states how many values it will hold, and why string spans are raw.
-- `json.c` — the state machine, and nothing tolerated.
+  states how many values it will hold, why string spans are raw, and the
+  damaged-file line and the two limits a refusal says.
+- `json.c` — the state machine, and nothing tolerated: a syntax error is
+  damage with its byte, too many values or too deep a limit with the most the
+  engine takes.
 - `model_gltf.h` — the split between the container and the description.
 - `model_gltf_read.h` — what the glTF reader's parts share, internal to this
-  folder: the read's state, the shared helpers and each part's one call. Its
-  header says why the split is by what is read.
+  folder: the read's state, the shared helpers and each part's one call.
 - `model_gltf.c` — the shared helpers, accessors and buffer views, the version
   and extension checks, and the entry point. Its header says the rule every
   length read out of a file is checked by, and the one buffer.
-- `model_gltf_materials.c` — texture references, the alpha mode, materials and
-  images. Its header says why a texture resolves to an image.
-- `model_gltf_meshes.c` — attributes, primitives and meshes. Its header says
-  why triangle lists only and why an unindexed primitive is given indices.
-- `model_gltf_nodes.c` — the node names and matrices and the node tree. Its header says
-  how the tree is proven a tree without recursion.
+- `model_gltf_materials.c` — texture references, the alpha mode, materials,
+  images recorded encoded, and a picture decoded on asking. Its header says why
+  a texture resolves to an image.
+- `model_gltf_meshes.c` — attributes, primitives and meshes, each mesh under
+  its part and each primitive under its material, triangle lists only.
+- `model_gltf_nodes.c` — the node names and matrices and the node tree, each
+  node under its object. Its header says how the tree is proven a tree without
+  recursion; every refusal is damage.
 - `model_material.c` — a glTF material to `.material` values, and its ORM
-  picture merged from occlusion and metal-roughness at the nearest texel.
-- `model_glb.c` — the container: the header and the chunks. Its header
-  carries the layout and says why a `.gltf` is refused by name.
-- `jpeg.c` — markers, Huffman tables, the inverse cosine transform, chroma
-  upsampling and the colour conversion. Baseline only; its header says why
-  progressive is refused rather than attempted, and which index in the format is
-  the one that walks off the end of a block.
+  picture merged from occlusion and metal-roughness at the nearest texel and
+  multiplied by the roughness and metal factors.
+- `model_glb.c` — the container: the header and the chunks, read with the
+  pictures left encoded or each decoded. Its header
+  carries the layout and says why a `.gltf` is refused by name, a container not
+  version 2 refused, and a cut or misshapen chunk refused as damage.
+- `jpeg_read.h` — what the JPEG reader's two parts share, internal to this
+  folder: the decoder's state, the refusal helper and the scan's two calls. Its
+  header says why the split is by stage, and that each refusal is one line in
+  the artist's words.
+- `jpeg.c` — the markers and their tables, chroma upsampling, the colour
+  conversion and the entry point. Baseline only; its header says why
+  progressive and every other frame kind is refused rather than attempted.
+- `jpeg_scan.c` — the entropy-coded data: the bit reader, Huffman decode, one
+  block, the inverse cosine transform and every MCU in order. Its header says
+  which index walks off the end of a block and where each is bounded; damage
+  met in a block is refused there.
 - `wav.c` — the WAV reader: one walk over the RIFF chunks, then 16-bit or
-  float samples converted to float in the caller's arena.
+  float samples converted to float in the caller's arena; a refusal names the
+  format or the damage in one line in the artist's words.

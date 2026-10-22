@@ -25,10 +25,28 @@ static const char *level_word(voe_base_report_level level)
 	return "";
 }
 
-// The first error's message, per thread, and whether one is kept. See
+// The first error's text, per thread, and whether one is kept; beside it the
+// thread's subjects, borrowed pointers in the order pushed. See
 // include/base/report.h for what is kept and why.
 static thread_local char g_first_error[VOE_BASE_REPORT_LINE_CAPACITY];
 static thread_local bool g_first_error_kept;
+static thread_local const char *g_subjects[VOE_BASE_REPORT_SUBJECTS];
+static thread_local size_t g_subject_count;
+
+void voe_base_report_subject_push(const char *subject)
+{
+	VOE_BASE_ASSERT(subject != NULL && subject[0] != '\0',
+			"a report subject names something");
+	VOE_BASE_ASSERT(g_subject_count < VOE_BASE_REPORT_SUBJECTS,
+			"more report subjects than VOE_BASE_REPORT_SUBJECTS");
+	g_subjects[g_subject_count++] = subject;
+}
+
+void voe_base_report_subject_pop(void)
+{
+	VOE_BASE_ASSERT(g_subject_count > 0, "a report subject popped unpushed");
+	g_subjects[--g_subject_count] = NULL;
+}
 
 void voe_base_report_error_clear(void)
 {
@@ -40,11 +58,12 @@ const char *voe_base_report_error_first(void)
 	return g_first_error_kept ? g_first_error : NULL;
 }
 
-// Copies the "<message>" part out of a line already composed by
+// Copies the "<subjects>: <message>" part out of a line already composed by
 // voe_base_report_compose(): everything after the "<level>: <module>: "
-// prefix and before the trailing newline. Reusing the composed line, rather
-// than formatting the message a second time, is what keeps the kept message
-// cut at exactly the same capacity as the printed line.
+// prefix and before the trailing newline, so the subjects come with it.
+// Reusing the composed line, rather than formatting the message a second time,
+// is what keeps the kept text cut at exactly the same capacity as the printed
+// line.
 static void keep_first_error(voe_base_report_level level, const char *module,
 			     const char *composed, size_t length)
 {
@@ -77,6 +96,13 @@ size_t voe_base_report_compose(char *line, voe_base_report_level level,
 			       module);
 	VOE_BASE_ASSERT(written >= 0, "the report prefix did not format");
 	size_t length = (size_t)written;
+
+	for (size_t i = 0; i < g_subject_count && length <= text; i++) {
+		written = snprintf(line + length, text + 1 - length, "%s: ",
+				   g_subjects[i]);
+		VOE_BASE_ASSERT(written >= 0, "a report subject did not format");
+		length += (size_t)written;
+	}
 
 	// At exactly the capacity the message is still formatted, for its length:
 	// a prefix that fills the line must not hide that a message was cut.

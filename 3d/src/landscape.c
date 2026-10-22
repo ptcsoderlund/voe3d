@@ -11,6 +11,8 @@
 // arenas handed in.
 #include <3d/landscape.h>
 
+#include "brush_weight.h"
+
 #include <base/assert.h>
 
 #include <math.h>
@@ -159,18 +161,9 @@ bool voe_3d_landscape_ray(const voe_assets_landscape *landscape,
 	return false;
 }
 
-// 1 inside radius·(1 − softness), smoothstepping to 0 at the radius.
 static float weight(const voe_3d_brush *brush, float distance)
 {
-	const float inner = brush->radius * (1.0f - brush->softness);
-
-	if (distance <= inner)
-		return 1.0f;
-	if (distance >= brush->radius)
-		return 0.0f;
-	const float t = (brush->radius - distance) / (brush->radius - inner);
-
-	return t * t * (3.0f - 2.0f * t);
+	return voe_3d_brush_weight(brush->radius, brush->softness, distance);
 }
 
 // The height indices within `radius` of `centre` on one axis, end exclusive.
@@ -314,6 +307,9 @@ voe_3d_landscape_rect voe_3d_landscape_brush(voe_assets_landscape *landscape,
 			"a landscape, a brush and scratch");
 	VOE_BASE_ASSERT(brush->radius > 0.0f && seconds >= 0.0f,
 			"a radius and time not running backwards");
+	VOE_BASE_ASSERT(brush->kind != VOE_3D_BRUSH_SCATTER &&
+				brush->kind != VOE_3D_BRUSH_ERASE,
+			"scatter and erase are 3d/foliage.h's");
 	const float s = fminf(seconds, LONGEST_SECONDS);
 	const float half = 0.5f * landscape->size;
 	const float cell = cell_size(landscape);

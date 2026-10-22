@@ -119,8 +119,9 @@ static void sphere_levels(voe_base_arena *arena)
 	const uint8_t *glb = sphere_glb(arena, RINGS, SEGMENTS, false, &glb_size);
 	voe_base_error error = VOE_BASE_OK;
 	size_t size = 0;
-	const uint8_t *file = voe_3d_model_levels_make(
-		arena, glb, glb_size, VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
+	const uint8_t *file =
+		voe_3d_model_levels_make(arena, glb, glb_size,
+					 VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
 	voe_3d_model_levels levels = {};
 	uint64_t previous = TRIANGLES;
 	uint8_t *changed;
@@ -229,8 +230,9 @@ static void own_levels(voe_base_arena *arena)
 	const uint8_t *glb = sphere_glb(arena, 8, 16, true, &glb_size);
 	voe_base_error error = VOE_BASE_OK;
 	size_t size = 0;
-	const uint8_t *file = voe_3d_model_levels_make(
-		arena, glb, glb_size, VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
+	const uint8_t *file =
+		voe_3d_model_levels_make(arena, glb, glb_size,
+					 VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
 	voe_3d_model_levels levels = {};
 	uint32_t triangles[VOE_3D_MODEL_LEVELS] = {};
 	bool own = false;
@@ -275,7 +277,8 @@ static void not_a_glb(voe_base_arena *arena)
 				   arena, (const uint8_t *)text, sizeof(text),
 				   NULL, 0, triangles, &own, &fresh),
 			   0);
-	VOE_TEST_CHECK(voe_3d_model_levels_make(arena, (const uint8_t *)text,
+	VOE_TEST_CHECK(voe_3d_model_levels_make(arena,
+						(const uint8_t *)text,
 						sizeof(text),
 						VOE_ASSETS_LEVELS_DEFAULT,
 						&size, &error) == NULL);

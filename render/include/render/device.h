@@ -3,14 +3,10 @@
 //
 //     voe_base_arena *scratch = voe_base_arena_new(64 * 1024);
 //     voe_base_error error;
-//     voe_render_capacities room = {
-//             .vertices = 1 << 16, .indices = 1 << 17,
-//             .geometries = 64, .objects = 256, .shadings = 64, .passes = 4,
-//     };
-//     voe_render_device *gpu = voe_render_device_new(scratch,
-//                                                    voe_platform_window_native(window),
-//                                                    voe_platform_window_size(window),
-//                                                    room, &error);
+//     voe_render_capacities room = { .vertices = 1 << 16, .indices = 1 << 17, .geometries = 64,
+//                                    .objects = 256, .shadings = 64, .passes = 4 };
+//     voe_render_device *gpu = voe_render_device_new(scratch, voe_platform_window_native(window),
+//             voe_platform_window_size(window), room, &error);
 //     voe_base_arena_destroy(scratch);        // the device kept nothing from it
 //
 //     voe_render_geometry cube;
@@ -51,12 +47,15 @@
 // FRAMES (ADR-0370). Each that uploads waits while a frame is open on another
 // thread; the owner's own never wait. Everything else is the owner's alone.
 //
+// It opens unprepared; voe_render_device_prepare readies it a step at a time.
 // Passes onto the window or a target follow the sun's cascades and captures,
 // lit by the sun and the pass's point lights (range, falloff; shadows per
-// point_shadow_size and voe_render_point_shadows_ready); a pass may copy its
-// depth (voe_render_frame_copy_depth). VOE_RENDER_BOUNCE_* size the probe
-// volume voe_render_bounce_begin builds, captures and relights per target;
-// a shading record may be water, with waves and sky in the object record.
+// point_shadow_size and voe_render_point_shadows_ready), then exposed and tone
+// mapped by the pass's voe_render_exposure; a pass may copy its depth
+// (voe_render_frame_copy_depth) and draw copies of a mesh in one instanced draw.
+// VOE_RENDER_BOUNCE_* size the probe volume voe_render_bounce_begin builds,
+// captures and relights per target; a shading record may be water, with waves
+// and sky in the object record.
 #pragma once
 
 #include <base/arena.h>
@@ -71,9 +70,10 @@
 
 typedef struct voe_render_device voe_render_device;
 
-// How much room the device makes for everything it holds. All of it is fixed at
-// creation: nothing here grows, and asking for one more than was asked for is a
-// returned failure at the call that asked.
+// How much room the device makes for everything it holds. vertices and indices
+// are where the two static geometry pools start, and they grow from there as
+// creates need them (0444). Everything else is fixed at creation, and asking for
+// one more than was asked for is a returned failure at the call that asked.
 //
 // vertices and indices are counts, not bytes. objects is per frame slot and
 // bounds how many draws one frame may contain.
@@ -139,6 +139,12 @@ typedef struct voe_render_device voe_render_device;
 // point 5). Nought is no writes; the first is refused with a message. Pixel
 // writes (voe_render_texture_write_pixels, ADR-0402) share the same room, a
 // pixel's 4 bytes counting as one texel.
+//
+// instances IS THE SEVENTH THAT MAY BE NOUGHT, and per frame slot like objects:
+// how many voe_render_instance records one frame may write with
+// voe_render_frame_instances, 64 bytes each per slot (ADR-0442 point 6). Nought
+// is no instanced draws; the first write is refused with a message. One record
+// stays for the binding.
 typedef struct {
 	uint32_t vertices;
 	uint32_t indices;
@@ -154,6 +160,7 @@ typedef struct {
 	uint32_t shadow_size;
 	uint32_t point_shadow_size;
 	uint32_t heights_texels;
+	uint32_t instances;
 } voe_render_capacities;
 
 // How many depth maps the sun renders into, near to far: the layers of one frame
@@ -810,10 +817,27 @@ typedef struct {
 	voe_math_float4 morph;
 	uint32_t layers[8];
 	float dither;
-	uint32_t reserved0;
+	// The first of an instanced draw's instance records plus one, nought
+	// none (ADR-0442 point 6): render's, set by
+	// voe_render_frame_draw_instanced; a caller leaves it nought.
+	uint32_t instances;
 	uint32_t reserved1;
 	uint32_t reserved2;
 } voe_render_object;
+
+// One copy of a mesh in an instanced draw (ADR-0442 point 6): the top three
+// rows of its camera-relative world matrix, the fourth being (0, 0, 0, 1), and
+// its dither, read as voe_render_object's. It stands in for the record's
+// `world` and `dither`; its normal matrix is the shader's, the 3×3 over its
+// first row's squared length, exact for a turn and a uniform scale and not for
+// any other. 64 bytes, asserted on in render/src/records_layout.c.
+typedef struct {
+	voe_math_float4 rows[3];
+	float dither;
+	uint32_t reserved0;
+	uint32_t reserved1;
+	uint32_t reserved2;
+} voe_render_instance;
 
 // What one element is. Two kinds, and the field exists so that adding the second
 // moved no other field and changed no size — which is what it was reserved for
@@ -1089,11 +1113,14 @@ const void *voe_render_device_cache_bytes(voe_render_device *device,
 // pool is added by the draw, so a mesh's indices never have to be rewritten
 // because something was uploaded before it.
 //
-// FAILS WHEN EITHER POOL HAS NO ROOM LEFT, WHEN THERE IS NO SLOT LEFT TO NAME
-// THE RANGE, OR WHEN THE CARD REFUSES THE UPLOAD. All three are returned rather
-// than fatal: two of them are the caller asking for more than it said it would
-// need, which is a thing a loader can report and stop. A count of zero is the
-// caller's bug and asserts.
+// A FULL POOL GROWS (0444): a larger one is made, what the old one held copied
+// across, and every id already handed out names what it named.
+//
+// FAILS WHEN THE CARD WILL NOT HOLD THE LARGER POOL, WHEN THERE IS NO SLOT LEFT
+// TO NAME THE RANGE, OR WHEN THE CARD REFUSES THE UPLOAD. All three are returned
+// rather than fatal, each with its message, and a loader can report them and
+// stop; a pool past 2^32 − 1 elements is refused as the engine's limit. A count
+// of zero is the caller's bug and asserts.
 //
 // IT WAITS FOR THE GPU TO GO IDLE, SO IT IS A STARTUP OPERATION. The upload is
 // staged through a buffer that has to be destroyed once the copy is done.
@@ -1102,8 +1129,9 @@ const void *voe_render_device_cache_bytes(voe_render_device *device,
 // frame.
 //
 // GEOMETRY LIVES IN TWO SHARED POOLS AND A MESH IS A RANGE IN THEM. One vertex
-// pool and one index pool, created with the device; voe_render_geometry_create
-// takes the first range given back that fits, else appends, and
+// pool and one index pool, created with the device at the capacities' size;
+// voe_render_geometry_create takes the first range given back that fits, else
+// appends, growing the pool when there is no room at its end, and
 // voe_render_geometry_destroy below gives both ranges back. That layout is also
 // what lets many objects be drawn from one buffer later, with one indirect call
 // instead of one call each.
@@ -1123,11 +1151,29 @@ const void *voe_render_device_cache_bytes(voe_render_device *device,
 					      voe_render_geometry *out,
 					      voe_base_error *error);
 
+// A static mesh whose indices, numbered from zero as ever, walk the vertices of
+// `vertices_of`, a live static mesh: only the indices are uploaded (0444, so a
+// model's made levels cost their indices alone). It draws, casts and is boxed
+// like any other, its sphere and box being its base's. A startup operation that
+// waits for the card, as the create above is.
+//
+// FAILS AS THE CREATE ABOVE FAILS: no slot left, a grow of the index pool the
+// card refuses, or a refused upload, each returned with its message. A stale or
+// transient base, a count of zero, or an index at or past the base's vertex
+// count is the caller's bug and asserts.
+[[nodiscard]] bool voe_render_geometry_create_sharing(
+	voe_render_device *device, voe_render_geometry vertices_of,
+	const uint32_t *indices, uint32_t index_count, voe_render_geometry *out,
+	voe_base_error *error);
+
 // Gives a static mesh's vertex and index ranges back to their pools and its slot
 // back with the generation bumped, so every copy of the id is refused from here
 // on. False when the id was already stale, which is not an error: somebody else
 // got here first. A transient id is the caller's bug and asserts — it is gone at
 // the next frame's begin. A startup operation: it waits for the GPU to go idle.
+//
+// A SHARING MESH GIVES BACK ITS INDICES ALONE. Destroying a base while a sharing
+// mesh still walks it asserts, so a caller destroys the sharers first.
 bool voe_render_geometry_destroy(voe_render_device *device,
 				 voe_render_geometry geometry);
 
@@ -1719,7 +1765,8 @@ typedef struct {
 //
 // `opened` IS FALSE, and true is returned with nothing open, when the volume is
 // not built, that sun has no bounces, no intensity or is unshaded, or no relight
-// is needed for this begin. IT IS A PASS AND COUNTS AGAINST `passes`, its draws
+// is needed for this begin: no probe changed, and neither the lights nor the
+// begin's `shade` did. IT IS A PASS AND COUNTS AGAINST `passes`, its draws
 // against `objects`: false, with a line, when the frame's passes are spent. It
 // may open once per sun after each voe_render_bounce_begin, so every view draws
 // this begin's maps for its own volume (ADR-0330).
@@ -1785,6 +1832,12 @@ void voe_render_pass_end(voe_render_device *device);
 // `volume` IS WHICH OF THE TARGET'S VOE_RENDER_BOUNCE_VOLUMES THIS IS (0389
 // point 1): 0 the level grid, which a caller naming none gets, and 1 to 3 the
 // nests at 16, 4 and 1 m about the eye. It is below VOE_RENDER_BOUNCE_VOLUMES.
+//
+// `shade` IS THE CALLER'S COUNT OF CHANGES TO WHAT ITS SUN MAPS DRAW that no
+// stale sphere marks, such as foliage copies (ADR-0451 point 2). A begin whose
+// `shade` differs from the one the volume was last relit with relights it, as a
+// changed light does, and recaptures no probe. Zero, which a caller naming none
+// gives, is the old behaviour.
 struct voe_render_bounce_frame {
 	int32_t cell[3];
 	voe_math_float3 corner;
@@ -1798,6 +1851,7 @@ struct voe_render_bounce_frame {
 	voe_render_light_blockers blockers;
 	voe_render_directional_lights more;
 	uint32_t volume;
+	uint32_t shade;
 };
 
 // Records `target`'s bounce for this frame, between passes; the arrays are
@@ -1914,6 +1968,38 @@ void voe_render_frame_two_sided(voe_render_device *device, bool two_sided);
 [[nodiscard]] bool voe_render_frame_draw_blended(voe_render_device *device,
 						 voe_render_geometry geometry,
 						 voe_render_object object);
+
+// Copies `count` instance records into this frame slot's instance buffer and
+// writes the first one's index into `first`, for voe_render_frame_draw_instanced
+// (ADR-0442 point 6). Written once a frame and read by every pass that draws
+// them: any time inside the frame before the draws reading them, in a pass or
+// between passes.
+//
+// False, nothing written and `first` untouched, past the room
+// capacities.instances leaves this frame; a device made with none refuses every
+// write with a message. Not retryable inside this frame. Outside a frame, or
+// with no records or no `first`, it asserts.
+[[nodiscard]] bool voe_render_frame_instances(voe_render_device *device,
+					      const voe_render_instance *records,
+					      uint32_t count, uint32_t *first);
+
+// Draws `count` copies of one range in one draw command: copy i placed by
+// instance record first + i's rows instead of the record's `world`, its normal
+// matrix the shader's, its dither instead of the record's, everything else the
+// record's. Through the solid pipeline in a camera pass and the shadow one in a
+// shadow pass or the bounce shadow pass: a sun map is one view like a cascade,
+// so the copies shade the ground the probes are relit by (ADR-0450). Spends one
+// object, counts one draw and index count ÷ 3 × count triangles. False for the
+// reasons voe_render_frame_draw is.
+//
+// Count nought, a range past what this frame wrote, or a point-shadow or
+// capture pass asserts, as do voe_render_frame_draw's mistakes: those two spend
+// the instance index on faces, so the probes' pictures and the lamps' shadows
+// leave copies out (ADR-0442 point 5).
+[[nodiscard]] bool voe_render_frame_draw_instanced(voe_render_device *device,
+						   voe_render_geometry geometry,
+						   voe_render_object object,
+						   uint32_t first, uint32_t count);
 
 // Clears the depth buffer where the frame stands, without touching what has
 // already been drawn into the colour one. Everything drawn after this call

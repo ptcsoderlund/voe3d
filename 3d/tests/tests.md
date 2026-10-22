@@ -44,6 +44,9 @@ again, or to find where a claim that has started failing is written down.
 - `draw_levels.c` — that a levelled sphere 400 m away draws under a quarter of the triangles it
   draws 3 m away, one loaded without levels draws whole, and in level 1's band it dissolves into
   level 0 unless fading. Skips without a graphics card.
+- `draw_foliage.c` — that a landscape's copies of a model gather into groups summing to three per
+  opaque part, none without the row, kind or room, and that their shadow shows and three draw as
+  many draws as one. Skips without a card.
 - `draw_switched_off.c` — that a sphere on a child draws as no model row does when the child or
   its parent is off, and whole again when both are back on. Skips without a graphics card.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up draws its far ridge and ground
@@ -79,6 +82,9 @@ again, or to find where a claim that has started failing is written down.
   a whole relight and removal. Skips without a card.
 - `bounce_pacing.c` — that an eye flying 0.15 m a frame opens one capture pass a frame and fits
   that room every frame, then settles once still. Skips without a card.
+- `bounce_foliage.c` — that a kind set relights the bounce, an erase does too, and the relit sun
+  maps draw a whole multiple of the foliage groups more with copies than without. Skips without a
+  card.
 - `bounce_world.inc` — the bounce tests' harness: the floor, sun and placed box, the reference at
   bounces 0, one frame through the shadows call, the settle, the window read and a point's pixel.
 - `no_light.c` — that a world with no light frames a zeroed light, drawn black and not blind, and
@@ -92,9 +98,9 @@ again, or to find where a claim that has started failing is written down.
   graphics card.
 - `sky_switched_off.c` — that a Sky, Haze or Picture row whose entity or parent is off is as no
   row, back when on, and an off first Haze row gives the second's. Needs no graphics card.
-- `shape_geometry.c` — that the CPU store answers for the three kinds and nothing else, holds each
-  kind's own triangles, that every kind is a closed surface wound counter-clockwise seen from
-  outside, and that the cube's arrays built alone give its edge count. Needs no graphics card.
+- `shape_geometry.c` — that the CPU store answers for its three kinds alone, each a closed surface
+  wound counter-clockwise from outside, that flat triangles give no edges, and that a jittered
+  million-vertex grid welds in linear time. Needs no graphics card.
 - `pick.c` — that the pick ray meets the nearest cube, model, water plane or child at the right
   distance and nothing where nothing is, a camera, sun or place marker wins over a cube in front of
   it or behind it, a drawn pixel the cube covers picks it, and passes what is off.
@@ -143,28 +149,32 @@ again, or to find where a claim that has started failing is written down.
   colour, and a removed water's row gone. Needs no graphics card.
 - `model_bake.c` — that the bake carries a file's vertex colours as complements and bakes one
   `_LOD<n>` level of a file's own at a time. Needs no graphics card.
-- `models.c` — the model store: loads, failures kept as failed, replace, clear, each part's
-  blended twin and none leaked, its glTF source and the `wears` a parts set fills and a reload
-  empties, pictures and the uncounted dot, and a model drawn only with the store. Skips without a
-  card.
-- `models_levels.c` — the store loading a sphere with its levels file, with its own `_LOD1` levels
-  bounded by 2^-k alone and by their measured error with their file, and with a far swap, leaking
-  no level across reloads and clears; skips without a card.
+- `models.c` — the model store's loads, failures, replaces, clears and blended twins, glTF source
+  and `wears`, pictures, a model drawn only with the store and a 17-material refusal.
+  Skips without a card.
+- `models_levels.c` — the store's levels: a levels file's and a file's own `_LOD1`, a far swap,
+  none leaked across reloads and clears, pools below level 0, a prepare then a put, and 17
+  materials refused. Skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
-  layers and renames written within a frame's budget. Skips without a card.
-- `models_material.c` — a `.material` with four maps loaded as one part with a live record and
-  twin, its cutout, emission and sides, a set changing them written by a frame, a map that is no
-  picture failing MALFORMED, and a rename. Skips without a card.
+  layers and renames written within a frame's budget, and its foliage placed, kept standing by a
+  sculpt, scattered, erased, put back, a kind set and renamed. Skips without a card.
+- `models_material.c` — a `.material` with four maps loaded as one part, its cutout, emission and
+  sides, a set written by a frame, a decoded put alike, a non-picture map MALFORMED, and a rename.
+  Skips without a card.
 - `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, and
   painting a layer: the sum kept, the radius held and a light stroke stopping at its strength.
   Needs no graphics card.
+- `foliage.c` — a held scatter stamp filling to about its density, spaced, picked and within its
+  radius; a seed repeating; erase by kind and undo's put both ways; a copy leaning 45° or upright on
+  a slope; and a replace following a raised height. Needs no graphics card.
 - `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
   once, neighbours within a level, within capacity, bounding their heights; an update equal to a
   fresh build and the pyramid's box. Needs no graphics card.
 - `simplify.c` — a flat grid to an eighth at no error with its corners, a sphere to a half facing
   out, the sphere held by a tiny limit, a uv seam moving along its line untorn, and a faceted
   cylinder cut along its seam lines at angle 0 and further softened at 180. Needs no graphics card.
-- `model_levels.c` — a sphere's levels file made and read back as asked, its own levels measured,
+- `model_levels.c` — a sphere's levels file made and read back as asked,
+  its own levels measured,
   going stale when its `.glb` or version changes, each level's triangles counted, and a view's level
   and pixel share chosen by its screen size; needs no graphics card.
 - `measure.c` — that two hand-built bakes measure 0 alike, a lift's height apart, √2 for a big

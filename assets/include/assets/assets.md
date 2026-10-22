@@ -3,14 +3,15 @@
 The public headers, one entry each; the fuller account of every one of these,
 and the questions each header answers, stays on `assets/assets.md`.
 
-- `model.h` — `.glb` files, read into vertex attributes, materials, decoded
-  pictures and a node tree.
+- `model.h` — `.glb` files, read into vertex attributes, materials, pictures
+  decoded or left encoded, and a node tree.
 - `image.h` — pictures, both directions: PNG and JPEG decoded to RGBA8, and
   RGBA8 encoded back as a PNG.
 - `sectioned.h` — the engine's own authored text format: `[Section]` headers and
   `key=value` lines, handed back as text and never interpreted.
 - `landscape.h` — a `.landscape` file's text to a grid of up to 2048 cells of
-  heights, and back, and a grid resampled to another count.
+  heights, its paint and its foliage copies, and back, and a grid resampled to
+  another count.
 - `material.h` — a `.material` file's text to a shader, its factors and three
   map paths, and back.
 - `model_material.h` — a glTF material as a `.material` file's values, and the

@@ -4,7 +4,8 @@
 //
 // Row i is layer i, so a row's index is the layer a press paints and a drop
 // replaces; the add row sits at the grid's layer count, the index a drop there
-// adds at.
+// adds at. A row is drawn chosen and pressed off only under PAINT, so while
+// SCATTER or ERASE is chosen none is lit and any fired one chooses PAINT.
 #include "inspector_layers.h"
 
 #include "themes.h"

@@ -86,11 +86,14 @@ bool voe_editor_loading_prepare_work(void *context, voe_game_progress *progress)
 	voe_game_progress_set(progress, prepare->phase, 0, 0);
 	if (voe_game_progress_stopped(progress))
 		return false;
+	// The kept error is this thread's, so the refusal is built here.
+	voe_base_report_error_clear();
 	if (!voe_game_models_prepare(prepare->folder, prepare->path,
 				     prepare->scratch, prepare->remake, &made,
-				     &error))
-		VOE_BASE_ERROR("editor", "%s: its levels were not made: %s",
-			       prepare->path, voe_base_error_string(error));
+				     &error)) {
+		prepare->refused = true;
+		voe_editor_notice_from_report(&prepare->refusal, prepare->path);
+	}
 	voe_base_arena_clear(prepare->scratch);
 	return !voe_game_progress_stopped(progress);
 }

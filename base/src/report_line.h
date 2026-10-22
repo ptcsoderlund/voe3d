@@ -14,8 +14,10 @@ enum { VOE_BASE_REPORT_LINE_CAPACITY = 1024 };
 
 // Writes "<level>: <module>: <message>\n" and a terminating NUL into `line`,
 // which holds VOE_BASE_REPORT_LINE_CAPACITY + 1 bytes, and returns the length of
-// the line without the NUL. A line that would be longer is cut at the capacity
-// and its last three bytes before the newline become "...".
+// the line without the NUL. The calling thread's pushed subjects go between the
+// module and the message, each followed by ": ", in the order pushed. A line
+// that would be longer, subjects included, is cut at the capacity and its last
+// three bytes before the newline become "...".
 [[gnu::format(printf, 4, 0)]]
 size_t voe_base_report_compose(char *line, voe_base_report_level level,
 			       const char *module, const char *format,

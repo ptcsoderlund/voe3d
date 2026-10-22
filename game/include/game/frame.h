@@ -16,7 +16,7 @@
 // replaces (game/project.h), the transform, identity, light, sky, haze,
 // picture and light blocker systems, the shape system, the model system, the collider and body systems, then the
 // sound system with no mixer, which applies edits and plays nothing — then a draw opened, the
-// light blockers (voe_3d_draw_system_light_blockers, 0347; nothing is drawn
+// foliage gathered (voe_3d_draw_system_foliage, 0442), the light blockers (voe_3d_draw_system_light_blockers, 0347; nothing is drawn
 // for them), the point lights with their shadow slots (voe_3d_draw_system_point_lights, 0320,
 // 0325), the lights after the first (voe_3d_draw_system_lights, 0357), each
 // casting light's shadow passes and the lamps' one (voe_3d_draw_system_shadows,
@@ -75,8 +75,11 @@
 // passes (0396 point 4); each emitter's
 // VOE_3D_EMITTER_PARTICLES in the window pass alone, since particles cast no
 // shadow (0298 points 6 and 8); one per water, VOE_GAME_WORLD_WATERS, in the
-// window pass alone, since water casts no shadow (0305 point 7); the window
-// pass, one shadow pass per cascade per casting light (0357 point 3), the
+// window pass alone, since water casts no shadow (0305 point 7);
+// VOE_3D_FOLIAGE_GROUPS in the window pass, in each cascade of each light and
+// in each bounce sun map (0450), the captures and the point-shadow pass
+// drawing none, and VOE_3D_FOLIAGE_INSTANCES instances,
+// written once a frame (0442 point 5); the window pass, one shadow pass per cascade per casting light (0357 point 3), the
 // lamps' point-shadow pass (0325 point 7), and up to
 // VOE_RENDER_BOUNCE_CAPTURE_PASSES capture passes after it, the bounce map
 // pass gone (0326 points 3 and 8), then one bounce sun map per volume per
@@ -101,7 +104,13 @@
 						VOE_RENDER_DIRECTIONAL_LIGHTS +    \
 					    VOE_RENDER_BOUNCE_CAPTURE_PASSES) +      \
 			   VOE_GAME_WORLD_EMITTERS * VOE_3D_EMITTER_PARTICLES + \
-			   VOE_GAME_WORLD_WATERS,                               \
+			   VOE_GAME_WORLD_WATERS +                              \
+			   VOE_3D_FOLIAGE_GROUPS *                              \
+				   (1 + VOE_RENDER_DIRECTIONAL_LIGHTS *         \
+						VOE_RENDER_SHADOW_CASCADES +    \
+					VOE_RENDER_BOUNCE_VOLUMES *             \
+						VOE_RENDER_DIRECTIONAL_LIGHTS), \
+		.instances = VOE_3D_FOLIAGE_INSTANCES,                        \
 		.shadings = VOE_3D_SHAPES_SHADINGS + VOE_3D_MODELS_SHADINGS,  \
 		.passes = 1 + VOE_RENDER_SHADOW_CASCADES *                    \
 				      VOE_RENDER_DIRECTIONAL_LIGHTS +         \

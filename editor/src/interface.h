@@ -393,8 +393,13 @@
 // "Enabled", seven; the button's border and fill, two; and "Off", its longer
 // label, three. 2559 + 4 = 2563 nodes, 51494 + 12 = 51506 elements. No scroll
 // area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2648
-#define VOE_EDITOR_INTERFACE_ELEMENTS 52259
+//
+// THE FRAME BREAKDOWN'S DRAWS ROW (frame_breakdown.h, ADR-0442) ADDS THREE
+// NODES, the row and its two labels, and FIFTEEN ELEMENTS: "Draws", five, and
+// at most ten digits; on top of the levels question's sums. 2648 + 3 = 2651
+// nodes, 52259 + 15 = 52274 elements. No scroll area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2651
+#define VOE_EDITOR_INTERFACE_ELEMENTS 52274
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

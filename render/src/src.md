@@ -47,12 +47,14 @@ which file to open — what each one owns, and where the seams between them run.
 - `descriptors.c` — everything the shader reads and the one layout that describes it.
 - `records_layout.c` — the build-time proof that the C and Slang layouts of every record a shader
   reads agree, by size and member offset; no code.
-- `buffer.c` — a named buffer with the memory under it, and the staging upload
-  that fills a device-local one at an offset. Its header says why every later
-  upload is this.
-- `geometry.c` — the two static pools, whose ranges are freed and reused first fit, the transient
-  pair in every frame slot, and the ranges into all of them, each with its bounding sphere and its
-  vertex box, which `voe_render_geometry_box` hands back.
+- `buffer.c` — a named buffer with the memory under it, the staging upload
+  that fills a device-local one at an offset, and a waited-on copy of one buffer
+  into another. Its header says why every later upload is this.
+- `geometry.c` — the two growing static pools, ranges reused first fit, the transient pair in
+  every frame slot, the ranges into them with sphere and box, and the sharing create that walks
+  another mesh's vertices.
+- `geometry_grow.c` — one static pool grown: a buffer of twice the room or what is needed, the old
+  contents copied across in one waited-on submission, the old buffer given back.
 - `element.c` — the element path on the C side: the third pipeline, the submit that writes one
   record, the instanced draw over a range of them, and the two matrices that say what element space
   is.
@@ -72,11 +74,11 @@ which file to open — what each one owns, and where the seams between them run.
   slot, its sampled and attachment views, settled to shader-read, whether they are ready, and the
   layered point-shadow pass onto every layer with its lights by slot.
 - `bounce_probes.h` — the captured bounce grid's bookkeeping: the toroidal 24 × 12 × 24 index,
-  which probes hold a picture or are queued, the bouncing lights, every sun among them, and when to
-  relight. Pure CPU.
+  which probes hold a picture or are queued, the bouncing lights, every sun among them, the begin's
+  shade count, and when to relight. Pure CPU.
 - `bounce_probes.c` — its place at a grid's own spacing, nearest-first take, relight-needed (lamps
-  and light blockers about the corner, so an eye that moves relights nothing; a change of kinds or
-  the sun's mask relights) and relit calls over bit sets.
+  and light blockers about the corner, so an eye that moves relights nothing; a change of kinds, the
+  sun's mask or the shade count relights) and relit calls over bit sets.
 - `bounce_volume.c` — a target's probe volumes: their atlases and six-axis irradiance 3D images, built
   at the top of the frame after the first `voe_render_bounce_begin` and named at bindings 6 and 10,
   freed after 300 frames unbegun, and that begin, which keeps its spacing per frame slot.
@@ -135,8 +137,8 @@ which file to open — what each one owns, and where the seams between them run.
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written
   into the pass's block.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, one
-  instance per cube face reached in the point-shadow pass, and the sides a draw shows as a dynamic
-  cull mode.
+  instance per cube face reached in the point-shadow pass, a frame's instance records and the
+  instanced draw of copies they place, bounce sun maps included, and the sides a draw shows.
 - `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is
   the one write into a swapchain image.
 - `probe.c` — the pipeline that reads a matrix and reports what it saw, built

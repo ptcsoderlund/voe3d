@@ -9,9 +9,14 @@
 // anything with — so a `.gltf` is refused, by name, and says so.
 //
 // NOTHING HERE KNOWS ABOUT THE GPU, AN ENTITY OR A SCENE. This produces arrays
-// in an arena: vertex attributes, indices, material factors, decoded pixels and
-// a node tree. `3d` is what uploads them, gets ids back and writes components —
+// in an arena: vertex attributes, indices, material factors, pictures and a
+// node tree. `3d` is what uploads them, gets ids back and writes components —
 // the pipeline is file → assets → 3d → ids from render → components in tables.
+//
+// PARSING AND DECODING PICTURES ARE TWO STEPS (0448). The encoded read leaves
+// each picture as the file's bytes, so a reader of geometry alone (levels,
+// Import) decodes none and a loader decodes them on a pool, a task a picture.
+// voe_assets_model_read_glb is both steps in one.
 //
 // NO COORDINATE IS CONVERTED, EVER (ADR-0033). This engine is right-handed, +Y
 // up, −Z forward, which is glTF's convention exactly — that was chosen so that
@@ -35,7 +40,10 @@
 // have, an alpha mode that is not one of glTF's three, or more JSON than the
 // reader will hold. Three extensions are read and so accepted even when
 // required: KHR_materials_unlit, KHR_materials_emissive_strength and
-// KHR_texture_transform.
+// KHR_texture_transform. A negative `texCoord` reads as no texture (0446).
+// Every refusal is one line naming the part, material or picture, in the
+// artist's words with what to do in Blender, the format's own after it as
+// `(glTF: …)` (0443, 0445).
 //
 // ANIMATION AND SKINNING ARE IGNORED RATHER THAN REFUSED. A file with them in it
 // loads, and what it draws is the bind pose. Refusing would turn most models
@@ -210,6 +218,13 @@ typedef struct {
 	voe_assets_model_name name;
 } voe_assets_node;
 
+// One picture's bytes as the file holds them, PNG or JPEG, inside the bytes
+// handed to voe_assets_model_read_glb_encoded.
+typedef struct {
+	const uint8_t *bytes;
+	size_t size;
+} voe_assets_model_encoded;
+
 // Everything the file held, in the arena the reader was handed. Freed by
 // rewinding or destroying that arena and never one allocation at a time
 // (rule 11).
@@ -225,8 +240,11 @@ typedef struct {
 
 	// Decoded pixels, one per picture the file held, already RGBA8 — see
 	// assets/include/assets/image.h, including why nothing is turned the
-	// right way up on the way in.
+	// right way up on the way in. NULL after the encoded read.
 	const voe_assets_image *images;
+	// Each picture's bytes as the file holds them, after the encoded read;
+	// NULL after voe_assets_model_read_glb.
+	const voe_assets_model_encoded *encoded;
 	uint32_t image_count;
 	// Each image's glTF `name`, image_count long.
 	const voe_assets_model_name *image_names;
@@ -240,15 +258,36 @@ typedef struct {
 	uint32_t root_count;
 } voe_assets_model;
 
-// Read a `.glb`. False on failure, `model` untouched when it fails, and a line
-// on stderr saying exactly what was wrong. See the header for which failures are
-// malformed and which are unsupported.
+// Read a `.glb`, every picture decoded into `arena`: the encoded read, then
+// voe_assets_model_decode_picture on each. False on failure, `model` untouched
+// when it fails, and a line on stderr saying exactly what was wrong. See the
+// header for which failures are malformed and which are unsupported.
 //
-// THE BYTES ARE THE CALLER'S AND ARE NOT KEPT. Everything in `model` is copied
-// or decoded into `arena`, so the file's buffer may be freed the moment this
-// returns — which is what lets a `#embed`ded model and a model that arrived some
-// other way be handled the same way.
+// THE BYTES ARE THE CALLER'S, AND THIS READ DOES NOT KEEP THEM. Everything in
+// `model` is copied or decoded into `arena` and `encoded` is NULL, so the file's
+// buffer may be freed the moment this returns — which is what lets a
+// `#embed`ded model and a model that arrived some other way be handled the same
+// way. The encoded read below keeps them.
 [[nodiscard]] bool voe_assets_model_read_glb(const uint8_t *bytes, size_t size,
 					     voe_base_arena *arena,
 					     voe_assets_model *model,
 					     voe_base_error *error);
+
+// As voe_assets_model_read_glb in everything but the pictures: `images` NULL,
+// `encoded` pointing into `bytes`, which must outlive every decode of them. A
+// picture that is neither PNG nor JPEG is still refused here.
+[[nodiscard]] bool voe_assets_model_read_glb_encoded(const uint8_t *bytes,
+						     size_t size,
+						     voe_base_arena *arena,
+						     voe_assets_model *model,
+						     voe_base_error *error);
+
+// Decodes `encoded[index]` of an encoded read into `arena`, under the subject
+// "the picture `name`" ("picture <index>" without one), refusing as the PNG
+// and JPEG readers do. Touches nothing shared: safe on any thread with an arena
+// of its own.
+[[nodiscard]] bool voe_assets_model_decode_picture(const voe_assets_model *model,
+						   uint32_t index,
+						   voe_base_arena *arena,
+						   voe_assets_image *out,
+						   voe_base_error *error);

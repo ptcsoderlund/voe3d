@@ -1,7 +1,9 @@
 // THE CLAIMS: that the store answers for the three kinds it knows and for
 // nothing else, that it holds each kind's own triangles, that every kind is a
 // closed surface whose edges carry unit-length normals, and that every triangle
-// of every kind is wound the way the edge walk assumes.
+// of every kind is wound the way the edge walk assumes; that the cube's own
+// arrays built alone, outside the store, give the cube kind's edge count; and
+// that triangles with no area are taken without asserting and give no edges.
 //
 // THE WINDING IS THE CLAIM WORTH THE MOST HERE. 3d/src/shape_geometry.c takes
 // normalize(cross(b - a, c - a)) as a triangle's *outward* normal, which is only
@@ -25,6 +27,12 @@
 // normals are a right angle apart. Both numbers are checked, because a weld that
 // merged too much or too little moves them.
 //
+// THE WELD IS LINEAR, and a grid of a million vertices says so: 512 × 512 flat
+// quads of four vertices each, every copy of a corner pushed 3e-5 m toward its
+// quad's middle, so the copies of one point lie in different directions and
+// straddle a cell's side. Its edges are counted and all face up; a weld
+// comparing every vertex with every earlier one would not finish in time.
+//
 // IT NEEDS NO GRAPHICS CARD: nothing here opens a device, and that is the point
 // of the geometry being kept away from the upload.
 #include <3d/shape_component.h>
@@ -46,6 +54,9 @@
 
 #define SCRATCH (256 * 1024)
 #define TOLERANCE 1e-4f
+#define GRID 512
+#define GRID_STEP (1.0f / GRID)
+#define JITTER 3e-5f
 
 static bool is_unit(voe_math_float3 v)
 {
@@ -97,6 +108,80 @@ static void check_winding(const voe_3d_shape_geometry *geometry)
 			return;
 		}
 	}
+}
+
+// The grid of the head of this file: (GRID + 1)² points welded from four
+// copies each, so 2·GRID·(GRID + 1) sides and GRID² diagonals, all facing up.
+static void check_grid_weld(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
+	const uint32_t quads = GRID * GRID;
+	voe_render_vertex *vertices =
+		voe_base_arena_push(arena, sizeof *vertices * quads * 4);
+	uint32_t *indices = voe_base_arena_push(arena,
+						sizeof *indices * quads * 6);
+	const voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
+	voe_3d_shape_geometry built;
+	uint32_t tilted = 0;
+
+	for (uint32_t q = 0; q < quads; q++) {
+		const uint32_t v = q * 4;
+		const uint32_t corners[6] = { v + 0, v + 2, v + 1,
+					      v + 1, v + 2, v + 3 };
+
+		// Corner c is (c & 1, c >> 1) of the quad in x and z.
+		for (uint32_t c = 0; c < 4; c++) {
+			const uint32_t x = q % GRID + (c & 1);
+			const uint32_t z = q / GRID + (c >> 1);
+
+			vertices[v + c].position = (voe_math_float3){
+				(float)x * GRID_STEP +
+					((c & 1) ? -JITTER : JITTER),
+				0.0f,
+				(float)z * GRID_STEP +
+					((c >> 1) ? -JITTER : JITTER),
+			};
+		}
+		for (uint32_t i = 0; i < 6; i++)
+			indices[q * 6 + i] = corners[i];
+	}
+	voe_3d_shape_geometry_build(arena, vertices, quads * 4, indices,
+				    quads * 6, &built);
+	VOE_TEST_CHECK_INT(built.edge_count,
+			   2 * GRID * (GRID + 1) + GRID * GRID);
+	for (uint32_t i = 0; i < built.edge_count; i++)
+		if (voe_math_float3_dot(built.edges[i].left, up) <
+			    1.0f - TOLERANCE ||
+		    voe_math_float3_dot(built.edges[i].right, up) <
+			    1.0f - TOLERANCE)
+			tilted++;
+	VOE_TEST_CHECK_INT(tilted, 0);
+	voe_base_arena_destroy(arena);
+}
+
+// One real triangle beside two with no area — two corners on one point, and
+// three on one line sharing the real one's edge 0–1: the build does not assert,
+// the flat two give no edges, and the real one's three are boundary edges.
+static void flat_triangles_give_no_edges(voe_base_arena *arena)
+{
+	static const voe_render_vertex vertices[] = {
+		{ .position = { 0.0f, 0.0f, 0.0f } },
+		{ .position = { 1.0f, 0.0f, 0.0f } },
+		{ .position = { 0.0f, 1.0f, 0.0f } },
+		{ .position = { 2.0f, 0.0f, 0.0f } },
+	};
+	static const uint32_t indices[] = { 0, 1, 2, 0, 1, 1, 0, 1, 3 };
+	voe_3d_shape_geometry built;
+
+	voe_3d_shape_geometry_build(arena, vertices, 4, indices, 9, &built);
+	VOE_TEST_CHECK_INT(built.edge_count, 3);
+	for (uint32_t i = 0; i < built.edge_count; i++) {
+		VOE_TEST_CHECK(is_unit(built.edges[i].left));
+		VOE_TEST_CHECK(is_unit(built.edges[i].right));
+	}
+
+	voe_3d_shape_geometry_build(arena, vertices, 4, indices + 3, 6, &built);
+	VOE_TEST_CHECK_INT(built.edge_count, 0);
 }
 
 int main(void)
@@ -153,6 +238,9 @@ int main(void)
 		VOE_TEST_CHECK(built.vertices == voe_3d_cube_vertices);
 		VOE_TEST_CHECK_INT(built.edge_count, cube->edge_count);
 	}
+	flat_triangles_give_no_edges(arena);
+
+	check_grid_weld();
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
