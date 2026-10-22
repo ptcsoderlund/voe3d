@@ -86,7 +86,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - Revisit 058 (several directional lights) once a real game needs a sun and moon or a lit cave; it was accepted on theory, without a concrete use to judge it by.
 - **F with nothing selected frames the whole scene** (sponsor, 2026-10-05): left out of 065, which frames only a selection.
 - **Wind in the foliage** (2026-10-07, from 0376's road): grass and leaves sway in a wind that has a
-  direction and strength. Left out of 090/093 (093 was 091, 0455) to keep them testable in one sitting.
+  direction and strength. Left out of 090/094 (094 is grass, 0462) to keep them testable in one sitting.
 - **Backlit leaves** (2026-10-07, was work order 077): thin leaves glow on their shaded side when the sun
   is behind them. Cheap, and what makes trees read as trees from the tower.
 - **Leaves that block each other's bounce** (2026-10-21, from 0450): foliage in the bounce probes' captures, so
@@ -114,7 +114,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 
 - **Texture streaming** (sponsor, 2026-10-15, asked beside 0429: "If texture streaming helps, we need that as
   well."). Loading only the mip levels a texture is seen at, so far models cost less texture memory and load
-  time. It does not lower triangles, so it is not part of 089; weigh it after 094 (compressed textures; mips
+  time. It does not lower triangles, so it is not part of 089; weigh it after 095 (compressed textures, 0462; mips
   are what it streams, kept separable by 0454) once a forest of real models shows whether memory or load time
   hurts.
 
