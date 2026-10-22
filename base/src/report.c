@@ -5,11 +5,7 @@
 // call. The one write is what keeps a line whole when two threads report at once;
 // the composed line is what makes sending it somewhere other than stderr a change
 // inside voe_base_report_at and nowhere else.
-//
-// The thread's state, subjects and kept error, can be saved and loaded whole
-// (report_state.h), for the pool to carry it to a task's thread and back.
 #include "report_line.h"
-#include "report_state.h"
 
 #include <base/assert.h>
 
@@ -60,32 +56,6 @@ void voe_base_report_error_clear(void)
 const char *voe_base_report_error_first(void)
 {
 	return g_first_error_kept ? g_first_error : NULL;
-}
-
-void voe_base_report_state_save(struct voe_base_report_state *out)
-{
-	VOE_BASE_ASSERT(out != NULL, "a report state is saved somewhere");
-	VOE_BASE_ASSERT(g_subject_count <= VOE_BASE_REPORT_SUBJECTS,
-			"more report subjects than VOE_BASE_REPORT_SUBJECTS");
-
-	memcpy(out->subjects, g_subjects, sizeof(g_subjects));
-	out->subject_count = g_subject_count;
-	memcpy(out->first_error, g_first_error, sizeof(g_first_error));
-	out->first_error_kept = g_first_error_kept;
-}
-
-void voe_base_report_state_load(const struct voe_base_report_state *in)
-{
-	VOE_BASE_ASSERT(in != NULL, "a report state is loaded from somewhere");
-	VOE_BASE_ASSERT(in->subject_count <= VOE_BASE_REPORT_SUBJECTS,
-			"more report subjects than VOE_BASE_REPORT_SUBJECTS");
-
-	memcpy(g_subjects, in->subjects, sizeof(g_subjects));
-	g_subject_count = in->subject_count;
-	memcpy(g_first_error, in->first_error, sizeof(g_first_error));
-	// Ends inside the buffer whatever the saver left in it.
-	g_first_error[sizeof(g_first_error) - 1] = '\0';
-	g_first_error_kept = in->first_error_kept;
 }
 
 // Copies the "<subjects>: <message>" part out of a line already composed by

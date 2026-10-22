@@ -28,6 +28,3 @@ an operating system.
   values optionally named for a tool. Its header says why the declaring folder
   supplies the type and what the switch leaves out.
 - `include/base/version.h` — the placeholder that proves the folder builds.
-- `include/base/workers.h` — the pool of threads loading runs on: tasks 0 to
-  n−1, the caller running some, returning when all have (ADR-0448). Its header
-  says why runs may nest, why a task gets no thread number, and how it reports.
