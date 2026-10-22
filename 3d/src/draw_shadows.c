@@ -167,7 +167,7 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 			cast = voe_3d_draw_terrain_cast(device, frame->models, model,
 							place,
 							voe_3d_normal_matrix(place),
-							landscape_nodes);
+							landscape_nodes, NULL, NULL);
 			if (times != NULL)
 				voe_3d_draw_clock_add(frame, &times->ground, since);
 			if (!cast)

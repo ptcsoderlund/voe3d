@@ -8,7 +8,7 @@
 // A painted landscape's layers are looked up once per row per call (0402).
 //
 // Constraints: one selection per row per pass, from the root of the pyramid,
-// and every chosen node drawn: no frustum test, which is 093's (0395). A
+// then each chosen node's box sphere tested against the pass's cull (0464). A
 // box under a millimetre tall is drawn a millimetre tall, so the shader's
 // division by its height stays finite. The cast chooses on the stack, 32 KB,
 // because the shadows call takes no arena; an arena on the frame would lift it.
@@ -19,6 +19,8 @@
 
 #include <3d/landscape.h>
 #include <base/assert.h>
+
+#include <math.h>
 
 // The least box height, metres (0396 point 3).
 #define LEAST_BOX 0.001f
@@ -85,6 +87,50 @@ static voe_render_object node_object(voe_math_float4x4 world,
 	return object;
 }
 
+// Whether `cull` sees the box `object` is drawn over: the grid's unit cube
+// under its world, the row's world × the node's box (node_object), so about
+// (0.5, 0.5, 0.5). The row's rotation and scale times the box's diagonal keep
+// the columns square to each other, so every corner is half the root of their
+// summed squares from the centre. NULL sees everything.
+static bool node_seen(const struct voe_3d_cull *cull,
+		      const voe_render_object *object)
+{
+	float squares = 0.0f;
+
+	VOE_BASE_ASSERT(object != NULL, "culling no node");
+	if (cull == NULL)
+		return true;
+	for (uint32_t r = 0; r < 3; r++)
+		for (uint32_t c = 0; c < 3; c++)
+			squares += object->world.m[r][c] * object->world.m[r][c];
+	VOE_BASE_ASSERT(squares > 0.0f, "a node box of no size");
+	return voe_3d_cull_sees(
+		cull,
+		voe_math_float4x4_transform_point(
+			object->world, (voe_math_float3){ 0.5f, 0.5f, 0.5f }),
+		0.5f * sqrtf(squares));
+}
+
+// Whether `object` is drawn, one thing counted into `counts` unless NULL: a
+// cascade's `cast` or `cast_skipped` when `cast`, else `drawn` or `skipped`.
+static bool node_counted(const struct voe_3d_cull *cull,
+			 const voe_render_object *object,
+			 voe_3d_view_counts *counts, bool cast)
+{
+	const bool drawn = node_seen(cull, object);
+	uint32_t *count;
+
+	if (counts == NULL)
+		return drawn;
+	if (cast)
+		count = drawn ? &counts->cast : &counts->cast_skipped;
+	else
+		count = drawn ? &counts->drawn : &counts->skipped;
+	(*count)++;
+	VOE_BASE_ASSERT(*count > 0, "a node count wrapped");
+	return drawn;
+}
+
 // `entry`'s terrain into `terrain` and the nodes the eye at `world`'s origin
 // chooses into `chosen`, room `capacity`; how many. Nought for an entry that
 // is no loaded landscape of `models` or a `world` scaled to nothing.
@@ -143,15 +189,20 @@ voe_3d_draw_terrain_nodes(const voe_3d_models *models,
 }
 
 bool voe_3d_draw_terrain_solid(voe_render_device *device,
-			       const struct voe_3d_terrain_nodes *nodes)
+			       const struct voe_3d_terrain_nodes *nodes,
+			       const struct voe_3d_cull *cull,
+			       voe_3d_view_counts *counts)
 {
 	VOE_BASE_ASSERT(device != NULL && nodes != NULL,
 			"drawing terrain needs a device and nodes");
 	VOE_BASE_ASSERT(nodes->count == 0 || nodes->objects != NULL,
 			"terrain nodes counted with no records");
-	for (uint32_t i = 0; i < nodes->count; i++)
+	for (uint32_t i = 0; i < nodes->count; i++) {
+		if (!node_counted(cull, &nodes->objects[i], counts, false))
+			continue;
 		if (!voe_render_frame_draw(device, nodes->grid, nodes->objects[i]))
 			return false;
+	}
 	return true;
 }
 
@@ -159,7 +210,8 @@ bool voe_3d_draw_terrain_cast(voe_render_device *device,
 			      const voe_3d_models *models,
 			      const voe_3d_model_entry *entry,
 			      voe_math_float4x4 world, voe_math_float4x4 normal,
-			      uint32_t capacity)
+			      uint32_t capacity, const struct voe_3d_cull *cull,
+			      voe_3d_view_counts *counts)
 {
 	voe_3d_landscape_node chosen[VOE_3D_LANDSCAPE_NODES];
 	voe_3d_models_terrain terrain;
@@ -174,18 +226,24 @@ bool voe_3d_draw_terrain_cast(voe_render_device *device,
 			"a landscape with no part");
 	if (count > 0)
 		look = look_of(models, entry, &terrain);
-	for (uint32_t i = 0; i < count; i++)
-		if (!voe_render_frame_draw(
-			    device, terrain.grid,
-			    node_object(world, normal, &chosen[i], terrain.heights,
-					entry->landscape->size, &look)))
+	for (uint32_t i = 0; i < count; i++) {
+		const voe_render_object object =
+			node_object(world, normal, &chosen[i], terrain.heights,
+				    entry->landscape->size, &look);
+
+		if (!node_counted(cull, &object, counts, true))
+			continue;
+		if (!voe_render_frame_draw(device, terrain.grid, object))
 			return false;
+	}
 	return true;
 }
 
 void voe_3d_draw_terrain_hold(struct voe_3d_draw_group *group,
 			      const struct voe_3d_terrain_nodes *nodes,
-			      float fade, voe_math_float4x4 view)
+			      float fade, voe_math_float4x4 view,
+			      const struct voe_3d_cull *cull,
+			      voe_3d_view_counts *counts)
 {
 	VOE_BASE_ASSERT(group != NULL && nodes != NULL,
 			"holding terrain needs a group and nodes");
@@ -194,6 +252,8 @@ void voe_3d_draw_terrain_hold(struct voe_3d_draw_group *group,
 	for (uint32_t i = 0; i < nodes->count; i++) {
 		struct voe_3d_deferred entry = { .panel = false };
 
+		if (!node_counted(cull, &nodes->objects[i], counts, false))
+			continue;
 		entry.mesh.geometry = nodes->grid;
 		entry.mesh.object = nodes->objects[i];
 		entry.mesh.object.shading = nodes->part->faded.index;

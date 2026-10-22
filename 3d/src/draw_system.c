@@ -28,8 +28,9 @@
 // Their foliage follows, draw_foliage.c's groups solid in the world layer.
 // A mesh or model part whose worn material is double-sided is drawn two-sided,
 // solid or held, through draw_group.c's mesh draw (0421 point 2).
-// A mesh or model row, particle or water whose world sphere the camera's planes
-// (cull.h) cannot see is skipped and counted, and _run returns the counts (0464).
+// A mesh or model row, landscape node, particle or water whose world sphere the
+// camera's planes (cull.h) cannot see is skipped and counted, and _run returns
+// the counts (0464).
 #include "cull.h"
 #include "draw_foliage.h"
 #include "draw_group.h"
@@ -369,10 +370,13 @@ static bool range_is_this_frame_s(voe_3d_panel panel, uint32_t submitted)
 // `world_blended`, the rest drawn solid inside one "terrain" span, opened at
 // the first solid row so a frame of none times nothing (0388). Rows past
 // VOE_3D_LANDSCAPES_DRAWN are not drawn, said once on stderr; a refused draw
-// stops this walk only. The nodes are on `arena`, given back by _run's rewind.
+// stops this walk only. The nodes are on `arena`, given back by _run's rewind;
+// those `cull` cannot see are skipped and counted into `counts` (0464).
 static void draw_landscapes(voe_ecs_world *world, voe_render_device *device,
 			    voe_base_arena *arena, const voe_3d_frame *frame,
-			    struct voe_3d_draw_group *world_blended)
+			    struct voe_3d_draw_group *world_blended,
+			    const struct voe_3d_cull *cull,
+			    voe_3d_view_counts *counts)
 {
 	static bool told;
 	const voe_ecs_entity *owners;
@@ -413,13 +417,13 @@ static void draw_landscapes(voe_ecs_world *world, voe_render_device *device,
 						  voe_3d_normal_matrix(place), arena);
 		if (fade > 0.0f && fade < 1.0f) {
 			voe_3d_draw_terrain_hold(world_blended, &nodes, fade,
-						 frame->view.view);
+						 frame->view.view, cull, counts);
 			continue;
 		}
 		if (!timing)
 			voe_render_frame_span_begin(device, "terrain");
 		timing = true;
-		if (!voe_3d_draw_terrain_solid(device, &nodes))
+		if (!voe_3d_draw_terrain_solid(device, &nodes, cull, counts))
 			break;
 	}
 	if (timing)
@@ -642,7 +646,8 @@ voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
 	(void)voe_3d_draw_models(world, device, &frame, &world_blended, &cull,
 				 &counts);
 	// The landscape rows' nodes, inside the "terrain" span (0396, 0388).
-	draw_landscapes(world, device, arena, &frame, &world_blended);
+	draw_landscapes(world, device, arena, &frame, &world_blended, &cull,
+			&counts);
 	// Their foliage, one instanced draw a group in the "foliage" span (0442).
 	(void)voe_3d_draw_foliage_solid(device, &frame);
 	// Every live particle, held blended in the world (0298 point 6).

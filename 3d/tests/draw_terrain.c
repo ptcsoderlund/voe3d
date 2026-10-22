@@ -18,6 +18,11 @@
 // from the same eye at the bounce's VOE_3D_TERRAIN_BOUNCE_NODES draws one to
 // that many, and at 4 still draws (0397 point 1).
 //
+// WHAT THE CAMERA CANNOT SEE IS SKIPPED (0464 point 2), by _run's counts: from
+// 1 km up looking up every node the eye chose is skipped and none drawn;
+// looking down some are drawn and the picture is the one the same nodes drawn
+// with no cull make; looking level from 2 m, both are above nought.
+//
 // A PAINTED LANDSCAPE DRAWS ITS LAYERS (0402 point 4): a 16 m, 4-cell one seen
 // straight down from 10 m, layers 0 and 1 a loaded red and green material,
 // layer 1 painted on its right half. Lit, so channels are compared: left red,
@@ -74,10 +79,26 @@ static const voe_render_capacities CAPACITIES = {
 	.heights_texels = 64,
 };
 
-// The camera looking level along -Z from 2 m up, the sun and, with `model`, the
-// thing wearing PATH at the origin, which `thing` is set to.
-static voe_ecs_world *a_world(voe_base_arena *arena, bool model,
-			      voe_ecs_entity *thing)
+// The camera looking level along -Z from 2 m up.
+static const voe_scene_transform LEVEL = { .position = { 0.0, 2.0, 0.0 },
+					   .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+					   .scale = { 1.0f, 1.0f, 1.0f } };
+// 1 km up looking straight up, then straight down.
+static const voe_scene_transform UP = {
+	.position = { 0.0, 1000.0, 0.0 },
+	.rotation = { 0.70710678f, 0.0f, 0.0f, 0.70710678f },
+	.scale = { 1.0f, 1.0f, 1.0f }
+};
+static const voe_scene_transform DOWN = {
+	.position = { 0.0, 1000.0, 0.0 },
+	.rotation = { -0.70710678f, 0.0f, 0.0f, 0.70710678f },
+	.scale = { 1.0f, 1.0f, 1.0f }
+};
+
+// The camera at `eye`, the sun and, with `model`, the thing wearing PATH at
+// the origin, which `thing` is set to.
+static voe_ecs_world *a_world(voe_base_arena *arena, voe_scene_transform eye,
+			      bool model, voe_ecs_entity *thing)
 {
 	voe_ecs_limits limits = {
 		.entities = 4,
@@ -99,11 +120,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, bool model,
 	voe_3d_model_register(world, 1);
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
-	VOE_TEST_CHECK(voe_scene_transform_add(
-		world, entity,
-		(voe_scene_transform){ .position = { 0.0, 2.0, 0.0 },
-				       .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, eye));
 	VOE_TEST_CHECK(voe_scene_camera_add(
 		world, entity,
 		(voe_scene_camera){ .fov_y = 0.2f,
@@ -152,10 +169,13 @@ static void gone(voe_ecs_world *world, voe_ecs_entity thing)
 }
 
 // One frame of `world` from `models`: its picture into `pixels`, SIDE² rgba
-// rows top down, and the draws the view issued.
+// rows top down, what _run counted into `counts` unless NULL, and the draws
+// the view issued. With `unculled`, the landscape at the origin is drawn by
+// its nodes with no cull in place of _run, as before 0464.
 static uint32_t a_frame(voe_ecs_world *world, voe_render_device *device,
 			voe_base_arena *arena, const voe_3d_models *models,
-			uint8_t *pixels)
+			uint8_t *pixels, voe_3d_view_counts *counts,
+			bool unculled)
 {
 	voe_platform_size size = { SIDE, SIDE };
 	voe_3d_frame frame = voe_3d_draw_system_frame(world, size, 0.0f);
@@ -172,7 +192,26 @@ static uint32_t a_frame(voe_ecs_world *world, voe_render_device *device,
 		return 0;
 	VOE_TEST_CHECK(voe_render_pass_begin(device, VOE_RENDER_TARGET_WINDOW,
 					     &camera));
-	voe_3d_draw_system_run(world, device, arena, frame);
+	if (unculled) {
+		voe_scene_transform origin = {
+			.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+			.scale = { 1.0f, 1.0f, 1.0f }
+		};
+		voe_math_float4x4 place =
+			voe_scene_transform_matrix(origin, frame.eye);
+		struct voe_3d_terrain_nodes nodes = voe_3d_draw_terrain_nodes(
+			models, voe_3d_models_find(models, PATH), place,
+			voe_3d_normal_matrix(place), arena);
+
+		VOE_TEST_CHECK(voe_3d_draw_terrain_solid(device, &nodes, NULL,
+							 NULL));
+	} else {
+		voe_3d_view_counts counted =
+			voe_3d_draw_system_run(world, device, arena, frame);
+
+		if (counts != NULL)
+			*counts = counted;
+	}
 	draws = voe_render_frame_draw_count(device);
 	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
@@ -211,12 +250,13 @@ static void the_ridge_meets_the_sky(voe_base_arena *arena,
 				    const voe_3d_models *models)
 {
 	voe_ecs_entity thing = { 0 };
-	voe_ecs_world *bare = a_world(arena, false, &thing);
-	voe_ecs_world *world = a_world(arena, true, &thing);
+	voe_ecs_world *bare = a_world(arena, LEVEL, false, &thing);
+	voe_ecs_world *world = a_world(arena, LEVEL, true, &thing);
 	uint8_t *sky = voe_base_arena_push(arena, (size_t)SIDE * SIDE * 4);
 	uint8_t *seen = voe_base_arena_push(arena, (size_t)SIDE * SIDE * 4);
-	uint32_t bare_draws = a_frame(bare, device, arena, models, sky);
-	uint32_t draws = a_frame(world, device, arena, models, seen);
+	uint32_t bare_draws =
+		a_frame(bare, device, arena, models, sky, NULL, false);
+	uint32_t draws = a_frame(world, device, arena, models, seen, NULL, false);
 
 	printf("draws: %u bare, %u with the landscape\n", bare_draws, draws);
 	// The ridge's top 2 km off is ~9.4 pixels above the centre row.
@@ -231,8 +271,47 @@ static void the_ridge_meets_the_sky(voe_base_arena *arena,
 	VOE_TEST_CHECK(draws <= VOE_3D_LANDSCAPE_NODES);
 
 	gone(world, thing);
-	VOE_TEST_CHECK_INT(a_frame(world, device, arena, models, seen), 0);
+	VOE_TEST_CHECK_INT(
+		a_frame(world, device, arena, models, seen, NULL, false), 0);
 	VOE_TEST_CHECK(memcmp(seen, sky, (size_t)SIDE * SIDE * 4) == 0);
+}
+
+// The camera's cull after the eye's choice (0464 point 2): looking up from
+// 1 km every chosen node is skipped; looking down the picture is the unculled
+// one's and some are drawn; looking level from 2 m, the ground behind skipped.
+static void the_nodes_out_of_view_are_skipped(voe_base_arena *arena,
+					      voe_render_device *device,
+					      const voe_3d_models *models)
+{
+	voe_ecs_entity thing = { 0 };
+	voe_ecs_world *up = a_world(arena, UP, true, &thing);
+	voe_ecs_world *down = a_world(arena, DOWN, true, &thing);
+	voe_ecs_world *level = a_world(arena, LEVEL, true, &thing);
+	uint8_t *culled = voe_base_arena_push(arena, (size_t)SIDE * SIDE * 4);
+	uint8_t *whole = voe_base_arena_push(arena, (size_t)SIDE * SIDE * 4);
+	voe_3d_view_counts counts = { 0 };
+	uint32_t chosen = a_frame(up, device, arena, models, whole, NULL, true);
+
+	VOE_TEST_CHECK_INT(
+		a_frame(up, device, arena, models, culled, &counts, false), 0);
+	printf("up: %u chosen, %u drawn, %u skipped\n", chosen, counts.drawn,
+	       counts.skipped);
+	VOE_TEST_CHECK(chosen > 0);
+	VOE_TEST_CHECK_INT(counts.drawn, 0);
+	VOE_TEST_CHECK_INT(counts.skipped, chosen);
+
+	chosen = a_frame(down, device, arena, models, whole, NULL, true);
+	(void)a_frame(down, device, arena, models, culled, &counts, false);
+	printf("down: %u chosen, %u drawn, %u skipped\n", chosen, counts.drawn,
+	       counts.skipped);
+	VOE_TEST_CHECK(counts.drawn > 0);
+	VOE_TEST_CHECK_INT(counts.drawn + counts.skipped, chosen);
+	VOE_TEST_CHECK(memcmp(culled, whole, (size_t)SIDE * SIDE * 4) == 0);
+
+	(void)a_frame(level, device, arena, models, culled, &counts, false);
+	printf("level: %u drawn, %u skipped\n", counts.drawn, counts.skipped);
+	VOE_TEST_CHECK(counts.drawn > 0);
+	VOE_TEST_CHECK(counts.skipped > 0);
 }
 
 // The landscape at the origin cast from `world`'s camera eye into the view's
@@ -261,7 +340,7 @@ static uint32_t a_cast(voe_ecs_world *world, voe_render_device *device,
 					     &camera));
 	VOE_TEST_CHECK(voe_3d_draw_terrain_cast(device, models, entry, place,
 						voe_3d_normal_matrix(place),
-						capacity));
+						capacity, NULL, NULL));
 	draws = voe_render_frame_draw_count(device);
 	voe_render_pass_end(device);
 	VOE_TEST_CHECK(voe_render_frame_end(device));
@@ -273,7 +352,7 @@ static void the_bounce_casts_coarse(voe_base_arena *arena,
 				    const voe_3d_models *models)
 {
 	voe_ecs_entity thing = { 0 };
-	voe_ecs_world *world = a_world(arena, false, &thing);
+	voe_ecs_world *world = a_world(arena, LEVEL, false, &thing);
 	uint32_t bounce = a_cast(world, device, models,
 				 VOE_3D_TERRAIN_BOUNCE_NODES);
 	uint32_t four = a_cast(world, device, models, 4);
@@ -475,6 +554,7 @@ int main(void)
 						    &land, &error));
 
 	the_ridge_meets_the_sky(arena, device, models);
+	the_nodes_out_of_view_are_skipped(arena, device, models);
 	the_bounce_casts_coarse(arena, device, models);
 	the_layers_are_drawn(arena, device, models);
 
