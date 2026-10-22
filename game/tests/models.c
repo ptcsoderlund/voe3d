@@ -30,9 +30,8 @@
 // in the table is one failure, named, and a second call counts none; with the
 // material on disk as text a watch reports nothing and leaves it loaded.
 //
-// THE MATERIAL POOL: every table material and one not in it load the same
-// with a pool of 3 as without; a broken map keeps its material failed, its
-// path in the kept error, either way.
+// THE BROKEN MAP, on a fresh store with nothing set: a material whose normal
+// map is text loads alone as failed, kept so, its map's path in the kept error.
 //
 // THE LAYERS, on a seventh store and an empty world: a landscape whose two
 // layers name table materials loads both, holds both paths and its painted
@@ -69,7 +68,6 @@
 #include <base/arena.h>
 #include <base/error.h>
 #include <base/report.h>
-#include <base/workers.h>
 
 #include <math/quat.h>
 
@@ -437,60 +435,17 @@ static void check_materials(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
-// What the material pool case compares of one entry, and how many it keeps.
-#define SEEN 8
-struct entry_seen {
-	char path[32];
-	bool loaded;
-	uint32_t parts;
-	uint32_t levels;
-};
-
-// The world's materials loaded into a fresh store with `workers` set (NULL
-// for none): the entries into `seen`, their count returned; the failures'
-// count and first path into `failed` and `first`.
-static uint32_t material_pool_load(voe_ecs_world *world,
-				   voe_render_device *device,
-				   voe_base_arena *scratch,
-				   voe_base_workers *workers,
-				   struct entry_seen seen[SEEN],
-				   uint32_t *failed, char first[32])
-{
-	voe_3d_models *models = voe_3d_models_new();
-	voe_game_models_failures failures;
-	uint32_t count;
-
-	voe_3d_models_workers_set(models, workers);
-	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, &NO_PARTS, scratch);
-	*failed = failures.count;
-	snprintf(first, 32, "%s", failures.first != NULL ? failures.first : "");
-	count = voe_3d_models_count(models);
-	VOE_TEST_CHECK(count <= SEEN);
-	for (uint32_t i = 0; i < count && i < SEEN; i++) {
-		const voe_3d_model_entry *entry = voe_3d_models_at(models, i);
-
-		snprintf(seen[i].path, sizeof(seen[i].path), "%s", entry->path);
-		seen[i].loaded = entry->loaded && entry->material;
-		seen[i].parts = entry->part_count;
-		seen[i].levels = entry->level_count;
-	}
-	voe_3d_models_clear(models, device);
-	voe_3d_models_destroy(models);
-	return count;
-}
-
-// The broken material loaded alone into a fresh store with `workers` set:
-// refused, kept failed, the broken map's path in the kept error.
-static void broken_load(voe_render_device *device, voe_base_arena *scratch,
-			voe_base_workers *workers)
+// The broken material loaded alone into a fresh store: refused, kept failed,
+// the broken map's path in the kept error.
+static void broken_load(voe_render_device *device, voe_base_arena *scratch)
 {
 	voe_3d_models *models = voe_3d_models_new();
 	voe_base_error error = VOE_BASE_OK;
 	const voe_3d_model_entry *entry;
 	const char *kept;
 
-	voe_3d_models_workers_set(models, workers);
+	VOE_TEST_CHECK(voe_platform_file_write(BROKEN_ON_DISK, NOT_A_GLB,
+					       sizeof(NOT_A_GLB), NULL));
 	voe_base_report_error_clear();
 	VOE_TEST_CHECK(!voe_game_models_material_load(models, device, FOLDER,
 						      &MATERIALS.materials[3],
@@ -502,48 +457,6 @@ static void broken_load(voe_render_device *device, voe_base_arena *scratch,
 	VOE_TEST_CHECK(kept != NULL && strstr(kept, BROKEN_PICTURE) != NULL);
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
-}
-
-static void check_material_pool(voe_ecs_world *world,
-				voe_render_device *device,
-				voe_base_arena *scratch)
-{
-	voe_base_workers *workers = voe_base_workers_new(3);
-	struct entry_seen alone[SEEN] = { 0 };
-	struct entry_seen pooled[SEEN] = { 0 };
-	char alone_first[32], pooled_first[32];
-	uint32_t alone_failed, pooled_failed, count;
-
-	VOE_TEST_CHECK(voe_platform_file_write(BROKEN_ON_DISK, NOT_A_GLB,
-					       sizeof(NOT_A_GLB), NULL));
-
-	// ---- every table material and one not in it: the same with a pool
-	shade(world, MATERIAL);
-	shade(world, GREY_MATERIAL);
-	shade(world, NO_MATERIAL);
-	shade(world, GLOW_MATERIAL);
-	shade(world, BROKEN_MATERIAL);
-	count = material_pool_load(world, device, scratch, NULL, alone,
-				   &alone_failed, alone_first);
-	VOE_TEST_CHECK_INT(count, 5);
-	VOE_TEST_CHECK_INT(material_pool_load(world, device, scratch, workers,
-					      pooled, &pooled_failed,
-					      pooled_first),
-			   count);
-	for (uint32_t i = 0; i < count && i < SEEN; i++) {
-		VOE_TEST_CHECK(strcmp(alone[i].path, pooled[i].path) == 0);
-		VOE_TEST_CHECK(alone[i].loaded == pooled[i].loaded);
-		VOE_TEST_CHECK_INT(alone[i].parts, pooled[i].parts);
-	}
-	VOE_TEST_CHECK_INT(alone_failed, 2);
-	VOE_TEST_CHECK_INT(pooled_failed, alone_failed);
-	VOE_TEST_CHECK(strcmp(alone_first, NO_MATERIAL) == 0);
-	VOE_TEST_CHECK(strcmp(pooled_first, alone_first) == 0);
-
-	// ---- a broken map: kept failed, its path in the kept error
-	broken_load(device, scratch, NULL);
-	broken_load(device, scratch, workers);
-	voe_base_workers_destroy(workers);
 }
 
 // `path` held in `models` as a loaded material.
@@ -813,7 +726,7 @@ int main(void)
 	voe_3d_models_clear(landscapes, device);
 	voe_3d_models_destroy(landscapes);
 	check_materials(voe_game_world_new(arena), device, scratch);
-	check_material_pool(voe_game_world_new(arena), device, scratch);
+	broken_load(device, scratch);
 	check_layers(voe_game_world_new(arena), device, scratch);
 	check_parts(voe_game_world_new(arena), device, scratch);
 	check_foliage(voe_game_world_new(arena), device, scratch);

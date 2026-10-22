@@ -40,9 +40,10 @@
 // MATERIALS come from tables (game/materials.h, 0399 point 7, 0420): each
 // loaded model takes its parts from the parts table; then each shape's
 // material, part's `wears` and landscape's layer (0402 point 8) the store
-// lacks loads from the material table at stamp 0, or stays failed: maps read
-// and decoded side by side on the store's pool, uploaded in order; the line as
-// above, `game: materials: …` with reading, decoding pictures and uploading.
+// lacks loads from the material table at stamp 0, or stays failed: one
+// material at a time, its maps read and decoded one after another on the
+// caller, uploaded in order; the line as above, `game: materials: …` with
+// reading, decoding pictures and uploading.
 //
 // LANDSCAPES come from a table, never a file (game/landscapes.h, 0236), loaded
 // at stamp 0 with their layers, paint, kinds and copies.
@@ -102,11 +103,11 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 			   const voe_game_landscapes *landscapes,
 			   voe_base_arena *scratch);
 
-// `material`'s non-empty maps read from `folder` and decoded side by side over
-// the store's pool, each on an arena of its own, and loaded with its values as
-// its path's entry at `stamp`; scratch rewound. False, `error` set and the
-// entry kept failed, when a map will not read or decode or the store refuses
-// it.
+// `material`'s non-empty maps read from `folder` and decoded one after another
+// on the caller, each on an arena of its own, uploaded in order and loaded with
+// its values as its path's entry at `stamp`, its `game: materials:` line said;
+// scratch rewound. False, `error` set and the entry kept failed, when a map
+// will not read or decode or the store refuses it.
 [[nodiscard]] bool voe_game_models_material_load(
 	voe_3d_models *models, voe_render_device *device, const char *folder,
 	const voe_game_material *material, uint64_t stamp,
