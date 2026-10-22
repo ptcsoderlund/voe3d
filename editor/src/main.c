@@ -459,8 +459,6 @@ int main(int argc, char *argv[])
 				.folder = session.project->folder,
 				.path = session.prepare_path,
 				.scratch = worker_scratch,
-				.workers = voe_3d_models_workers(
-					voe_editor_models_store(models)),
 				.remake = session.prepare_remake };
 			if (!voe_game_starting_wait(app, ui, scratch,
 						    splash_held ? &splash : NULL,

@@ -86,13 +86,11 @@ bool voe_editor_loading_prepare_work(void *context, voe_game_progress *progress)
 	voe_game_progress_set(progress, prepare->phase, 0, 0);
 	if (voe_game_progress_stopped(progress))
 		return false;
-	// The kept error is this thread's, so the refusal is built here; the
-	// pool hands its tasks' first error back to it. Make LODs and an
-	// import's LODs are made over the pool.
+	// The kept error is this thread's, so the refusal is built here.
 	voe_base_report_error_clear();
 	if (!voe_game_models_prepare(prepare->folder, prepare->path,
-				     prepare->scratch, prepare->workers,
-				     prepare->remake, &made, &error)) {
+				     prepare->scratch, prepare->remake, &made,
+				     &error)) {
 		prepare->refused = true;
 		voe_editor_notice_from_report(&prepare->refusal, prepare->path);
 	}

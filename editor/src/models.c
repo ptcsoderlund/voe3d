@@ -12,22 +12,15 @@
 // as is every held material a read of the tables found new or changed. A read
 // that fails is said in the session's notice, the kept line whole; a landscape
 // re-read names its path as the subject.
-//
-// The store carries the program's loading pool (0448 point 2): one thread
-// fewer than the machine's cores, made with the store and destroyed after it.
-// Between frames the update goes through game/models_loader.h (0448 point 5),
-// the watch too; a splash wait's call, with its progress, loads whole.
+// Between frames the update and the watch load whole (0459 point 3).
 #include "models.h"
 
 #include <base/assert.h>
 #include <base/error.h>
 #include <base/report.h>
-#include <base/workers.h>
 
 #include <game/models.h>
-#include <game/models_loader.h>
 
-#include <platform/cores.h>
 #include <platform/file.h>
 #include <platform/path.h>
 
@@ -40,11 +33,6 @@
 
 struct voe_editor_models {
 	voe_3d_models *store;
-	// The loading pool set on the store, outliving it.
-	voe_base_workers *workers;
-	// Reads and bakes the update's and the watch's files beside the frames,
-	// over `workers`; destroyed before them.
-	voe_game_models_loader *loader;
 	// The project's materials and parts, read on a different folder.
 	voe_editor_materials *materials;
 	voe_editor_parts *parts;
@@ -75,10 +63,6 @@ voe_editor_models *voe_editor_models_new(void)
 	VOE_BASE_ASSERT(models != NULL, "out of memory making the model store");
 	models->store = voe_3d_models_new();
 	VOE_BASE_ASSERT(models->store != NULL, "made a model store with none");
-	models->workers = voe_base_workers_new(voe_platform_cores() - 1);
-	voe_3d_models_workers_set(models->store, models->workers);
-	models->loader = voe_game_models_loader_new();
-	VOE_BASE_ASSERT(models->loader != NULL, "made a models loader with none");
 	models->materials = calloc(1, sizeof(*models->materials));
 	models->before = calloc(1, sizeof(*models->before));
 	models->parts = calloc(1, sizeof(*models->parts));
@@ -94,10 +78,8 @@ void voe_editor_models_destroy(voe_editor_models *models,
 	if (models == NULL)
 		return;
 	VOE_BASE_ASSERT(device != NULL, "clearing models with no device");
-	voe_game_models_loader_destroy(models->loader);
 	voe_3d_models_clear(models->store, device);
 	voe_3d_models_destroy(models->store);
-	voe_base_workers_destroy(models->workers);
 	free(models->materials);
 	free(models->before);
 	free(models->parts);
@@ -206,7 +188,6 @@ void voe_editor_models_update(voe_editor_models *models,
 {
 	voe_game_materials table;
 	voe_game_parts parts;
-	bool watch;
 
 	VOE_BASE_ASSERT(models != NULL && session != NULL,
 			"updating no store or no session");
@@ -225,32 +206,19 @@ void voe_editor_models_update(voe_editor_models *models,
 		free(models->resized);
 		models->resized = NULL;
 	}
+	voe_base_report_error_clear();
+	say_failure(&session->notice,
+		    voe_game_models_update(session->project->world,
+					   models->store, device,
+					   models->folder, scratch, progress));
 	// The watch before the materials, so a model it reloads is given its
 	// parts before it is drawn.
-	watch = now - models->looked >= WATCH_SECONDS;
-	if (watch)
+	if (now - models->looked >= WATCH_SECONDS) {
 		models->looked = now;
-	if (progress == NULL) {
 		voe_base_report_error_clear();
 		say_failure(&session->notice,
-			    voe_game_models_loader_step(
-				    models->loader, session->project->world,
-				    models->store, device, models->folder,
-				    watch, scratch));
-	} else {
-		voe_base_report_error_clear();
-		say_failure(&session->notice,
-			    voe_game_models_update(session->project->world,
-						   models->store, device,
-						   models->folder, scratch,
-						   progress));
-		if (watch) {
-			voe_base_report_error_clear();
-			say_failure(&session->notice,
-				    voe_game_models_watch(models->store, device,
-							  models->folder,
-							  scratch));
-		}
+			    voe_game_models_watch(models->store, device,
+						  models->folder, scratch));
 	}
 	table = voe_editor_materials_table(models->materials);
 	parts = voe_editor_parts_table(models->parts);

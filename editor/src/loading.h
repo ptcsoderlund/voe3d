@@ -15,8 +15,7 @@
 // A LOAD is voe_editor_session_load ("Loading scene") and the models read the
 // same way. The project is opened before the window, so the start has none.
 // A PREPARE ("Preparing <file>") makes an imported `.glb`'s levels file
-// through voe_game_models_prepare (0426 point 3), no device in it, its levels
-// made over the store's pool (0448 point 2); the Assets
+// through voe_game_models_prepare (0426 point 3), no device in it; the Assets
 // menu's Make levels runs the same one, made even when fresh (0429); main.c
 // loads the model again after the wait (0431) unless the prepare refused it
 // (0445 point 4).
@@ -44,7 +43,6 @@
 #include <app/start_log.h>
 
 #include <base/arena.h>
-#include <base/workers.h>
 
 #include <game/progress.h>
 
@@ -80,14 +78,12 @@ typedef struct {
 // `folder`, as game/models.h takes them. `phase` is the work's own, written
 // by it and pointed at by the progress while the wait runs. `remake` is
 // voe_game_models_prepare's: Import leaves it false, Make levels sets it.
-// `workers` is the pool the levels are made over, the store's; NULL in order.
 // `refused` is set when the prepare refused the `.glb`, whose cause has its
 // own line on stderr; `refusal` is then that kept line as the notice.
 typedef struct {
 	const char *folder;
 	const char *path;
 	voe_base_arena *scratch;
-	voe_base_workers *workers;
 	bool remake;
 	bool refused;
 	voe_editor_notice refusal;
