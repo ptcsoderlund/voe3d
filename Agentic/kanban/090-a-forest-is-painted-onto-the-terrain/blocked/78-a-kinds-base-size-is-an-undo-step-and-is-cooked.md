@@ -30,3 +30,8 @@ Nothing sets a size yet (card 79).
 ## Done when
 The editor builds; `grep -n "kind_size_set" editor/src/strokes.c editor/src/models.c` prints a
 line for each file; `grep -n "kind_sizes" editor/src/game_tree_landscapes.c` prints a line.
+
+## Blocked
+The cards this one comes after (75, 76, 77) are still in `todo/`: the tree at 2f9442fc has no
+`voe_3d_models_landscape_kind_size_set` and no `kind_sizes` in `voe_assets_landscape`, so the
+editor cannot call or cook them. Doing those three cards first, then running this one again, would unblock it.
