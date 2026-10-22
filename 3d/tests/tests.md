@@ -75,6 +75,9 @@ again, or to find where a claim that has started failing is written down.
 - `shadows.c` — that a cube under a straight-down sun shadows the floor, near the origin and
   100 km out, and that a casting lamp beside a cube darkens the floor on the cube's far side.
   Skips without a graphics card.
+- `shadow_culling.c` — that a tall box behind the camera, and one beside the picture, still shadow
+  the floor in it under a low sun, and one 2 km aside is skipped by the cascades, the picture
+  unchanged. Skips without a graphics card.
 - `shadow_times.c` — that the shadows call times nothing without a clock, and with one times the
   casters and no bounce, or a bouncing sun's one bounce call by its parts within it. Skips without
   a graphics card.

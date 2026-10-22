@@ -3,11 +3,10 @@
 // the point lights' one pass, then the probe bounce when a light bounces. The
 // contract is voe_3d_draw_system_shadows's in 3d/draw_system.h.
 //
-// IT IS ITS OWN CALL AND NOT A STEP INSIDE _run, BECAUSE A PASS DOES NOT NEST.
-// _run draws into the view's pass the loop has already opened, and a shadow
-// pass has to be opened and closed before that one is (render/device.h): so the
-// loop calls this between the frame's begin and the view's pass, and the frame
-// it fills carries the record that pass reads.
+// IT IS ITS OWN CALL AND NOT A STEP INSIDE _run, BECAUSE A PASS DOES NOT NEST:
+// a shadow pass is opened and closed before the view's is (render/device.h),
+// so the loop calls this between the frame's begin and the view's pass, and
+// the frame it fills carries the record that pass reads.
 //
 // CASTERS ARE CHOSEN BY WHAT A SUN'S SHADOW IS OF (0258 point 5). World-layer,
 // because the overlay is drawn above the world and nothing in the world stands
@@ -41,20 +40,21 @@
 // colour times it: without it a red box tinted nothing (bug 01); a shape
 // wearing a loaded material carries that record, white (0399 point 6). The mesh
 // table is walked once per cascade, as linearly as the view's own walk.
+// A CASCADE DRAWS ONLY THE CASTERS ITS SIDES AND FAR PLANE SEE (0464 point 3),
+// counted in the frame's `counts`; its sun side is open, so a caster behind
+// the camera or beside the picture still shadows it.
 //
 // THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun casts: when
 // the device's maps are ready and a light in the frame's points has a slot,
-// every caster is drawn into it through the same walk, one instanced draw
-// each over the faces render finds. A lamp's shadow is of what the sun's is of
-// (0324 point 5), so a shape or model with `cast_shadows` false casts for no
-// lamp either; sharing the walk is what keeps the two from disagreeing.
+// every caster is drawn into it, uncut, one instanced draw each over the faces
+// render finds. Its shadow is of what the sun's is of (0324 point 5), so the
+// walk is shared and a caster with `cast_shadows` false casts for no lamp.
 //
 // THEN THE PROBE BOUNCE (0326 point 8), whether or not the sun casts:
-// draw_bounce.c begins the frame's target's bounce, draws the same casters into
-// each capture pass render opens and, for a casting sun, into the relight's own
-// sun map (0329), and relights; who bounces is anything_bounces's. When nothing
-// bounces nothing is called, costing nothing (0316): no begin, no volume, no
-// pass. Failing is the call's.
+// draw_bounce.c begins the target's bounce, draws the same casters, uncut,
+// into each capture pass and a casting sun's relight map (0329), and relights;
+// who bounces is anything_bounces's. When nothing bounces nothing is called
+// (0316): no begin, no volume, no pass. Failing is the call's.
 //
 // WITH A CLOCK EACH PART IS TIMED (0461 point 2): the clock read around it and
 // the difference added to the frame's times, the ground inside the walk.
@@ -105,6 +105,40 @@ static bool held_within(const voe_3d_frame *frame,
 	return (mask & within) == within;
 }
 
+// Whether `cull` sees caster `entity`, its sphere voe_3d_bounce_caster_sphere's
+// at the frame's lag about the frame's eye, NULL seeing all and one of no size
+// seen; one thing counted into `counts`' `cast` or `cast_skipped` unless NULL.
+static bool caster_counted(const voe_ecs_world *world,
+			   const voe_render_device *device,
+			   const voe_3d_frame *frame, voe_ecs_entity entity,
+			   voe_render_geometry geometry,
+			   const voe_3d_model_entry *model,
+			   const struct voe_3d_cull *cull,
+			   voe_3d_view_counts *counts)
+{
+	bool seen = true;
+
+	if (cull != NULL) {
+		voe_math_double3 centre;
+		float radius = voe_3d_bounce_caster_sphere(world, device, entity,
+							   geometry, frame->models,
+							   model, frame->lag, &centre);
+
+		seen = radius <= 0.0f ||
+		       voe_3d_cull_sees(cull,
+					voe_math_double3_to_float3(
+						voe_math_double3_sub(centre, frame->eye)),
+					radius);
+	}
+	if (counts != NULL) {
+		uint32_t *count = seen ? &counts->cast : &counts->cast_skipped;
+
+		(*count)++;
+		VOE_BASE_ASSERT(*count > 0, "a caster count wrapped");
+	}
+	return seen;
+}
+
 // The frame's clock now, read only when it has one (0461 point 2).
 double voe_3d_draw_clock_read(const voe_3d_frame *frame)
 {
@@ -122,13 +156,15 @@ void voe_3d_draw_clock_add(const voe_3d_frame *frame, double *part, double since
 }
 
 // Every loaded model part that casts, drawn into the shadow pass that is open,
-// as draw_casters draws a mesh, `within`, `landscape_nodes` and `coarsest` as
-// it takes them; a part the row's level lacks casts nothing. Nothing with no
-// store (0277 point 3). With `times`, each landscape's draw is added to its
-// `ground`.
+// as draw_casters draws a mesh, `within`, `landscape_nodes`, `coarsest`,
+// `cull` and `counts` as it takes them; a part the row's level lacks casts
+// nothing. Nothing with no store (0277 point 3). With `times`, each
+// landscape's draw is added to its `ground`.
 static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 			       const voe_3d_frame *frame, uint32_t within,
 			       uint32_t landscape_nodes, bool coarsest,
+			       const struct voe_3d_cull *cull,
+			       voe_3d_view_counts *counts,
 			       voe_3d_shadow_times *times)
 {
 	const voe_3d_model *rows = voe_3d_model_rows(world);
@@ -167,13 +203,16 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 			cast = voe_3d_draw_terrain_cast(device, frame->models, model,
 							place,
 							voe_3d_normal_matrix(place),
-							landscape_nodes, NULL, NULL);
+							landscape_nodes, cull, counts);
 			if (times != NULL)
 				voe_3d_draw_clock_add(frame, &times->ground, since);
 			if (!cast)
 				return false;
 			continue;
 		}
+		if (!caster_counted(world, device, frame, owners[row],
+				    (voe_render_geometry){ 0 }, model, cull, counts))
+			continue;
 		// The camera's level, or the bounce's last (0425 point 5).
 		level = coarsest ? model->level_count - 1 :
 				   voe_3d_model_level(model, &drawn, frame->eye,
@@ -204,9 +243,12 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 // their last level (`coarsest`). The ground is drawn inside this walk, so with
 // `times`, the frame's own handed in only when it has a clock, each landscape
 // row's draw is added to its `ground` here (0461 point 2); NULL times nothing.
+// After `within`, a caster `cull` cannot see is skipped (caster_counted).
 static bool draw_casters_timed(voe_ecs_world *world, voe_render_device *device,
 			       const voe_3d_frame *frame, uint32_t within,
 			       uint32_t landscape_nodes, bool coarsest,
+			       const struct voe_3d_cull *cull,
+			       voe_3d_view_counts *counts,
 			       voe_3d_shadow_times *times)
 {
 	const voe_3d_mesh *meshes = voe_3d_mesh_rows(world);
@@ -239,6 +281,8 @@ static bool draw_casters_timed(voe_ecs_world *world, voe_render_device *device,
 		// Where it was `lag` of a step ago, as the view draws it (0254).
 		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
 		if (held_within(frame, &drawn, within) &&
+		    caster_counted(world, device, frame, owners[row],
+				   meshes[row].geometry, NULL, cull, counts) &&
 		    !voe_render_frame_draw(device, meshes[row].geometry,
 					   voe_3d_draw_group_object_of(
 						   &drawn, material, shape,
@@ -247,16 +291,19 @@ static bool draw_casters_timed(voe_ecs_world *world, voe_render_device *device,
 	}
 	return frame->models == NULL ||
 	       draw_model_casters(world, device, frame, within,
-				  landscape_nodes, coarsest, times);
+				  landscape_nodes, coarsest, cull, counts,
+				  times);
 }
 
 // The walk untimed, as the point-shadow pass and the bounce take it.
 bool voe_3d_draw_casters(voe_ecs_world *world, voe_render_device *device,
 			 const voe_3d_frame *frame, uint32_t within,
-			 uint32_t landscape_nodes, bool coarsest)
+			 uint32_t landscape_nodes, bool coarsest,
+			 const struct voe_3d_cull *cull,
+			 voe_3d_view_counts *counts)
 {
 	return draw_casters_timed(world, device, frame, within, landscape_nodes,
-				  coarsest, NULL);
+				  coarsest, cull, counts, NULL);
 }
 
 // Whether anything bounces this frame (0326 point 8): the world's light row,
@@ -344,7 +391,9 @@ static bool light_casts_now(const voe_ecs_world *world, voe_3d_frame *frame,
 }
 
 // One light's four cascades, fitted to its direction, into layers slot × 4
-// onward (0357 point 3), and its record with `slot`. False when render refuses.
+// onward (0357 point 3), and its record with `slot`, each drawing the casters
+// its sides and far plane see, counted into the frame's `counts` (0464 point
+// 3). False when render refuses.
 // With a clock, each walk's time less its ground goes to `casters` and each
 // foliage cast's to `foliage`.
 static bool draw_light_cascades(voe_ecs_world *world, voe_render_device *device,
@@ -358,6 +407,8 @@ static bool draw_light_cascades(voe_ecs_world *world, voe_render_device *device,
 		frame->clock != NULL ? &frame->shadow_times : NULL;
 
 	for (uint32_t cascade = 0; cascade < VOE_RENDER_SHADOW_CASCADES; cascade++) {
+		const struct voe_3d_cull cull =
+			voe_3d_cull_of(cascades.light[cascade], true);
 		double ground = frame->shadow_times.ground;
 		double since;
 		bool drawn;
@@ -369,7 +420,8 @@ static bool draw_light_cascades(voe_ecs_world *world, voe_render_device *device,
 		since = voe_3d_draw_clock_read(frame);
 		drawn = draw_casters_timed(world, device, frame,
 					   frame_light_blockers(frame, light),
-					   VOE_3D_LANDSCAPE_NODES, false, times);
+					   VOE_3D_LANDSCAPE_NODES, false, &cull,
+					   &frame->counts, times);
 		voe_3d_draw_clock_add(frame, &frame->shadow_times.casters,
 			  since + (frame->shadow_times.ground - ground));
 		// Foliage holds no blocker's mask, so only a free light casts it.
@@ -444,7 +496,7 @@ static bool draw_point_shadows(voe_ecs_world *world, voe_render_device *device,
 		return false;
 	since = voe_3d_draw_clock_read(frame);
 	drawn = voe_3d_draw_casters(world, device, frame, 0,
-				    VOE_3D_LANDSCAPE_NODES, false);
+				    VOE_3D_LANDSCAPE_NODES, false, NULL, NULL);
 	voe_3d_draw_clock_add(frame, &frame->shadow_times.lamps, since);
 	voe_render_pass_end(device);
 	return drawn;

@@ -462,7 +462,7 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 	if (!opened)
 		return true;
 	drawn = voe_3d_draw_casters(world, device, frame, within,
-				    VOE_3D_TERRAIN_BOUNCE_NODES, true);
+				    VOE_3D_TERRAIN_BOUNCE_NODES, true, NULL, NULL);
 	// Foliage holds no blocker's mask, so only a free sun's map draws it.
 	if (drawn && within == 0)
 		drawn = voe_3d_draw_foliage_cast(device, frame);
@@ -529,7 +529,7 @@ static bool bounce_volume(struct bouncing *call, voe_3d_bounce_grid grid,
 			call->captured++;
 			drawn = voe_3d_draw_casters(call->world, call->device, frame,
 						    0, VOE_3D_TERRAIN_BOUNCE_NODES,
-						    true);
+						    true, NULL, NULL);
 			voe_render_pass_end(call->device);
 		}
 		voe_3d_draw_clock_add(frame, &frame->shadow_times.bounce_captures,

@@ -114,8 +114,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the cast, on the stack, each node's record over the heights texture, its layers looked up
   once per row per call, and its box's sphere tested and counted.
 - `draw_shadows.c` — the shadow passes as one call: each casting sun's cascades in its slot, of
-  only what its blockers hold, the point-shadow pass and the probe bounce, a landscape by the
-  view's nodes, foliage in a free sun's cascades, each part timed by the frame's clock if any.
+  what its blockers hold and its sides see, counted, the point-shadow pass and the bounce, a
+  landscape by the view's nodes, foliage in free suns' cascades, each part timed by any clock.
 - `draw_point_lights.c` — the point light table into a pass's lights: each placed one at the
   frame's lag about the eye, colour times intensity, falloff as authored, those of intensity 0, an
   off owner's and those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
@@ -126,7 +126,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the sun's mask, and light rows 2 to 4 each masked at its place.
 - `draw_bounce.h` — the frame's probe bounce with foliage in free suns' maps, its stale and
   removed casters' spheres, the caster walk and measure bounce_casters.c shares, the still casters'
-  box, and the cascades' caster walk, casting test and clock helpers; internal.
+  box, and the cascades' culled caster walk, casting test and clock helpers; internal.
 - `bounce_casters.c` — a removed caster's sphere where the target's memory saw it last, then the
   memory refilled with this frame's casters.
 - `draw_bounce.c` — the frame's probe bounce, when a light bounces: the volumes fitted to the

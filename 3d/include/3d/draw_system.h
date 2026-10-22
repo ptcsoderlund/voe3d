@@ -729,9 +729,15 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // solid, and panels and marks cast nothing. A model part in `frame->models` casts under the same rule, its
 // material the part's. A mesh whose shape, or a model whose row, has
 // `cast_shadows` false is no caster, though still drawn and shadowed; nor is a
-// model row with `fade` at or above 1, and a fading one casts as ever (0336). The device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4
-// passes and 4 × the drawn objects more per casting light per view: every
-// caster is drawn once into each of its cascades.
+// model row with `fade` at or above 1, and a fading one casts as ever (0336).
+// A CASTER IS DRAWN INTO A CASCADE ONLY WHEN ITS SPHERE IS INSIDE THE
+// CASCADE'S SIDES AND FAR PLANE (0464 point 3); the sun side is open, so what
+// stands behind the camera or beside the picture still shadows it. Each mesh
+// or model row, and each landscape node, is counted into `frame->counts`'
+// `cast` or `cast_skipped`, summed over every cascade of every light. The
+// device needs `shadow_size` VOE_3D_SHADOW_TEXELS, and room for 4 passes and
+// 4 × the drawn objects more per casting light per view, unchanged as a
+// ceiling: every caster may be drawn once into each of its cascades.
 //
 // THEN ONE POINT-SHADOW PASS (0325 point 6), whether or not the sun cast: when
 // voe_render_point_shadows_ready and a light in `frame->points` has a slot, it
