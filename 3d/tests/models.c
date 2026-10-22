@@ -3,8 +3,7 @@
 // the same way, a path never asked for not there, a path loaded again replacing
 // itself, a clear, each part's blended twin, each part's glTF `source` and the
 // `wears` _parts_set fills, empties and a reload clears, pictures, the soft dot
-// and the water, a model drawn, and the pool the store carries: NULL on a new
-// store, the one set read back, kept by a clear.
+// and the water, and a model drawn.
 //
 // A REFUSAL IS SAID ONCE, UNDER THE CALLER'S SUBJECT (0445): a `.glb` built
 // here with one material more than VOE_3D_MODEL_PARTS is loaded with
@@ -564,22 +563,6 @@ static void check_drawn(voe_3d_models *models, voe_render_device *device)
 	voe_base_arena_destroy(arena);
 }
 
-// The pool is NULL on a new store, the pool set is the one read back, and a
-// clear keeps it; then the store is let go of it.
-static void check_workers(voe_3d_models *models, voe_render_device *device)
-{
-	voe_base_workers *workers = voe_base_workers_new(0);
-
-	VOE_TEST_CHECK(workers != NULL);
-	VOE_TEST_CHECK(voe_3d_models_workers(models) == NULL);
-	voe_3d_models_workers_set(models, workers);
-	VOE_TEST_CHECK(voe_3d_models_workers(models) == workers);
-	voe_3d_models_clear(models, device);
-	VOE_TEST_CHECK(voe_3d_models_workers(models) == workers);
-	voe_3d_models_workers_set(models, NULL);
-	voe_base_workers_destroy(workers);
-}
-
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -601,7 +584,6 @@ int main(void)
 	}
 
 	models = voe_3d_models_new();
-	check_workers(models, device);
 
 	// ---- a model loads, and its entry carries the node transform
 	VOE_TEST_CHECK(voe_3d_models_load(models, device, "Assets/two.glb", 7,

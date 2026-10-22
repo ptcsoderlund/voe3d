@@ -162,8 +162,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   own counts.
 - `models.c` — the store's table of entries with an arena each, the `.glb` load as a prepare and
   a put that uploads each part with its blended twin and gives back what a failure made; the parts
-  set; pictures on the quad, the dot and the water apart; the pool held, not owned.
-- `models_store.h` — the store's internal table with the program's pool and its count of changes
+  set; pictures on the quad, the dot and the water apart.
+- `models_store.h` — the store's internal table with its count of changes
   the bounce relights by, the prepared `.glb` and the helpers the store's files share.
 - `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until
   one matches no part, or a levels file read and checked against the bake, the shape built and

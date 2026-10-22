@@ -7,7 +7,7 @@
 // Used by the editor and the game: the load when a `.material` is read or a
 // map of it changes, the set while a field is dragged, the frame once a frame
 // before its first pass. The load decodes each map and then puts; the put
-// alone takes maps a loader decoded already on other threads (0448 point 3).
+// alone takes maps the loader's decoding step decoded (0459 point 1).
 //
 // Constraints: a map's picture is decoded by its path's extension, as a
 // picture entry's is, so a map path that is no `.png`, `.jpg` or `.jpeg` fails

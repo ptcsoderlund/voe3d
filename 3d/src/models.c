@@ -2,8 +2,8 @@
 // the load that reads, bakes, uploads and keeps one file.
 //
 // A `.glb` LOAD IS A PREPARE AND A PUT (0448 point 3). The prepare
-// (3d/model_prepare.h) bakes the parts, the levels, the CPU shape and the sphere
-// on any thread; the put, on the device's, has model_upload.h put the pictures
+// (3d/model_prepare.h) bakes the parts, the levels, the CPU shape and the
+// sphere; the put, on the device's thread, has model_upload.h put the pictures
 // and materials on the card, makes each part a geometry and, unless it is
 // BLENDED, a blended twin record, has models_levels.c put the levels beside
 // them, and copies the shape into the entry's own arena. _load_levelled reads
@@ -37,9 +37,6 @@
 //
 // A LANDSCAPE IS READ HERE AND UPLOADED BY models_landscape.c, which holds
 // every landscape call; the table they share is models_store.h's.
-//
-// THE POOL IS HELD, NOT OWNED (0448 point 2): set and read here for the
-// loaders, it outlives _clear and is never destroyed by the store.
 //
 // CONSTRAINTS: _find is a scan over the entries by string compare, which at
 // VOE_3D_MODELS entries is nothing; a hash of the path would lift it if the
@@ -141,22 +138,6 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device)
 	if (models->has_grid)
 		(void)voe_render_geometry_destroy(device, models->grid);
 	models->has_grid = false;
-}
-
-void voe_3d_models_workers_set(voe_3d_models *models,
-			       voe_base_workers *workers)
-{
-	VOE_BASE_ASSERT(models != NULL, "setting the pool of no store");
-
-	models->workers = workers;
-	VOE_BASE_ASSERT(models->workers == workers, "the pool was not set");
-}
-
-voe_base_workers *voe_3d_models_workers(const voe_3d_models *models)
-{
-	VOE_BASE_ASSERT(models != NULL, "reading the pool of no store");
-
-	return models->workers;
 }
 
 void voe_3d_models_destroy(voe_3d_models *models)

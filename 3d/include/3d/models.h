@@ -31,9 +31,7 @@
 // THE MEMORY IS THE STORE'S (rule 11's exception), given back by _destroy, which
 // frees nothing on the card: a program keeping its device calls _clear. THE STORE
 // IS CHANGED ONLY BETWEEN FRAMES: every upload and free waits for the card to go
-// idle; the _frame calls alone run inside one, writing what exists. THE STORE
-// CARRIES THE POOL ITS LOADERS RUN ON (0448 point 2), the program's: never
-// run, destroyed or cleared here.
+// idle; the _frame calls alone run inside one, writing what exists.
 //
 // PICTURES SHARE THE STORE (ADR-0298 point 5): a `.png`, `.jpg` or `.jpeg` path
 // has two BLENDED parts on the store's one quad, 0 lit and 1 unlit, the glow,
@@ -70,7 +68,6 @@
 #include <assets/parts.h>
 #include <base/arena.h>
 #include <base/error.h>
-#include <base/workers.h>
 #include <math/float3.h>
 #include <render/device.h>
 
@@ -187,14 +184,8 @@ typedef struct voe_3d_models voe_3d_models;
 voe_3d_models *voe_3d_models_new(void);
 void voe_3d_models_destroy(voe_3d_models *models);
 // Frees every entry's parts on the card and its memory; the store is empty
-// and takes loads again. The pool is kept.
+// and takes loads again.
 void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
-
-// The program's pool its loaders run on, NULL until set; the store never runs
-// it itself, nor destroys it, so it must outlive the store's use of it.
-void voe_3d_models_workers_set(voe_3d_models *models,
-			       voe_base_workers *workers);
-voe_base_workers *voe_3d_models_workers(const voe_3d_models *models);
 
 // Reads `bytes` as a picture when `path` ends `.png`, `.jpg` or `.jpeg` in any
 // case, as a landscape's text when it ends `.landscape`, else as a `.glb`, and
@@ -257,9 +248,9 @@ voe_base_workers *voe_3d_models_workers(const voe_3d_models *models);
 	uint64_t stamp, const voe_assets_material_file *material,
 	voe_3d_material_maps maps, voe_base_error *error);
 
-// `material` as `path`'s entry, its maps decoded already on any thread: each of
-// width above 0 uploaded mipped, colour and emission as COLOUR, normal and ORM
-// as DATA, the ORM map's one texture in the metal-roughness and the
+// `material` as `path`'s entry, its maps decoded by the caller before the put:
+// each of width above 0 uploaded mipped, colour and emission as COLOUR, normal
+// and ORM as DATA, the ORM map's one texture in the metal-roughness and the
 // occlusion slots both (0400), the emission map in the emissive slot; colour,
 // metal, roughness, repeat and shader from the values, `cutout` > 0 as CUTOUT
 // at that cutoff else OPAQUE, `emission` × `emission_strength` as emissive, and

@@ -24,8 +24,8 @@
 //    and, under a quarter of that, 400 m away; clearing the store after it
 //    asserts nothing, made levels freed before the parts they walk.
 // 9. After a clear, the sphere with its levels file and 3's sphere with its
-//    made file, each read with its pictures encoded, prepared on a second
-//    thread, its pictures decoded and put on this one: the entry is what
+//    made file, each read with its pictures encoded, prepared, its pictures
+//    decoded and put, all on one thread: the entry is what
 //    _load_levelled makes of the same bytes beside it (parts, `level_count`,
 //    bounds, sphere, shape), its prepare's arena gone.
 // 10. A `.glb` wearing one material more than VOE_3D_MODEL_PARTS prepares to
@@ -64,7 +64,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <threads.h>
 
 #include "model_glb.inc"
 
@@ -413,65 +412,34 @@ static void check_own_measured(voe_base_arena *arena, voe_3d_models *models,
 		       f->own_far_levels, f->own_far_levels_size, 2.0f);
 }
 
-// What the second thread prepares, on an arena the test does not touch
-// meanwhile.
-typedef struct {
-	voe_base_arena *arena;
-	const voe_assets_model *model;
-	const uint8_t *glb;
-	size_t glb_size;
-	const uint8_t *levels;
-	size_t levels_size;
-	const voe_3d_model_prepared *prepared;
-	voe_base_error error;
-} preparing;
-
-static int prepare_task(void *context)
-{
-	preparing *job = context;
-
-	job->prepared = voe_3d_model_prepare(job->arena, job->model, job->glb,
-					     job->glb_size, job->levels,
-					     job->levels_size, &job->error);
-	return 0;
-}
-
-// `glb` read into `model` with its pictures encoded, prepared on a second
-// thread, then its pictures decoded on this one; NULL when any step was.
+// `glb` read into `model` with its pictures encoded, prepared, then its
+// pictures decoded; NULL when any step was.
 static const voe_3d_model_prepared *
 prepare_apart(voe_base_arena *arena, voe_assets_model *model,
 	      const uint8_t *glb, size_t glb_size, const uint8_t *levels,
 	      size_t levels_size)
 {
-	preparing job = { .arena = arena,
-			  .model = model,
-			  .glb = glb,
-			  .glb_size = glb_size,
-			  .levels = levels,
-			  .levels_size = levels_size };
+	const voe_3d_model_prepared *prepared;
 	voe_base_error error = VOE_BASE_OK;
 	voe_assets_image *images;
-	thrd_t thread;
-	int result = -1;
 
 	VOE_TEST_CHECK(voe_assets_model_read_glb_encoded(glb, glb_size, arena,
 							 model, &error));
 	if (error != VOE_BASE_OK)
 		return NULL;
-	VOE_TEST_CHECK(thrd_create(&thread, prepare_task, &job) ==
-		       thrd_success);
-	VOE_TEST_CHECK(thrd_join(thread, &result) == thrd_success);
+	prepared = voe_3d_model_prepare(arena, model, glb, glb_size, levels,
+					levels_size, &error);
 	images = voe_base_arena_push(arena, ((size_t)model->image_count + 1) *
 						    sizeof(*images));
 	for (uint32_t i = 0; i < model->image_count; i++)
 		VOE_TEST_CHECK(voe_assets_model_decode_picture(
 			model, i, arena, &images[i], &error));
 	model->images = images;
-	return job.prepared;
+	return prepared;
 }
 
 // 9: `glb` with `levels` loaded as "Assets/loaded.glb" and put as
-// "Assets/put.glb" after a prepare on a second thread: alike.
+// "Assets/put.glb" after a prepare, decode and put on this thread: alike.
 static void check_put(voe_3d_models *models, voe_render_device *device,
 		      const uint8_t *glb, size_t glb_size,
 		      const uint8_t *levels, size_t levels_size)

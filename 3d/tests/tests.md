@@ -150,10 +150,10 @@ again, or to find where a claim that has started failing is written down.
 - `model_bake.c` — that the bake carries a file's vertex colours as complements and bakes one
   `_LOD<n>` level of a file's own at a time. Needs no graphics card.
 - `models.c` — the model store's loads, failures, replaces, clears and blended twins, glTF source
-  and `wears`, pictures, a model drawn only with the store, a 17-material refusal and the pool.
+  and `wears`, pictures, a model drawn only with the store and a 17-material refusal.
   Skips without a card.
 - `models_levels.c` — the store's levels: a levels file's and a file's own `_LOD1`, a far swap,
-  none leaked across reloads and clears, pools below level 0, a prepare on a second thread, and 17
+  none leaked across reloads and clears, pools below level 0, a prepare then a put, and 17
   materials refused. Skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
   layers and renames written within a frame's budget, and its foliage placed, kept standing by a
