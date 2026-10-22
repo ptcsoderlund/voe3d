@@ -19,3 +19,6 @@ Two things, both:
 ## How to reproduce
 In lumberhill, with the sun's bounces at 1 or more, paint a forest on the hill and look up into the
 canopy from below: the leaves' undersides are lit by the floor as brightly as over open ground.
+
+## Closed by
+Point 1 by 0450 and 0451, carried out for bug 04 in cards 71–74. Point 2 dropped by the sponsor (0457).
