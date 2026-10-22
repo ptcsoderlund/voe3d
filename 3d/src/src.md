@@ -199,7 +199,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   popped cheapest first, a seam line's re-pointed by side and a soft position's onto the kept
   vertex, each refused past 90° of turn.
 - `model_levels.c` — a `.glb`'s levels file made with no picture decoded (level 0 baked, each
-  level and part simplified to its share over the pool, or own levels baked and measured),
+  part simplified to its share level by level, no pool, or own levels baked and measured),
   written and read back with stale fields refused,
   its swaps patched in place, and each level's triangles.
 - `measure.h` — how far apart two bakes are, both ways, vertex to nearest triangle, for an own
