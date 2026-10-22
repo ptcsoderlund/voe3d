@@ -1,4 +1,4 @@
-# 76 — A copy is placed at its kind's base size
+# 87 — A copy is placed at its kind's base size
 folder: 3d
 after: 75
 decisions: 0168, 0442, 0459, 0460
@@ -35,6 +35,3 @@ kind's size and places that kind's copies again.
 
 ## Done when
 Tests `3d/foliage` and `3d/models_landscape` pass.
-
-## Blocked
-The card is `after: 75`, and card 75 is not on this branch: `assets` has no `kind_sizes` field and no `voe_assets_landscape_kind_size` (a grep of `assets/` finds neither), so nothing in `3d` can be built against them. Card 75 was being worked at the same time in another worktree. Once card 75 is committed to the feature branch, this card can go back to `todo/` and be done as written.
