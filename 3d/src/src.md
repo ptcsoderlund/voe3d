@@ -94,12 +94,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
   is the whole of it.
 - `draw_system.c` — the camera's view, the first light, the first on sky, Haze and picture rows,
   the frame's pass camera, and each drawable's draw into the frame the loop opened, foliage after
-  the landscapes.
+  the landscapes, a mesh the camera cannot see skipped and counted.
 - `draw_models.h` — the model rows' walk, its part count for the blended group's room and the
   entry and landscape test the landscape walk shares; internal.
 - `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
   the level before in its band, and blended or fading ones held, a faded-out row and a landscape
-  skipped.
+  skipped, and a row the camera cannot see skipped and counted.
 - `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part and rest, and
   the groups' solid and cast draws, one each, why rest groups do not cast, and why the bounce sun
   maps draw them and captures and point shadows do not; internal.

@@ -39,9 +39,10 @@
 // and has to be in the mesh table before this walk; a draw system that opened
 // and closed the frame itself left no moment for that.
 //
-// ONE DRAW PER MESH, FROM THE CPU. No indirect command buffer, no culling and no
-// extract step into a second layout; the data is already in the shape those
-// would need — geometry in shared pools, one record per object, textures by id.
+// ONE DRAW PER MESH, FROM THE CPU, OF WHAT THE VIEW CAN SEE. No indirect command
+// buffer and no extract step into a second layout; the data is already in the
+// shape those would need. A thing whose world sphere the view cannot see is
+// skipped and counted (0464); panels, marks, the outline and the gizmo never are.
 // Two exceptions: a panel is one draw however many rectangles are on it, and
 // foliage is one instanced draw per group of copies (0442 point 5), gathered
 // once a frame by voe_3d_draw_system_foliage before the passes.
@@ -313,6 +314,17 @@ typedef struct {
 	uint32_t bounced;
 } voe_3d_shadow_times;
 
+// What a view drew and skipped (0464 point 5). A thing is a mesh row, a model
+// row, a landscape node, a foliage copy (a band's `rest` copies not counted), a
+// particle or a water; panels, marks, the outline and the gizmo are none.
+typedef struct {
+	// The camera pass's things drawn, a held one among them, and skipped.
+	uint32_t drawn, skipped;
+	// The cascades' things drawn and skipped, summed over every cascade of
+	// every light.
+	uint32_t cast, cast_skipped;
+} voe_3d_view_counts;
+
 // What one frame is drawn with, in the shape `render` takes it: the camera and
 // the sun. Computed once by voe_3d_draw_system_frame, handed to
 // voe_render_pass_begin by the loop and back to voe_3d_draw_system_run for its
@@ -483,6 +495,11 @@ typedef struct {
 	// What each part of the shadows call took, by `clock`; only the
 	// shadows call writes it, adding to what is there. _frame zeroes it.
 	voe_3d_shadow_times shadow_times;
+	// What the view drew and skipped (0464 point 5). _frame zeroes it; the
+	// foliage gather and the shadows call add their part, the caller hands
+	// it on to _run as it does `foliage`, and _run returns it with the
+	// camera pass's own things added.
+	voe_3d_view_counts counts;
 } voe_3d_frame;
 
 // The share of D, the 17th casting lamp's distance, where a point light's
@@ -906,8 +923,20 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // not call _end. Calling this with no pass open is the caller's bug and asserts,
 // the same rule render applies to a draw outside a pass.
 //
+// WHAT THE CAMERA CANNOT SEE IS SKIPPED AND COUNTED (0464 points 2 and 5). A
+// mesh row whose geometry box (voe_render_geometry_box), as its centre and half
+// diagonal under the row's object matrix about the eye at the lag, lies wholly
+// outside one of `frame.view`'s six planes is neither drawn nor held; so is a
+// model row whose entry's `centre` and `radius` under its world matrix do. A
+// mesh whose id has no box is seen. Panels, marks, the outline and the gizmo
+// are never culled and never counted.
+//
+// IT RETURNS `frame.counts` WITH ITS OWN THINGS ADDED: each mesh or model row
+// drawn or held one `drawn`, each skipped one `skipped`; a blind frame returns
+// `frame.counts` as it came. A caller ignoring it draws the same.
+//
 // NOTHING IN HERE FAILS IN A WAY THE LOOP SHOULD STOP FOR, WHICH IS WHY IT
-// RETURNS NOTHING. A draw the device refuses — more objects than it was made
+// RETURNS NO VERDICT. A draw the device refuses — more objects than it was made
 // for, an id naming nothing — stops its group, says so on stderr and leaves the
 // frame to be ended and presented as usual; the device having stopped answering
 // is _begin's and _end's to report, and both return false when it has.
@@ -923,5 +952,7 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // it takes is bounded by the number of drawables in the world, each loaded part
 // of each model row, VOE_3D_LANDSCAPE_NODES per landscape row, each live particle and each water counted as one — three groups' worth of it, because which group a drawable is in is not known until the walks
 // have finished and each of them therefore has room for all of them.
-void voe_3d_draw_system_run(voe_ecs_world *world, voe_render_device *device,
-			    voe_base_arena *arena, voe_3d_frame frame);
+voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
+					  voe_render_device *device,
+					  voe_base_arena *arena,
+					  voe_3d_frame frame);

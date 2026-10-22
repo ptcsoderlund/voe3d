@@ -8,7 +8,8 @@
 // point 5). A part whose worn material is blended is held too; the rest are
 // drawn solid now, two-sided when that material is double-sided (0421 point
 // 2). A landscape row is skipped here: draw_system.c draws it by
-// draw_terrain.c's nodes.
+// draw_terrain.c's nodes. A row whose sphere the camera cannot see is skipped
+// and counted (0464 points 2 and 5).
 //
 // A ROW IN A LEVEL'S BAND DISSOLVES (0432 point 3): a part drawn now is drawn
 // twice, the chosen level on `shown` of its pixels through the object's
@@ -130,18 +131,39 @@ static bool draw_part_now(voe_render_device *device, const voe_3d_frame *frame,
 	return voe_3d_draw_group_mesh_draw(device, &entry, false);
 }
 
+// Whether `cull` sees `model`'s sphere under `drawn` about `eye`, as its parts
+// are drawn; NULL sees everything.
+static bool row_seen(const struct voe_3d_cull *cull,
+		     const voe_3d_model_entry *model,
+		     const voe_scene_transform *drawn, voe_math_double3 eye)
+{
+	voe_math_float4x4 place;
+
+	VOE_BASE_ASSERT(model != NULL && drawn != NULL,
+			"culling no model or no place");
+	if (cull == NULL)
+		return true;
+	place = voe_scene_transform_matrix(*drawn, eye);
+	return voe_3d_cull_sees(
+		cull, voe_math_float4x4_transform_point(place, model->centre),
+		voe_3d_cull_radius(place, model->radius));
+}
+
 // A row's fade is read once: at or above 1 nothing is drawn, between 0 and 1
 // every part is held blended, at or below 0 or not a number as a solid row
 // (0336 point 3).
 bool voe_3d_draw_models(voe_ecs_world *world, voe_render_device *device,
 			const voe_3d_frame *frame,
-			struct voe_3d_draw_group *world_blended)
+			struct voe_3d_draw_group *world_blended,
+			const struct voe_3d_cull *cull,
+			voe_3d_view_counts *counts)
 {
 	const voe_ecs_entity *owners;
 	const voe_3d_model *rows;
 
 	VOE_BASE_ASSERT(world != NULL && frame != NULL && world_blended != NULL,
 			"drawing models with no world, frame or group");
+	VOE_BASE_ASSERT(counts != NULL, "drawing models with nothing to count in");
 	if (frame->models == NULL)
 		return true;
 	owners = voe_3d_model_entities(world);
@@ -163,6 +185,11 @@ bool voe_3d_draw_models(voe_ecs_world *world, voe_render_device *device,
 		    voe_3d_draw_models_is_landscape(frame->models, model))
 			continue;
 		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
+		if (!row_seen(cull, model, &drawn, frame->eye)) {
+			counts->skipped++;
+			continue;
+		}
+		counts->drawn++;
 		choice = voe_3d_model_level_choose(model, &drawn, frame->eye,
 						   &frame->view);
 		dissolving = !fading && choice.shown < 1.0f;
