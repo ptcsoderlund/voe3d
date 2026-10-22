@@ -12,6 +12,10 @@
 // A COPY IS `kind x z turn scale lean` in the text (0442 point 1) and
 // {x, z, turn, scale, kind, lean} in memory, the order a cooked initializer
 // fills; each number is range-checked against its field before it is narrowed.
+//
+// A KIND'S SIZE `size<k>` FOLLOWS `kind<k>` (0460 point 1), whole thousandths
+// from 100 to 10000, printed only when neither 0 nor 1000: a 1× kind's lines
+// are as they were before sizes, and 0 in memory means 1× (point 2).
 #include "landscape_foliage.h"
 
 #include <base/assert.h>
@@ -37,6 +41,31 @@ static bool refuse(voe_base_error *error, voe_base_error code, const char *key,
 	if (error != NULL)
 		*error = code;
 	return false;
+}
+
+// Kind k's optional `size<k>` into `into`, left 0 when missing.
+static bool read_kind_size(const voe_assets_sectioned *doc, uint32_t section,
+			   uint32_t k, voe_assets_landscape *into,
+			   voe_base_error *error)
+{
+	char name[16];
+	const char *value;
+	char *end;
+	long long parsed;
+
+	snprintf(name, sizeof(name), "size%u", k);
+	value = voe_assets_sectioned_value(doc, section, name);
+	if (value == NULL)
+		return true;
+	errno = 0;
+	parsed = strtoll(value, &end, 10);
+	if (end == value || *end != '\0' || errno == ERANGE ||
+	    parsed < VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN ||
+	    parsed > VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX)
+		return refuse(error, VOE_BASE_ERROR_MALFORMED, name,
+			      "a size not a whole number from 100 to 10000");
+	into->kind_sizes[k] = (uint16_t)parsed;
+	return true;
 }
 
 // `[Foliage]`'s paths from kind0= to the first missing key, into `into`.
@@ -66,6 +95,8 @@ static bool read_kinds(const voe_assets_sectioned *doc, const char *text,
 			return refuse(error, VOE_BASE_ERROR_MALFORMED, name,
 				      "a path of 128 bytes or more");
 		memcpy(into->kinds[k], path, length + 1);
+		if (!read_kind_size(doc, section, k, into, error))
+			return false;
 		into->kind_count = k + 1;
 	}
 	return true;
@@ -160,6 +191,18 @@ static bool read_copies(const voe_assets_sectioned *doc, voe_base_arena *arena,
 	return true;
 }
 
+float voe_assets_landscape_kind_size(const voe_assets_landscape *landscape,
+				     uint32_t kind)
+{
+	VOE_BASE_ASSERT(landscape != NULL, "the kind size of no landscape");
+	VOE_BASE_ASSERT(kind < VOE_ASSETS_LANDSCAPE_KINDS,
+			"a kind past the most a landscape holds");
+
+	const uint16_t thousandths = landscape->kind_sizes[kind];
+
+	return thousandths == 0 ? 1.0f : (float)thousandths / 1000.0f;
+}
+
 bool voe_assets_landscape_foliage_read(const voe_assets_sectioned *doc,
 				       const char *text, size_t size,
 				       voe_base_arena *arena,
@@ -187,9 +230,17 @@ void voe_assets_landscape_kinds_print(
 	voe_assets_landscape_print(printer, "[Foliage]\n");
 	for (uint32_t k = 0; k < landscape->kind_count; k++) {
 		char quoted[VOE_ASSETS_LANDSCAPE_QUOTED_PATH];
+		const uint16_t size = landscape->kind_sizes[k];
 
+		VOE_BASE_ASSERT(size == 0 ||
+					(size >= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN &&
+					 size <= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX),
+				"writing a kind size the reader would refuse");
 		voe_assets_landscape_quote(landscape->kinds[k], quoted);
 		voe_assets_landscape_print(printer, "kind%u=%s\n", k, quoted);
+		if (size != 0 && size != 1000)
+			voe_assets_landscape_print(printer, "size%u=%u\n", k,
+						   (unsigned)size);
 	}
 	voe_assets_landscape_print(printer, "\n");
 }

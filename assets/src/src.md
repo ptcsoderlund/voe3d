@@ -42,8 +42,8 @@ of them is internal to this folder rather than reachable from outside it.
   back out, and resampled per weight.
 - `landscape_foliage.h` — the foliage's read and print, internal to this
   folder, with the quote helpers `landscape.c` shares with it.
-- `landscape_foliage.c` — `[Foliage]`'s quoted kind paths and `[Copies]`' six
-  numbers a copy, walked once in order, and back out.
+- `landscape_foliage.c` — `[Foliage]`'s quoted kind paths and base sizes and
+  `[Copies]`' six numbers a copy, walked once in order, and back out.
 - `material.c` — the material file over the sectioned reader, with a scratch
   arena of its own, and a writer that quotes every path.
 - `parts.c` — the parts file over the sectioned reader: each `material<N>` key
