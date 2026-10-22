@@ -27,7 +27,11 @@
 // menu, writes every picture as `<stem>-<image name>.png` (the same rule,
 // `image<N>`) and `<stem>-<material name>-orm.png` per material with an
 // occlusion or metal-roughness picture (assets/model_material.h), each whole
-// and atomically over a file of that name. Then each material the `.parts`
+// and atomically over a file of that name, no larger than `largest` on its
+// longest side, aspect kept, never enlarged, so a run at a larger size gives
+// back up to the `.glb`'s own size (0453); each shrunk by its use through
+// voe_assets_image_fit (assets/image.h), normal, colour or data, as 0466
+// point 3 says. Then each material the `.parts`
 // names is read, or taken from the glTF values when it is gone, its
 // `colormap`, `normalmap`, `ormmap` and `emissionmap` set to those PNGs, a
 // slot the glTF material leaves empty kept, every other value kept, and
@@ -51,6 +55,7 @@
 #include <base/arena.h>
 
 #include <stdbool.h>
+#include <stdint.h>
 
 // Writes `glb`'s materials and parts beside it, the parts keeping the levels
 // of the one there, `glb` the project-relative
@@ -62,9 +67,11 @@
 					   voe_editor_notice *why);
 
 // Import textures for `glb`, as above: its pictures written beside it and the
-// materials its `.parts` names dressed in them. True when every file is
-// written; false with `why` set. `scratch` is rewound.
+// materials its `.parts` names dressed in them, `largest` the longest side
+// any written picture may have. True when every file is written; false with
+// `why` set. `scratch` is rewound.
 [[nodiscard]] bool voe_editor_model_import_textures(const char *project_folder,
 						    const char *glb,
+						    uint32_t largest,
 						    voe_base_arena *scratch,
 						    voe_editor_notice *why);

@@ -174,7 +174,7 @@ static void voe_editor_interface_assets_textures_do(voe_editor_session *session,
 
 	voe_editor_notice_clear(&session->notice);
 	(void)voe_editor_model_import_textures(
-		folder, voe_editor_assets_join(arena, "Assets", path), arena,
+		folder, voe_editor_assets_join(arena, "Assets", path), 2048, arena,
 		&session->notice);
 	voe_editor_models_materials_read(models, folder, arena);
 	voe_editor_scene_material_refresh(scene, voe_editor_models_materials(models));

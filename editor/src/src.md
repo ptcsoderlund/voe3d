@@ -199,10 +199,10 @@ carries it out.
   fired row's path, Up and Import afterwards, and the import's copy.
 - `model_import.h` — what Import writes beside a `.glb`: one `<stem>-<name>.material` per glTF
   material and `<stem>.parts` naming them, both overwritten every import, the levels kept (0403,
-  0420 point 3); and Import textures: its pictures as PNGs and the materials' four maps set to them.
+  0420 point 3); and Import textures: its pictures as PNGs within a largest size, the four maps set.
 - `model_import.c` — the file read and parsed, its pictures decoded only for Import textures, each
   name cleaned and made unique, every path checked before the first write, then the materials and
-  the parts, or the PNGs and the dressed materials, written.
+  the parts, or the PNGs shrunk to the largest size by use and the dressed materials, written.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
   over a row and Import textures and Make LODs over a `.glb`'s, Create with its Folder, Landscape and Material
   submenu over the empty part, anchored at the pointer.
