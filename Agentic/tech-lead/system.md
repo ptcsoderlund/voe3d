@@ -1,13 +1,13 @@
 # System
 
-The map of voe3d (Voluntary Overtime Engine 3D), a real-time 3D engine in C23 on Vulkan 1.3, its
-editor and dev program in one tree. Every code folder is a standalone CMake project —
-`include/<folder>/`, `src/`, `tests/`, a four-line `CMakeLists.txt` — built as `voe_<folder>`,
-linked as `voe::<folder>`, mapped by `<folder>/<folder>.md`. Dependencies point down this list and
-never back up; `cmake/voe.cmake` holds the allowed edges, so a change needing a new edge is a
-decision, not a card. The standing rules are decision 0168, named on every card.
+The map of voe3d, a real-time 3D engine in C23 on Vulkan 1.3, its editor and dev program in one
+tree. Every code folder is a standalone CMake project — `include/<folder>/`, `src/`, `tests/`, a
+four-line `CMakeLists.txt` — built as `voe_<folder>`, linked as `voe::<folder>`, mapped by
+`<folder>/<folder>.md`. Dependencies point down this list and never back up; `cmake/voe.cmake`
+holds the allowed edges, so a new edge is a decision, not a card. The standing rules are decision
+0168, named on every card. Records 0001–0167 are in `history/decisions/`, the rest in `decisions/`.
 
-- **base** — arenas, containers, strings, the two asserts, error codes, described structs.
+- **base** — arenas, containers, strings, the two asserts, error codes, reports, described structs.
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, tables, intent and structural queues; a type's menu, unsaid row, former names.
 - **platform** — OS-aware: window, input, pads, files, trash, clock, process, env, sound.
@@ -22,7 +22,7 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
 - **3d** — meshes, models and LODs, materials, landscapes, shapes, particles, water; picks, markers.
 - **sprite** — a sprite is a plane in the world and hands back a material.
-- **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file.
+- **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file, hitches.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash worker.
 - **editor** — top bar, Project, Scene list, Assets, prefabs, views, gizmo, sculpt, Inspector, Play.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
@@ -31,7 +31,6 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - **engine_assets** — the human's logo and input material; not code; agents read, link, never write.
 
 ## Decisions in force
-0001–0167 stand in `history/decisions/`; 0168 on are indexed in `decisions/decisions.md`.
 - 0001, 0005, 0008, 0026, 0047 — One repo of static CMake folders, no plugin; Clang 19+ as `clang`.
 - 0004, 0021, 0023, 0028, 0031, 0042, 0213 — Tools installed, deps fetched; no CI; CTest.
 - 0007, 0011, 0013, 0017 — The scene is an ECS; a component and its system are one module.
@@ -58,3 +57,4 @@ decision, not a card. The standing rules are decision 0168, named on every card.
 - 0374–0381, 0384–0388, 0392, 0395–0401, 0403, 0404, 0420–0421 — Loghouse; bindless; 60 fps; models.
 - 0405, 0406, 0411, 0413–0416, 0418, 0423 — Sky, Haze, Picture; only lights light; env via platform.
 - 0425, 0427–0430, 0432–0437, 0441 — LODs: made, chosen by error on screen, dissolved; off switch.
+- 0442–0445, 0449, 0450, 0452–0458 — Foliage; artist's errors; no size limits; Cache/; one thread.

@@ -30,8 +30,8 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   draws with a theme; per-element property overrides and a theme override are how it gets colour on purpose.
   After the coin game, whose GUI is written in code (0194). The editor then sets the file format, from what
   that game actually needed.
-- **A scale gizmo**, and a toggle for the move and rotate gizmos to follow the entity's own axes rather than
-  the world's (left out of 015 and 035). Typing scale in the Inspector does until then.
+- **A toggle for the move and rotate gizmos** to follow the entity's own axes rather than the world's (left
+  out of 015 and 035). The scale gizmo is 097's (0438).
 - **A developer picks the graphics card from code**, and a finished game lets the player pick one in its
   settings — both later, once 0201's automatic choice is in and proven.
 - **A view recorder**: something in the game that films from its own place and renders to a texture, for a
@@ -79,9 +79,9 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - **Renderer work parked from the Vulkan review** (2026-10-05, see 0358): rank by 062's frame breakdown before
   building any. Runtime `vkDeviceWaitIdle`s go (timeline semaphores, a deletion queue, a staging ring,
   update-after-bind textures) with the first work order that loads content during play, i.e. streaming. A
-  suballocator, written by us (ADR-0023), not VMA, when allocations near the 4096 floor. Block-compressed textures
-  (BC7/BC1, encoded in the cook) when a texture budget needs it (0359). Async compute and a transfer queue,
-  more dynamic state, subgroups and fp16, cached readback: only if the breakdown shows the gain.
+  suballocator, written by us (ADR-0023), not VMA, when allocations near the 4096 floor. Async compute and a
+  transfer queue, more dynamic state, subgroups and fp16, cached readback: only if the breakdown shows the
+  gain.
   Precise in-frame barriers and leaving GENERAL layouts are planner's work once they can be measured.
 - Revisit 058 (several directional lights) once a real game needs a sun and moon or a lit cave; it was accepted on theory, without a concrete use to judge it by.
 - **F with nothing selected frames the whole scene** (sponsor, 2026-10-05): left out of 065, which frames only a selection.
