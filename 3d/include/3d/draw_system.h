@@ -283,6 +283,21 @@ typedef struct {
 	bool rest;
 } voe_3d_foliage_group;
 
+// Seconds the shadows call spent on each of its parts, summed over the calls
+// that had a clock (0461 point 2); zeroed is none.
+typedef struct {
+	// The shapes' and models' draws into every cascade, ground left out.
+	double casters;
+	// The landscape nodes' draws into the cascades.
+	double ground;
+	// The foliage groups' draws into the cascades.
+	double foliage;
+	// The point-shadow pass's draws.
+	double lamps;
+	// The probe bounce, the whole call.
+	double bounce;
+} voe_3d_shadow_times;
+
 // What one frame is drawn with, in the shape `render` takes it: the camera and
 // the sun. Computed once by voe_3d_draw_system_frame, handed to
 // voe_render_pass_begin by the loop and back to voe_3d_draw_system_run for its
@@ -447,6 +462,12 @@ typedef struct {
 	// 0. _frame leaves them so, voe_3d_draw_system_foliage fills them.
 	const voe_3d_foliage_group *foliage;
 	uint32_t foliage_count;
+	// Seconds now, on any steady clock; NULL times nothing (0461 point 2).
+	// _frame leaves it NULL; the caller sets it, as with `models`.
+	double (*clock)(void);
+	// What each part of the shadows call took, by `clock`; only the
+	// shadows call writes it, adding to what is there. _frame zeroes it.
+	voe_3d_shadow_times shadow_times;
 } voe_3d_frame;
 
 // The share of D, the 17th casting lamp's distance, where a point light's
@@ -721,6 +742,14 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // when any call fails. The bounce is handed `frame->blockers` (0347 point 4), so
 // voe_3d_draw_system_light_blockers comes first, and a blocker that changes
 // relights.
+//
+// WITH `frame->clock` SET IT TIMES ITS PARTS (0461 point 2), adding each one's
+// seconds to `frame->shadow_times`: `casters` the shapes' and models' draws
+// into every cascade, `ground` the landscape nodes' draws into them, `foliage`
+// the groups' draws into them, `lamps` the point-shadow pass's draws and
+// `bounce` the probe bounce call. Fitting cascades and opening passes fall in
+// none. With NULL nothing is read or written. The clock is handed in because
+// 3d names no platform (0461), and a game that times nothing pays nothing.
 [[nodiscard]] bool voe_3d_draw_system_shadows(voe_ecs_world *world,
 					      voe_render_device *device,
 					      voe_3d_frame *frame);

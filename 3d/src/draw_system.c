@@ -308,6 +308,9 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.casters = NULL;
 	frame.foliage = NULL;
 	frame.foliage_count = 0;
+	// Nothing timed unless the caller hands a clock (0461 point 2).
+	frame.clock = NULL;
+	frame.shadow_times = (voe_3d_shadow_times){ 0 };
 
 	return frame;
 }
