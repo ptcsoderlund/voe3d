@@ -10,5 +10,4 @@
 - `starting.c` — the starting frame, plain and with a splash in a wide and a tall window, read back, the wait around the shaders step leaving it prepared with its cache written and a refusing work's wait false, and the progress line. Skips without a graphics card.
 - `models.c` — the model loader on real files: models, pictures, water, progress, a pool's load the same as none's, landscapes, materials, a pool's materials the same as none's and a broken map's path kept, layers, parts and a landscape's foliage kinds and copies; skips without a graphics card.
 - `models_levels.c` — a `.glb`'s levels file and the `.parts` count and swaps it is made with, prepared and reloaded, its swaps patched without a remake, its triangle counts per level, and a broken `.glb` kept failed with no levels file; skips without a graphics card.
-- `models_loader.c` — the loader beside the frames: a row's `.glb` absent after the first step and loaded by later ones, loaded again at its new stamp by the watch, a batch for a folder dropped for an empty second one where it fails, and destroy during a prepare; skips without a graphics card.
-- `glb_build.h` — the hand-built one-triangle `.glb` and the world helpers the three model tests include.
+- `glb_build.h` — the hand-built one-triangle `.glb` and the world helpers the two model tests include.

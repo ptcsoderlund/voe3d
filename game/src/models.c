@@ -11,7 +11,7 @@
 // chunk or put. The watch adds every entry but landscapes and materials at
 // its stamp, read only when that changed; a reload adds its one path, forced.
 // The update's and the watch's gathering and the dot and water are internal
-// calls (models_batch.h) the loader beside the frames (models_loader.c) shares.
+// calls (models_batch.h).
 // A cooked landscape's millimetres become metres in scratch, rewound after it,
 // its layer and kind paths copied, its copies handed on for the store to copy,
 // its paint widened to both planes in scratch too. The public prepare reads

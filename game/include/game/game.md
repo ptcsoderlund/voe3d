@@ -13,6 +13,5 @@ The public headers, one entry each.
 - `progress.h` — the record a splash wait's worker reports its phase and count into and the main thread reads its line from, with the stop flag; all atomic.
 - `run.h` — the game's whole run in the window it is handed, its start on a worker behind the splash, until the window closes or the interface ends it.
 - `models.h` — the model files a world names read from a folder into a store, and re-read when their stamp changes, with each landscape's foliage kinds and the cooked landscape, parts and material tables loaded into it; shared by the game and the editor.
-- `models_loader.h` — the editor's model loader beside the frames: what an update and the watch load, read to baked on a thread of its own over the store's pool and put one file a frame.
 - `landscapes.h` — the cooked landscape table a game loads into its model store, each entry with its layer paths and paint and its foliage kinds and copies, defined by a project's cooked `landscapes.c`.
 - `materials.h` — the material table of path and values and the parts table of `.glb` path and `.parts` values a game loads into its model store, both defined by a project's cooked `materials.c`; the editor builds its own.

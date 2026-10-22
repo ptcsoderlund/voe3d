@@ -1,8 +1,6 @@
 // A batch of model files loaded in timed phases over the store's pool (0448
 // points 3 and 4): game/src/models.c's update, watch and reload fill one a
-// chunk at a time, prepare it and put its files in order; the loader of
-// game/src/models_loader.c fills one with the same gatherings, prepares it on
-// a thread of its own and puts a file a frame. Internal to `game`.
+// chunk at a time, prepare it and put its files in order. Internal to `game`.
 //
 //     voe_game_models_batch *batch = voe_game_models_batch_new(folder, room);
 //     voe_game_models_batch_add(batch, path, known, forced);
