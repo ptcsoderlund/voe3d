@@ -268,11 +268,22 @@ typedef struct {
 // program gives its device as `instances`.
 #define VOE_3D_FOLIAGE_INSTANCES (1u << 17)
 // Groups one frame's view gathers at most, which a program adds to its objects
-// for each pass drawing foliage: each group is one instanced draw.
-#define VOE_3D_FOLIAGE_GROUPS 256
+// for each pass drawing foliage: each group is one instanced draw. Three tiers
+// of 256 (0464 point 4), a group being of one tier.
+#define VOE_3D_FOLIAGE_GROUPS 768
+
+// Which passes draw a foliage copy (0464 point 4), sorted once a view: seen by
+// the camera; else cast, inside a cascade of a casting sun; else unseen. The
+// camera draws the seen, the cascades the seen and cast, the bounce sun maps
+// all three.
+typedef enum {
+	VOE_3D_FOLIAGE_SEEN,
+	VOE_3D_FOLIAGE_CAST,
+	VOE_3D_FOLIAGE_UNSEEN,
+} voe_3d_foliage_tier;
 
 // One group of foliage copies (0442 point 5): every copy of one kind at one
-// level, wearing one part, drawn by one instanced draw.
+// level, wearing one part, of one tier, drawn by one instanced draw.
 typedef struct {
 	// The part's range at the group's level.
 	voe_render_geometry geometry;
@@ -282,6 +293,8 @@ typedef struct {
 	uint32_t first, count;
 	// A band's level-before copies, dithered the other way (0432 point 3).
 	bool rest;
+	// Which passes draw it (0464 point 4).
+	voe_3d_foliage_tier tier;
 } voe_3d_foliage_group;
 
 // Seconds the shadows call spent on each of its parts, summed over the calls
@@ -690,8 +703,18 @@ voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world);
 // per opaque or cut-out part that level has: the top three rows of its matrix
 // about the eye, dithered as a dissolving model row is. Under a whole share it
 // is also one instance of each such part of the level before, with the other
-// dither, in a `rest` group. A group is one (kind, level, part, rest), shared
-// by every row naming that file.
+// dither, in a `rest` group. A group is one (kind, level, part, rest, tier),
+// shared by every row naming that file.
+//
+// EACH COPY IS SORTED INTO A TIER (0464 point 4). It runs after
+// voe_3d_draw_system_lights, so it knows every sun. A copy's sphere is its
+// kind's entry `centre` and `radius` under the copy's world matrix about the
+// eye. Seen when the view's six planes see it; else cast when a cascade of a
+// casting sun of the frame sees it with its sun side open, the cascades fitted
+// as voe_3d_draw_system_shadows fits them, a casting sun being `frame->light`
+// and each of `more_lights` shaded, of some strength and whose light row casts;
+// else unseen. `frame->counts` gains each copy not `rest`: seen as `drawn`,
+// cast or unseen as `skipped`.
 //
 // Instances are counted per group, then filled contiguously and written with
 // one voe_render_frame_instances. False with none when render refuses the room

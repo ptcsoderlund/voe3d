@@ -19,6 +19,16 @@
 // 6. The whole frame's draws, shadows and view, with three copies equal those
 //    with the first alone, one draw a group a pass, and exceed those with none.
 //
+// Each copy is gathered seen, cast or unseen (0464 point 4):
+//
+// 7. The camera turned to look straight up: the gather counts every copy
+//    skipped, none drawn, and no group is seen.
+// 8. The camera 1.5 m up at z = −5 looking along −Z 20° below level, every
+//    copy behind it, and the sun low beyond them along (−0.5, −1, −4): every
+//    copy counted skipped, yet the floor at column 17, row 28, in the first
+//    copy's shadow three pixels wide there, reads darker than with none.
+// 9. With the camera of 5, every copy is counted drawn.
+//
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_model_fade.c does.
 #include <3d/draw_system.h>
@@ -69,9 +79,11 @@ static const voe_render_capacities CAPACITIES = {
 	.instances = 64,
 };
 
-// The camera 5 m up looking down, the casting sun of the header with no fill,
-// and the row wearing FOREST, into `land`.
-static voe_ecs_world *a_world(voe_base_arena *arena, voe_ecs_entity *land)
+// The camera at `camera`, a casting sun shining along `sun` with no fill, and
+// the row wearing FOREST, into `land`.
+static voe_ecs_world *a_world_from(voe_base_arena *arena, voe_ecs_entity *land,
+				   voe_scene_transform camera,
+				   voe_math_float3 sun)
 {
 	voe_ecs_limits limits = {
 		.entities = 4,
@@ -94,12 +106,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena, voe_ecs_entity *land)
 	voe_3d_model_register(world, 1);
 
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
-	VOE_TEST_CHECK(voe_scene_transform_add(
-		world, entity,
-		(voe_scene_transform){
-			.position = { 0.0, 5.0, 0.0 },
-			.rotation = { -0.70710678f, 0.0f, 0.0f, 0.70710678f },
-			.scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, entity, camera));
 	VOE_TEST_CHECK(voe_scene_camera_add(
 		world, entity,
 		(voe_scene_camera){ .fov_y = 1.0471976f,
@@ -109,10 +116,8 @@ static voe_ecs_world *a_world(voe_base_arena *arena, voe_ecs_entity *land)
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
 	VOE_TEST_CHECK(voe_scene_transform_add(
 		world, entity,
-		(voe_scene_transform){
-			.rotation = voe_scene_light_facing(
-				(voe_math_float3){ -1.0f, -1.0f, -0.5f }),
-			.scale = { 1.0f, 1.0f, 1.0f } }));
+		(voe_scene_transform){ .rotation = voe_scene_light_facing(sun),
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
 	VOE_TEST_CHECK(voe_scene_light_add(
 		world, entity,
 		(voe_scene_light){ .colour = { 1.0f, 1.0f, 1.0f },
@@ -129,6 +134,18 @@ static voe_ecs_world *a_world(voe_base_arena *arena, voe_ecs_entity *land)
 	snprintf(row.path, sizeof(row.path), "%s", FOREST);
 	VOE_TEST_CHECK(voe_3d_model_add(world, *land, row));
 	return world;
+}
+
+// The camera 5 m up looking down and the sun of the header.
+static voe_ecs_world *a_world(voe_base_arena *arena, voe_ecs_entity *land)
+{
+	return a_world_from(
+		arena, land,
+		(voe_scene_transform){
+			.position = { 0.0, 5.0, 0.0 },
+			.rotation = { -0.70710678f, 0.0f, 0.0f, 0.70710678f },
+			.scale = { 1.0f, 1.0f, 1.0f } },
+		(voe_math_float3){ -1.0f, -1.0f, -0.5f });
 }
 
 // A store holding FOREST, 16 m of 8 cells naming KIND as kind 0 with the first
@@ -265,9 +282,12 @@ static void no_kind_gathers_none(voe_render_device *device,
 
 // One whole frame of `world` from a store of the first `count` copies, as the
 // loop draws it: gathered, its shadows, the view's pass and the run. The
-// frame's draws in `draws`; the centre pixel, rgb packed.
-static uint32_t a_frame(voe_ecs_world *world, voe_render_device *device,
-			voe_base_arena *arena, uint32_t count, uint32_t *draws)
+// frame's draws in `draws`, its counts after the shadows in `counts`; the
+// pixel at `column`, `row`, rgb packed.
+static uint32_t a_frame_at(voe_ecs_world *world, voe_render_device *device,
+			   voe_base_arena *arena, uint32_t count,
+			   uint32_t column, uint32_t row, uint32_t *draws,
+			   voe_3d_view_counts *counts)
 {
 	voe_platform_size size = { SIDE, SIDE };
 	voe_3d_models *models = a_store(device, arena, true, count);
@@ -288,6 +308,7 @@ static uint32_t a_frame(voe_ecs_world *world, voe_render_device *device,
 		VOE_TEST_CHECK(voe_3d_draw_system_shadows(world, device, &frame));
 		VOE_TEST_CHECK_INT(frame.shadow.count,
 				   VOE_RENDER_SHADOW_CASCADES);
+		*counts = frame.counts;
 		camera = voe_3d_draw_system_camera(&frame);
 		VOE_TEST_CHECK(voe_render_pass_begin(
 			device, VOE_RENDER_TARGET_WINDOW, &camera));
@@ -300,32 +321,102 @@ static uint32_t a_frame(voe_ecs_world *world, voe_render_device *device,
 	}
 	if (picture.pixels != NULL) {
 		pixel = picture.pixels +
-			((size_t)(picture.height / 2) * picture.width +
-			 picture.width / 2) * 4;
+			((size_t)row * picture.width + column) * 4;
 		centre = (uint32_t)pixel[0] << 16 | (uint32_t)pixel[1] << 8 |
 			 pixel[2];
-		printf("%u copies: %u groups, %u draws, centre %06x\n", count,
-		       frame.foliage_count, *draws, centre);
+		printf("%u copies: %u groups, %u draws, %u drawn, %u skipped, "
+		       "%u cast, %u cast skipped, (%u, %u) %06x\n",
+		       count, frame.foliage_count, *draws, frame.counts.drawn,
+		       frame.counts.skipped, frame.counts.cast,
+		       frame.counts.cast_skipped, column, row, centre);
 	}
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
 	return centre;
 }
 
-// 5 and 6.
+// The frame of a_frame_at, its centre pixel.
+static uint32_t a_frame(voe_ecs_world *world, voe_render_device *device,
+			voe_base_arena *arena, uint32_t count, uint32_t *draws,
+			voe_3d_view_counts *counts)
+{
+	return a_frame_at(world, device, arena, count, SIDE / 2, SIDE / 2,
+			  draws, counts);
+}
+
+// The sum of a packed pixel's three channels.
+static uint32_t brightness(uint32_t rgb)
+{
+	return (rgb >> 16 & 0xff) + (rgb >> 8 & 0xff) + (rgb & 0xff);
+}
+
+// 5, 6 and 9.
 static void the_view_and_the_sun_draw_copies(voe_render_device *device,
 					     voe_base_arena *arena)
 {
 	voe_ecs_entity land = { 0 };
 	voe_ecs_world *world = a_world(arena, &land);
 	uint32_t none_draws = 0, one_draws = 0, three_draws = 0;
-	const uint32_t none = a_frame(world, device, arena, 0, &none_draws);
-	const uint32_t three = a_frame(world, device, arena, COPIES, &three_draws);
+	voe_3d_view_counts counts = { 0 };
+	const uint32_t none =
+		a_frame(world, device, arena, 0, &none_draws, &counts);
+	const uint32_t three =
+		a_frame(world, device, arena, COPIES, &three_draws, &counts);
 
-	(void)a_frame(world, device, arena, 1, &one_draws);
+	VOE_TEST_CHECK_INT(counts.drawn, COPIES);
+	VOE_TEST_CHECK_INT(counts.skipped, 0);
+	(void)a_frame(world, device, arena, 1, &one_draws, &counts);
 	VOE_TEST_CHECK(three != none);
 	VOE_TEST_CHECK_INT(three_draws, one_draws);
 	VOE_TEST_CHECK(one_draws > none_draws);
+}
+
+// 7: the camera turned to look straight up from 5 m.
+static void copies_behind_are_skipped(voe_render_device *device,
+				      voe_base_arena *arena)
+{
+	voe_3d_models *models = a_store(device, arena, true, COPIES);
+	voe_ecs_entity land = { 0 };
+	voe_ecs_world *world = a_world_from(
+		arena, &land,
+		(voe_scene_transform){
+			.position = { 0.0, 5.0, 0.0 },
+			.rotation = { 0.70710678f, 0.0f, 0.0f, 0.70710678f },
+			.scale = { 1.0f, 1.0f, 1.0f } },
+		(voe_math_float3){ -1.0f, -1.0f, -0.5f });
+	voe_3d_frame frame;
+
+	VOE_TEST_CHECK(gather(world, device, arena, models, &frame));
+	VOE_TEST_CHECK_INT(frame.counts.drawn, 0);
+	VOE_TEST_CHECK_INT(frame.counts.skipped, COPIES);
+	for (uint32_t i = 0; i < frame.foliage_count; i++)
+		VOE_TEST_CHECK(frame.foliage[i].tier != VOE_3D_FOLIAGE_SEEN);
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
+// 8: the camera 1.5 m up at z = −5, 20° below level, the sun beyond.
+static void copies_behind_still_shadow(voe_render_device *device,
+				       voe_base_arena *arena)
+{
+	voe_ecs_entity land = { 0 };
+	voe_ecs_world *world = a_world_from(
+		arena, &land,
+		(voe_scene_transform){
+			.position = { 0.0, 1.5, -5.0 },
+			.rotation = { -0.17364818f, 0.0f, 0.0f, 0.98480775f },
+			.scale = { 1.0f, 1.0f, 1.0f } },
+		(voe_math_float3){ -0.5f, -1.0f, -4.0f });
+	uint32_t draws = 0;
+	voe_3d_view_counts counts = { 0 };
+	const uint32_t none = a_frame_at(world, device, arena, 0, 17, 28,
+					 &draws, &counts);
+	const uint32_t three = a_frame_at(world, device, arena, COPIES, 17, 28,
+					  &draws, &counts);
+
+	VOE_TEST_CHECK_INT(counts.drawn, 0);
+	VOE_TEST_CHECK_INT(counts.skipped, COPIES);
+	VOE_TEST_CHECK(brightness(three) < brightness(none));
 }
 
 // 4.
@@ -375,6 +466,8 @@ int main(void)
 	copies_gather_into_groups(device, arena);
 	no_kind_gathers_none(device, arena);
 	the_view_and_the_sun_draw_copies(device, arena);
+	copies_behind_are_skipped(device, arena);
+	copies_behind_still_shadow(device, arena);
 	voe_render_device_destroy(device);
 	no_room_gathers_none(arena);
 	voe_base_arena_destroy(arena);

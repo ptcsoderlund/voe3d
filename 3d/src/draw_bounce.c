@@ -19,8 +19,8 @@
 // THE CASTERS WEAR THEIR SHAPE'S COLOUR in the probes' pictures, as in the
 // view: the walk is draw_shadows.c's, and it once drew every shape white (bug 01).
 // A capture draws every caster; sun i's map only those the blockers holding
-// sun i hold, and the foliage when none does, as its cascades (0361 point 2,
-// 0450). Both draw a landscape coarse, at most VOE_3D_TERRAIN_BOUNCE_NODES
+// sun i hold, and the foliage of every tier when none does (0361 point 2,
+// 0450, 0464 point 4). Both draw a landscape coarse, at most VOE_3D_TERRAIN_BOUNCE_NODES
 // nodes (0397 point 1). A FOLIAGE CHANGE RELIGHTS: every begin's `shade` is
 // the frame's store's `changes` (0451), as no stale sphere marks a copy.
 //
@@ -465,7 +465,7 @@ static bool draw_sun_map(voe_ecs_world *world, voe_render_device *device,
 				    VOE_3D_TERRAIN_BOUNCE_NODES, true, NULL, NULL);
 	// Foliage holds no blocker's mask, so only a free sun's map draws it.
 	if (drawn && within == 0)
-		drawn = voe_3d_draw_foliage_cast(device, frame);
+		drawn = voe_3d_draw_foliage_cast(device, frame, true, NULL);
 	voe_render_pass_end(device);
 	return drawn;
 }

@@ -101,12 +101,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
   the level before in its band, and blended or fading ones held, a faded-out row and a landscape
   skipped, and a row the camera cannot see skipped and counted.
-- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part and rest, and
-  the groups' solid and cast draws, one each, why rest groups do not cast, and why the bounce sun
-  maps draw them and captures and point shadows do not; internal.
-- `draw_foliage.c` — the foliage gathering: each drawn landscape row's copies given their level,
-  counted per group, filled contiguously and written as render instances in one call; then each
-  group's instanced draw.
+- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part, rest and tier,
+  and the groups' solid and cast draws by tier, why a copy is sorted once a view, why rest groups
+  do not cast, and why the bounce sun maps draw every tier; internal.
+- `draw_foliage.c` — the foliage gathering: each drawn landscape row's copies given their level
+  and tier by the camera's and the suns' cascades' planes, counted, filled contiguously and
+  written as render instances in one call; then each group's instanced draw.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended unless the pass's cull cannot see them, and why one eye chooses the same nodes in
   every pass and the cull comes after; internal.
