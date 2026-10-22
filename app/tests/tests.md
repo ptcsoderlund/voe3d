@@ -14,6 +14,10 @@ found by the build and registered nowhere.
 - `clock.c` — the first tick, an ordinary interval, a stall clamped, and two
   ticks at the same reading. Its header says why the clamped case is the one
   that matters. Needs no window and no graphics card.
+- `hitches.c` — a stall after sixty frames is named largest first, a small
+  rise and a stall after thirty are not, a card frame sums passes by name, a
+  line lists five, and a 16-byte room is kept. Needs no window and no
+  graphics card.
 - `picture.c` — a 4x2 PNG written to the working directory comes back as a texture of
   that size; a missing file and a file of text are refused. Needs a graphics
   card, and skips with a reason without one.

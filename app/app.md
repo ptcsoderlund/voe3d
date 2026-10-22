@@ -19,6 +19,9 @@ readout, key bindings and the present mode are all the program's.
   header says why it takes the reading rather than making one, why `elapsed` and
   `step` are separate numbers and what confusing them costs, and what the first
   tick reports.
+- `include/app/hitches.h` — a stalled frame or card frame told from its own
+  mean, and one line naming its five costliest parts. Its header says the rule
+  (0458), why its own mean, and the lines' format.
 - `include/app/picture.h` — a PNG file read into a colour texture with its size,
   for the splash. Its header says the three steps, what fails, the scratch it
   needs, and why it lives here (0356).
