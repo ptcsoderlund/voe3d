@@ -1,4 +1,4 @@
-# 091 — Import textures asks how large
+# 092 — Import textures asks how large
 
 ## What
 When I right-click a `.glb` and choose Import textures, the editor asks for a largest size: 512, 1024, 2048

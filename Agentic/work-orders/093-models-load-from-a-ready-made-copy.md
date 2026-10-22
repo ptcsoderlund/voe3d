@@ -1,4 +1,4 @@
-# 092 — Models load from a ready-made copy
+# 093 — Models load from a ready-made copy
 
 ## What
 The first time the editor meets a model, it makes a ready-to-draw copy of it in the project's `Cache/`: the

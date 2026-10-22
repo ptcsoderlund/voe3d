@@ -1,4 +1,4 @@
-# 093 — Grass grows on the grassy parts
+# 094 — Grass grows on the grassy parts
 
 ## What
 Grass blades grow wherever the grass layer (086) is painted, thick where it is strong and thin where it
