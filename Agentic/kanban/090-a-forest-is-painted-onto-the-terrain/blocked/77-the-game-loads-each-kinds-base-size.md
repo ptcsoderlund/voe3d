@@ -22,3 +22,6 @@ copy at the size the editor shows.
 
 ## Done when
 Test `game/models` passes.
+
+## Blocked
+The card is `after: 75, 76`, and neither is in this tree: both are still in `todo/`, so `voe_assets_landscape` has no `kind_sizes`, `VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN`/`_MAX` do not exist, and the store does not multiply a copy's scale by its kind's base size. Without them the copy in `game/src/models.c` cannot compile and the test's twice-its-scale check cannot pass. To unblock it, run this card again once cards 75 and 76 are committed on the feature branch.
