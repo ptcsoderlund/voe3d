@@ -166,12 +166,15 @@ voe_render_device *voe_app_device(voe_app *app);
 
 // `size` is the client area this frame, which is what a draw is opened with.
 // `minimised` is that size with no area — nothing can be drawn into it, and the
-// program should skip the draw and keep looping rather than stop.
+// program should skip the draw and keep looping rather than stop. `waited` is
+// the seconds this open spent in the pace loop before its clock read — nought
+// when focused, when the loop drew at once, and on a headless app.
 typedef struct {
 	voe_app_tick tick;
 	voe_platform_size size;
 	bool minimised;
 	bool closing;
+	double waited;
 } voe_app_frame;
 
 // Waits as the window's state asks, reads the clock, ticks it, polls the window,
@@ -189,6 +192,12 @@ typedef struct {
 // a heartbeat early is regaining focus, being shown again or a request to
 // close. The step after a long wait is clamped by `longest_step`, as any stall
 // is. A headless app never waits.
+//
+// `waited` SAYS HOW LONG THAT WAIT TOOK, AND ONLY THAT (ADR-0463). It holds the
+// pace loop's own seconds, the waits and the polls inside it, and not the clock
+// read or the poll after the loop. A caller timing the whole open subtracts it
+// to see what the poll cost, which is how a stalled poll is told from a paced
+// wait (bug 12).
 voe_app_frame voe_app_frame_open(voe_app *app);
 
 // Opens the recording. It draws nothing and has no camera: every draw is inside a

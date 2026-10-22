@@ -156,10 +156,15 @@ voe_render_device *voe_app_device(voe_app *app)
 // The loop has no count on it by design: every wait it asks for is the rest of
 // a quarter second that the clock is spending, and a hidden window is bounded
 // by being shown or asked to close.
-static void wait_for_pace(voe_app *app)
+// Returns the seconds the loop spent, from the clock read before it to the one
+// that let it draw: exactly nought when it drew at once, since the first step
+// is asked on the reading taken before the loop (bug 12, ADR-0463).
+static double wait_for_pace(voe_app *app)
 {
 	voe_platform_window *window = app->window;
 	voe_app_pace_step step;
+	const double started = voe_platform_clock_now();
+	double now = started;
 
 	VOE_BASE_ASSERT(window != NULL, "a headless app is never paced");
 	VOE_BASE_ASSERT(app->last_open >= 0.0, "a clock reading is not negative");
@@ -168,13 +173,16 @@ static void wait_for_pace(voe_app *app)
 		step = voe_app_pace_next(voe_platform_window_focused(window),
 					 voe_platform_window_visible(window),
 					 voe_platform_window_should_close(window),
-					 voe_platform_clock_now(),
-					 app->last_open);
+					 now, app->last_open);
 		if (step.kind == VOE_APP_PACE_DRAW)
-			return;
+			break;
 		voe_platform_window_wait(window, step.seconds);
 		voe_platform_window_poll(window);
+		now = voe_platform_clock_now();
 	}
+
+	VOE_BASE_ASSERT(now >= started, "the platform clock does not run backwards");
+	return now - started;
 }
 
 voe_app_frame voe_app_frame_open(voe_app *app)
@@ -184,7 +192,7 @@ voe_app_frame voe_app_frame_open(voe_app *app)
 	VOE_BASE_ASSERT(app != NULL, "no app to open a frame on");
 
 	if (app->window != NULL)
-		wait_for_pace(app);
+		frame.waited = wait_for_pace(app);
 
 	// The reading is taken before the poll so that the interval covers the
 	// whole of the previous frame, the poll included.
