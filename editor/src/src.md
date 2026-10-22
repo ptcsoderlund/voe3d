@@ -218,6 +218,10 @@ carries it out.
 - `levels_ask.c` — the open with its quiet `.parts` read and triangle count, the panel's one frame
   of `ui` calls with its column headers, LOD rows and swap line, the read of its buttons, boxes and
   a press outside, and the save into the `.parts`.
+- `textures_ask.h` — the anchored panel Import textures asks: a largest size of 512, 1024, 2048
+  or 4096, 2048 on every opening, with Import and Cancel; the caller carries out the answer.
+- `textures_ask.c` — the open with its title, the panel's one frame of `ui` calls with the chosen
+  size lit, and the read of its buttons and a press outside.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
   folder row or Up, a new thing or copy placed in a scene view, or over the Inspector a swap, a
   shape's material, a filled map, a landscape layer or a foliage kind, elsewhere nothing.
