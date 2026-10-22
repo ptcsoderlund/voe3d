@@ -5,6 +5,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
 
 - `projection.c` — the projection arithmetic, written out, because the signs are
   the whole thing, and the render view a pose and a lens become.
+- `cull.h` — a view's planes and whether a sphere about the eye is inside them, a cascade's sun
+  side open, and why a sphere and why here; internal.
+- `cull.c` — the six planes from the rows of projection × view, each normalised, the sphere's
+  test and its radius under a world matrix.
 - `shadow_cascades.c` — the splits, each slice's sphere from the inverted
   projection, and each cascade's snapped light view and box.
 - `light_box.h` — the sun's basis, the snap to whole texels in double and the

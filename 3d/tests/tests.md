@@ -7,6 +7,9 @@ again, or to find where a claim that has started failing is written down.
 - `projection.c` — reversed depth in the lens and the box, the aspect ratio, that nothing in the
   projection flips Y, and the view of a pose and a lens, a flattened pose seeing
   nothing. Needs no graphics card.
+- `cull.c` — that a camera sees a sphere ahead, not behind or past far, and one reaching in at its
+  left edge; that a cascade open on its sun side keeps one toward the sun and drops one aside; and
+  a scaled sphere's radius. Needs no graphics card.
 - `shadow_cascades.c` — that the splits rise to the reach, each slice lies in
   its cascade's box, and a moved and turned eye moves the map by whole texels,
   near the origin and 100 km out. Needs no graphics card.
