@@ -1,10 +1,10 @@
-// A batch of model files loaded in timed phases over the store's pool (0448
-// points 3 and 4): game/src/models.c's update, watch and reload fill one a
-// chunk at a time, prepare it and put its files in order. Internal to `game`.
+// A batch of model files loaded in timed phases on the calling thread (0457,
+// 0459 point 1): game/src/models.c's update, watch and reload fill one with a
+// single file at a time, prepare it and put it. Internal to `game`.
 //
-//     voe_game_models_batch *batch = voe_game_models_batch_new(folder, room);
+//     voe_game_models_batch *batch = voe_game_models_batch_new(folder, 1);
 //     voe_game_models_batch_add(batch, path, known, forced);
-//     voe_game_models_batch_prepare(batch, workers, &times);
+//     voe_game_models_batch_prepare(batch, &times);
 //     for (uint32_t i = 0; i < voe_game_models_batch_count(batch); i++)
 //             if (!voe_game_models_batch_put(batch, models, device, i,
 //                                            &failures, &error, &times))
@@ -16,13 +16,13 @@
 // whatever its stamp; read, it gets an arena of its own, and each picture of
 // its `.glb` one more, all destroyed after its put.
 //
-// THE PHASES, each one voe_base_workers_run, each task under its file's path
-// as the subject: reading (stamp; bytes, skipped at the known stamp unless
-// forced), parsing (the `.glb`, pictures left encoded), making LODs (its
-// levels file read or made over the pool, and written), decoding pictures (one
-// task a picture of the batch), baking (3d's prepare). No store and no device
-// is touched in them; a `.landscape` or picture path is only read, and loaded
-// whole at its put.
+// THE PHASES run in order on the calling thread, each one's tasks index by
+// index, each under its file's path as the subject: reading (stamp; bytes,
+// skipped at the known stamp unless forced), parsing (the `.glb`, pictures
+// left encoded), making LODs (its levels file read, or made and written),
+// decoding pictures (one task a picture), baking (3d's prepare). No store
+// and no device is touched in them; a `.landscape` or picture path is only
+// read, and loaded whole at its put.
 //
 // THE PUT, one file on the device's thread: one with no stamp, known at
 // another or not yet held, or that will not read, is kept failed at 0 with its
@@ -30,14 +30,15 @@
 // kept failed at its stamp, the cause said where it was met (0445 point 4);
 // each failure counted.
 //
-// THE TIMES are each phase's wall seconds over every chunk, and the files read;
-// their line, `game: models: <n> files in <s> s: reading <s> s, …`, or the
-// materials' with their three phases (game/src/models_materials.c), goes to
-// stderr only when a file was read, and is no report: nothing went wrong.
+// THE TIMES are each phase's wall seconds over every batch, and the files
+// read; their line, `game: models: <n> files in <s> s: reading <s> s, …`,
+// or the materials' with their three phases (game/src/models_materials.c),
+// goes to stderr only when a file was read, and is no report: nothing went
+// wrong.
 //
 // Constraints: the folder is kept by pointer and must outlive the batch. A
-// batch holds at most its room; a whole chunk's files are in memory at once,
-// which is why chunks are the pool's threads and not every path.
+// batch holds at most its room, its files in memory at once: the loader's
+// hold one file, so one file's arenas at a time.
 #pragma once
 
 #include <game/models.h>
@@ -46,7 +47,6 @@
 
 #include <base/arena.h>
 #include <base/error.h>
-#include <base/workers.h>
 
 #include <render/device.h>
 
@@ -93,9 +93,8 @@ void voe_game_models_batch_add(voe_game_models_batch *batch, const char *path,
 			       uint64_t known, bool forced);
 uint32_t voe_game_models_batch_count(const voe_game_models_batch *batch);
 
-// The five phases before the put, each over `workers` (NULL in order).
+// The five phases before the put, in order on the calling thread.
 void voe_game_models_batch_prepare(voe_game_models_batch *batch,
-				   voe_base_workers *workers,
 				   voe_game_models_times *times);
 
 // File `index` into the store, then its arenas given back; a failure counted
@@ -166,13 +165,12 @@ const char *voe_game_models_levels_file(const char *levels, const char *path,
 
 // The levels file of `folder`'s `path`, whose bytes are `glb`, on scratch with
 // its count in `*size`: the one in the Cache when it fits `glb` and `remake`
-// is false, its swaps patched to a `.parts` that reads, else made over
-// `workers` and written, `*made` then true. A failed write is a line on
-// stderr, and the levels just made or patched are handed back still. NULL,
-// `error` set, only when `glb` will not parse.
+// is false, its swaps patched to a `.parts` that reads, else made and
+// written, `*made` then true. A failed write is a line on stderr, and the
+// levels just made or patched are handed back still. NULL, `error` set, only
+// when `glb` will not parse.
 const uint8_t *voe_game_models_levels_for(const char *folder, const char *path,
 					  const uint8_t *glb, size_t glb_size,
 					  bool remake, voe_base_arena *scratch,
-					  voe_base_workers *workers,
 					  size_t *size, bool *made,
 					  voe_base_error *error);

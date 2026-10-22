@@ -190,7 +190,7 @@ static uint32_t grid_prepared(voe_base_arena *scratch, const uint8_t *grid,
 		VOE_TEST_CHECK(voe_platform_file_write(
 			GRID_PARTS_ON_DISK, (const uint8_t *)parts,
 			strlen(parts), NULL));
-	ready = voe_game_models_prepare(FOLDER, GRID, scratch, NULL, true, &made,
+	ready = voe_game_models_prepare(FOLDER, GRID, scratch, true, &made,
 					&error);
 	VOE_TEST_CHECK(ready);
 	VOE_TEST_CHECK(made);
@@ -274,7 +274,7 @@ static void check_swaps_patched(voe_ecs_world *world,
 	VOE_TEST_CHECK(grid_prepared(scratch, grid, size, NULL) >= 3);
 	before = grid_read(scratch, grid, size);
 	grid_parts_write("[Parts]\n[Levels]\nswap1=4\n");
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GRID, scratch, NULL,
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GRID, scratch,
 					       false, &made, &error));
 	VOE_TEST_CHECK(!made);
 	after = grid_read(scratch, grid, size);
@@ -442,27 +442,27 @@ static void check_levels(voe_ecs_world *world, voe_render_device *device,
 	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
 
 	// ---- prepare with the file there: none made
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, NULL,
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch,
 					       false, &made, &error));
 	VOE_TEST_CHECK(!made);
 
 	// ---- the file stale: made again, fitting
 	VOE_TEST_CHECK(voe_platform_file_write(LEVELS_ON_DISK, STALE,
 					       sizeof(STALE) - 1, NULL));
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, NULL,
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch,
 					       false, &made, &error));
 	VOE_TEST_CHECK(made);
 	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
 
 	// ---- a remake on the fresh file: made again, fitting
 	made = false;
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, NULL, true,
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, true,
 					       &made, &error));
 	VOE_TEST_CHECK(made);
 	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
 
 	// ---- a missing `.glb`: false
-	VOE_TEST_CHECK(!voe_game_models_prepare(FOLDER, MISSING, scratch, NULL,
+	VOE_TEST_CHECK(!voe_game_models_prepare(FOLDER, MISSING, scratch,
 						false, &made, &error));
 
 	check_levels_asked(scratch);

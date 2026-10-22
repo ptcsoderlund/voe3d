@@ -1,14 +1,13 @@
 // The model loader of game/include/game/models.h: the paths a call loads
-// gathered in chunks of the store's pool's threads (0448 point 3), each chunk a
-// batch (models_batch.h) prepared in phases over the pool and put file by file
-// in order, then the soft dot loaded when any emitter is there and the water
-// record when any water is, each failure counted and the times' line written
-// once. An update gathers the model rows' paths and the emitters' textures the
-// store lacks, each named first there, then every loaded landscape's kind
-// paths the store lacks, gathered first; with a progress the distinct unread
-// paths are counted first, "Loading models" set before each put, and the stop
-// flag asked before each chunk. A full store ends an update before its next
-// chunk or put. The watch adds every entry but landscapes and materials at
+// taken one file at a time (0459 point 1), each a batch of one
+// (models_batch.h) prepared in phases on the caller and put, then the soft dot
+// loaded when any emitter is there and the water record when any water is,
+// each failure counted and the times' line written once. An update gathers
+// the model rows' paths and the emitters' textures the store lacks, each named
+// first there, then every loaded landscape's kind paths the store lacks,
+// gathered first; with a progress the distinct unread paths are counted
+// first, "Loading models" set and the stop flag asked before each file. A
+// full store ends an update before its next file. The watch adds every entry but landscapes and materials at
 // its stamp, read only when that changed; a reload adds its one path, forced.
 // The update's and the watch's gathering and the dot and water are internal
 // calls (models_batch.h).
@@ -74,8 +73,8 @@ uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
 }
 
 bool voe_game_models_prepare(const char *folder, const char *path,
-			     voe_base_arena *scratch, voe_base_workers *workers,
-			     bool remake, bool *made, voe_base_error *error)
+			     voe_base_arena *scratch, bool remake, bool *made,
+			     voe_base_error *error)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	const uint8_t *glb;
@@ -93,8 +92,7 @@ bool voe_game_models_prepare(const char *folder, const char *path,
 				     scratch, &glb_size, error);
 	ready = glb != NULL &&
 		voe_game_models_levels_for(folder, path, glb, glb_size, remake,
-					   scratch, workers, &size, made,
-					   error) != NULL;
+					   scratch, &size, made, error) != NULL;
 	voe_base_report_subject_pop();
 	voe_base_arena_rewind(scratch, mark);
 	return ready;
@@ -195,16 +193,14 @@ struct models_call {
 	voe_game_models_times times;
 };
 
-// `batch` prepared over the store's pool and each file put in order,
-// "Loading models" set before each. False when the store was full, the files
-// after not put.
+// `batch` prepared on the caller and each file put in order, "Loading models"
+// set before each. False when the store was full, the files after not put.
 static bool batch_load(struct models_call *call, voe_game_models_batch *batch)
 {
 	bool room = true;
 
 	VOE_BASE_ASSERT(call != NULL && batch != NULL, "no call or batch");
-	voe_game_models_batch_prepare(
-		batch, voe_3d_models_workers(call->models), &call->times);
+	voe_game_models_batch_prepare(batch, &call->times);
 	for (uint32_t k = 0; room && k < voe_game_models_batch_count(batch);
 	     k++) {
 		voe_game_progress_set(call->progress, "Loading models",
@@ -269,7 +265,6 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_game_progress *progress)
 {
 	uint32_t paths = world_paths(world);
-	uint32_t room = voe_base_workers_threads(voe_3d_models_workers(models));
 	struct models_call call = { .models = models,
 				    .device = device,
 				    .progress = progress };
@@ -283,12 +278,11 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 	if (progress != NULL)
 		call.total = count_unread(world, models, paths) + kinds.count;
 	for (uint32_t next = 0; going && next < paths + kinds.count;) {
-		voe_game_models_batch *batch =
-			voe_game_models_batch_new(folder, room);
+		voe_game_models_batch *batch = voe_game_models_batch_new(folder, 1);
 		bool any;
 
 		next = voe_game_models_update_gather(world, models, &kinds, next,
-						     room, batch);
+						     1, batch);
 		any = voe_game_models_batch_count(batch) > 0;
 		if (any && voe_game_progress_stopped(progress)) {
 			voe_game_models_batch_destroy(batch);
@@ -449,17 +443,15 @@ voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 					       const char *folder,
 					       voe_base_arena *scratch)
 {
-	uint32_t room = voe_base_workers_threads(voe_3d_models_workers(models));
 	struct models_call call = { .models = models, .device = device };
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(folder != NULL && scratch != NULL,
 			"no folder or scratch");
 	for (uint32_t i = 0; i < voe_3d_models_count(models);) {
-		voe_game_models_batch *batch =
-			voe_game_models_batch_new(folder, room);
+		voe_game_models_batch *batch = voe_game_models_batch_new(folder, 1);
 
-		i = voe_game_models_watch_gather(models, i, room, batch);
+		i = voe_game_models_watch_gather(models, i, 1, batch);
 		// Every path is held, so the store has room for each.
 		if (!batch_load(&call, batch))
 			VOE_BASE_ASSERT(false, "a held path refused for room");

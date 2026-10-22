@@ -1,12 +1,11 @@
-// The batch of game/src/models_batch.h: its files' phases as tasks over the
-// pool, their put one at a time, the times and their line; and the levels
-// file of a `.glb`, read on its arena or made over the pool and written, which
+// The batch of game/src/models_batch.h: its files' phases as tasks run in
+// order on the caller, their put one at a time, the times and their line; and
+// the levels file of a `.glb`, read on its arena or made and written, which
 // the public prepare shares. A file's state moves only forward, set by the
-// task of its phase or by the main thread between phases, never by two
-// threads in one phase: a picture's failure is its own until the decoding
-// phase is done, then folded into its file's. Every arena is made with
-// voe_base_arena_new and destroyed after the file's put or by destroy, the
-// batch's own (its files, paths and pictures) last. A `.glb`'s levels file is
+// task of its phase or between phases: a picture's failure is its own until
+// the decoding phase is done, then folded into its file's. Every arena is
+// made with voe_base_arena_new and destroyed after the file's put or by
+// destroy, the batch's own (its files, paths and pictures) last. A `.glb`'s levels file is
 // `<folder>/Cache/levels/<path>.levels`, its folders made first when absent,
 // with the `[Levels]` of the `.parts` beside the `.glb`, the defaults when
 // there is none or it will not parse; a fresh file kept whose swaps differ
@@ -87,8 +86,6 @@ struct batch_picture {
 struct voe_game_models_batch {
 	voe_base_arena *arena;
 	const char *folder;
-	// The prepare's pool, NULL outside it.
-	voe_base_workers *workers;
 	struct batch_file *files;
 	uint32_t count;
 	uint32_t room;
@@ -256,7 +253,6 @@ static const uint8_t *swaps_patched(const char *file, const uint8_t *bytes,
 const uint8_t *voe_game_models_levels_for(const char *folder, const char *path,
 					  const uint8_t *glb, size_t glb_size,
 					  bool remake, voe_base_arena *scratch,
-					  voe_base_workers *workers,
 					  size_t *size, bool *made,
 					  voe_base_error *error)
 {
@@ -280,8 +276,8 @@ const uint8_t *voe_game_models_levels_for(const char *folder, const char *path,
 		return parted ? swaps_patched(file, bytes, *size, &read, &asked,
 					      scratch) :
 				bytes;
-	bytes = voe_3d_model_levels_make(scratch, workers, glb, glb_size, asked,
-					 size, error);
+	bytes = voe_3d_model_levels_make(scratch, glb, glb_size, asked, size,
+					 error);
 	if (bytes == NULL)
 		return NULL;
 	*made = true;
@@ -332,7 +328,7 @@ static void file_release(voe_game_models_batch *batch, uint32_t index)
 void voe_game_models_batch_destroy(voe_game_models_batch *batch)
 {
 	VOE_BASE_ASSERT(batch != NULL, "destroying no batch");
-	VOE_BASE_ASSERT(batch->workers == NULL, "destroying a batch preparing");
+	VOE_BASE_ASSERT(batch->count <= batch->room, "a batch past its room");
 	for (uint32_t i = 0; i < batch->count; i++)
 		file_release(batch, i);
 	voe_base_arena_destroy(batch->arena);
@@ -372,9 +368,8 @@ uint32_t voe_game_models_batch_count(const voe_game_models_batch *batch)
 
 // Reading: the stamp, then the bytes on the file's own arena unless the stamp
 // is the known one and the file not forced.
-static void read_task(void *context, uint32_t index)
+static void read_task(voe_game_models_batch *batch, uint32_t index)
 {
-	voe_game_models_batch *batch = context;
 	struct batch_file *file = &batch->files[index];
 
 	VOE_BASE_ASSERT(index < batch->count, "reading a file past the batch");
@@ -405,9 +400,8 @@ static struct batch_file *glb_at(voe_game_models_batch *batch, uint32_t index)
 }
 
 // Parsing: the `.glb` with its pictures left encoded, and room for them.
-static void parse_task(void *context, uint32_t index)
+static void parse_task(voe_game_models_batch *batch, uint32_t index)
 {
-	voe_game_models_batch *batch = context;
 	struct batch_file *file = glb_at(batch, index);
 
 	if (file == NULL)
@@ -428,10 +422,9 @@ static void parse_task(void *context, uint32_t index)
 			"a parse left its file elsewhere");
 }
 
-// Making LODs: the levels file read, or made over the pool and written.
-static void lods_task(void *context, uint32_t index)
+// Making LODs: the levels file read, or made and written.
+static void lods_task(voe_game_models_batch *batch, uint32_t index)
 {
-	voe_game_models_batch *batch = context;
 	struct batch_file *file = glb_at(batch, index);
 	bool made;
 
@@ -440,8 +433,7 @@ static void lods_task(void *context, uint32_t index)
 	voe_base_report_subject_push(file->path);
 	file->levels = voe_game_models_levels_for(
 		batch->folder, file->path, file->bytes, file->size, false,
-		file->arena, batch->workers, &file->levels_size, &made,
-		&file->error);
+		file->arena, &file->levels_size, &made, &file->error);
 	// Refused, it is kept failed at its stamp, not read again (0445 point 4).
 	if (file->levels == NULL)
 		file->state = FILE_REFUSED;
@@ -478,9 +470,8 @@ static void pictures_gather(voe_game_models_batch *batch)
 }
 
 // Decoding pictures: one, on an arena of its own, into its file's images.
-static void decode_task(void *context, uint32_t index)
+static void decode_task(voe_game_models_batch *batch, uint32_t index)
 {
-	voe_game_models_batch *batch = context;
 	struct batch_picture *picture = &batch->pictures[index];
 	struct batch_file *file = &batch->files[picture->file];
 
@@ -514,9 +505,8 @@ static void pictures_fold(voe_game_models_batch *batch)
 }
 
 // Baking: 3d's prepare, on the file's arena.
-static void bake_task(void *context, uint32_t index)
+static void bake_task(voe_game_models_batch *batch, uint32_t index)
 {
-	voe_game_models_batch *batch = context;
 	struct batch_file *file = glb_at(batch, index);
 
 	if (file == NULL)
@@ -531,32 +521,31 @@ static void bake_task(void *context, uint32_t index)
 }
 
 void voe_game_models_batch_prepare(voe_game_models_batch *batch,
-				   voe_base_workers *workers,
 				   voe_game_models_times *times)
 {
-	static voe_base_workers_task *const phases[VOE_GAME_MODELS_UPLOADING] = {
+	static void (*const phases[VOE_GAME_MODELS_UPLOADING])(
+		voe_game_models_batch *, uint32_t) = {
 		read_task, parse_task, lods_task, decode_task, bake_task
 	};
 
 	VOE_BASE_ASSERT(batch != NULL && times != NULL, "no batch or times");
-	VOE_BASE_ASSERT(batch->workers == NULL, "a batch prepared twice");
-	batch->workers = workers;
+	VOE_BASE_ASSERT(batch->count <= batch->room, "a batch past its room");
 	for (uint32_t p = 0; p < VOE_GAME_MODELS_UPLOADING; p++) {
 		double before = voe_platform_clock_now();
 		bool decoding = p == VOE_GAME_MODELS_DECODING;
+		uint32_t tasks;
 
 		if (decoding)
 			pictures_gather(batch);
-		voe_base_workers_run(workers,
-				     decoding ? batch->picture_count : batch->count,
-				     phases[p], batch);
+		tasks = decoding ? batch->picture_count : batch->count;
+		for (uint32_t i = 0; i < tasks; i++)
+			phases[p](batch, i);
 		if (decoding)
 			pictures_fold(batch);
 		times->seconds[p] += voe_platform_clock_now() - before;
 	}
 	for (uint32_t i = 0; i < batch->count; i++)
 		times->files += batch->files[i].bytes != NULL;
-	batch->workers = NULL;
 }
 
 // The file into the store as its state says, under its path as the subject;

@@ -21,17 +21,16 @@
 // time. It follows the `.parts` beside the `.glb` (0430 point 5, 0436, 0435
 // point 4). A refused make keeps the entry failed at its stamp (0445 point 4).
 //
-// PHASES (0448 points 3, 4): update, watch and reload load in chunks of the
-// store's pool's threads (voe_3d_models_workers), each read, parsed, its LODs
-// made, pictures decoded and baked over the pool, then uploaded file by file
-// on the caller. A call that read a file writes `game: models: <n> files in
-// <s> s: reading <s> s, parsing …, making LODs …, decoding pictures …, baking
-// …, uploading …` to stderr, each phase's wall time.
+// PHASES (0457, 0459 point 1): update, watch and reload load one file at a
+// time on the caller, each read, parsed, its LODs made, pictures decoded,
+// baked and uploaded. A call that read a file writes `game: models: <n>
+// files in <s> s: reading <s> s, parsing …, making LODs …, decoding pictures
+// …, baking …, uploading …` to stderr, each phase's wall time.
 //
 // PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the
 // distinct paths to read are counted first, "Loading models" done/total set
 // before each upload and at the end. Stop asked, the call returns before the
-// next chunk, loading no dot or water; a later call reads the rest.
+// next file, loading no dot or water; a later call reads the rest.
 //
 // WATCH, a stamp of time and size asked once a second (0277 point 5), reloads
 // every entry, pictures too, whose stamp differs: a success replaces the
@@ -54,15 +53,14 @@
 //
 // Constraints: between frames only, since a load waits for the card to go
 // idle. Each file has arenas of its own, one for it and one a picture, freed
-// after its upload, `scratch` holding only the call's lists: a chunk's files
-// are in memory at once. A full store (VOE_3D_MODELS) ends an update, said
+// after its upload, `scratch` holding only the call's lists: one file is in
+// memory at a time. A full store (VOE_3D_MODELS) ends an update, said
 // once by the store; a larger store would lift it.
 #pragma once
 
 #include <3d/models.h>
 
 #include <base/arena.h>
-#include <base/workers.h>
 
 #include <ecs/world.h>
 
@@ -129,12 +127,10 @@ voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 // makes and writes it whatever is there, `made` then true whenever the `.glb`
 // reads and parses. False, `error` set, only when the `.glb` will not read or
 // parse; a write that fails is a line on stderr and true. Scratch rewound to
-// where it stood. The levels are made over `workers`, NULL in order. It makes
-// the file alone: the editor's import keeps a fresh one, its Make levels makes
-// it again (0429). See the header.
+// where it stood. It makes the file alone: the editor's import keeps a fresh
+// one, its Make levels makes it again (0429). See the header.
 [[nodiscard]] bool voe_game_models_prepare(const char *folder, const char *path,
 					   voe_base_arena *scratch,
-					   voe_base_workers *workers,
 					   bool remake, bool *made,
 					   voe_base_error *error);
 
