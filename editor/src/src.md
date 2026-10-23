@@ -6,14 +6,16 @@ carries it out.
 
 - `main.c` — opens the project, window and device, starts and loads scenes on a worker behind a
   live splash, and runs the loop until a close goes ahead or the picture is written.
-- `loading.h` — the start's, a New or Open load's and an import's prepare works for a splash wait:
-  shaders with the editor's pipeline cache, shapes and models, the scene and its models, or an
-  imported model's levels file, made again for Make LODs, and what the worker owns.
-- `loading.c` — the three works, each step after a stop check, in the worker's own scratch, a
+- `loading.h` — the start's, a New or Open load's, an import's prepare and the cook before Play and
+  Ship works for a splash wait: shaders, shapes and models, the scene and its models, an imported
+  model's levels file, or every stale cooked copy, and what the worker owns.
+- `loading.c` — the four works, each step after a stop check, in the worker's own scratch, a
   refused prepare's notice from the kept error.
 - `waits.h` — the loop's splash waits between frames: an import's or Make levels' prepare then its
-  reload, a swaps-only reload, and New or Open's load, false where a wait was.
-- `waits.c` — the three due blocks moved from main.c, each context filled and waited on.
+  reload, a swaps-only reload, the cook before Play and Ship, and New or Open's load, false where a
+  wait was.
+- `waits.c` — the due blocks moved from main.c, each context filled and waited on, and the cook's
+  `.glb`s found and stale asked before its wait.
 - `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
   time so a missing copy shows the plain screen, kept by the caller until the device closes.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
@@ -128,11 +130,12 @@ carries it out.
 - `ship.c` — the tree written and the first step started, each ended step polled on to the next,
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
-- `session.h` — the project being worked on, the commands a person asks of it, and the
-  questions it holds: Delete, levels and Import textures.
-- `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first, one
-  build at a time and refused while a prefab is open, a prefab opened, a built library swapped in
-  once a frame, and what a browser action does to the session.
+- `session.h` — the project being worked on, the commands a person asks of it, Play and Ship
+  waiting a frame for the cook before them, and the questions it holds: Delete, levels and Import
+  textures.
+- `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first and
+  cooking before they build, one build at a time and refused while a prefab is open, a prefab
+  opened, a built library swapped in once a frame, and what a browser action does to the session.
 - `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
   Project, Preferences, Panels and its list, the gizmo's mode, the name and unsaved mark, then the
   notice, as tall as its content or as the person made it.

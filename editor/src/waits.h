@@ -14,8 +14,11 @@
 // IN ORDER: an import's or Make levels' prepare (`prepare_due`), its model
 // loaded again unless the prepare refused it, whose line becomes the notice
 // (0431, 0445 point 4); a swaps-only Make's reload (`reload_due`, 0436 point
-// 8); then New or Open's load (`load_due`). The prepare comes before any load
-// replaces the project it was imported into.
+// 8); Play or Ship's cook (`cook_due`, 0470 point 6): every `.glb` under
+// Assets/ found and voe_game_models_stale asked here, the cook waited on only
+// when any copy is stale, then voe_editor_session_cooked starts the build, a
+// failed find only its notice; then New or Open's load (`load_due`). The
+// prepare and the cook come before any load replaces the project they are for.
 //
 // Constraints: the parts pointed at are main.c's and outlive the loop. During
 // a wait the worker owns the session, scene and models (loading.h); `scratch`
@@ -52,6 +55,6 @@ typedef struct {
 	voe_base_arena *worker_scratch;
 } voe_editor_waits;
 
-// The due prepare, reload and load, each cleared or carried out. False where a
+// The due prepare, reload, cook and load, each cleared or carried out. False where a
 // wait answered false: a closing window, or a stop, already on stderr.
 [[nodiscard]] bool voe_editor_waits_run(voe_editor_waits *waits);

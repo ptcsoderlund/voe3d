@@ -29,35 +29,35 @@
 // code session->play (play.h) starts at once. A press during that refresh ends
 // it, during any other sets `play_after`, and while building or running is
 // Stop. A CLOSE THAT GOES AHEAD ENDS THE PLAY, THE REFRESH AND THE SHIP FIRST.
+// A TITLED PROJECT'S BUILD WAITS ONE FRAME FOR THE COOK (0470 point 6): its
+// start sets `cook_due`, waits.h cooks the stale copies the build will carry
+// and calls voe_editor_session_cooked, which starts it. The waits run at the
+// frame's start, before input, so nothing presses in between, and a Play,
+// Refresh or Ship while one is due does nothing. Untitled starts at once.
 //
 // SHIP NEVER ARMS (ADR-0264): Play's shape, `ship_after` its `play_after`,
 // refused while a prefab is open, and a press while shipping does nothing. ONE
 // BUILD AT A TIME: Ship waits with a notice while Play builds or a refresh runs
 // for Play, and joins any other refresh; Play's build and Refresh wait with a
-// notice while a ship runs or follows a refresh. A ship never stops a game.
+// notice while a ship runs or follows a refresh. A ship never stops a game,
+// and its build waits one frame for the cook as Play's does.
 //
 // REFRESH NEVER ARMS: it starts session->refresh now (refresh.h), unless one
 // runs. `refresh_due` asks for one the next step, set wherever a project with
 // a folder lands: Open's load, a first Save, and startup.h.
 //
-// voe_editor_session_step IS WHERE A REFRESH LANDS, once a frame at its top,
-// before the undo take and the structural queue: a due one started if the
+// voe_editor_session_step IS WHERE A REFRESH LANDS: a due one started if the
 // project has code, a running one polled. BUILT loads the library unless its
 // bytes equal the loaded one's (code.h), swaps the world (project.h), re-finds
 // the selection by authored id and closes the picker and dropdown. A failure
 // says so and keeps the old world; `play_after` and `ship_after` are dropped.
 //
-// A FAILED BUILD SHOWS `errors` (errors.h) from Build/build.log: a refresh
-// that answers FAILED, or a Play or Ship whose step failed (the two polls). A
-// refresh, Play or Ship that starts hides it.
+// A FAILED REFRESH, PLAY OR SHIP STEP SHOWS `errors` (errors.h) from
+// Build/build.log, and one that starts hides it.
 //
 // voe_editor_session_edited IS THE OTHER HALF OF WHAT DISARMS: the
 // inspector's edits are no command, so its caller calls this, which marks the
 // project unsaved, clears the notice and disarms.
-//
-// `replaced` AND `saved` ARE FLAGS, NOT RETURN VALUES: another project loaded
-// (voe_editor_session_load), or this one written by SAVE or Save's Confirm;
-// main.c clears each, emptying undo on one and saving landscapes on the other.
 #pragma once
 
 #include "assets_ask.h"
@@ -114,6 +114,10 @@ typedef struct voe_editor_session {
 	bool ship_after;
 	// A refresh is to start at the next voe_editor_session_step.
 	bool refresh_due;
+	// Play, or Ship when `cook_ship`, waits for waits.h's cook before it,
+	// started by voe_editor_session_cooked next frame.
+	bool cook_due;
+	bool cook_ship;
 	// How many libraries this run has loaded, the n of project-<n> (code.h).
 	uint32_t loads;
 	// Shown by a failed build, hidden by a refresh, Play or Ship that starts.
@@ -127,8 +131,9 @@ typedef struct voe_editor_session {
 	// The Import textures question (textures_ask.h), opened by the Assets
 	// menu, drawn by interface.c and answered in interface_assets.c.
 	voe_editor_textures_ask textures_asking;
-	// A different project is in session->project, set by whichever call
-	// put it there and cleared by whoever acts on it.
+	// A flag, not a return value: a different project is in
+	// session->project, set by voe_editor_session_load and cleared by
+	// main.c, which empties undo on it.
 	bool replaced;
 	// The project was written by a SAVE or the browser's Save Confirm;
 	// cleared by main.c once it has written the edited landscapes.
@@ -186,6 +191,10 @@ void voe_editor_session_play_poll(voe_editor_session *session);
 // `errors` shown from the project's Build/build.log, as a failed build shows
 // it; panels.h's toggle calls it too. Nothing for a project with no folder.
 void voe_editor_session_errors_show(voe_editor_session *session);
+
+// The cook `cook_due` asked for ran: clears it and starts Play, or Ship when
+// `cook_ship`, as a start does at once for an untitled project.
+void voe_editor_session_cooked(voe_editor_session *session);
 
 // "Building" while a refresh with `play_after` runs, else
 // voe_editor_play_label.
