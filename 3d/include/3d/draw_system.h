@@ -295,6 +295,9 @@ typedef struct {
 	bool rest;
 	// Which passes draw it (0464 point 4).
 	voe_3d_foliage_tier tier;
+	// Its kind casts: false for a shadowless look, drawn by the camera only
+	// (0476 point 6).
+	bool casts;
 } voe_3d_foliage_group;
 
 // Seconds the shadows call spent on each of its parts, summed over the calls
@@ -703,8 +706,14 @@ voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world);
 // per opaque or cut-out part that level has: the top three rows of its matrix
 // about the eye, dithered as a dissolving model row is. Under a whole share it
 // is also one instance of each such part of the level before, with the other
-// dither, in a `rest` group. A group is one (kind, level, part, rest, tier),
-// shared by every row naming that file.
+// dither, in a `rest` group. A group is one (kind, level, part, rest, tier,
+// casts), shared by every row naming that file. Each row's grown copies
+// (voe_3d_models_landscape_grown, models_foliage.h) are gathered after its own,
+// the same way (0476 point 5).
+//
+// A SHADOWLESS KIND'S COPY (0476 point 6), its look `shadowless`, is seen or
+// left out, never cast or unseen, and counted as such: `drawn` when seen,
+// `skipped` when left out. Its groups' `casts` is false.
 //
 // EACH COPY IS SORTED INTO A TIER (0464 point 4). It runs after
 // voe_3d_draw_system_lights, so it knows every sun. A copy's sphere is its

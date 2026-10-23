@@ -29,12 +29,22 @@
 //    copy's shadow three pixels wide there, reads darker than with none.
 // 9. With the camera of 5, every copy is counted drawn.
 //
+// A layer grows the kind too (0476 points 5 and 6): the landscape's one layer
+// grows kind 0 at 50 tenths per 100 m², a copy every 5 m, beside the three.
+//
+// 10. The groups' counts sum to the hand and grown copies times the parts,
+//     each group casting, and some copies were grown.
+// 11. With the kind's look shadowless, every group is seen and not casting,
+//     the copies counted drawn are those gathered, and drawn and skipped
+//     together are every copy.
+//
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_model_fade.c does.
 #include <3d/draw_system.h>
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
+#include <3d/models_foliage.h>
 #include <3d/panel_component.h>
 #include <3d/shadow_cascades.h>
 #include <assets/landscape.h>
@@ -149,9 +159,12 @@ static voe_ecs_world *a_world(voe_base_arena *arena, voe_ecs_entity *land)
 }
 
 // A store holding FOREST, 16 m of 8 cells naming KIND as kind 0 with the first
-// `count` of three copies, and, with `kind`, KIND itself.
-static voe_3d_models *a_store(voe_render_device *device, voe_base_arena *arena,
-			      bool kind, uint32_t count)
+// `count` of three copies, and, with `kind`, KIND itself. With `grow`, one
+// layer grows kind 0 at 50 tenths and its look is `shadowless`.
+static voe_3d_models *a_store_growing(voe_render_device *device,
+				      voe_base_arena *arena, bool kind,
+				      uint32_t count, bool grow,
+				      bool shadowless)
 {
 	voe_3d_models *models = voe_3d_models_new();
 	voe_assets_landscape land = voe_assets_landscape_flat(16.0f, 8, arena);
@@ -167,6 +180,13 @@ static voe_3d_models *a_store(voe_render_device *device, voe_base_arena *arena,
 	land.kind_count = 1;
 	land.copies = copies;
 	land.copy_count = count;
+	land.looks[0].shadowless = shadowless;
+	if (grow) {
+		snprintf(land.layers[0], sizeof(land.layers[0]), "%s",
+			 "Assets/grass.material");
+		land.layer_count = 1;
+		land.grows[0][0] = 50;
+	}
 	text = voe_assets_landscape_write(&land, arena);
 	VOE_TEST_CHECK(voe_3d_models_load(models, device, FOREST, 1,
 					  (const uint8_t *)text.text, text.size,
@@ -177,6 +197,13 @@ static voe_3d_models *a_store(voe_render_device *device, voe_base_arena *arena,
 						  sizeof(TWO_PRIMITIVES_GLB),
 						  &error));
 	return models;
+}
+
+// The store of a_store_growing, growing nothing.
+static voe_3d_models *a_store(voe_render_device *device, voe_base_arena *arena,
+			      bool kind, uint32_t count)
+{
+	return a_store_growing(device, arena, kind, count, false, false);
 }
 
 // One frame of `world` from `models` that only gathers: the call's answer, the
@@ -419,6 +446,40 @@ static void copies_behind_still_shadow(voe_render_device *device,
 	VOE_TEST_CHECK(brightness(three) < brightness(none));
 }
 
+// 10 and 11, from the camera of 5.
+static void grown_copies_gather(voe_render_device *device,
+				voe_base_arena *arena, bool shadowless)
+{
+	voe_3d_models *models =
+		a_store_growing(device, arena, true, COPIES, true, shadowless);
+	const voe_3d_models_grown grown = voe_3d_models_landscape_grown(
+		models, voe_3d_models_find(models, FOREST));
+	voe_ecs_entity land = { 0 };
+	voe_ecs_world *world = a_world(arena, &land);
+	voe_3d_frame frame;
+	uint32_t sum = 0;
+	const uint32_t parts = opaque_parts(models);
+
+	printf("%u grown, shadowless %d\n", grown.count, shadowless);
+	VOE_TEST_CHECK(grown.count > 0);
+	VOE_TEST_CHECK(gather(world, device, arena, models, &frame));
+	VOE_TEST_CHECK(frame.foliage_count > 0);
+	for (uint32_t i = 0; i < frame.foliage_count; i++) {
+		VOE_TEST_CHECK(frame.foliage[i].casts == !shadowless);
+		VOE_TEST_CHECK(!shadowless ||
+			       frame.foliage[i].tier == VOE_3D_FOLIAGE_SEEN);
+		sum += frame.foliage[i].count;
+	}
+	VOE_TEST_CHECK_INT(frame.counts.drawn + frame.counts.skipped,
+			   COPIES + grown.count);
+	if (shadowless)
+		VOE_TEST_CHECK_INT(sum, frame.counts.drawn * parts);
+	else
+		VOE_TEST_CHECK_INT(sum, (COPIES + grown.count) * parts);
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 // 4.
 static void no_room_gathers_none(voe_base_arena *arena)
 {
@@ -468,6 +529,8 @@ int main(void)
 	the_view_and_the_sun_draw_copies(device, arena);
 	copies_behind_are_skipped(device, arena);
 	copies_behind_still_shadow(device, arena);
+	grown_copies_gather(device, arena, false);
+	grown_copies_gather(device, arena, true);
 	voe_render_device_destroy(device);
 	no_room_gathers_none(arena);
 	voe_base_arena_destroy(arena);
