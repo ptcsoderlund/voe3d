@@ -1,4 +1,4 @@
-# 096 — Models blend into the ground
+# 097 — Models blend into the ground
 
 ## What
 A model placed on the terrain, a rock, a log or a wall, can take on the ground's painted layers where it
