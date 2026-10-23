@@ -13,7 +13,7 @@ defines, and `models.h`, which has two and an internal batch.
 - `progress.c` — the progress record's atomic stores and loads, its line and the "Loaded in" line.
 - `run.c` — the run's steps in the handed window and its threads, the view's counts said once a second under `VOE_GAME_COUNTS=1`, and the only file naming the cooked scene, prefabs, landscapes, materials and parts, the materials and parts loaded after each models update.
 - `splashscreen.png` — the engine's splash, read by the editor from the source and put beside a game's program by `cmake/game.cmake` when the project has none (0356).
-- `models.c` — an update's, watch's or reload's paths loaded one file at a time as batches of one, a cooked landscape with its kinds, their base sizes and copies and each landscape's kind paths, each failure counted.
+- `models.c` — an update's, watch's or reload's paths loaded one file at a time as batches of one, a cooked landscape with its kinds, their looks, its layers' growth and its copies and each landscape's kind paths, each failure counted.
 - `models_batch.h` — internal: a batch of files through timed phases in order on the caller, taking and writing cooked copies as its mode says, then put; the phases' times and their line; the levels file helpers `models.c` shares.
 - `models_batch.c` — each phase's tasks in order under the file's path, a `.glb`'s cooked copy taken or its levels file read or made and written, the copy cooked, the put keeping a refused file failed, and the times' line.
 - `models_cooked.h` — internal: who takes and writes a `.glb`'s or a material map's cooked copy (the modes), their paths, a model's key, and the folders and `.parts` helpers the batch shares.
