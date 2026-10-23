@@ -5,7 +5,7 @@
 // materials loaded and parts given after, cleared through the device and
 // destroyed, and handed out read-only; its landscapes' heights and paint
 // stamped, put back and their layers set, their foliage scattered, erased,
-// put back and its kinds and their looks set, heights and materials' records
+// put back and its kinds, their looks and the layers' growth set, heights and materials' records
 // written in the frame, landscapes written on Save and read again, and one
 // reshaped, written at once and loaded again at the next update; an edited
 // material set live, or loaded again at the next update when a map changed,
@@ -480,6 +480,17 @@ void voe_editor_models_look_set(voe_editor_models *models, const char *path,
 			"setting a kind's look in no store");
 	VOE_BASE_ASSERT(path != NULL, "setting a kind's look on no path");
 	voe_3d_models_landscape_look_set(models->store, path, kind, look);
+}
+
+void voe_editor_models_grow_set(voe_editor_models *models, const char *path,
+				uint32_t layer, uint32_t kind, uint16_t density)
+{
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"setting a layer's growth in no store");
+	VOE_BASE_ASSERT(path != NULL && density <= VOE_ASSETS_LANDSCAPE_GROW_MAX,
+			"setting a growth on no path or past its most");
+	voe_3d_models_landscape_grow_set(models->store, path, layer, kind,
+					 density);
 }
 
 void voe_editor_models_rename(voe_editor_models *models, const char *from,

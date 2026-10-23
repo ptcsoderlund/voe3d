@@ -1,4 +1,4 @@
-// One sculpting, paint or foliage stroke as an undo step carries it (0379
+// One sculpting, paint, foliage, look or grow stroke as an undo step carries it (0379
 // point 5, 0402 point 7, 0442 point 4): which landscape, the rectangle of
 // points it touched, and that rectangle's heights, or for a paint stroke its
 // weights, before and after, so stepping over it writes one or the other back
@@ -8,6 +8,7 @@
 //     paint = voe_editor_stroke_new_paint(path, rect, bytes, bytes2);
 //     trees = voe_editor_stroke_new_foliage(path, false, added, count);
 //     looked = voe_editor_stroke_new_look(path, kind, before, after);
+//     grew = voe_editor_stroke_new_grow(path, layer, kind, 0, 40);
 //     voe_editor_undo_stroke(&undo, project, scratch, stroke); // undo owns it
 //     voe_editor_stroke_apply(stroke, models, false);          // back
 //     voe_editor_stroke_destroy(stroke);
@@ -15,10 +16,11 @@
 // A FOLIAGE STROKE carries the copies it added or removed instead, put back by
 // value: a copy has no index that survives an erase moving the last one in.
 //
-// A KIND'S LOOK rides as a stroke too, its kind and look before and after
-// (0476 points 1 and 7): strokes already carry a landscape's edits beside the text and
-// write back through the store, and a landscape is saved with the project, not
-// written at once as a material step's file is.
+// A KIND'S LOOK AND A LAYER'S GROWTH ride as strokes too, the kind's look or
+// the layer's density of a kind before and after (0476 points 1, 2 and 7):
+// strokes already carry a landscape's edits beside the text and write back
+// through the store, and a landscape is saved with the project, not written at
+// once as a material step's file is.
 //
 // A STROKE RIDES BESIDE THE SCENE TEXT, NOT IN IT. A state of the undo line is
 // a whole-scene text of at most 64 KB (undo.h); a stroke over a 512-cell grid
@@ -52,7 +54,8 @@
 // pair NULL. When `foliage`, no rectangle and no values: `copy_count`
 // `copies`, its own, that the stroke removed when `erase` and added if not.
 // When `look`, none of those: kind `kind`'s look `look_before` and
-// `look_after`.
+// `look_after`. When `grow`, none either: layer `layer`'s density of kind
+// `kind`, `grow_before` and `grow_after`, in tenths of copies per 100 m².
 typedef struct {
 	char path[VOE_3D_MODEL_PATH];
 	voe_3d_landscape_rect rect;
@@ -69,6 +72,10 @@ typedef struct {
 	uint32_t kind;
 	voe_assets_landscape_look look_before;
 	voe_assets_landscape_look look_after;
+	bool grow;
+	uint32_t layer;
+	uint16_t grow_before;
+	uint16_t grow_after;
 } voe_editor_stroke;
 
 // A stroke holding copies of `path` and of `rect`'s heights in `before` and
@@ -97,12 +104,19 @@ voe_editor_stroke *voe_editor_stroke_new_look(const char *path, uint32_t kind,
 					      voe_assets_landscape_look before,
 					      voe_assets_landscape_look after);
 
+// A grow stroke holding a copy of `path` and layer `layer`'s density of kind
+// `kind` `before` and `after` the change. Never NULL.
+voe_editor_stroke *voe_editor_stroke_new_grow(const char *path, uint32_t layer,
+					      uint32_t kind, uint16_t before,
+					      uint16_t after);
+
 // Frees the stroke and its heights, weights or copies. NULL is nothing.
 void voe_editor_stroke_destroy(voe_editor_stroke *stroke);
 
 // Writes the after values into the store's landscape when `forward`, the
 // before otherwise; a foliage stroke's copies are added forward and removed
 // backward for a scatter, the other way for an erase; a look stroke's look
-// is set. Nothing when the path is no loaded landscape.
+// and a grow stroke's density are set. Nothing when the path is no loaded
+// landscape.
 void voe_editor_stroke_apply(const voe_editor_stroke *stroke,
 			     voe_editor_models *models, bool forward);

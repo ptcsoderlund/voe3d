@@ -1,7 +1,8 @@
 // The brush's start, its put-down, whether a thing wears a landscape, and the
 // held drag that sculpts, paints, scatters or erases it: hover, press with its
 // heights or paint copy or changed list, stamps and the release's undo step;
-// and a kind's look edit settled each frame before the brush.
+// and a kind's look edit and a layer's grow edit settled each frame before
+// the brush.
 // See the header for why the brush is never saved or undone.
 #include "sculpt.h"
 
@@ -49,8 +50,9 @@ void voe_editor_sculpt_start(voe_editor_sculpt *sculpt)
 		sculpt->kind_sliders[i] = VOE_UI_NODE_NONE;
 
 	VOE_BASE_ASSERT(!sculpt->chosen && !sculpt->looking &&
-				!sculpt->look_asked,
-			"a started brush already chosen or editing a look");
+				!sculpt->look_asked && !sculpt->growing &&
+				!sculpt->grow_asked,
+			"a started brush already chosen or editing a look or growth");
 }
 
 void voe_editor_sculpt_choose_none(voe_editor_sculpt *sculpt)
@@ -506,8 +508,87 @@ static void looks_settle(voe_editor_sculpt *sculpt,
 			"a look edit with no landscape");
 }
 
-// The look edit is settled first, whether or not a brush is chosen: the
-// Foliage section's kind controls are not a brush (looks_settle).
+// Whether `land` has layer `layer` and kind `kind`.
+static bool grow_fits(const voe_assets_landscape *land, uint32_t layer,
+		      uint32_t kind)
+{
+	return land != NULL && layer < land->layer_count &&
+	       kind < land->kind_count;
+}
+
+// The open grow edit closed: when its density changed, a grow stroke handed
+// to the undo line and the project marked edited.
+static void grow_close(voe_editor_sculpt *sculpt,
+		       const voe_editor_models *models,
+		       struct voe_editor_undo *undo,
+		       struct voe_editor_session *session, voe_base_arena *scratch)
+{
+	const voe_assets_landscape *land = grid(models, sculpt->growing_path);
+	const uint32_t layer = sculpt->growing_layer;
+	const uint32_t kind = sculpt->growing_kind;
+
+	VOE_BASE_ASSERT(sculpt->growing, "closing no grow edit");
+	if (grow_fits(land, layer, kind) &&
+	    land->grows[layer][kind] != sculpt->growing_before) {
+		voe_editor_undo_stroke(undo, session->project, scratch,
+				       voe_editor_stroke_new_grow(
+					       sculpt->growing_path, layer, kind,
+					       sculpt->growing_before,
+					       land->grows[layer][kind]));
+		voe_editor_session_edited(session);
+	}
+	sculpt->growing = false;
+	VOE_BASE_ASSERT(!sculpt->growing, "a grow edit left open");
+}
+
+// The Layers read's ask settled as looks_settle settles a look's: another
+// layer's or kind's edit closed first, one opened on the selection's loaded
+// landscape, the density set live, closed with no control held. A selection
+// with no loaded landscape, or a layer or kind it no longer has, drops it.
+static void grows_settle(voe_editor_sculpt *sculpt,
+			 const voe_editor_scene *scene,
+			 voe_editor_models *models,
+			 struct voe_editor_undo *undo,
+			 struct voe_editor_session *session,
+			 voe_base_arena *scratch)
+{
+	const char *path;
+	const voe_assets_landscape *land;
+
+	VOE_BASE_ASSERT(sculpt->grow_to <= VOE_EDITOR_SCULPT_GROW_MAX,
+			"a growth asked past its most");
+	if (sculpt->grow_asked && sculpt->growing &&
+	    (sculpt->grow_layer != sculpt->growing_layer ||
+	     sculpt->grow_kind != sculpt->growing_kind))
+		grow_close(sculpt, models, undo, session, scratch);
+	if (sculpt->grow_asked && !sculpt->growing) {
+		path = worn(scene, models);
+		land = path != NULL ? grid(models, path) : NULL;
+		if (grow_fits(land, sculpt->grow_layer, sculpt->grow_kind)) {
+			memcpy(sculpt->growing_path, path, strlen(path) + 1);
+			sculpt->growing_layer = sculpt->grow_layer;
+			sculpt->growing_kind = sculpt->grow_kind;
+			sculpt->growing_before =
+				land->grows[sculpt->grow_layer][sculpt->grow_kind];
+			sculpt->growing = true;
+		}
+	}
+	if (sculpt->grow_asked && sculpt->growing &&
+	    grow_fits(grid(models, sculpt->growing_path), sculpt->growing_layer,
+		      sculpt->growing_kind))
+		voe_editor_models_grow_set(models, sculpt->growing_path,
+					   sculpt->growing_layer,
+					   sculpt->growing_kind, sculpt->grow_to);
+	if (sculpt->growing && !sculpt->grow_held)
+		grow_close(sculpt, models, undo, session, scratch);
+	sculpt->grow_asked = false;
+	sculpt->grow_held = false;
+	VOE_BASE_ASSERT(!sculpt->growing || sculpt->growing_path[0] != '\0',
+			"a grow edit with no landscape");
+}
+
+// The look and grow edits are settled first, whether or not a brush is
+// chosen: the Foliage and Layers sections' controls are not a brush.
 bool voe_editor_sculpt_read(voe_editor_sculpt *sculpt,
 			    struct voe_editor_scene *scene,
 			    const voe_editor_views *views,
@@ -526,6 +607,7 @@ bool voe_editor_sculpt_read(voe_editor_sculpt *sculpt,
 				scratch != NULL,
 			"sculpting with no store, undo, session or scratch");
 	looks_settle(sculpt, scene, models, undo, session, scratch);
+	grows_settle(sculpt, scene, models, undo, session, scratch);
 	sculpt->left_was = left;
 	path = sculpt->chosen ? worn(scene, models) : NULL;
 	if (path != NULL && sculpt->stroking &&

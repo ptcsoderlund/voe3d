@@ -41,7 +41,8 @@
 // and re-read it are made here and nowhere else. Each frame _frame, inside the
 // draw, writes its dirty heights into its texture (0396 point 5). Save writes
 // every edited one to its file; a New or Open reads every edited one again.
-// Its paint, layers (0402) and foliage (0442) are edited here too, and Save
+// Its paint, layers (0402), foliage (0442), kinds' looks and layers' growth
+// (0476) are edited here too, and Save
 // writes them with the heights, the writer carrying them.
 // The Landscape panel's size and cells are written at once and re-read at the next
 // update; one re-read waits at a time, enough for a panel that writes at most
@@ -185,6 +186,13 @@ void voe_editor_models_kind_set(voe_editor_models *models, const char *path,
 // kinds, the writer carrying them.
 void voe_editor_models_look_set(voe_editor_models *models, const char *path,
 				uint32_t kind, voe_assets_landscape_look look);
+
+// Layer `layer` of `path`'s landscape grows kind `kind` at `density` tenths of
+// copies per 100 m², 0 not grown, that kind's grown copies made again (0476
+// point 2): a control's live value or a grow stroke put back (strokes.h). Save
+// writes the densities with the layers, the writer carrying them.
+void voe_editor_models_grow_set(voe_editor_models *models, const char *path,
+				uint32_t layer, uint32_t kind, uint16_t density);
 
 // Every entry at `from` or under `from/` takes `to` in its place, both under
 // `Assets/`: a rename or move keeps a landscape's unsaved heights (0379 point 6).

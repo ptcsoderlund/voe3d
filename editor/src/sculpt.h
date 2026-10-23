@@ -22,8 +22,9 @@
 // With kind PAINT the drag paints `layer` instead (0402 points 3 and 7), and
 // the release's step carries the rectangle's weights. With SCATTER or ERASE
 // it stamps foliage copies (0442 point 3); the step carries those it changed.
-// A kind's look edit (0476 points 1 and 7) is settled each frame first, brush
-// chosen or none: set live while its control is held, one step when let go.
+// A kind's look edit and a layer's grow edit (0476 points 1, 2 and 7) are
+// settled each frame first, brush chosen or none: set live while the control
+// is held, one step when let go. A tick asks VOE_EDITOR_SCULPT_GROW.
 //
 // Constraints: the numbers are kept inside the ranges below by whoever writes
 // them, the Sculpt, Brush and Foliage sliders clamping, a kind's look to
@@ -74,6 +75,12 @@ struct voe_editor_models;
 #define VOE_EDITOR_SCULPT_DENSITY_MIN 0.1f
 #define VOE_EDITOR_SCULPT_DENSITY_MAX 50.0f
 #define VOE_EDITOR_SCULPT_DENSITY 4.0f
+
+// A layer's growth of a kind (0476 point 2), in tenths of copies per 100 m²:
+// the Density slider's range, and what a tick asks, the brush's 4 per 100 m².
+#define VOE_EDITOR_SCULPT_GROW_MIN 1u
+#define VOE_EDITOR_SCULPT_GROW_MAX VOE_ASSETS_LANDSCAPE_GROW_MAX
+#define VOE_EDITOR_SCULPT_GROW 40u
 
 // Raise, Lower, Smooth and Flatten: one button each.
 #define VOE_EDITOR_SCULPT_KINDS 4
@@ -166,6 +173,21 @@ typedef struct {
 	uint32_t looking_kind;
 	voe_assets_landscape_look looking_before;
 	char looking_path[VOE_3D_MODEL_PATH];
+	// The last read's grow ask, when `grow_asked`: layer `grow_layer`'s
+	// density of kind `grow_kind` to `grow_to` tenths; `grow_held` that its
+	// control is held. Both taken and cleared by the next read, as the look's.
+	bool grow_asked;
+	uint32_t grow_layer;
+	uint32_t grow_kind;
+	uint16_t grow_to;
+	bool grow_held;
+	// The grow edit open, when `growing`: its layer and kind, that density
+	// stored before it, and its landscape's path.
+	bool growing;
+	uint32_t growing_layer;
+	uint32_t growing_kind;
+	uint16_t growing_before;
+	char growing_path[VOE_3D_MODEL_PATH];
 	// The ground under the pointer this frame, when `hit`: (x, z) in the
 	// grid's own space of `entity`'s landscape.
 	bool hit;
@@ -207,7 +229,7 @@ void voe_editor_sculpt_choose_none(voe_editor_sculpt *sculpt);
 bool voe_editor_sculpt_wears(const voe_ecs_world *world, voe_ecs_entity entity);
 
 // One frame of the brush on the selection's ground, after settling the
-// look edit the Foliage read asked for. Acts only while a brush is
+// look edit the Foliage read and the grow edit the Layers read asked for. Acts only while a brush is
 // chosen and the selection wears a loaded landscape; else clears the hover,
 // ends a held stroke and takes nothing. `pointer` is in the root surface's
 // millimetres, `left` the left button down with the pointer in the window,
