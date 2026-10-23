@@ -221,7 +221,8 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 // a geometry and its blended twin, its levels, and its shape copied into the
 // entry's own arena, so the prepare's arena may go after. Replaces and fails as
 // _load does: REFUSED when the device or the store has no room. Asserts the
-// model's pictures are decoded. On the thread that owns the device, between
+// model's pictures are decoded. A picture's given levels are uploaded as they
+// are, and the GPU mips the rest. On the thread that owns the device, between
 // frames.
 [[nodiscard]] bool voe_3d_models_put(voe_3d_models *models,
 				     voe_render_device *device,
@@ -249,7 +250,8 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 	voe_3d_material_maps maps, voe_base_error *error);
 
 // `material` as `path`'s entry, its maps decoded by the caller before the put:
-// each of width above 0 uploaded mipped, colour and emission as COLOUR, normal
+// each of width above 0 uploaded mipped, its given levels as they are and the
+// GPU mipping the rest, colour and emission as COLOUR, normal
 // and ORM as DATA, the ORM map's one texture in the metal-roughness and the
 // occlusion slots both (0400), the emission map in the emissive slot; colour,
 // metal, roughness, repeat and shader from the values, `cutout` > 0 as CUTOUT

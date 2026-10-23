@@ -18,7 +18,8 @@
 // (render/device.h) — so a file whose one picture is referenced as both costs
 // two slots, short of two views onto one image, which is a card of its own.
 // Nothing real does this; what the two arrays buy is that such a file is merely
-// wasteful rather than wrong.
+// wasteful rather than wrong. A picture that carries its levels keeps them; one
+// without is mipped on the GPU.
 //
 // WHICH SPACE A PICTURE IS IN COMES OUT OF THE MATERIALS, because nothing in a
 // PNG says whether its bytes are a colour, so the materials are walked for their

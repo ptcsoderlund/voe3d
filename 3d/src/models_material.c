@@ -113,7 +113,8 @@ static bool decode_map(voe_base_arena *scratch, const char *name,
 	return decoded;
 }
 
-// `image` uploaded as `kind` into `slot`; nothing for one of width 0.
+// `image` uploaded as `kind` into `slot`, with the levels it carries, else
+// SMOOTH and mipped on the GPU; nothing for one of width 0.
 static bool upload_map(voe_render_device *device, const voe_assets_image *image,
 		       voe_render_texture_kind kind, maps_made *made,
 		       voe_render_texture *slot, voe_base_error *error)
@@ -121,9 +122,17 @@ static bool upload_map(voe_render_device *device, const voe_assets_image *image,
 	if (image->width == 0)
 		return true;
 	VOE_BASE_ASSERT(image->pixels != NULL, "a map of pixels at no address");
-	if (!voe_render_texture_create(device, kind, VOE_RENDER_SAMPLING_SMOOTH,
-				       image->width, image->height,
-				       image->pixels, slot, error))
+	const bool uploaded =
+		image->levels > 1 ?
+			voe_render_texture_create_levels(
+				device, kind, image->width, image->height,
+				image->levels, image->pixels, slot, error) :
+			voe_render_texture_create(device, kind,
+						  VOE_RENDER_SAMPLING_SMOOTH,
+						  image->width, image->height,
+						  image->pixels, slot, error);
+
+	if (!uploaded)
 		return false;
 	made->made[made->count++] = *slot;
 	return true;

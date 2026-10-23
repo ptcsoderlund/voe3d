@@ -174,8 +174,8 @@ again, or to find where a claim that has started failing is written down.
   layers and renames written within a frame's budget, and its foliage placed, kept standing by a
   sculpt, scattered, erased, put back, kinds set, sized and renamed. Skips without a card.
 - `models_material.c` — a `.material` with four maps loaded as one part, its cutout, emission and
-  sides, a set written by a frame, a decoded put alike, a non-picture map MALFORMED, and a rename.
-  Skips without a card.
+  sides, a set written by a frame, a decoded put alike, a mipped map's put
+  (`put_material_takes_given_levels`), a non-picture map MALFORMED, and a rename. Skips without a card.
 - `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, and
   painting a layer: the sum kept, the radius held and a light stroke stopping at its strength.
   Needs no graphics card.
