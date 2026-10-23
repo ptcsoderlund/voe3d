@@ -11,6 +11,9 @@ carries it out.
   imported model's levels file, made again for Make LODs, and what the worker owns.
 - `loading.c` — the three works, each step after a stop check, in the worker's own scratch, a
   refused prepare's notice from the kept error.
+- `waits.h` — the loop's splash waits between frames: an import's or Make levels' prepare then its
+  reload, a swaps-only reload, and New or Open's load, false where a wait was.
+- `waits.c` — the three due blocks moved from main.c, each context filled and waited on.
 - `splash.h` — the engine's splashscreen.png, never a project's, read from the engine source at run
   time so a missing copy shows the plain screen, kept by the caller until the device closes.
 - `splash.c` — the path joined from toolchain.h's engine folder and read with app/picture.h.
