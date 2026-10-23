@@ -86,7 +86,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 - Revisit 058 (several directional lights) once a real game needs a sun and moon or a lit cave; it was accepted on theory, without a concrete use to judge it by.
 - **F with nothing selected frames the whole scene** (sponsor, 2026-10-05): left out of 065, which frames only a selection.
 - **Wind in the foliage** (2026-10-07, from 0376's road): grass and leaves sway in a wind that has a
-  direction and strength. Left out of 090/094 (094 is grass, 0462) to keep them testable in one sitting.
+  direction and strength. Left out of 090 (0462) and 095 to keep them testable in one sitting.
 - **Backlit leaves** (2026-10-07, was work order 077): thin leaves glow on their shaded side when the sun
   is behind them. Cheap, and what makes trees read as trees from the tower.
 - **Leaves that block each other's bounce** (2026-10-21, from 0450): foliage in the bounce probes' captures, so
