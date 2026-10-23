@@ -16,6 +16,11 @@
 // trilinear with its mips, anisotropy being off on the checked card (ADR-0369),
 // and still not a crawl.
 //
+// A fourth, given_levels_are_drawn, hands the far checker over as level 0 of a
+// chain whose every lower level is solid red (voe_render_texture_create_levels).
+// The far quad must then read red within 8 inside its edge: the given levels are
+// sampled, and no chain was built over them.
+//
 // The camera sits at the origin looking down −Z with a 90° field of view, so
 // at a distance of 1 the picture is exactly 2 units across: a quad of half-side
 // 1 fills it and one of half-side 0.25 is 16 pixels.
@@ -46,7 +51,7 @@ static const voe_render_capacities CAPACITIES = {
 	.indices = 6,
 	.geometries = 1,
 	.objects = 1,
-	.shadings = 3,
+	.shadings = 4,
 	.passes = 1,
 };
 
@@ -255,25 +260,92 @@ static void check_blend(const uint8_t *image, uint32_t left, uint32_t top,
 	VOE_TEST_CHECK_INT(outside, 0);
 }
 
+// An unlit white record wearing `texture` tiled `across` × `along` times.
+static bool shade_with(voe_render_device *device, voe_render_texture texture,
+		       float across, float along, voe_render_shading *out,
+		       voe_base_error *error)
+{
+	voe_render_shading_values values = {
+		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
+		.roughness = 1.0f,
+		.base_colour_uv_rect = { 0.0f, 0.0f, across, along },
+		.unlit = 1,
+		.base_colour_texture = texture.index,
+	};
+
+	return voe_render_shading_create(device, values, out, error);
+}
+
 // A checker of `side` texels tiled `across` × `along` times over the quad.
 static bool make_case(voe_render_device *device, uint32_t side, float across,
 		      float along, voe_render_shading *out,
 		      voe_base_error *error)
 {
 	voe_render_texture texture = { 0 };
-	voe_render_shading_values values = {
-		.base_colour = { 1.0f, 1.0f, 1.0f, 1.0f },
-		.roughness = 1.0f,
-		.base_colour_uv_rect = { 0.0f, 0.0f, across, along },
-		.unlit = 1,
-	};
 
 	if (!voe_render_texture_create(device, VOE_RENDER_TEXTURE_COLOUR,
 				       VOE_RENDER_SAMPLING_SMOOTH, side, side,
 				       checker(side), &texture, error))
 		return false;
-	values.base_colour_texture = texture.index;
-	return voe_render_shading_create(device, values, out, error);
+	return shade_with(device, texture, across, along, out, error);
+}
+
+// The far checker as level 0 and every lower level solid red, in one block as
+// voe_render_texture_create_levels takes it; twice level 0 is room for them all.
+static uint8_t given_pixels[FAR_TEXELS * FAR_TEXELS * 4 * 2];
+
+// The far case again with those given levels, drawn at `offset` and checked:
+// one pixel in from the quad's edges, every pixel red within 8.
+static void given_levels_are_drawn(voe_render_device *device,
+				   voe_render_geometry quad,
+				   const struct voe_render_buffer *readback,
+				   VkDeviceSize offset)
+{
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_texture texture = { 0 };
+	voe_render_shading shading = { 0 };
+	uint32_t levels = 0;
+	size_t at = (size_t)FAR_TEXELS * FAR_TEXELS * 4;
+	uint32_t off = 0;
+	void *mapped = NULL;
+
+	memcpy(given_pixels, checker(FAR_TEXELS), at);
+	for (uint32_t side = FAR_TEXELS / 2; side > 0; side >>= 1) {
+		for (uint32_t i = 0; i < side * side; i++, at += 4) {
+			given_pixels[at] = 255;
+			given_pixels[at + 1] = 0;
+			given_pixels[at + 2] = 0;
+			given_pixels[at + 3] = 255;
+		}
+		levels++;
+	}
+	VOE_TEST_CHECK(at <= sizeof given_pixels);
+	VOE_TEST_CHECK(voe_render_texture_create_levels(
+		device, VOE_RENDER_TEXTURE_COLOUR, FAR_TEXELS, FAR_TEXELS,
+		levels + 1, given_pixels, &texture, &error));
+	VOE_TEST_CHECK(shade_with(device, texture, 1.0f, 1.0f, &shading,
+				  &error));
+
+	draw_case(device, quad, shading, facing(0.25f), readback->buffer,
+		  offset);
+	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
+						    readback->memory, 0,
+						    VK_WHOLE_SIZE, 0, &mapped),
+			   VK_SUCCESS);
+	if (mapped == NULL)
+		return;
+	for (uint32_t y = 25; y < 39; y++) {
+		for (uint32_t x = 25; x < 39; x++) {
+			const uint8_t *p = (const uint8_t *)mapped + offset +
+					   ((size_t)y * SIDE + x) * 4;
+
+			// The target is B8G8R8A8, so red is the third byte.
+			if (p[2] < 247 || p[1] > 8 || p[0] > 8)
+				off++;
+		}
+	}
+	voe_render_vk.unmap_memory(device->device, readback->memory);
+	VOE_TEST_CHECK_INT(off, 0);
 }
 
 int main(void)
@@ -307,7 +379,7 @@ int main(void)
 						  "vkCmdCopyImageToBuffer");
 	VOE_TEST_CHECK(copy_image_to_buffer != NULL);
 	VOE_TEST_CHECK(voe_render_buffer_build(
-		device, &readback, IMAGE_BYTES * 3,
+		device, &readback, IMAGE_BYTES * 4,
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -344,6 +416,8 @@ int main(void)
 				    0, SIDE / 2, SIDE, SIDE * 3 / 4);			voe_render_vk.unmap_memory(device->device,
 						   readback.memory);
 		}
+		given_levels_are_drawn(device, quad, &readback,
+				       IMAGE_BYTES * 3);
 	}
 
 	voe_render_vk.device_wait_idle(device->device);

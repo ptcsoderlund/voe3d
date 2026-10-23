@@ -73,9 +73,9 @@ by reading the offscreen colour image back.
 - `offscreen.c` — that back faces are culled, that the Y flip, the winding and the front-face
   constant agree about which way round that is, that a texture arrives the right way up, and that an
   object record's colour tints what is drawn. Headless.
-- `mips.c` — a SMOOTH texture's chain: a 4×4 checker filling the picture reads hard black and
-  white texels, a 256×256 one seen 16 pixels across reads a grey blend, and the far half of a plane
-  seen at a low angle reads the same blend. Headless.
+- `mips.c` — a SMOOTH texture's chain: a 4×4 checker up close reads hard texels, a 256×256 one 16
+  pixels across and a low-angle plane's far half read a grey blend, and `given_levels_are_drawn`: that
+  checker given solid red lower levels reads red far off. Headless.
 - `cutout_far.c` — a cut-out of one-texel alpha stripes, cutoff 0.5: filling the picture about half
   its pixels drawn, and seen 16 pixels across, at level 4, at least a third still drawn. Headless.
 - `dither.c` — an object record's `dither` on an unlit quad filling the picture: 0 every pixel, 0.5

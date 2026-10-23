@@ -57,7 +57,7 @@
 #define TEXTURE_COLOUR_FORMAT VK_FORMAT_R8G8B8A8_SRGB
 #define TEXTURE_DATA_FORMAT VK_FORMAT_R8G8B8A8_UNORM
 
-static VkFormat format_for(voe_render_texture_kind kind)
+VkFormat voe_render_texture_format(voe_render_texture_kind kind)
 {
 	return kind == VOE_RENDER_TEXTURE_COLOUR ? TEXTURE_COLOUR_FORMAT
 						 : TEXTURE_DATA_FORMAT;
@@ -218,11 +218,13 @@ static bool build_texture_image(voe_render_device *device,
 // Staging buffer in, image out: the transitions, the copy and the mipmap chain,
 // recorded into one command buffer and waited on. The same shape as
 // copy_and_wait in buffer.c and for the same reasons — see its header for why
-// this idles rather than taking a fence.
+// this idles rather than taking a fence. `given`, when not NULL, is one region
+// per level and no chain is built (texture_given.c).
 static bool copy_into_image(voe_render_device *device,
 			    struct voe_render_texture_slot *slot,
 			    const struct voe_render_buffer *staging,
-			    uint32_t width, uint32_t height, uint32_t levels)
+			    uint32_t width, uint32_t height, uint32_t levels,
+			    const VkBufferImageCopy *given)
 {
 	VkCommandBufferAllocateInfo allocate = {
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -270,15 +272,16 @@ static bool copy_into_image(voe_render_device *device,
 
 	voe_render_vk.cmd_copy_buffer_to_image(
 		commands, staging->buffer, slot->image,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, given != NULL ? levels : 1,
+		given != NULL ? given : &region);
 
-	if (levels > 1)
+	if (given == NULL && levels > 1)
 		voe_render_texture_levels_record(device, commands, slot->image,
 						 width, height, levels);
 	else
 		transition(commands, slot->image,
 			   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, 1);
+			   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, levels);
 
 	voe_render_vk.end_command_buffer(commands);
 
@@ -366,57 +369,45 @@ void voe_render_texture_write_descriptors(voe_render_device *device,
 	voe_render_vk.update_descriptor_sets(device->device, 1, &write, 0, NULL);
 }
 
-static bool create_texture(voe_render_device *device,
-			   voe_render_texture_kind kind,
-			   voe_render_sampling sampling, uint32_t width,
-			   uint32_t height, const uint8_t *rgba,
-			   voe_render_texture *out, voe_base_error *error)
+struct voe_render_texture_slot *
+voe_render_texture_slot_find(voe_render_device *device, voe_base_error *error)
 {
-	struct voe_render_texture_slot *slot = NULL;
-	VkFormat format = format_for(kind);
-	uint32_t index = 0;
-	uint32_t levels = 1;
-	VkDeviceSize size;
-
-	VOE_BASE_DEBUG_ASSERT(device != NULL, "creating a texture with no device");
-	VOE_BASE_DEBUG_ASSERT(rgba != NULL, "creating a texture from nothing");
-	VOE_BASE_DEBUG_ASSERT(out != NULL, "creating a texture into nothing");
-	VOE_BASE_DEBUG_ASSERT(width > 0 && height > 0,
-			      "creating a texture with no pixels in it");
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "finding a texture slot on no device");
 
 	for (uint32_t i = 1; i < VOE_RENDER_MAX_TEXTURES; i++) {
-		if (!device->textures[i].live) {
-			index = i;
-			slot = &device->textures[i];
-			break;
-		}
+		if (!device->textures[i].live)
+			return &device->textures[i];
 	}
-	if (slot == NULL) {
-		VOE_BASE_ERROR("render",
-			       "all %d texture slots are taken",
-			       VOE_RENDER_MAX_TEXTURES);
-		if (error != NULL)
-			*error = VOE_BASE_ERROR_REFUSED;
-		return false;
-	}
+	VOE_BASE_ERROR("render", "all %d texture slots are taken",
+		       VOE_RENDER_MAX_TEXTURES);
+	if (error != NULL)
+		*error = VOE_BASE_ERROR_REFUSED;
+	return NULL;
+}
 
-	size = (VkDeviceSize)width * height * 4;
+uint32_t voe_render_texture_full_levels(uint32_t width, uint32_t height)
+{
+	uint32_t levels = 0;
 
-	// A SMOOTH texture's chain runs down to 1x1: floor(log2(max side)) + 1
-	// levels, counted by halving, at most 32 for a 32-bit side.
-	if (sampling == VOE_RENDER_SAMPLING_SMOOTH) {
-		levels = 0;
-		for (uint32_t side = width > height ? width : height; side > 0;
-		     side >>= 1)
-			levels++;
-	}
+	VOE_BASE_DEBUG_ASSERT(width > 0 && height > 0,
+			      "counting the levels of a texture with no pixels");
 
-	if (!voe_render_texture_fill(device, slot, format, width, height, levels,
-				     rgba, size)) {
-		if (error != NULL)
-			*error = VOE_BASE_ERROR_REFUSED;
-		return false;
-	}
+	// floor(log2(max side)) + 1 levels, counted by halving, at most 32 for a
+	// 32-bit side.
+	for (uint32_t side = width > height ? width : height; side > 0;
+	     side >>= 1)
+		levels++;
+	return levels;
+}
+
+void voe_render_texture_slot_claim(voe_render_device *device,
+				   struct voe_render_texture_slot *slot,
+				   voe_render_sampling sampling, uint32_t width,
+				   uint32_t height, voe_render_texture *out)
+{
+	VOE_BASE_DEBUG_ASSERT(slot != NULL && !slot->live,
+			      "claiming a texture slot that is not free");
+	VOE_BASE_DEBUG_ASSERT(out != NULL, "claiming a texture into nothing");
 
 	// Claimed only once the upload has actually happened, so a failure part
 	// way through leaves the slot free rather than live and empty. The mode
@@ -434,8 +425,43 @@ static bool create_texture(voe_render_device *device,
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
 		voe_render_texture_write_descriptors(device, i);
 
-	out->index = index;
+	out->index = (uint32_t)(slot - device->textures);
 	out->generation = slot->generation;
+}
+
+static bool create_texture(voe_render_device *device,
+			   voe_render_texture_kind kind,
+			   voe_render_sampling sampling, uint32_t width,
+			   uint32_t height, const uint8_t *rgba,
+			   voe_render_texture *out, voe_base_error *error)
+{
+	struct voe_render_texture_slot *slot;
+	uint32_t levels = 1;
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "creating a texture with no device");
+	VOE_BASE_DEBUG_ASSERT(rgba != NULL, "creating a texture from nothing");
+	VOE_BASE_DEBUG_ASSERT(out != NULL, "creating a texture into nothing");
+	VOE_BASE_DEBUG_ASSERT(width > 0 && height > 0,
+			      "creating a texture with no pixels in it");
+
+	slot = voe_render_texture_slot_find(device, error);
+	if (slot == NULL)
+		return false;
+
+	// A SMOOTH texture's chain runs down to 1x1.
+	if (sampling == VOE_RENDER_SAMPLING_SMOOTH)
+		levels = voe_render_texture_full_levels(width, height);
+
+	if (!voe_render_texture_fill(device, slot,
+				     voe_render_texture_format(kind), width,
+				     height, levels, rgba,
+				     (VkDeviceSize)width * height * 4, NULL)) {
+		if (error != NULL)
+			*error = VOE_BASE_ERROR_REFUSED;
+		return false;
+	}
+
+	voe_render_texture_slot_claim(device, slot, sampling, width, height, out);
 	return true;
 }
 
@@ -443,7 +469,7 @@ bool voe_render_texture_fill(voe_render_device *device,
 			     struct voe_render_texture_slot *slot,
 			     VkFormat format, uint32_t width, uint32_t height,
 			     uint32_t levels, const void *pixels,
-			     VkDeviceSize size)
+			     VkDeviceSize size, const VkBufferImageCopy *given)
 {
 	struct voe_render_buffer staging = { 0 };
 	bool uploaded;
@@ -481,7 +507,7 @@ bool voe_render_texture_fill(voe_render_device *device,
 	}
 
 	uploaded = copy_into_image(device, slot, &staging, width, height,
-				   levels);
+				   levels, given);
 	voe_render_buffer_teardown(device, &staging);
 	if (!uploaded)
 		goto refused;
@@ -715,7 +741,7 @@ bool voe_render_texture_startup(voe_render_device *device)
 		memcpy(mapped, WHITE, sizeof(WHITE));
 		voe_render_vk.unmap_memory(device->device, staging.memory);
 
-		ok = copy_into_image(device, slot, &staging, 1, 1, 1);
+		ok = copy_into_image(device, slot, &staging, 1, 1, 1, NULL);
 		voe_render_buffer_teardown(device, &staging);
 		if (!ok)
 			return false;

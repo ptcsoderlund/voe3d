@@ -440,13 +440,35 @@ void voe_render_texture_write_descriptors(voe_render_device *device,
 
 // texture.c, for texture_heights.c too. Builds free `slot`'s image of `format`
 // and `levels`, uploads `size` bytes of `pixels` into level 0 (the chain blitted
-// when `levels` > 1), leaves it shader-readable and idles. False with a message
-// and the slot's handles given back; the caller claims the slot.
+// when `levels` > 1), leaves it shader-readable and idles. `given`, when not
+// NULL, is `levels` regions, one per level, copied as they are and no chain
+// built. False with a message and the slot's handles given back; the caller
+// claims the slot.
 [[nodiscard]] bool voe_render_texture_fill(voe_render_device *device,
 					   struct voe_render_texture_slot *slot,
 					   VkFormat format, uint32_t width,
 					   uint32_t height, uint32_t levels,
-					   const void *pixels, VkDeviceSize size);
+					   const void *pixels, VkDeviceSize size,
+					   const VkBufferImageCopy *given);
+
+// texture.c, for texture_given.c too. The format a picture of `kind` is made
+// in: SRGB for colour, UNORM for data.
+VkFormat voe_render_texture_format(voe_render_texture_kind kind);
+
+// texture.c, for texture_given.c too. How many levels the full chain of a
+// `width` × `height` image has, down to 1×1: at most 32.
+uint32_t voe_render_texture_full_levels(uint32_t width, uint32_t height);
+
+// texture.c, for texture_given.c too. The lowest unclaimed slot from 1, or NULL
+// with a message and VOE_BASE_ERROR_REFUSED when all are taken. _claim marks a
+// filled slot live with its sampling and size, rewrites every frame slot's set
+// and writes its id to `out`.
+struct voe_render_texture_slot *
+voe_render_texture_slot_find(voe_render_device *device, voe_base_error *error);
+void voe_render_texture_slot_claim(voe_render_device *device,
+				   struct voe_render_texture_slot *slot,
+				   voe_render_sampling sampling, uint32_t width,
+				   uint32_t height, voe_render_texture *out);
 
 // texture_heights.c. Every frame slot's heights staging, capacities.heights_texels
 // floats, mapped; none when nought. Startup's, false with a message; _shutdown is

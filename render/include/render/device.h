@@ -1244,6 +1244,17 @@ bool voe_render_geometry_destroy(voe_render_device *device,
 					     voe_render_texture *out,
 					     voe_base_error *error);
 
+// The same, for a picture that brings its own mip chain (0470 point 3): always
+// SMOOTH, and the image has exactly the `level_count` levels given, none built.
+// `rgba` holds them one after another, level i being max(1, width >> i) ×
+// max(1, height >> i) RGBA8 texels. A level_count of 1 makes an image of one
+// level, not a GPU-built chain. A level_count of 0, or more than the full chain
+// down to 1×1, asserts. It fails, copies and waits for the GPU as _create does.
+[[nodiscard]] bool voe_render_texture_create_levels(
+	voe_render_device *device, voe_render_texture_kind kind, uint32_t width,
+	uint32_t height, uint32_t level_count, const uint8_t *rgba,
+	voe_render_texture *out, voe_base_error *error);
+
 // Gives the slot back and bumps its generation, so every id naming it — the
 // caller's, and any copy anywhere else — is refused from here on. False when the
 // id was already stale, which is not an error and needs no handling: it means
