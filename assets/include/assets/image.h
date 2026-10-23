@@ -1,5 +1,6 @@
 // Images: bytes in, pixels out, and — for PNG — pixels in, bytes out. PNG and
-// JPEG, both written here (ADR-0023), and nothing fetched.
+// JPEG, both written here (ADR-0023), and nothing fetched. A picture's mip
+// chain and its cooked form, the copy kept in the cache (0470), are here too.
 //
 // NOTHING HERE OPENS A FILE, IN EITHER DIRECTION, AND THAT IS A DECISION AND NOT
 // A GAP. platform owns files and now has a call that writes one, so this could
@@ -57,10 +58,16 @@
 // first, and it lives in the arena that was passed to the decoder — so it is
 // freed by rewinding or destroying that arena and never one allocation at a
 // time (rule 11).
+//
+// `levels` of 0 or 1 means `pixels` is level 0 alone, which is what every
+// decoder hands back and what a zeroed picture means. n means n levels one
+// after another, level i being max(1, width >> i) × max(1, height >> i) RGBA8,
+// the way Vulkan sizes a mip chain (0470 point 3).
 typedef struct {
 	uint32_t width;
 	uint32_t height;
 	uint8_t *pixels;
+	uint32_t levels;
 } voe_assets_image;
 
 // Decode a PNG. False on failure, and `image` is untouched when it fails.
@@ -165,6 +172,81 @@ typedef enum {
 voe_assets_image voe_assets_image_fit(voe_base_arena *arena,
 				      voe_assets_image image, uint32_t largest,
 				      voe_assets_image_kind kind);
+
+// The levels of a full chain for a picture of that size, down to 1×1: one
+// more than the number of times the longest side halves before it is 1.
+// A side of zero is the caller's bug and asserts.
+uint32_t voe_assets_image_level_count(uint32_t width, uint32_t height);
+
+// The bytes of every level `image` holds, level 0 alone when `levels` is 0
+// or 1.
+size_t voe_assets_image_size(const voe_assets_image *image);
+
+// A copy of `image` with its full chain, in `arena` (0470 point 3).
+//
+// Level 0 is copied as it is. Each next level is made from the one before it
+// by the area average of `kind`, exactly as voe_assets_image_fit shrinks, so
+// a mip of a colour picture is in linear light and weighted by alpha and a
+// mip of a normal map is unit length again.
+//
+// THE LEVELS SIT BACK TO BACK, LARGEST FIRST, so the small ones are one run
+// of bytes at the end that can be read without the large ones, for texture
+// streaming later (0454 point 4), and an upload is one copy per level with
+// no gaps to skip.
+//
+// An input that already holds more than one level, or no pixels, is the
+// caller's bug and asserts (rule 13).
+voe_assets_image voe_assets_image_mips(voe_base_arena *arena,
+				       const voe_assets_image *image,
+				       voe_assets_image_kind kind);
+
+// THE COOKED FORM (0470 point 2): a head, then every level the picture holds,
+// the total padded to 16 so a containing file can hold several in a row,
+// each starting aligned. The head is magic, version, key, kind, width,
+// height and levels, in that order.
+//
+// IT IS NATIVE-ENDIAN AND FOR THIS MACHINE'S CACHE ONLY. A cooked picture is a
+// copy laid out as it sits in memory so a load is a read and a pointer (0454
+// point 1); it is not an interchange format and is never read on another
+// machine's byte order. The source picture is the file that travels.
+//
+// THE VERSION RISES WITH ANY CHANGE TO THE LAYOUT, or to how the levels are
+// made. A copy whose magic or version is not this one's is stale and is made
+// again from its source; nothing tries to read an older layout.
+//
+// The head's size in bytes, a multiple of 16.
+#define VOE_ASSETS_IMAGE_COOKED_HEAD 32
+
+// `image`, with every level it holds, as a cooked picture in `arena`.
+// `key` is the caller's, kept in the head to tell a stale copy from a fresh
+// one (0470: the source's stamp). Cannot fail; no pixels is the caller's bug
+// and asserts.
+voe_assets_bytes voe_assets_image_cooked_write(voe_base_arena *arena,
+					       const voe_assets_image *image,
+					       voe_assets_image_kind kind,
+					       uint64_t key);
+
+// The key in a cooked picture's head, read from the head alone, so a caller
+// can tell a stale copy from its first bytes. False, `key` untouched, when
+// `size` is short of a head or its magic or version is not this one's.
+[[nodiscard]] bool voe_assets_image_cooked_key(const uint8_t *head, size_t size,
+					       uint64_t *key);
+
+// A cooked picture read with no copy: `image->pixels` points into `bytes`,
+// which must outlive it and is read through it, never written. `*used` is
+// the padded size, so the next picture
+// in a containing file starts at `bytes + *used`.
+//
+// False, and every out-parameter untouched, when the magic or version is not
+// this one's, the kind is unknown, a side is zero or past
+// VOE_ASSETS_IMAGE_MAX_SIDE, the levels are more than a full chain, or `size`
+// is short of the padded total. No line is printed: a stale or broken copy is
+// made again from its source, not reported.
+[[nodiscard]] bool voe_assets_image_cooked_read(const uint8_t *bytes,
+						size_t size,
+						voe_assets_image *image,
+						voe_assets_image_kind *kind,
+						uint64_t *key, size_t *used);
 
 // Decode a baseline JPEG. False on failure, and `image` is untouched when it
 // fails.

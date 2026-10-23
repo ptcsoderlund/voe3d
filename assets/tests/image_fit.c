@@ -20,7 +20,7 @@
 static voe_assets_image filled(voe_base_arena *arena, uint32_t width,
 			       uint32_t height, const uint8_t *texel)
 {
-	voe_assets_image image = { width, height, NULL };
+	voe_assets_image image = { width, height, NULL, 0 };
 
 	image.pixels = voe_base_arena_push(arena, (size_t)width * height * 4);
 	for (size_t i = 0; i < (size_t)width * height; i++)
@@ -32,7 +32,7 @@ static voe_assets_image filled(voe_base_arena *arena, uint32_t width,
 static voe_assets_image row_of(uint32_t width, uint32_t height,
 			       uint8_t *pixels)
 {
-	return (voe_assets_image){ width, height, pixels };
+	return (voe_assets_image){ width, height, pixels, 0 };
 }
 
 static void sizes(void)

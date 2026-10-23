@@ -33,6 +33,11 @@ of them is internal to this folder rather than reachable from outside it.
 - `image_fit.c` — a picture shrunk to a largest side by an area average, one
   output row of float sums at a time, colour in linear light weighted by alpha
   and normals made unit length again.
+- `image_average.h` — the area-average shrink to an exact size, internal to
+  this folder, shared by the fit and the mips so the two cannot disagree.
+- `image_levels.c` — a picture's level count and size, its mip chain made
+  level by level, and the cooked form: head and levels written, the key read
+  from the head alone, and a read with no copy that bounds every head field.
 - `sectioned.c` — two passes over one line lexer. Its header says why the
   caller states no capacity here where the JSON reader demands one, and why
   there is nothing for rule 14 to worry about.
