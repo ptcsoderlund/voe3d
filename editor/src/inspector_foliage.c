@@ -7,7 +7,9 @@
 // the add row sits at the grid's kind count, the index a drop there adds at.
 // The Density slider holds sculpt.h's own number. Kind slider i, under row i,
 // shows kind i's base size as a factor; its read asks for kind i's look as
-// drawn with the size in thousandths, which sculpt.c sets.
+// drawn with the size in thousandths, which sculpt.c sets. Under it kind i's
+// Cast shadows button, drawn chosen while the look casts, and spread slider
+// i, s, spread s of kind i in the look's whole units, asked the same way.
 #include "inspector_foliage.h"
 
 #include "inspector_layers.h"
@@ -50,6 +52,25 @@ static_assert(VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS == 1,
 #define KIND_SIZE_MIN (VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN / 1000.0)
 #define KIND_SIZE_MAX (VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX / 1000.0)
 
+// A kind's spreads, slider s of its row: the label as the brush's was, and
+// the most, each from 0.
+static const char *const SPREAD_NAMES[VOE_EDITOR_SCULPT_SPREADS] = {
+	"Size ±%", "Turn ±°", "Tilt with slope %"
+};
+static const uint8_t SPREAD_MAX[VOE_EDITOR_SCULPT_SPREADS] = {
+	VOE_ASSETS_LANDSCAPE_SIZE_VARY_MAX, VOE_ASSETS_LANDSCAPE_TURN_VARY_MAX,
+	VOE_ASSETS_LANDSCAPE_TILT_MAX
+};
+
+// Spread `s` of `look`, the field slider s shows and sets.
+static uint8_t *spread_of(voe_assets_landscape_look *look, uint32_t s)
+{
+	VOE_BASE_ASSERT(look != NULL, "the spread of no look");
+	VOE_BASE_ASSERT(s < VOE_EDITOR_SCULPT_SPREADS, "no such spread");
+
+	return s == 0 ? &look->size_vary : s == 1 ? &look->turn_vary : &look->tilt;
+}
+
 // Whether brush button `i` is the chosen kind.
 static bool button_chosen(const voe_editor_sculpt *sculpt, uint32_t i)
 {
@@ -69,8 +90,12 @@ void voe_editor_inspector_foliage_forget(voe_editor_sculpt *sculpt)
 		sculpt->foliage_sliders[i] = VOE_UI_NODE_NONE;
 	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_KIND_ROWS; i++)
 		sculpt->kind_rows[i] = VOE_UI_NODE_NONE;
-	for (uint32_t i = 0; i < VOE_ASSETS_LANDSCAPE_KINDS; i++)
+	for (uint32_t i = 0; i < VOE_ASSETS_LANDSCAPE_KINDS; i++) {
 		sculpt->kind_sliders[i] = VOE_UI_NODE_NONE;
+		sculpt->kind_shadows[i] = VOE_UI_NODE_NONE;
+		for (uint32_t s = 0; s < VOE_EDITOR_SCULPT_SPREADS; s++)
+			sculpt->spread_sliders[i][s] = VOE_UI_NODE_NONE;
+	}
 	sculpt->kinds_drawn = 0;
 
 	VOE_BASE_ASSERT(sculpt->kind_rows[0] == VOE_UI_NODE_NONE,
@@ -99,6 +124,38 @@ static void kind_slider_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
 	voe_ui_end(ui);
 	VOE_BASE_ASSERT(sculpt->kind_sliders[i] != VOE_UI_NODE_NONE,
 			"a kind slider not drawn");
+}
+
+// Kind `i`'s Cast shadows button, then its spreads, each a row of name,
+// slider and figure. Reads the look kind_slider_draw kept.
+static void kind_spreads_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
+			      uint32_t i)
+{
+	VOE_BASE_ASSERT(i < VOE_ASSETS_LANDSCAPE_KINDS, "spreads for no kind");
+
+	sculpt->kind_shadows[i] = voe_ui_choice_begin(
+		ui, "kind shadows", i, !sculpt->kind_looks[i].shadowless);
+	voe_ui_label(ui, "Cast shadows");
+	voe_ui_end(ui);
+	for (uint32_t s = 0; s < VOE_EDITOR_SCULPT_SPREADS; s++) {
+		const uint8_t value = *spread_of(&sculpt->kind_looks[i], s);
+
+		voe_ui_row_begin(ui,
+				 (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
+						     .gap = ROW_GAP,
+						     .wrap = true });
+		voe_ui_label(ui, SPREAD_NAMES[s]);
+		sculpt->spread_sliders[i][s] = voe_ui_slider(
+			ui, "kind spread", i * VOE_EDITOR_SCULPT_SPREADS + s,
+			value, 0.0, SPREAD_MAX[s], SLIDER_WIDE);
+		snprintf(sculpt->spread_figures[i][s],
+			 sizeof sculpt->spread_figures[i][s], "%u",
+			 (unsigned)value);
+		voe_ui_label(ui, sculpt->spread_figures[i][s]);
+		voe_ui_end(ui);
+	}
+	VOE_BASE_ASSERT(sculpt->kind_shadows[i] != VOE_UI_NODE_NONE,
+			"a Cast shadows button not drawn");
 }
 
 // Density, a row of name, slider and figure.
@@ -162,6 +219,7 @@ void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
 		voe_ui_label(ui, voe_platform_path_name(land->kinds[i]));
 		voe_ui_end(ui);
 		kind_slider_draw(ui, sculpt, land, i);
+		kind_spreads_draw(ui, sculpt, i);
 	}
 	sculpt->kinds_drawn = land->kind_count;
 
@@ -174,6 +232,69 @@ void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
 
 	density_draw(ui, sculpt);
 	voe_ui_end(ui);
+}
+
+// Kind `i`'s look as drawn asked, for the caller to change one field of.
+static voe_assets_landscape_look *look_ask(voe_editor_sculpt *sculpt,
+					   uint32_t i)
+{
+	VOE_BASE_ASSERT(i < VOE_ASSETS_LANDSCAPE_KINDS, "asking no kind's look");
+
+	sculpt->look_asked = true;
+	sculpt->look_kind = i;
+	sculpt->look_to = sculpt->kind_looks[i];
+	return &sculpt->look_to;
+}
+
+// Kind `i`'s Base size slider: held recorded, a change asked in thousandths.
+static void kind_size_read(const voe_ui_context *ui, voe_editor_sculpt *sculpt,
+			   uint32_t i)
+{
+	voe_ui_slider_result size;
+	long to;
+
+	if (sculpt->kind_sliders[i] == VOE_UI_NODE_NONE)
+		return;
+	size = voe_ui_slider_action(ui, sculpt->kind_sliders[i], KIND_SIZE_MIN,
+				    KIND_SIZE_MAX);
+	sculpt->look_held = sculpt->look_held || size.held;
+	if (!size.changed)
+		return;
+	to = lround(size.value * 1000.0);
+	look_ask(sculpt, i)->size =
+		(uint16_t)(to < VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN ?
+				   VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN :
+			   to > VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX ?
+				   VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX :
+				   to);
+}
+
+// Kind `i`'s Cast shadows and spreads. A fired button asks the look with
+// `shadowless` flipped and never holds, so it is one step at once; a spread
+// slider is held and asked as the Base size slider is, in whole units.
+static void kind_spreads_read(const voe_ui_context *ui,
+			      voe_editor_sculpt *sculpt, uint32_t i)
+{
+	if (sculpt->kind_shadows[i] != VOE_UI_NODE_NONE &&
+	    voe_ui_button_action(ui, sculpt->kind_shadows[i]).fired)
+		look_ask(sculpt, i)->shadowless =
+			!sculpt->kind_looks[i].shadowless;
+
+	for (uint32_t s = 0; s < VOE_EDITOR_SCULPT_SPREADS; s++) {
+		voe_ui_slider_result spread;
+		long to;
+
+		if (sculpt->spread_sliders[i][s] == VOE_UI_NODE_NONE)
+			continue;
+		spread = voe_ui_slider_action(ui, sculpt->spread_sliders[i][s],
+					      0.0, SPREAD_MAX[s]);
+		sculpt->look_held = sculpt->look_held || spread.held;
+		if (!spread.changed)
+			continue;
+		to = lround(spread.value);
+		*spread_of(look_ask(sculpt, i), s) =
+			(uint8_t)(to < 0 ? 0 : to > SPREAD_MAX[s] ? SPREAD_MAX[s] : to);
+	}
 }
 
 void voe_editor_inspector_foliage_read(const voe_ui_context *ui,
@@ -223,25 +344,7 @@ void voe_editor_inspector_foliage_read(const voe_ui_context *ui,
 	}
 
 	for (uint32_t i = 0; i < sculpt->kinds_drawn; i++) {
-		voe_ui_slider_result size;
-		long to;
-
-		if (sculpt->kind_sliders[i] == VOE_UI_NODE_NONE)
-			continue;
-		size = voe_ui_slider_action(ui, sculpt->kind_sliders[i],
-					    KIND_SIZE_MIN, KIND_SIZE_MAX);
-		sculpt->look_held = sculpt->look_held || size.held;
-		if (!size.changed)
-			continue;
-		to = lround(size.value * 1000.0);
-		sculpt->look_asked = true;
-		sculpt->look_kind = i;
-		sculpt->look_to = sculpt->kind_looks[i];
-		sculpt->look_to.size =
-			(uint16_t)(to < VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN ?
-					   VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN :
-				   to > VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX ?
-					   VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX :
-					   to);
+		kind_size_read(ui, sculpt, i);
+		kind_spreads_read(ui, sculpt, i);
 	}
 }

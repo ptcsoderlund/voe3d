@@ -301,11 +301,11 @@ carries it out.
 - `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
   read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
 - `inspector_foliage.h` — the Inspector's Foliage section under Layers: Scatter and Erase, a row per
-  kind toggling it picked with its Base size slider, the add row a dropped `.glb` lands on, and
-  the brush's Density slider.
+  kind toggling it picked with its Base size slider, Cast shadows button and Size ±%, Turn ±° and
+  Tilt with slope % sliders, the add row a dropped `.glb` lands on, and the brush's Density slider.
 - `inspector_foliage.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: a fired button chooses its kind or none, a fired row flips its pick, Density clamped,
-  a kind slider's look asked with its size changed.
+  a kind's slider or Cast shadows asks its look with that field changed.
 - `inspector_level.h` — the Inspector's LOD section after Brush or Foliage: per view in use, the LOD it
   draws of a loaded model, of how many, made or own, asked with the draws' own function.
 - `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,

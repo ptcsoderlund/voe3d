@@ -93,6 +93,11 @@ struct voe_editor_models;
 #define VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS 1
 #define VOE_EDITOR_SCULPT_KIND_ROWS (VOE_ASSETS_LANDSCAPE_KINDS + 1)
 
+// A kind row's spreads (0476 point 1): Size ±%, Turn ±° and Tilt with slope %,
+// one slider each in the look's own whole units, from 0 to assets/landscape.h's
+// SIZE_VARY_MAX (100), TURN_VARY_MAX (180) and TILT_MAX (100).
+#define VOE_EDITOR_SCULPT_SPREADS 3
+
 typedef struct {
 	// Whether a brush is chosen, and which; `kind` means nothing when not.
 	bool chosen;
@@ -137,10 +142,16 @@ typedef struct {
 	voe_ui_node kind_rows[VOE_EDITOR_SCULPT_KIND_ROWS];
 	voe_ui_rect kinds_seen[VOE_EDITOR_SCULPT_KIND_ROWS];
 	uint32_t kinds_drawn;
-	// Each kind row's Base size slider and its figure, slider i kind i, and
-	// each drawn kind's look, which the read asks with one field changed.
+	// Each kind row's Base size slider and its figure, slider i kind i, its
+	// Cast shadows button, its spread sliders and their figures, and each
+	// drawn kind's look, which the read asks with one field changed.
 	voe_ui_node kind_sliders[VOE_ASSETS_LANDSCAPE_KINDS];
 	char kind_figures[VOE_ASSETS_LANDSCAPE_KINDS][VOE_EDITOR_SCULPT_FIGURE];
+	voe_ui_node kind_shadows[VOE_ASSETS_LANDSCAPE_KINDS];
+	voe_ui_node spread_sliders[VOE_ASSETS_LANDSCAPE_KINDS]
+				  [VOE_EDITOR_SCULPT_SPREADS];
+	char spread_figures[VOE_ASSETS_LANDSCAPE_KINDS][VOE_EDITOR_SCULPT_SPREADS]
+			   [VOE_EDITOR_SCULPT_FIGURE];
 	voe_assets_landscape_look kind_looks[VOE_ASSETS_LANDSCAPE_KINDS];
 	// The last read's look ask, when `look_asked`: kind `look_kind` to
 	// `look_to`; `look_held` that a kind's control is held. Both taken and
