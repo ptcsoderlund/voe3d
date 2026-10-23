@@ -170,8 +170,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models.c` — the store's table of entries with an arena each, the `.glb` load as a prepare and
   a put that uploads each part with its blended twin and gives back what a failure made; the parts
   set; pictures on the quad, the dot and the water apart.
-- `models_store.h` — the store's internal table with its count of changes
-  the bounce relights by, the prepared `.glb` and the helpers the store's files share.
+- `models_store.h` — the store's internal table with its count of changes the bounce relights
+  by, a landscape's grown copies beside the file's, the prepared `.glb` and the helpers the
+  store's files share.
 - `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until
   one matches no part, or a levels file read and checked against the bake, the shape built and
   the sphere measured.
@@ -182,11 +183,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
   levels joined by material, or made levels' indices shared over level 0's vertices, each bounded
   by the file's error and swap; the level-0 mirror and the free.
 - `models_landscape.c` — a landscape's grid copied with its layers, paint, foliage kinds and
-  copies, each placed, uploaded as heights, paint and a pyramid on the shared grid; brushes and
-  puts growing its dirt, written a budget at a time, and placing copies again; renames following.
+  copies, each placed, its grown copies made, uploaded as heights, paint and a pyramid; brushes
+  and puts growing its dirt, placing copies again and remaking the grown; renames following.
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
-  handed to foliage.c, a kind's base size set placing its copies again, the entry marked edited
-  and the store's count raised on a change.
+  handed to foliage.c, a kind's look or a layer's growth set placing copies again and remaking
+  that kind's grown copies, the entry marked edited and the store's count raised on a change.
 - `models_material.c` — a `.material`'s four maps, decoded by the load under each map's name as
   the subject or already by the caller, put mipped with its record, cutout, emission and sides
   and its twin as one part with no geometry; the set marking it and the frame rewriting both records.

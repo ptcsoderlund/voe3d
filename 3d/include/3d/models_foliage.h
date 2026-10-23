@@ -1,7 +1,8 @@
-// The model store's foliage (0442 points 1-3): a loaded landscape's kinds and
-// copies, scattered, erased, put back and named through the store, and each
-// copy's placed transform read by what draws them. Beside 3d/models.h, whose
-// header is full; the arithmetic is 3d/foliage.h's.
+// The model store's foliage (0442 points 1-3, 0476): a loaded landscape's
+// kinds, their looks and what each layer grows, its copies scattered, erased,
+// put back and named through the store, and each copy's placed transform and
+// the grown copies read by what draws them. Beside 3d/models.h, whose header
+// is full; the arithmetic is 3d/foliage.h's and 3d/foliage_grow.h's.
 //
 //     uint64_t seed = 0x9e3779b97f4a7c15u;
 //     voe_assets_landscape_copy added[VOE_3D_FOLIAGE_TRIES];
@@ -10,12 +11,19 @@
 //     ... // the stroke's undo step keeps added[0..n)
 //
 // EVERY CALL IS NOTHING FOR A PATH THAT IS NO LOADED LANDSCAPE, and each marks
-// the entry edited when it changes a copy, a kind or a kind's base size, as a
+// the entry edited when it changes a copy, a kind, a look or a growth, as a
 // brush does.
 //
 // THE ROOM IS HELD PER LANDSCAPE: its entry owns VOE_ASSETS_LANDSCAPE_COPIES
-// copies and as many placed transforms in its arena, about 4 MB, so a scatter
-// never allocates in the middle of a stroke.
+// copies and VOE_3D_FOLIAGE_GROWN grown ones, each with a placed transform, in
+// its arena, about 8 MB, so a scatter or a remake never allocates.
+//
+// GROWN COPIES ARE THE MATERIAL'S (0473 point 4): scatter, erase and the copy
+// puts touch only the file's copies. The grown are made at the load and
+// remade from the paint over what a stamp or put changes, and for one kind
+// over the grid when a layer's growth of it, its spreads or its size change.
+// They are not saved (0476 point 3): made from the paint they follow it with
+// no file lines, and the game makes the same ones from the same file.
 //
 // PLACED TRANSFORMS ARE KEPT because a copy stores no height: where it stands
 // is worked from the heights and the ground's normal, too dear to do for 65536
@@ -68,13 +76,33 @@ void voe_3d_models_landscape_put_copies(voe_3d_models *models,
 void voe_3d_models_landscape_kind_set(voe_3d_models *models, const char *path,
 				      uint32_t index, const char *model);
 
-// Kind `index`, below kind_count, of `path`'s grid takes base size `size` in
-// thousandths: 0 or VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN to _MAX, asserted. A
-// different size places that kind's copies again and raises `changes`; the
-// same size does nothing (0460 point 3).
-void voe_3d_models_landscape_kind_size_set(voe_3d_models *models,
-					   const char *path, uint32_t index,
-					   uint16_t size);
+// Kind `kind`, below kind_count, of `path`'s grid takes `look`, its ranges
+// asserted as the file's. An equal look does nothing (0460 point 3); else a
+// new size places that kind's copies again, a new size or spread remakes its
+// grown copies over the grid, and the entry is edited and `changes` raised.
+void voe_3d_models_landscape_look_set(voe_3d_models *models, const char *path,
+				      uint32_t kind,
+				      voe_assets_landscape_look look);
+
+// Layer `layer`, below layer_count, of `path`'s grid grows kind `kind`, below
+// kind_count, at `density` tenths of copies per 100 m², up to
+// VOE_ASSETS_LANDSCAPE_GROW_MAX, 0 none; asserted. Equal does nothing; else
+// that kind is remade over the grid, the entry edited and `changes` raised.
+void voe_3d_models_landscape_grow_set(voe_3d_models *models, const char *path,
+				      uint32_t layer, uint32_t kind,
+				      uint16_t density);
+
+// A loaded landscape's grown copies and their placed transforms.
+typedef struct {
+	const voe_assets_landscape_copy *copies;
+	const voe_scene_transform *placed;
+	uint32_t count;
+} voe_3d_models_grown;
+
+// `entry`'s grown copies; zeroed for an entry that is no loaded landscape of
+// this store.
+voe_3d_models_grown voe_3d_models_landscape_grown(const voe_3d_models *models,
+						  const voe_3d_model_entry *entry);
 
 // `entry`'s copies' placed transforms, `entry->landscape->copy_count` of them;
 // NULL for an entry that is no loaded landscape of this store.
