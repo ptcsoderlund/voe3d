@@ -56,5 +56,5 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - 0374–0381, 0384–0388, 0392, 0396–0401, 0403, 0404, 0420 — Loghouse; bindless; 60 fps; models.
 - 0405, 0406, 0411, 0413–0416, 0418, 0423 — Sky, Haze, Picture; only lights light; env via platform.
 - 0425, 0427–0430, 0432–0437, 0441 — LODs: made, chosen by error on screen, dissolved; off switch.
-- 0442–0445, 0449, 0450, 0452–0454 — Foliage; import errors; no size limit; brushes; Cache/.
+- 0442–0445, 0449, 0450, 0452–0454, 0469 — Foliage; import errors; no size limit; brushes; Cache/.
 - 0455–0459, 0462, 0463, 0465–0467 — Import size; one loading thread; hitches; cull; counts; blend.

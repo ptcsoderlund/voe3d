@@ -1,6 +1,7 @@
-# 0459 — Each foliage kind has a base size, and the sliders say what they do
+# 0469 — Each foliage kind has a base size, and the sliders say what they do
 date: 2026-10-22
 by: tech-lead
+was: 0459, which it shared with the one-file-at-a-time loading record; renumbered 2026-10-23. Cards and code that cite 0459 for foliage base size or slider labels mean this one.
 
 ## Decision
 For 090 bug 10.

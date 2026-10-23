@@ -1,6 +1,7 @@
-# 0402 — A slider that cannot move is drawn without its number box
+# 0468 — A slider that cannot move is drawn without its number box
 date: 2026-10-11
 by: planner
+was: 0402, which it shared with the landscape-layers record; renumbered 2026-10-23. Cards and code that cite 0402 for the slider mean this one.
 
 ## Decision
 For 085 bug 02 (0401's greyed-out Roughness and Metal). `ui` gains `voe_ui_slider_shown` in

@@ -3,7 +3,7 @@ date: 2026-10-22
 by: planner
 
 ## Decision
-For 090 bug 10, carrying out 0459.
+For 090 bug 10, carrying out 0469.
 
 1. **In the file:** `[Foliage]` gains `size<k>=` beside `kind<k>=`, a whole number of
    thousandths from 100 to 10000 (0.1× to 10×), written only when kind k is not 1×; a missing
@@ -32,4 +32,4 @@ For 090 bug 10, carrying out 0459.
   which a landscape is not (it is saved with the project).
 
 ## Replaces
-nothing. Carries out 0459 points 1 and 3.
+nothing. Carries out 0469 points 1 and 3.
