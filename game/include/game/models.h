@@ -12,8 +12,8 @@
 // with the row's `/`-separated path. A file with no stamp or that will not
 // read is kept failed at 0; one that will not parse, at its stamp: a broken
 // file is read once, not once a frame. Empty paths are skipped. Then each
-// emitter's texture, a `.png` or `.jpg` made a picture (0298 point 5), and each
-// loaded landscape's kind paths (0442); with any emitter the soft dot at "".
+// emitter's texture, a `.png` or `.jpg` made a picture (0298 point 5), then
+// each landscape's kinds (0442), a row's too; any emitter, the soft dot at "".
 //
 // LEVELS (0426 point 2): a `.glb`, any case, loads with its levels file
 // `<folder>/Cache/levels/<path>.levels`, made when missing or stale and
@@ -27,10 +27,10 @@
 // files in <s> s: reading <s> s, parsing …, making LODs …, decoding pictures
 // …, baking …, uploading …` to stderr, each phase's wall time.
 //
-// PROGRESS (0370 point 3) is NULL outside a splash wait. With one, the
-// distinct paths to read are counted first, "Loading models" done/total set
-// before each upload and at the end. Stop asked, the call returns before the
-// next file, loading no dot or water; a later call reads the rest.
+// PROGRESS (0370 point 3), NULL outside a splash wait: the distinct paths to
+// read counted first, a row's landscape's kinds once it loads, "Loading
+// models" done/total set before each upload and at the end. Stop asked, the
+// call returns before the next file, no dot or water; a later call reads on.
 //
 // WATCH, a stamp of time and size asked once a second (0277 point 5), reloads
 // every entry, pictures too, whose stamp differs: a success replaces the

@@ -48,6 +48,10 @@
 // twice their own scale; with no sizes, at their own; a kind naming a missing
 // file is one failure, named.
 //
+// THE ROW'S LANDSCAPE, on a tenth world and store: a model row naming a
+// `.landscape` on disk whose one kind is the `.glb` makes one update with a
+// progress load the kind too, total and done 2.
+//
 // The levels cases are tests/models_levels.c; the `.glb` and the world helpers
 // both use are tests/glb_build.h.
 //
@@ -65,6 +69,8 @@
 #include <3d/models_foliage.h>
 #include <3d/shape_component.h>
 #include <3d/water_component.h>
+
+#include <assets/landscape.h>
 
 #include <base/arena.h>
 #include <base/error.h>
@@ -96,6 +102,8 @@
 #define PICTURE_ON_DISK FOLDER "/" PICTURE
 #define LANDSCAPE "hill.landscape"
 #define LANDSCAPE_ON_DISK FOLDER "/" LANDSCAPE
+#define ROW_LANDSCAPE "forest.landscape"
+#define ROW_LANDSCAPE_ON_DISK FOLDER "/" ROW_LANDSCAPE
 #define MATERIAL "Assets/m.material"
 #define NO_MATERIAL "Assets/none.material"
 #define GREY_MATERIAL "Assets/grey.material"
@@ -664,6 +672,43 @@ static void check_foliage(voe_ecs_world *world, voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
+// A row naming a `.landscape` on disk whose one kind is the `.glb`, as the
+// editor's world names its landscape: the kind is no row and no table's.
+static void check_row_landscape(voe_ecs_world *world,
+				voe_render_device *device,
+				voe_base_arena *scratch)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+	voe_assets_landscape land = voe_assets_landscape_flat(64.0f, 4, scratch);
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_progress progress = { 0 };
+	voe_game_models_failures failures;
+	voe_assets_landscape_text text;
+	const voe_3d_model_entry *kind;
+
+	snprintf(land.kinds[0], sizeof(land.kinds[0]), "%s", GOOD);
+	land.kind_count = 1;
+	text = voe_assets_landscape_write(&land, scratch);
+	VOE_TEST_CHECK(voe_platform_file_write(ROW_LANDSCAPE_ON_DISK,
+					       (const uint8_t *)text.text,
+					       text.size, NULL));
+	voe_base_arena_rewind(scratch, mark);
+
+	// ---- one update with a progress: the kind loaded, and counted
+	wear(world, ROW_LANDSCAPE);
+	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
+					  &progress);
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(voe_3d_models_find(models, ROW_LANDSCAPE) != NULL);
+	kind = voe_3d_models_find(models, GOOD);
+	VOE_TEST_CHECK(kind != NULL && kind->loaded);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.total), 2);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.done), 2);
+
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 static void check_files(voe_ecs_world *world, voe_render_device *device,
 			voe_base_arena *scratch, const uint8_t *glb,
 			uint32_t size)
@@ -718,6 +763,7 @@ static void remove_files(void)
 	remove(PICTURE_ON_DISK);
 	remove(BROKEN_ON_DISK);
 	remove(LANDSCAPE_ON_DISK);
+	remove(ROW_LANDSCAPE_ON_DISK);
 	remove(MATERIAL_ON_DISK);
 	remove(ASSETS_ON_DISK);
 	remove(LEVELS_ON_DISK);
@@ -766,6 +812,7 @@ int main(void)
 	check_layers(voe_game_world_new(arena), device, scratch);
 	check_parts(voe_game_world_new(arena), device, scratch);
 	check_foliage(voe_game_world_new(arena), device, scratch);
+	check_row_landscape(voe_game_world_new(arena), device, scratch);
 	remove_files();
 	voe_render_device_destroy(device);
 released:

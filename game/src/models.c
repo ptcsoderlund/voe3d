@@ -5,8 +5,10 @@
 // each failure counted and the times' line written once. An update gathers
 // the model rows' paths and the emitters' textures the store lacks, each named
 // first there, then every loaded landscape's kind paths the store lacks,
-// gathered first; with a progress the distinct unread paths are counted
-// first, "Loading models" set and the stop flag asked before each file. A
+// gathered once those load, so a landscape a row names gives its kinds in the
+// same call; with a progress the distinct unread paths are counted first, a
+// row's landscape's kinds added once it loads, "Loading models" set and the
+// stop flag asked before each file. A
 // full store ends an update before its next file. The watch adds every entry but landscapes and materials at
 // its stamp, read only when that changed; a reload adds its one path, forced.
 // The update's and the watch's gathering and the dot and water are internal
@@ -258,6 +260,45 @@ void voe_game_models_dot_and_water(const voe_ecs_world *world,
 		voe_game_models_failure_count(failures, models, "");
 }
 
+// No kinds: the world's own files alone.
+static const voe_game_models_kinds NO_KINDS;
+
+// Loads, one at a time, every file from the `next`th on an update reads of
+// the world's and `kinds`', the stop flag asked before each. False when the
+// update ends there: stopped, `*stopped` set, or the store full.
+static bool load_from(struct models_call *call, const voe_ecs_world *world,
+		      const voe_game_models_kinds *kinds, const char *folder,
+		      uint32_t next, bool *stopped)
+{
+	uint32_t end;
+	bool going = true;
+
+	VOE_BASE_ASSERT(call != NULL && kinds != NULL && stopped != NULL,
+			"no call, kinds or stopped");
+	end = world_paths(world) + kinds->count;
+	while (going && next < end) {
+		voe_game_models_batch *batch = voe_game_models_batch_new(folder, 1);
+		bool any;
+
+		next = voe_game_models_update_gather(world, call->models, kinds,
+						     next, 1, batch);
+		any = voe_game_models_batch_count(batch) > 0;
+		*stopped = any && voe_game_progress_stopped(call->progress);
+		// A full store said so once; the update ends.
+		going = !*stopped &&
+			(!any ||
+			 (voe_3d_models_count(call->models) < VOE_3D_MODELS &&
+			  batch_load(call, batch)));
+		voe_game_models_batch_destroy(batch);
+	}
+	VOE_BASE_ASSERT(!going || next == end, "an update ended short");
+	return going;
+}
+
+// The rows' files first, then the kinds: a landscape a row names loads among
+// the rows, so its kinds are gathered, counted and loaded after them in the
+// same call. Nothing gathered first is loaded by then, so the second gather
+// holds every one of the first and the total grows by the difference.
 voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_3d_models *models,
 						voe_render_device *device,
@@ -269,32 +310,30 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 	struct models_call call = { .models = models,
 				    .device = device,
 				    .progress = progress };
-	bool going = true;
+	bool stopped = false;
+	bool going;
 	voe_game_models_kinds kinds;
+	uint32_t counted;
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(folder != NULL && scratch != NULL,
 			"no folder or scratch");
 	voe_game_models_kinds_gather(world, models, &kinds);
+	counted = kinds.count;
 	if (progress != NULL)
-		call.total = count_unread(world, models, paths) + kinds.count;
-	for (uint32_t next = 0; going && next < paths + kinds.count;) {
-		voe_game_models_batch *batch = voe_game_models_batch_new(folder, 1);
-		bool any;
-
-		next = voe_game_models_update_gather(world, models, &kinds, next,
-						     1, batch);
-		any = voe_game_models_batch_count(batch) > 0;
-		if (any && voe_game_progress_stopped(progress)) {
-			voe_game_models_batch_destroy(batch);
-			voe_game_models_times_write(&call.times, "models",
+		call.total = count_unread(world, models, paths) + counted;
+	going = load_from(&call, world, &NO_KINDS, folder, 0, &stopped);
+	if (going) {
+		voe_game_models_kinds_gather(world, models, &kinds);
+		VOE_BASE_ASSERT(kinds.count >= counted, "a counted kind lost");
+		if (progress != NULL)
+			call.total += kinds.count - counted;
+		going = load_from(&call, world, &kinds, folder, paths, &stopped);
+	}
+	if (stopped) {
+		voe_game_models_times_write(&call.times, "models",
 					    VOE_GAME_MODELS_LINE);
-			return call.failures;
-		}
-		// A full store said so once; the update ends.
-		going = !any || (voe_3d_models_count(models) < VOE_3D_MODELS &&
-				 batch_load(&call, batch));
-		voe_game_models_batch_destroy(batch);
+		return call.failures;
 	}
 	voe_game_progress_set(progress, "Loading models", call.done, call.total);
 	voe_game_models_times_write(&call.times, "models",
