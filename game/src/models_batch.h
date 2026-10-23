@@ -1,8 +1,10 @@
 // A batch of model files loaded in timed phases on the calling thread (0457,
 // 0459 point 1): game/src/models.c's update, watch and reload fill one with a
-// single file at a time, prepare it and put it. Internal to `game`.
+// single file at a time, prepare it and put it, and prepare one to cook its
+// copy. Internal to `game`.
 //
-//     voe_game_models_batch *batch = voe_game_models_batch_new(folder, 1);
+//     voe_game_models_batch *batch = voe_game_models_batch_new(
+//             folder, 1, VOE_GAME_MODELS_COOK_STALE, progress);
 //     voe_game_models_batch_add(batch, path, known, forced);
 //     voe_game_models_batch_prepare(batch, &times);
 //     for (uint32_t i = 0; i < voe_game_models_batch_count(batch); i++)
@@ -17,12 +19,16 @@
 // its `.glb` one more, all destroyed after its put.
 //
 // THE PHASES run in order on the calling thread, each one's tasks index by
-// index, each under its file's path as the subject: reading (stamp; bytes,
-// skipped at the known stamp unless forced), parsing (the `.glb`, pictures
-// left encoded), making LODs (its levels file read, or made and written),
-// decoding pictures (one task a picture), baking (3d's prepare). No store
-// and no device is touched in them; a `.landscape` or picture path is only
-// read, and loaded whole at its put.
+// index, each under its file's path as the subject: reading (stamp; a
+// `.glb`'s cooked copy taken, prepared then, or the bytes, all skipped at the
+// known stamp unless forced), parsing (the `.glb`, pictures left encoded),
+// making LODs (its levels file read, or made and written), decoding pictures
+// (one task a picture), baking (3d's prepare), and after them cooking (the
+// copy written, as the batch's mode says: models_cooked.h). No store and no
+// device is touched in them; a `.landscape` or picture path is only read, and
+// loaded whole at its put. The progress, when given, shows a file's phase
+// from its reading: "Preparing models" when it will be cooked, else "Loading
+// models".
 //
 // THE PUT, one file on the device's thread: one with no stamp, known at
 // another or not yet held, or that will not read, is kept failed at 0 with its
@@ -31,7 +37,7 @@
 // each failure counted.
 //
 // THE TIMES are each phase's wall seconds over every batch, and the files
-// read; their line, `game: models: <n> files in <s> s: reading <s> s, …`,
+// or copies read; their line, `game: models: <n> files in <s> s: reading <s> s, …`,
 // or the materials' with their three phases (game/src/models_materials.c),
 // goes to stderr only when a file was read, and is no report: nothing went
 // wrong.
@@ -41,7 +47,10 @@
 // hold one file, so one file's arenas at a time.
 #pragma once
 
+#include "models_cooked.h"
+
 #include <game/models.h>
+#include <game/progress.h>
 
 #include <3d/models.h>
 
@@ -62,10 +71,11 @@ enum {
 	VOE_GAME_MODELS_DECODING,
 	VOE_GAME_MODELS_BAKING,
 	VOE_GAME_MODELS_UPLOADING,
+	VOE_GAME_MODELS_COOKING,
 	VOE_GAME_MODELS_PHASES
 };
 
-// The phases a line prints, a bit a slot: a model's six, a material's three.
+// The phases a line prints, a bit a slot: a model's seven, a material's three.
 enum {
 	VOE_GAME_MODELS_LINE = (1u << VOE_GAME_MODELS_PHASES) - 1,
 	VOE_GAME_MATERIALS_LINE = 1u << VOE_GAME_MODELS_READING |
@@ -73,7 +83,7 @@ enum {
 				  1u << VOE_GAME_MODELS_UPLOADING
 };
 
-// Each phase's wall seconds, and the files whose bytes were read.
+// Each phase's wall seconds, and the files whose bytes or copy were read.
 typedef struct {
 	double seconds[VOE_GAME_MODELS_PHASES];
 	uint32_t files;
@@ -81,9 +91,13 @@ typedef struct {
 
 typedef struct voe_game_models_batch voe_game_models_batch;
 
-// An empty batch for up to `room` files of `folder`.
-voe_game_models_batch *voe_game_models_batch_new(const char *folder,
-						 uint32_t room);
+// An empty batch for up to `room` files of `folder`, taking and writing
+// copies as `cooking` says, each file's phase shown in `progress` (NULL for
+// none).
+voe_game_models_batch *
+voe_game_models_batch_new(const char *folder, uint32_t room,
+			  enum voe_game_models_cooking cooking,
+			  voe_game_progress *progress);
 // Every arena it still holds given back.
 void voe_game_models_batch_destroy(voe_game_models_batch *batch);
 
@@ -93,9 +107,18 @@ void voe_game_models_batch_add(voe_game_models_batch *batch, const char *path,
 			       uint64_t known, bool forced);
 uint32_t voe_game_models_batch_count(const voe_game_models_batch *batch);
 
-// The five phases before the put, in order on the calling thread.
+// Every phase but uploading, in order on the calling thread.
 void voe_game_models_batch_prepare(voe_game_models_batch *batch,
 				   voe_game_models_times *times);
+
+// Whether prepared file `index`'s copy was made in cooking.
+bool voe_game_models_batch_cooked(const voe_game_models_batch *batch,
+				  uint32_t index);
+
+// The phase prepared file `index` shows: "Preparing models" when it is
+// cooked, else "Loading models".
+const char *voe_game_models_batch_phase(const voe_game_models_batch *batch,
+					uint32_t index);
 
 // File `index` into the store, then its arenas given back; a failure counted
 // into `failures`, its category in `error` (OK for none). False, nothing done,

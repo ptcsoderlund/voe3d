@@ -5,13 +5,17 @@
 // task of its phase or between phases: a picture's failure is its own until
 // the decoding phase is done, then folded into its file's. Every arena is
 // made with voe_base_arena_new and destroyed after the file's put or by
-// destroy, the batch's own (its files, paths and pictures) last. A `.glb`'s levels file is
+// destroy, the batch's own (its files, paths and pictures) last. A `.glb`'s
+// cooked copy is taken in reading onto its file's arena and written in cooking
+// from that arena, as the batch's mode says (models_cooked.h); the progress,
+// when given, shows each file's phase from its reading on. A `.glb`'s levels file is
 // `<folder>/Cache/levels/<path>.levels`, its folders made first when absent,
 // with the `[Levels]` of the `.parts` beside the `.glb`, the defaults when
 // there is none or it will not parse; a fresh file kept whose swaps differ
 // from those of a `.parts` that reads has them patched into a copy, written
 // back and handed on, not made again; with no `.parts` its own swaps stand.
 #include "models_batch.h"
+#include "models_cooked.h"
 
 #include <3d/model_levels.h>
 #include <3d/model_prepare.h>
@@ -24,10 +28,9 @@
 
 #include <platform/clock.h>
 #include <platform/file.h>
-#include <platform/folder.h>
 #include <platform/path.h>
 
-#include <ctype.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -73,6 +76,12 @@ struct batch_file {
 	// Its pictures in the batch's list.
 	uint32_t first_picture;
 	uint32_t picture_count;
+	// A `.glb`'s copy: its key, whether one was taken or written, and the
+	// phase the progress shows for the file.
+	voe_3d_model_cooked_key key;
+	bool taken;
+	bool cooked;
+	const char *phase;
 };
 
 // One picture of one file, decoded on an arena of its own.
@@ -91,6 +100,8 @@ struct voe_game_models_batch {
 	uint32_t room;
 	struct batch_picture *pictures;
 	uint32_t picture_count;
+	enum voe_game_models_cooking cooking;
+	voe_game_progress *progress;
 };
 
 void voe_game_models_failure_count(voe_game_models_failures *failures,
@@ -109,23 +120,6 @@ void voe_game_models_failure_count(voe_game_models_failures *failures,
 	failures->count++;
 }
 
-// Whether `path` ends `.glb`, compared without case.
-static bool is_glb(const char *path)
-{
-	static const char suffix[] = ".glb";
-	size_t tail = sizeof(suffix) - 1;
-	size_t length;
-
-	VOE_BASE_ASSERT(path != NULL, "asking after no path");
-	length = strlen(path);
-	if (length < tail)
-		return false;
-	for (size_t i = 0; i < tail; i++)
-		if (tolower((unsigned char)path[length - tail + i]) != suffix[i])
-			return false;
-	return true;
-}
-
 // The one line of levels made or patched whose write failed with `error`,
 // under the file's subject.
 static void report_unsaved(voe_base_error error)
@@ -136,47 +130,6 @@ static void report_unsaved(voe_base_error error)
 		       voe_base_error_string(error));
 }
 
-// Makes the folder `path` unless a listing finds one there, so a folder
-// already there says nothing on stderr. False, `error` set, when it could not
-// be made.
-static bool make_absent(const char *path, voe_base_arena *scratch,
-			voe_base_error *error)
-{
-	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
-	voe_platform_folder_listing listing;
-	bool there = voe_platform_folder_list(path, scratch, &listing, NULL);
-
-	VOE_BASE_ASSERT(path != NULL, "making no folder");
-	voe_base_arena_rewind(scratch, mark);
-	return there || voe_platform_folder_create(path, error);
-}
-
-// Makes `levels` (`folder`'s Cache/levels) and each folder of the
-// `/`-separated `path` under it, every one only when absent. False, `error`
-// set, when one could not be made.
-static bool make_levels_folders(const char *folder, const char *levels,
-				const char *path, voe_base_arena *scratch,
-				voe_base_error *error)
-{
-	size_t length = strlen(path);
-	char *prefix = voe_base_arena_push(scratch, length + 1);
-	bool made = make_absent(voe_platform_path_join(scratch, folder, "Cache"),
-				scratch, error) &&
-		    make_absent(levels, scratch, error);
-
-	VOE_BASE_ASSERT(prefix != NULL, "no room for a path");
-	memcpy(prefix, path, length + 1);
-	for (size_t i = 0; made && i < length; i++) {
-		if (path[i] != '/')
-			continue;
-		prefix[i] = '\0';
-		made = make_absent(voe_platform_path_join(scratch, levels, prefix),
-				   scratch, error);
-		prefix[i] = '/';
-	}
-	return made;
-}
-
 // The `[Levels]` of the `.parts` beside `folder`'s `.glb` `path` (0430 point
 // 5), `*parted` whether that file was there and read: the defaults, silently,
 // when there is no such file, and when it will not parse, the parts reader
@@ -185,20 +138,13 @@ static voe_assets_levels levels_asked(const char *folder, const char *path,
 				      voe_base_arena *scratch, bool *parted)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
-	// A prepare of a path not ending `.glb` looks beside it whole.
-	size_t stem = strlen(path) - (is_glb(path) ? sizeof(".glb") - 1 : 0);
-	char *name = voe_base_arena_push(scratch, stem + sizeof(".parts"));
+	const char *file = voe_game_models_parts_file(folder, path, scratch);
 	voe_assets_levels levels = VOE_ASSETS_LEVELS_DEFAULT;
 	voe_assets_parts parts;
-	const char *file;
 	const uint8_t *text = NULL;
 	size_t size = 0;
 
-	VOE_BASE_ASSERT(folder != NULL, "asking levels in no folder");
-	VOE_BASE_ASSERT(name != NULL && parted != NULL, "no room or no parted");
-	memcpy(name, path, stem);
-	memcpy(name + stem, ".parts", sizeof(".parts"));
-	file = voe_platform_path_join(scratch, folder, name);
+	VOE_BASE_ASSERT(parted != NULL, "no parted");
 	if (voe_platform_file_exists(file))
 		text = voe_platform_file_read(file, scratch, &size, NULL);
 	*parted = text != NULL &&
@@ -281,14 +227,17 @@ const uint8_t *voe_game_models_levels_for(const char *folder, const char *path,
 	if (bytes == NULL)
 		return NULL;
 	*made = true;
-	if (!make_levels_folders(folder, levels, path, scratch, &unsaved) ||
+	if (!voe_game_models_folders_make(folder, levels, path, scratch,
+					  &unsaved) ||
 	    !voe_platform_file_write(file, bytes, *size, &unsaved))
 		report_unsaved(unsaved);
 	return bytes;
 }
 
-voe_game_models_batch *voe_game_models_batch_new(const char *folder,
-						 uint32_t room)
+voe_game_models_batch *
+voe_game_models_batch_new(const char *folder, uint32_t room,
+			  enum voe_game_models_cooking cooking,
+			  voe_game_progress *progress)
 {
 	voe_base_arena *arena = voe_base_arena_new(BATCH_BLOCK);
 	voe_game_models_batch *batch = voe_base_arena_push(arena, sizeof(*batch));
@@ -300,6 +249,8 @@ voe_game_models_batch *voe_game_models_batch_new(const char *folder,
 		.folder = folder,
 		.files = voe_base_arena_push(arena, room * sizeof(*batch->files)),
 		.room = room,
+		.cooking = cooking,
+		.progress = progress,
 	};
 	return batch;
 }
@@ -353,9 +304,10 @@ void voe_game_models_batch_add(voe_game_models_batch *batch, const char *path,
 					       path),
 		.known = known,
 		.forced = forced,
-		.glb = is_glb(path),
+		.glb = voe_game_models_is_glb(path),
 		.state = FILE_ADDED,
 		.error = VOE_BASE_OK,
+		.phase = "Loading models",
 	};
 }
 
@@ -366,8 +318,33 @@ uint32_t voe_game_models_batch_count(const voe_game_models_batch *batch)
 	return batch->count;
 }
 
-// Reading: the stamp, then the bytes on the file's own arena unless the stamp
-// is the known one and the file not forced.
+// A `.glb`'s copy, on its arena, taken as the batch's mode allows, prepared
+// then; the file's phase "Preparing models" when it will be cooked instead,
+// and shown, its counts kept.
+static void copy_take(voe_game_models_batch *batch, struct batch_file *file)
+{
+	enum voe_game_models_cooking cooking = batch->cooking;
+	voe_game_progress *progress = batch->progress;
+
+	file->key = voe_game_models_cooked_key(batch->folder, file->path,
+					       file->stamp, file->arena);
+	if (cooking != VOE_GAME_MODELS_COOK_REMAKE)
+		file->prepared = voe_game_models_cooked_take(
+			batch->folder, file->path, file->key,
+			cooking != VOE_GAME_MODELS_COOK_MISSING, file->arena);
+	file->taken = file->prepared != NULL;
+	if (file->taken)
+		file->state = FILE_PREPARED;
+	else if (cooking != VOE_GAME_MODELS_COOK_NEVER)
+		file->phase = "Preparing models";
+	if (progress != NULL)
+		voe_game_progress_set(progress, file->phase,
+				      atomic_load(&progress->done),
+				      atomic_load(&progress->total));
+}
+
+// Reading: the stamp, then, unless the stamp is the known one and the file
+// not forced, a `.glb`'s copy or the bytes on the file's own arena.
 static void read_task(voe_game_models_batch *batch, uint32_t index)
 {
 	struct batch_file *file = &batch->files[index];
@@ -382,6 +359,10 @@ static void read_task(voe_game_models_batch *batch, uint32_t index)
 		file->state = FILE_KNOWN;
 	} else {
 		file->arena = voe_base_arena_new(FILE_BLOCK);
+		if (file->glb)
+			copy_take(batch, file);
+	}
+	if (file->state == FILE_ADDED) {
 		file->bytes = voe_platform_file_read(file->full, file->arena,
 						     &file->size, &file->error);
 		file->state = file->bytes != NULL ? FILE_READ : FILE_UNREADABLE;
@@ -520,21 +501,43 @@ static void bake_task(voe_game_models_batch *batch, uint32_t index)
 	voe_base_report_subject_pop();
 }
 
+// Cooking: a `.glb` baked here, its pictures still decoded, written as its
+// copy on its arena, unless the batch's mode writes none.
+static void cook_task(voe_game_models_batch *batch, uint32_t index)
+{
+	struct batch_file *file = &batch->files[index];
+
+	VOE_BASE_ASSERT(index < batch->count, "cooking a file past the batch");
+	if (batch->cooking == VOE_GAME_MODELS_COOK_NEVER ||
+	    file->state != FILE_PREPARED || file->taken)
+		return;
+	VOE_BASE_ASSERT(file->glb, "cooking a file that is no `.glb`");
+	voe_base_report_subject_push(file->path);
+	voe_game_models_cooked_save(batch->folder, file->path, file->prepared,
+				    file->key, file->arena);
+	file->cooked = true;
+	voe_base_report_subject_pop();
+}
+
 void voe_game_models_batch_prepare(voe_game_models_batch *batch,
 				   voe_game_models_times *times)
 {
-	static void (*const phases[VOE_GAME_MODELS_UPLOADING])(
+	static void (*const phases[VOE_GAME_MODELS_PHASES])(
 		voe_game_models_batch *, uint32_t) = {
-		read_task, parse_task, lods_task, decode_task, bake_task
+		read_task, parse_task, lods_task, decode_task, bake_task,
+		NULL, cook_task
 	};
 
 	VOE_BASE_ASSERT(batch != NULL && times != NULL, "no batch or times");
 	VOE_BASE_ASSERT(batch->count <= batch->room, "a batch past its room");
-	for (uint32_t p = 0; p < VOE_GAME_MODELS_UPLOADING; p++) {
+	for (uint32_t p = 0; p < VOE_GAME_MODELS_PHASES; p++) {
 		double before = voe_platform_clock_now();
 		bool decoding = p == VOE_GAME_MODELS_DECODING;
 		uint32_t tasks;
 
+		// Uploading is the put's.
+		if (phases[p] == NULL)
+			continue;
 		if (decoding)
 			pictures_gather(batch);
 		tasks = decoding ? batch->picture_count : batch->count;
@@ -545,7 +548,24 @@ void voe_game_models_batch_prepare(voe_game_models_batch *batch,
 		times->seconds[p] += voe_platform_clock_now() - before;
 	}
 	for (uint32_t i = 0; i < batch->count; i++)
-		times->files += batch->files[i].bytes != NULL;
+		times->files += batch->files[i].bytes != NULL ||
+				batch->files[i].taken;
+}
+
+bool voe_game_models_batch_cooked(const voe_game_models_batch *batch,
+				  uint32_t index)
+{
+	VOE_BASE_ASSERT(batch != NULL && index < batch->count,
+			"asking after a file past the batch");
+	return batch->files[index].cooked;
+}
+
+const char *voe_game_models_batch_phase(const voe_game_models_batch *batch,
+					uint32_t index)
+{
+	VOE_BASE_ASSERT(batch != NULL && index < batch->count,
+			"asking after a file past the batch");
+	return batch->files[index].phase;
 }
 
 // The file into the store as its state says, under its path as the subject;
@@ -640,7 +660,7 @@ void voe_game_models_times_write(const voe_game_models_times *times,
 {
 	static const char *const names[VOE_GAME_MODELS_PHASES] = {
 		"reading", "parsing", "making LODs", "decoding pictures",
-		"baking", "uploading"
+		"baking", "uploading", "cooking"
 	};
 	char phases[256];
 	size_t at = 0;
@@ -656,7 +676,7 @@ void voe_game_models_times_write(const voe_game_models_times *times,
 		if ((line & (1u << p)) == 0)
 			continue;
 		total += times->seconds[p];
-		// Six names and numbers fit; a cut line is still a line.
+		// Seven names and numbers fit; a cut line is still a line.
 		at += (size_t)snprintf(phases + at, sizeof(phases) - at,
 				       "%s%s %.3f s", at > 0 ? ", " : "",
 				       names[p], times->seconds[p]);

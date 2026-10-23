@@ -1,0 +1,93 @@
+// A `.glb`'s cooked copy on disk (0470 points 1, 4 and 5): its path, its key,
+// a copy taken when it is usable, and a copy made and written; with the
+// folders the copies and the levels files need. Internal to `game`: the batch
+// (models_batch.c) takes and writes copies, models.c picks the mode.
+//
+//     voe_3d_model_cooked_key key =
+//             voe_game_models_cooked_key(folder, path, stamp, arena);
+//     prepared = voe_game_models_cooked_take(folder, path, key, true, arena);
+//     if (prepared == NULL)
+//             ... // parse, LODs, decode and bake, then
+//             voe_game_models_cooked_save(folder, path, prepared, key, arena);
+//
+// THE COPY is `<folder>/Cache/models/<path>.model`. Its key is the platform
+// stamps of the `.glb` and of the `.parts` beside it, 0 when there is none. It
+// is fresh when 3d reads it and its key is that one.
+//
+// WHO COOKS, each caller a mode:
+//
+//     caller                     copy it takes             writes a copy
+//     update, prepare            a fresh one               missing or stale
+//     prepare's remake           none                      always
+//     watch, reload              a fresh one               never
+//     update_cooked (the game)   any that reads, no key    missing
+//
+// The game trusts its copies: files copied into a build get new stamps, so
+// it never compares the key (0470 point 5).
+//
+// Constraints: a take reads the whole copy onto the caller's arena, the
+// prepare's arrays pointing into it, so the arena must outlive the put. A save
+// pushes about twice the pictures' bytes onto its arena. Neither says a line
+// for a copy that is missing or broken; a failed write is one line on stderr.
+#pragma once
+
+#include <3d/model_cooked.h>
+#include <3d/model_prepare.h>
+
+#include <base/arena.h>
+#include <base/error.h>
+
+#include <stdbool.h>
+#include <stdint.h>
+
+// A batch's cooking mode: the rows of the header's table.
+enum voe_game_models_cooking {
+	VOE_GAME_MODELS_COOK_STALE,
+	VOE_GAME_MODELS_COOK_REMAKE,
+	VOE_GAME_MODELS_COOK_NEVER,
+	VOE_GAME_MODELS_COOK_MISSING,
+};
+
+// Whether `path` ends `.glb`, compared without case.
+bool voe_game_models_is_glb(const char *path);
+
+// `folder`'s `.parts` beside `path`: its `.glb` ending swapped, or appended to
+// a path not ending `.glb`. On `arena`.
+const char *voe_game_models_parts_file(const char *folder, const char *path,
+				       voe_base_arena *arena);
+
+// Makes `<folder>/Cache`, `cache` (one folder under it) and each folder of the
+// `/`-separated `path` under `cache`, every one only when absent. False,
+// `error` set, when one could not be made.
+[[nodiscard]] bool voe_game_models_folders_make(const char *folder,
+						const char *cache,
+						const char *path,
+						voe_base_arena *scratch,
+						voe_base_error *error);
+
+// `<folder>/Cache/models/<path>.model`, on `arena`.
+const char *voe_game_models_cooked_file(const char *folder, const char *path,
+					voe_base_arena *arena);
+
+// The key of `folder`'s `path` at the stamp `glb`, with its `.parts`' stamp,
+// 0 for none. Scratch rewound.
+voe_3d_model_cooked_key voe_game_models_cooked_key(const char *folder,
+						   const char *path,
+						   uint64_t glb,
+						   voe_base_arena *scratch);
+
+// The copy read whole onto `arena` and read as a prepare, its key `key` when
+// `compare`. NULL, `arena` rewound, when it is missing, will not read, is
+// broken or its key differs.
+const voe_3d_model_prepared *
+voe_game_models_cooked_take(const char *folder, const char *path,
+			    voe_3d_model_cooked_key key, bool compare,
+			    voe_base_arena *arena);
+
+// `prepared`, its pictures decoded, made a copy keyed `key` on `arena` and
+// written atomically with its folders made; a failed write is a line on
+// stderr under the caller's subject.
+void voe_game_models_cooked_save(const char *folder, const char *path,
+				 const voe_3d_model_prepared *prepared,
+				 voe_3d_model_cooked_key key,
+				 voe_base_arena *arena);
