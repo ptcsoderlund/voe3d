@@ -364,7 +364,7 @@ update_cooking(const voe_ecs_world *world, voe_3d_models *models,
 		VOE_BASE_ASSERT(kinds.count >= counted, "a counted kind lost");
 		if (progress != NULL)
 			call.total += kinds.count - counted;
-		going = load_from(&call, world, &kinds, folder, paths, &stopped);
+		load_from(&call, world, &kinds, folder, paths, &stopped);
 	}
 	if (stopped) {
 		voe_game_models_times_write(&call.times, "models",
