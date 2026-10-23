@@ -138,6 +138,11 @@ typedef struct {
 	voe_ui_node layer_rows[VOE_EDITOR_SCULPT_LAYER_ROWS];
 	voe_ui_rect layers_seen[VOE_EDITOR_SCULPT_LAYER_ROWS];
 	uint32_t layers_drawn;
+	// The grow rows under the chosen layer's row, the same way: kind k's
+	// tick, and its Density slider and figure, drawn only while ticked.
+	voe_ui_node grow_ticks[VOE_ASSETS_LANDSCAPE_KINDS];
+	voe_ui_node grow_sliders[VOE_ASSETS_LANDSCAPE_KINDS];
+	char grow_figures[VOE_ASSETS_LANDSCAPE_KINDS][VOE_EDITOR_SCULPT_FIGURE];
 	// The Foliage section's as drawn this frame, the Layers rows' way:
 	// Scatter and Erase, the sliders and their figures, kind row i kind i
 	// and row `kinds_drawn` the add row, and where each row showed at the

@@ -296,10 +296,11 @@ carries it out.
 - `inspector_brush.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: each drawn slider's value taken into the radius or softness.
 - `inspector_layers.h` — the Inspector's Layers section under Sculpt: a row per layer by its
-  material's file name choosing it to paint, none lit while brushing foliage, and the add row a
-  dropped material lands on.
+  material's file name choosing it to paint, none lit while brushing foliage, the painted layer's
+  grow rows ticking each kind with a Density, and the add row a dropped material lands on.
 - `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
-  read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
+  read: a tick or Density asks the layer's growth, a fired row chooses PAINT with its layer or
+  none, each row's rectangle kept.
 - `inspector_foliage.h` — the Inspector's Foliage section under Layers: Scatter and Erase, a row per
   kind toggling it picked with its Base size slider, Cast shadows button and Size ±%, Turn ±° and
   Tilt with slope % sliders, the add row a dropped `.glb` lands on, and the brush's Density slider.
