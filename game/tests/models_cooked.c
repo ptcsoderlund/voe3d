@@ -25,6 +25,12 @@
 // materials_cooked_loads_a_copy_whose_png_is_garbage: a copy written, then
 // the PNG made garbage, the game's materials call loads from the copy, kept.
 //
+// The editor's check before Play and Ship, on the `.glb` and the material:
+// stale_counts_missing_copies: both copies gone, 2. cook_makes_them_and_
+// stale_is_then_0: both written at their stamps, the progress 2/2.
+// stale_counts_a_changed_glb: rewritten another size, 1.
+// cook_stops_when_asked: stop set, false and the copy keeps its old key.
+//
 // The files and the folders are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include "glb_build.h"
@@ -398,6 +404,59 @@ materials_cooked_loads_a_copy_whose_png_is_garbage(const voe_ecs_world *world,
 	VOE_TEST_CHECK(map_copy_key() == stamp);
 }
 
+// The `.glb`s the editor's check is given.
+static const char *const GLBS[] = { GOOD };
+
+// How many copies the check finds stale.
+static unsigned stale(voe_base_arena *scratch)
+{
+	return voe_game_models_stale(FOLDER, GLBS, 1, &MATERIALS, scratch);
+}
+
+static void stale_counts_missing_copies(voe_base_arena *scratch)
+{
+	(void)glb_write(0);
+	(void)png_write(scratch);
+	remove(COPY_ON_DISK);
+	remove(MAP_COPY_ON_DISK);
+	VOE_TEST_CHECK_INT(stale(scratch), 2);
+}
+
+static void cook_makes_them_and_stale_is_then_0(voe_base_arena *scratch)
+{
+	voe_game_progress progress = { 0 };
+	uint64_t glb = 0;
+	uint64_t png = 0;
+
+	VOE_TEST_CHECK(voe_platform_file_stamp(GOOD_ON_DISK, &glb));
+	VOE_TEST_CHECK(voe_platform_file_stamp(PICTURE_ON_DISK, &png));
+	VOE_TEST_CHECK(voe_game_models_cook(FOLDER, GLBS, 1, &MATERIALS,
+					    scratch, &progress));
+	VOE_TEST_CHECK(copy_key().glb == glb);
+	VOE_TEST_CHECK(map_copy_key() == png);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.done), 2);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.total), 2);
+	VOE_TEST_CHECK_INT(stale(scratch), 0);
+}
+
+static void stale_counts_a_changed_glb(voe_base_arena *scratch)
+{
+	(void)glb_write(4);
+	VOE_TEST_CHECK_INT(stale(scratch), 1);
+}
+
+static void cook_stops_when_asked(voe_base_arena *scratch)
+{
+	voe_game_progress progress = { 0 };
+	uint64_t before = copy_key().glb;
+
+	atomic_store(&progress.stop, true);
+	VOE_TEST_CHECK(!voe_game_models_cook(FOLDER, GLBS, 1, &MATERIALS,
+					     scratch, &progress));
+	VOE_TEST_CHECK(copy_key().glb == before);
+	VOE_TEST_CHECK_INT(stale(scratch), 1);
+}
+
 // Every file and folder the cases write, deepest first.
 static void remove_files(void)
 {
@@ -447,6 +506,10 @@ int main(void)
 	material_load_writes_no_copy(device, scratch);
 	materials_cooked_loads_a_copy_whose_png_is_garbage(world, device,
 							   scratch);
+	stale_counts_missing_copies(scratch);
+	cook_makes_them_and_stale_is_then_0(scratch);
+	stale_counts_a_changed_glb(scratch);
+	cook_stops_when_asked(scratch);
 	remove_files();
 	voe_render_device_destroy(device);
 released:

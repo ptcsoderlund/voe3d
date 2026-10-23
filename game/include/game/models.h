@@ -20,11 +20,11 @@
 // point 4). A refused make keeps the entry failed at its stamp (0445 point 4).
 //
 // COOKED COPIES (0470): a `.glb` loads first from `<folder>/Cache/models/
-// <path>.model` when fresh, 3d reading it and its key the stamps of the `.glb`
-// and of its `.parts` (0 for none): no parse, LODs, decode or bake. Update and
-// prepare write a missing or stale one as the levels file, remake always;
-// watch and reload never. The game's update_cooked trusts any copy that reads,
-// its key unasked, and writes a missing one: a build's files get new stamps.
+// <path>.model` when fresh, its key the stamps of the `.glb` and its `.parts`
+// (0 for none): no parse, LODs, decode or bake. Update and prepare write a
+// missing or stale one, remake always, watch and reload never; the game's
+// update_cooked trusts any that reads and writes a missing one. Before Play
+// and Ship the editor calls stale, reading only copies' heads, then cook.
 //
 // PHASES (0457, 0459 point 1): one file at a time on the caller, read, parsed,
 // its LODs made, pictures decoded, baked, uploaded and cooked. A call that
@@ -154,6 +154,29 @@ voe_game_models_failures voe_game_models_materials_cooked(
 					   voe_base_arena *scratch,
 					   bool remake, bool *made,
 					   voe_base_error *error);
+
+// How many of the `.glb`s among `paths` (as update takes them, under `folder`)
+// and of the maps `table`'s rows name have a copy that is missing, will not
+// read or is keyed otherwise than the input's stamps. Only each copy's head is
+// read; an input with no stamp is not counted, a map named twice for one kind
+// once. Scratch rewound. For the editor before Play and Ship (0470 point 6).
+unsigned voe_game_models_stale(const char *folder, const char *const *paths,
+			       uint32_t path_count,
+			       const voe_game_materials *table,
+			       voe_base_arena *scratch);
+
+// Makes and writes every copy stale counts, one file at a time on the caller
+// and with no device: a `.glb` as prepare does, its levels file made when
+// missing; a map read, decoded and mipped. "Preparing models" done/total over
+// that count goes into `progress` (NULL for none). A file that will not read
+// or parse is a line at its cause and skipped. Scratch rewound. False only
+// when the progress asked to stop, before the next file.
+[[nodiscard]] bool voe_game_models_cook(const char *folder,
+					const char *const *paths,
+					uint32_t path_count,
+					const voe_game_materials *table,
+					voe_base_arena *scratch,
+					voe_game_progress *progress);
 
 // Each level's triangles of `<folder>/<path>` into `triangles`, as
 // voe_3d_model_levels_triangles counts them with its levels file in the Cache
