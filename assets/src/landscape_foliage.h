@@ -1,7 +1,7 @@
 // The landscape file's foliage, internal to this folder: `landscape.c` reads
-// the shape, layers and heights and hands `[Foliage]` and `[Copies]` to
-// `landscape_foliage.c`, which prints with `landscape.c`'s printer and checks
-// and writes a kind's quotes with its two path helpers.
+// the shape, layers and heights and hands `[Foliage]`, `[Layers]`' grow keys
+// and `[Copies]` to `landscape_foliage.c`, which prints with `landscape.c`'s
+// printer and checks and writes a kind's quotes with its two path helpers.
 //
 // [Foliage] IS PRINTED BEFORE [Heights] and [Copies] after [Paint]: a kind's
 // quote check counts line breaks from the start of the text, so the kinds are
@@ -26,11 +26,12 @@ bool voe_assets_landscape_written_quoted(const voe_assets_sectioned *doc,
 // VOE_ASSETS_LANDSCAPE_QUOTED_PATH bytes. In `landscape.c`.
 void voe_assets_landscape_quote(const char *path, char *quoted);
 
-// `[Foliage]`'s kinds and `[Copies]`' copies of `text`, `size` bytes, into
-// `into`: kinds from kind0= to the first missing key, each with its optional
-// `size<k>` or 0, the copies pushed on
-// `arena`, none and NULL with no `[Copies]`. False and a line on stderr for
-// what voe_assets_landscape_read refuses of them; `into` may be partly written.
+// `[Foliage]`'s kinds, `[Layers]`' grows and `[Copies]`' copies of `text`,
+// `size` bytes, into `into`, whose layers are read already: kinds from kind0=
+// to the first missing key, each look key missing the default's; then each
+// `grow<l>_<k>`, now that both counts are known; the copies pushed on `arena`,
+// none and NULL with no `[Copies]`. False and a line on stderr for what
+// voe_assets_landscape_read refuses of them; `into` may be partly written.
 [[nodiscard]] bool
 voe_assets_landscape_foliage_read(const voe_assets_sectioned *doc,
 				  const char *text, size_t size,
@@ -38,8 +39,14 @@ voe_assets_landscape_foliage_read(const voe_assets_sectioned *doc,
 				  voe_assets_landscape *into,
 				  voe_base_error *error);
 
-// `[Foliage]` and a blank line after it when there are kinds, a kind's
-// `size<k>` after its path unless 0 or 1000; nothing otherwise.
+// `[Layers]`' `grow<l>_<k>` lines of every layer and kind below their counts,
+// each only above 0. `landscape.c` calls it after the layer paths.
+void voe_assets_landscape_grows_print(
+	struct voe_assets_landscape_printer *printer,
+	const voe_assets_landscape *landscape);
+
+// `[Foliage]` and a blank line after it when there are kinds, a kind's look
+// keys after its path, each only off the default; nothing otherwise.
 void voe_assets_landscape_kinds_print(
 	struct voe_assets_landscape_printer *printer,
 	const voe_assets_landscape *landscape);

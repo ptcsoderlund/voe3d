@@ -1,7 +1,7 @@
 // The landscape file behind assets/landscape.h: the sectioned reader for the
 // lines, then each value turned into a number or a path here, and a printer for
-// the way back. `[Paint]` is `landscape_paint.c`'s, `[Foliage]` and `[Copies]`
-// `landscape_foliage.c`'s.
+// the way back. `[Paint]` is `landscape_paint.c`'s, `[Foliage]`, the grow keys
+// and `[Copies]` `landscape_foliage.c`'s.
 //
 // A ROW IS FOUND BY NAME, one linear scan of its section's keys per row, so a
 // 2048-cell file is about two million string compares. That is tens of
@@ -219,7 +219,7 @@ voe_assets_landscape voe_assets_landscape_flat(float size, uint32_t cells,
 			"landscape cells not a multiple of 4 from 4 to 2048");
 	VOE_BASE_ASSERT(arena != NULL, "a landscape with no arena");
 
-	// A push is zeroed, and zero is flat.
+	// A push is zeroed, and zero is flat; every grow is 0 with the rest.
 	return (voe_assets_landscape){
 		.size = size,
 		.cells = cells,
@@ -268,7 +268,8 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 	to.layer_count = from->layer_count;
 	to.paint = voe_assets_landscape_paint_resample(from, cells, arena);
 	memcpy(to.kinds, from->kinds, sizeof(to.kinds));
-	memcpy(to.kind_sizes, from->kind_sizes, sizeof(to.kind_sizes));
+	memcpy(to.looks, from->looks, sizeof(to.looks));
+	memcpy(to.grows, from->grows, sizeof(to.grows));
 	to.kind_count = from->kind_count;
 	if (from->copy_count > 0) {
 		const size_t bytes = (size_t)from->copy_count * sizeof(*to.copies);
@@ -389,6 +390,7 @@ static void print_landscape(struct voe_assets_landscape_printer *printer,
 		voe_assets_landscape_quote(landscape->layers[k], quoted);
 		voe_assets_landscape_print(printer, "layer%u=%s\n", k, quoted);
 	}
+	voe_assets_landscape_grows_print(printer, landscape);
 	if (landscape->layer_count > 0)
 		voe_assets_landscape_print(printer, "\n");
 	voe_assets_landscape_kinds_print(printer, landscape);
