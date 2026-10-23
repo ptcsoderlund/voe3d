@@ -201,6 +201,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `foliage.c` — a copy placed on the bilinear ground's normal at its kind's base size, a scatter
   stamp's tries drawn up front with the spreads of each one's kind and refused against the near
   copies in one walk, erase and undo by moving the last in, and the replace over a rect.
+- `foliage_grow.c` — the area's grown copies of the remade kinds removed, then each kind's
+  lattice cells over it hashed, jittered, kept by the bilinear paint and placed.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
 - `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, borders

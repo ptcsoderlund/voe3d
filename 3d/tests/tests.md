@@ -182,6 +182,9 @@ again, or to find where a claim that has started failing is written down.
 - `foliage.c` — a held scatter stamp filling to about its density, spaced, picked and within its
   radius; a seed repeating; erase by kind and undo's put both ways; a copy leaning 45° or upright on
   a slope; a replace following a raised height; a kind's base size. Needs no graphics card.
+- `foliage_grow.c` — a layer's grown density, nothing past the paint, half the tenths half as
+  thick, a remade rect equal to a whole grow, one kind remade alone, and the cap. Needs no
+  graphics card.
 - `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
   once, neighbours within a level, within capacity, bounding their heights; an update equal to a
   fresh build and the pyramid's box. Needs no graphics card.
