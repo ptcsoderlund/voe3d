@@ -5,10 +5,11 @@
 // fourth texture; a set changing cutout and emission, then a frame writing both
 // records; the same maps decoded with voe_3d_model_picture_decode and put
 // with voe_3d_models_put_material giving a like entry; a colour map alone
-// leaving the ORM slots none; a map that is no picture failing MALFORMED as a
-// failed entry; and a rename finding the material at its new path.
+// leaving the ORM slots none; a 64 × 64 colour map carrying its levels put as
+// one part (put_material_takes_given_levels); a map that is no picture failing
+// MALFORMED as a failed entry; and a rename finding the material at its new path.
 //
-// THE DEVICE HOLDS THREE MATERIALS' RECORDS, a record and a twin each, and no
+// THE DEVICE HOLDS FOUR MATERIALS' RECORDS, a record and a twin each, and no
 // geometry: a material's part draws nothing of its own.
 //
 // IT SKIPS WHEN THERE IS NO GRAPHICS CARD, because a load uploads.
@@ -33,7 +34,7 @@ static const voe_render_capacities CAPACITIES = {
 	.indices = 6,
 	.geometries = 1,
 	.objects = 1,
-	.shadings = 6,
+	.shadings = 8,
 	.passes = 1,
 };
 
@@ -171,6 +172,33 @@ static void check_put(voe_3d_models *models, voe_render_device *device,
 		check_loaded(entry);
 }
 
+// A 64 × 64 colour map carrying its full chain, put: the put is true and the
+// entry a loaded material of one part.
+static void put_material_takes_given_levels(voe_3d_models *models,
+					    voe_render_device *device,
+					    voe_base_arena *arena,
+					    const voe_assets_material_file *material)
+{
+	enum { MAP_SIDE = 64 };
+	voe_assets_image image = { .width = MAP_SIDE, .height = MAP_SIDE };
+	voe_3d_material_pictures pictures = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	const voe_3d_model_entry *entry;
+
+	image.pixels = voe_base_arena_push(arena, MAP_SIDE * MAP_SIDE * 4);
+	for (uint32_t i = 0; i < MAP_SIDE * MAP_SIDE * 4; i++)
+		image.pixels[i] = (uint8_t)(i * 7);
+	pictures.colour = voe_assets_image_mips(arena, &image,
+						VOE_ASSETS_IMAGE_COLOUR);
+	VOE_TEST_CHECK(pictures.colour.levels > 1);
+	VOE_TEST_CHECK(voe_3d_models_put_material(models, device,
+						  "Assets/mipped.material", 1,
+						  material, pictures, &error));
+	entry = voe_3d_models_find(models, "Assets/mipped.material");
+	VOE_TEST_CHECK(entry != NULL && entry->loaded && entry->material);
+	VOE_TEST_CHECK(entry != NULL && entry->part_count == 1);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -227,6 +255,9 @@ int main(void)
 		VOE_TEST_CHECK_INT(entry->parts[0].material.occlusion_texture.index,
 				   VOE_RENDER_NO_TEXTURE);
 	}
+
+	// ---- a colour map carrying its levels goes up with them
+	put_material_takes_given_levels(models, device, arena, &material);
 
 	// ---- a map that is no picture: MALFORMED, a failed entry
 	error = VOE_BASE_OK;

@@ -16,8 +16,8 @@
 // store lacks adds nothing.
 //
 // THE SWAPS PATCHED: the grid prepared with the defaults, then `swap1=4`
-// prepared without remake makes none, the file on disk at swap 1 4 with the
-// same index counts; on a third world and store, the grid updated at ×4, then
+// prepared without remake makes only the cooked copy, the levels file on disk
+// at swap 1 4 with the same index counts; on a third world and store, the grid updated at ×4, then
 // `swap1=0.5` reloaded, holds a level 1 bound 8 times what it was.
 //
 // THE TRIANGLES: the grid prepared with the defaults counts its file's levels,
@@ -69,6 +69,7 @@
 #define BAD "bad.glb"
 #define BAD_ON_DISK FOLDER "/" BAD
 #define BAD_LEVELS_ON_DISK LEVELS_FOLDER_ON_DISK "/" BAD ".levels"
+#define COPIES_FOLDER_ON_DISK CACHE_ON_DISK "/models"
 
 // Room for the triangle twice over a reload, the pictures' quad, and the
 // shadings of the triangle, the picture and the dot, plus two blended twins:
@@ -269,14 +270,16 @@ static void check_swaps_patched(voe_ecs_world *world,
 
 	VOE_TEST_CHECK(voe_platform_file_write(GRID_ON_DISK, grid, size, NULL));
 
-	// ---- the defaults, then `swap1=4` prepared without remake: none made
+	// ---- the defaults, then `swap1=4` prepared without remake: the levels
+	// patched, not made; the cooked copy, keyed by the new `.parts`' stamp,
+	// is made again, so `made` is true
 	remove(GRID_PARTS_ON_DISK);
 	VOE_TEST_CHECK(grid_prepared(scratch, grid, size, NULL) >= 3);
 	before = grid_read(scratch, grid, size);
 	grid_parts_write("[Parts]\n[Levels]\nswap1=4\n");
 	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GRID, scratch,
 					       false, &made, &error));
-	VOE_TEST_CHECK(!made);
+	VOE_TEST_CHECK(made);
 	after = grid_read(scratch, grid, size);
 	VOE_TEST_CHECK(after.swaps[1] == 4.0f);
 	VOE_TEST_CHECK_INT(after.level_count, before.level_count);
@@ -481,6 +484,10 @@ static void remove_files(void)
 	remove(BAD_ON_DISK);
 	remove(BAD_LEVELS_ON_DISK);
 	remove(LEVELS_FOLDER_ON_DISK);
+	remove(COPIES_FOLDER_ON_DISK "/" GOOD ".model");
+	remove(COPIES_FOLDER_ON_DISK "/" GRID ".model");
+	remove(COPIES_FOLDER_ON_DISK "/" BAD ".model");
+	remove(COPIES_FOLDER_ON_DISK);
 	remove(CACHE_ON_DISK);
 	remove(FOLDER);
 }

@@ -175,6 +175,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until
   one matches no part, or a levels file read and checked against the bake, the shape built and
   the sphere measured.
+- `model_cooked.c` — a prepared `.glb` measured then written as one run of 16-aligned sections,
+  each picture mipped by its first use, and read back pointing into the bytes, every count, range
+  and index checked.
 - `models_levels.c` — a `.glb`'s levels beside its parts, as the prepare baked or read them: own
   levels joined by material, or made levels' indices shared over level 0's vertices, each bounded
   by the file's error and swap; the level-0 mirror and the free.

@@ -12,7 +12,8 @@
 // The wait runs the shaders step on a fresh device's worker: the device ends
 // PREPARED and the cache is written under the working directory, removed at
 // the end; a work answering false makes the wait false. The progress line is
-// checked for total 0 and for 3/7 with no device.
+// checked for total 0 and for 3/7 with no device, and the loaded line for
+// 2.46 s and 0.04 s.
 //
 // A machine with no usable Vulkan skips and says so.
 #include <game/frame.h>
@@ -246,6 +247,10 @@ static void progress_lines(void)
 	VOE_TEST_CHECK(!voe_game_progress_stopped(&progress));
 	VOE_TEST_CHECK(!voe_game_progress_stopped(NULL));
 	voe_game_progress_set(NULL, "Nothing", 1, 2);
+	voe_game_progress_loaded(2.46, line, sizeof(line));
+	VOE_TEST_CHECK(strcmp(line, "Loaded in 2.5 s") == 0);
+	voe_game_progress_loaded(0.04, line, sizeof(line));
+	VOE_TEST_CHECK(strcmp(line, "Loaded in 0.0 s") == 0);
 }
 
 static void plain_cases(voe_app *app, voe_ui_context *ui,

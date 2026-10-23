@@ -102,7 +102,8 @@ static bool create_heights(voe_render_device *device, uint32_t width,
 	if (!voe_render_texture_fill(device, slot, VK_FORMAT_R32_SFLOAT, width,
 				     height, 1, heights,
 				     (VkDeviceSize)width * height *
-					     sizeof(float)))
+					     sizeof(float),
+				     NULL))
 		return false;
 
 	// Claimed once filled, as create_texture does. SHARP names a sampler

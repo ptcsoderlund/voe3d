@@ -42,7 +42,11 @@ static const char *const text_path = "voe_app_picture_test.txt";
 static void reads_a_png(voe_render_device *device, voe_base_arena *scratch)
 {
 	uint8_t pixels[WIDTH * HEIGHT * 4];
-	voe_assets_image image = { WIDTH, HEIGHT, pixels };
+	voe_assets_image image = {
+		.width = WIDTH,
+		.height = HEIGHT,
+		.pixels = pixels,
+	};
 	voe_assets_bytes encoded = { 0 };
 	voe_app_picture picture = { 0 };
 	voe_base_error error = VOE_BASE_OK;

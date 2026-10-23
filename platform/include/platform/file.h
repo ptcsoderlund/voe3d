@@ -1,5 +1,5 @@
-// A whole file, read or written in one call. The first file API in this
-// engine.
+// A whole file, read or written in one call, or only its first bytes read.
+// The first file API in this engine.
 //
 //     voe_base_error error;
 //     if (!voe_platform_file_write("shot.png", bytes, count, &error))
@@ -60,6 +60,20 @@
 						     voe_base_arena *arena,
 						     size_t *out_count,
 						     voe_base_error *error);
+
+// THE HEAD OF A FILE, for a reader that checks a file's first bytes before
+// reading the whole of it: a cooked copy's magic, version and key (0470).
+// Up to size bytes from the start go into the caller's buffer; *out_count is
+// how many arrived, fewer than size for a shorter file. It fails with the
+// categories voe_platform_file_read does. A NULL path, buffer or out_count,
+// or a size of 0, is the caller's bug and aborts.
+//
+// Reads up to size bytes from the start of path into buffer. False on
+// failure, with the category in error when error is not NULL.
+[[nodiscard]] bool voe_platform_file_read_head(const char *path,
+					       uint8_t *buffer, size_t size,
+					       size_t *out_count,
+					       voe_base_error *error);
 
 // voe_platform_file_exists is true only for a path that is a regular file —
 // false for a folder, a symlink to nothing, and anything not there. It is

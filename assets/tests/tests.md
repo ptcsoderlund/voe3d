@@ -21,6 +21,9 @@ belongs to.
 - `image_fit.c` — the sizes a largest side gives, a constant picture kept
   constant for each kind, colour averaged in linear light and by alpha, two
   leaning normals averaged to a unit one, and data averaged as stored.
+- `image_levels.c` — chain lengths as Vulkan counts them, a constant's mips
+  kept constant for each kind, a checker halved to linear grey, and the cooked
+  form round-tripped, refused when broken or short, and its key read alone.
 - `json.c` — a document read back as its values, every shape of broken input
   a tolerant reader would let past, and too many values or too deep refused as
   limits.

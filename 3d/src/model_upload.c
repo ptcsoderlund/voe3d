@@ -22,16 +22,25 @@ static void wanted(bool *marks, uint32_t count, uint32_t index)
 		marks[index] = true;
 }
 
-// Uploads picture `i` in `kind` into `id` and lists it.
+// Uploads picture `i` in `kind` into `id` and lists it: with the levels it
+// carries, else SMOOTH and mipped on the GPU.
 static bool upload_picture(voe_render_device *device,
 			   const voe_assets_model *model, uint32_t i,
 			   voe_render_texture_kind kind, voe_render_texture *id,
 			   voe_3d_model_upload *out, voe_base_error *error)
 {
-	if (!voe_render_texture_create(device, kind, VOE_RENDER_SAMPLING_SMOOTH,
-				       model->images[i].width,
-				       model->images[i].height,
-				       model->images[i].pixels, id, error))
+	const voe_assets_image *image = &model->images[i];
+	const bool made =
+		image->levels > 1 ?
+			voe_render_texture_create_levels(
+				device, kind, image->width, image->height,
+				image->levels, image->pixels, id, error) :
+			voe_render_texture_create(device, kind,
+						  VOE_RENDER_SAMPLING_SMOOTH,
+						  image->width, image->height,
+						  image->pixels, id, error);
+
+	if (!made)
 		return false;
 	out->textures[out->texture_count++] = *id;
 	return true;

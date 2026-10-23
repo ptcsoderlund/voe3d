@@ -1,6 +1,7 @@
-// The editor's three works for a splash wait (game/starting.h, 0370 point 4):
-// the start, a scene load and an import's prepare, each a context the caller
-// fills and a work function it hands to voe_game_starting_wait.
+// The editor's four works for a splash wait (game/starting.h, 0370 point 4):
+// the start, a scene load, an import's prepare and the cook before Play and
+// Ship, each a context the caller fills and a work function it hands to
+// voe_game_starting_wait.
 //
 //     voe_editor_loading_start start = { .device = gpu, .scratch = worker,
 //             .log = &log, .session = &session, .models = models,
@@ -19,6 +20,9 @@
 // menu's Make levels runs the same one, made even when fresh (0429); main.c
 // loads the model again after the wait (0431) unless the prepare refused it
 // (0445 point 4).
+// THE COOK ("Preparing models" done/total) makes every stale copy of the
+// listed `.glb`s and the table's maps through voe_game_models_cook, no device
+// in it, so the Cache/ that Play and Ship carry is true (0470 point 6).
 //
 // WHAT THE WORKER OWNS. During the wait the worker owns everything its context
 // names: the session and its project, the scene, the model store, the shapes
@@ -44,11 +48,13 @@
 
 #include <base/arena.h>
 
+#include <game/materials.h>
 #include <game/progress.h>
 
 #include <render/device.h>
 
 #include <stdbool.h>
+#include <stdint.h>
 
 // The start's work. `failed` is set when the shapes would not upload, which
 // render has said on stderr; a false without it is a stop or a refused prepare.
@@ -90,6 +96,17 @@ typedef struct {
 	char phase[VOE_EDITOR_LOADING_PHASE];
 } voe_editor_loading_prepare;
 
+// The cook before Play and Ship, the one `session->cook_due` asks for: the
+// `Assets/...` paths of the `.glb`s under `folder`, as model rows name them,
+// and the materials table, both the caller's and untouched through the wait.
+typedef struct {
+	const char *folder;
+	const char *const *paths;
+	uint32_t path_count;
+	voe_game_materials table;
+	voe_base_arena *scratch;
+} voe_editor_loading_cook;
+
 // A voe_game_starting_work on a voe_editor_loading_start. False once stopped,
 // on a prepare that failed, or with `failed` set on a refused upload.
 [[nodiscard]] bool voe_editor_loading_start_work(void *context,
@@ -105,3 +122,8 @@ typedef struct {
 // false: its cause said its line where it was found. False only once stopped.
 [[nodiscard]] bool voe_editor_loading_prepare_work(void *context,
 						   voe_game_progress *progress);
+
+// A voe_game_starting_work on a voe_editor_loading_cook. A file that will not
+// read or parse is a line at its cause and skipped; false only once stopped.
+[[nodiscard]] bool voe_editor_loading_cook_work(void *context,
+						voe_game_progress *progress);

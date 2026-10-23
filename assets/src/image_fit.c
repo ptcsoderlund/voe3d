@@ -1,6 +1,7 @@
-// The area-average shrink behind voe_assets_image_fit (assets/image.h): the
-// size, each output texel's footprint with fractional edge weights, and how
-// each kind of picture turns the texels under it into one.
+// The area-average shrink behind voe_assets_image_fit and voe_assets_image_mips
+// (assets/image.h), declared in src/image_average.h: the size fit asks for, each
+// output texel's footprint with fractional edge weights, and how each kind of
+// picture turns the texels under it into one.
 //
 // ONE OUTPUT ROW AT A TIME. An output row sums every source row its footprint
 // covers, each weighted by the part of it covered, into one row of
@@ -21,7 +22,8 @@
 // the plain weight, the last read only where every covered texel is
 // transparent. sRGB decoding is a 256-entry table built on the stack per call;
 // encoding is the formula, once per written channel.
-#include <assets/image.h>
+#include "image_average.h"
+
 #include <base/assert.h>
 
 #include <math.h>
@@ -161,17 +163,52 @@ static void add_row(float *sums, const uint8_t *row, uint32_t width,
 	}
 }
 
+void voe_assets_image_average(voe_base_arena *arena,
+			      const voe_assets_image *source,
+			      const voe_assets_image *out,
+			      voe_assets_image_kind kind)
+{
+	const struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	const size_t row_size =
+		(size_t)out->width * FLOATS_PER_TEXEL * sizeof(float);
+	float linear[256];
+	float *sums;
+
+	VOE_BASE_ASSERT(out->width >= 1 && out->width <= source->width &&
+				out->height >= 1 &&
+				out->height <= source->height,
+			"a picture averaged to no size or enlarged");
+	VOE_BASE_ASSERT(source->pixels != NULL && out->pixels != NULL,
+			"a picture averaged with no pixels");
+	for (int i = 0; i < 256; i++)
+		linear[i] = srgb_to_linear(i / 255.0f);
+
+	sums = voe_base_arena_push(arena, row_size);
+	for (uint32_t oy = 0; oy < out->height; oy++) {
+		const footprint span =
+			footprint_of(oy, source->height, out->height);
+
+		memset(sums, 0, row_size);
+		for (uint32_t sy = span.first; sy < span.end; sy++)
+			add_row(sums,
+				source->pixels + (size_t)sy * source->width * 4,
+				source->width, out->width, covered(sy, span),
+				kind, linear);
+		for (uint32_t ox = 0; ox < out->width; ox++)
+			write_texel(out->pixels +
+					    ((size_t)oy * out->width + ox) * 4,
+				    sums + (size_t)ox * FLOATS_PER_TEXEL, kind);
+	}
+	voe_base_arena_rewind(arena, mark);
+}
+
 voe_assets_image voe_assets_image_fit(voe_base_arena *arena,
 				      voe_assets_image image, uint32_t largest,
 				      voe_assets_image_kind kind)
 {
 	const uint32_t longest =
 		image.width > image.height ? image.width : image.height;
-	voe_assets_image out;
-	struct voe_base_arena_mark mark;
-	float linear[256];
-	float *sums;
-	size_t row_size;
+	voe_assets_image out = { 0 };
 
 	VOE_BASE_ASSERT(largest >= 1, "a picture fitted to no size");
 	VOE_BASE_ASSERT(image.pixels != NULL, "a picture with no pixels fitted");
@@ -182,26 +219,6 @@ voe_assets_image voe_assets_image_fit(voe_base_arena *arena,
 	out.height = scaled_side(image.height, longest, largest);
 	out.pixels = voe_base_arena_push(arena,
 					 (size_t)out.width * out.height * 4);
-	for (int i = 0; i < 256; i++)
-		linear[i] = srgb_to_linear(i / 255.0f);
-
-	mark = voe_base_arena_mark(arena);
-	row_size = (size_t)out.width * FLOATS_PER_TEXEL * sizeof(float);
-	sums = voe_base_arena_push(arena, row_size);
-	for (uint32_t oy = 0; oy < out.height; oy++) {
-		const footprint span = footprint_of(oy, image.height, out.height);
-
-		memset(sums, 0, row_size);
-		for (uint32_t sy = span.first; sy < span.end; sy++)
-			add_row(sums,
-				image.pixels + (size_t)sy * image.width * 4,
-				image.width, out.width, covered(sy, span), kind,
-				linear);
-		for (uint32_t ox = 0; ox < out.width; ox++)
-			write_texel(out.pixels +
-					    ((size_t)oy * out.width + ox) * 4,
-				    sums + (size_t)ox * FLOATS_PER_TEXEL, kind);
-	}
-	voe_base_arena_rewind(arena, mark);
+	voe_assets_image_average(arena, &image, &out, kind);
 	return out;
 }

@@ -388,7 +388,7 @@ static uint32_t be32_at(const uint8_t *bytes)
 static void round_trips(uint32_t width, uint32_t height, uint8_t *pixels)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
-	voe_assets_image image = { width, height, pixels };
+	voe_assets_image image = { width, height, pixels, 0 };
 	voe_assets_image back = { 0 };
 	voe_assets_bytes file = { 0 };
 	voe_base_error error = VOE_BASE_OK;
@@ -480,7 +480,7 @@ static void a_picture_too_large_to_measure_is_refused(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 	uint8_t one = 0;
-	voe_assets_image image = { 0xffffffffu, 0xffffffffu, &one };
+	voe_assets_image image = { 0xffffffffu, 0xffffffffu, &one, 0 };
 	voe_assets_bytes file = { 0 };
 	voe_base_error error = VOE_BASE_OK;
 

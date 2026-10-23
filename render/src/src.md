@@ -112,6 +112,8 @@ which file to open — what each one owns, and where the seams between them run.
   and the face mask against one light's widened pyramids; plain arithmetic, no state.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, a mip
   chain for a SMOOTH texture, the three samplers, and the slot table the ids name.
+- `texture_given.c` — a SMOOTH texture whose levels the caller gives (0470), uploaded as they are
+  from one staging buffer with one region per level, no chain built.
 - `texture_levels.c` — a texture's mip chain, blitted level by level from the upload inside its
   one submission, every level left ready for the shader.
 - `texture_heights.c` — a landscape's R32F heights texture, made through texture.c's upload, and the

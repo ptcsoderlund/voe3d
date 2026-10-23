@@ -11,11 +11,13 @@ header.
   raw one.
 - `clock_win32.c` — the performance counter, the frequency asked for once, and the launch from the process's creation time.
   Its header says why not the millisecond tick counts.
-- `file_wayland.c` — open, read/write, close, the rename that makes a write
-  atomic, and renameat2 for a move that never replaces, on Linux.
+- `file_wayland.c` — open, read/write, close, a head read of a file's first
+  bytes, the rename that makes a write atomic, and renameat2 for a move that
+  never replaces, on Linux.
 - `file_win32.c` — the Windows half of `platform/file.h` through CreateFileW,
-  GetFileAttributesW, ReadFile/WriteFile and CloseHandle, a write made atomic
-  and a move that never replaces both by MoveFileExW.
+  GetFileAttributesW, ReadFile/WriteFile and CloseHandle, a head read of a
+  file's first bytes, a write made atomic and a move that never replaces both
+  by MoveFileExW.
 - `folder_wayland.c` — opendir/readdir, mkdir, and $HOME/$XDG_CONFIG_HOME. Its
   header says why listing is two passes and the sort is by hand, and when
   `fstatat` decides `folder` instead of `d_type`.

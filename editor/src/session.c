@@ -2,9 +2,9 @@
 // started, polled and its library swapped in, Ship started after it and
 // polled, a failed build's Errors panel shown, Open and Save's browser shown
 // beside a folder, what a browser action does to the session, an import with
-// the materials read again, and New's or Open's load a frame after it was asked
-// for. See the header for what each one does and why only CLOSE ever answers
-// true.
+// the materials read again, and New's or Open's load, and a titled Play or
+// Ship behind its cook, a frame after it was asked for. See the header for what
+// each one does and why only CLOSE ever answers true.
 #include "session.h"
 
 #include "code.h"
@@ -87,7 +87,7 @@ void voe_editor_session_errors_show(voe_editor_session *session)
 }
 
 // Play started now, the last failure's panel hidden; a refusal is the notice.
-static void session_play_start(voe_editor_session *session)
+static void session_play_build(voe_editor_session *session)
 {
 	VOE_BASE_ASSERT(session->play.stage == VOE_EDITOR_PLAY_IDLE,
 			"starting a play over a running one");
@@ -95,6 +95,56 @@ static void session_play_start(voe_editor_session *session)
 	voe_editor_play_start(&session->play, session->project,
 			      &session->notice);
 	VOE_BASE_ASSERT(!session->errors.showing, "a started play shows errors");
+}
+
+// A ship started now, the last failure's panel hidden; a refusal is the notice.
+static void session_ship_build(voe_editor_session *session)
+{
+	VOE_BASE_ASSERT(session->ship.stage == VOE_EDITOR_SHIP_IDLE,
+			"starting a ship over a running one");
+	voe_editor_errors_hide(&session->errors);
+	voe_editor_ship_start(&session->ship, session->project,
+			      &session->notice);
+	VOE_BASE_ASSERT(!session->errors.showing, "a started ship shows errors");
+}
+
+// The build carries the project's Cache/ and the game trusts it, so a titled
+// project's build waits for the cook (0470 point 6). An untitled one has no
+// Cache/ and builds now, which gives its notice.
+static void session_build_ask(voe_editor_session *session, bool ship)
+{
+	VOE_BASE_ASSERT(!session->cook_due, "asking a build over a due one");
+	if (session->project->folder == NULL) {
+		if (ship)
+			session_ship_build(session);
+		else
+			session_play_build(session);
+		return;
+	}
+	session->cook_due = true;
+	session->cook_ship = ship;
+	VOE_BASE_ASSERT(session->cook_due, "an asked build not due");
+}
+
+// Play to start once its cook ran, or now for an untitled project.
+static void session_play_start(voe_editor_session *session)
+{
+	VOE_BASE_ASSERT(session->play.stage == VOE_EDITOR_PLAY_IDLE,
+			"starting a play over a running one");
+	session_build_ask(session, false);
+}
+
+void voe_editor_session_cooked(voe_editor_session *session)
+{
+	VOE_BASE_ASSERT(session != NULL && session->project != NULL,
+			"a cook ended in a session with no project");
+	VOE_BASE_ASSERT(session->cook_due, "a cook ended with no build due");
+	session->cook_due = false;
+	if (session->cook_ship)
+		session_ship_build(session);
+	else
+		session_play_build(session);
+	session->cook_ship = false;
 }
 
 // A refresh started now, so a due one is forgotten and the last failure's
@@ -110,15 +160,12 @@ static void session_refresh_start(voe_editor_session *session)
 	VOE_BASE_ASSERT(!session->refresh_due, "a started refresh still due");
 }
 
-// A ship started now, the last failure's panel hidden; a refusal is the notice.
+// A ship to start once its cook ran, or now for an untitled project.
 static void session_ship_start(voe_editor_session *session)
 {
 	VOE_BASE_ASSERT(session->ship.stage == VOE_EDITOR_SHIP_IDLE,
 			"starting a ship over a running one");
-	voe_editor_errors_hide(&session->errors);
-	voe_editor_ship_start(&session->ship, session->project,
-			      &session->notice);
-	VOE_BASE_ASSERT(!session->errors.showing, "a started ship shows errors");
+	session_build_ask(session, true);
 }
 
 // A ship runs or is to follow the running refresh, so nothing else may build.
@@ -375,6 +422,12 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 	// below puts one back, and only for the one command it just refused.
 	voe_editor_notice_clear(&session->notice);
 	session->armed = VOE_EDITOR_COMMAND_NONE;
+
+	// A build waiting for its cook is one build already (session.h).
+	if (session->cook_due && (command == VOE_EDITOR_COMMAND_PLAY ||
+				  command == VOE_EDITOR_COMMAND_REFRESH ||
+				  command == VOE_EDITOR_COMMAND_SHIP))
+		return false;
 
 	switch (command) {
 	case VOE_EDITOR_COMMAND_CLOSE:

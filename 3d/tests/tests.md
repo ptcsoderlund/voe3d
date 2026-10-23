@@ -174,8 +174,8 @@ again, or to find where a claim that has started failing is written down.
   layers and renames written within a frame's budget, and its foliage placed, kept standing by a
   sculpt, scattered, erased, put back, kinds set, sized and renamed. Skips without a card.
 - `models_material.c` — a `.material` with four maps loaded as one part, its cutout, emission and
-  sides, a set written by a frame, a decoded put alike, a non-picture map MALFORMED, and a rename.
-  Skips without a card.
+  sides, a set written by a frame, a decoded put alike, a mipped map's put
+  (`put_material_takes_given_levels`), a non-picture map MALFORMED, and a rename. Skips without a card.
 - `landscape.c` — a bilinear height, a ray's hit and miss, raise, smooth and flatten's rates, and
   painting a layer: the sum kept, the radius held and a light stroke stopping at its strength.
   Needs no graphics card.
@@ -192,6 +192,9 @@ again, or to find where a claim that has started failing is written down.
   its own levels measured,
   going stale when its `.glb` or version changes, each level's triangles counted, and a view's level
   and pixel share chosen by its screen size; needs no graphics card.
+- `model_cooked.c` — that a prepared sphere written and read back keeps its bake, levels, sphere,
+  flags and edges, mips its picture's full chain, gives its key back and is refused at another
+  version. Needs no graphics card.
 - `measure.c` — that two hand-built bakes measure 0 alike, a lift's height apart, √2 for a big
   quad's far corner either way, and 0.5 for one vertex lifted in a 32 × 32 grid. Needs no
   graphics card.

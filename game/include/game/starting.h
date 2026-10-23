@@ -8,6 +8,7 @@
 //                                              progress); }
 //     if (!voe_game_starting_wait(app, ui, frame_arena, splash, work, &start))
 //             ...             // the window closed, or the work answered false
+//     // true: "Loaded in N.N s" was shown for a second
 //
 // THE WAIT'S TWO THREADS (0370 point 2). One thrd_t runs the work; the worker
 // owns everything its context names until the wait returns. The main thread
@@ -17,13 +18,16 @@
 // sets the progress's stop and joins the worker, which stops before its next
 // step, so quitting waits out at most one step, never a half GPU call. The
 // shaders work loads the pipeline cache before its first step and saves it
-// once PREPARED; a stopped or failed one writes nothing (0370 point 6).
+// once PREPARED; a stopped or failed one writes nothing (0370 point 6). The
+// wait measures from its own start to the work's end and, on a true answer,
+// draws "Loaded in N.N s" for 1 s, polling as it does, so a close still ends
+// it at once (0470 point 7); a false answer or a close skips the line.
 //
 // IT POLLS THE WINDOW BUT SKIPS voe_app_frame_open, whose pace waits a quarter
 // second a frame for a window without focus (ADR-0215): a start behind another
 // window would otherwise take that long per pipeline. A headless app has no
 // window to poll and never waits, so there the frame is opened as usual for
-// the settings' size.
+// the settings' size, and the loaded line is drawn once and not held.
 //
 // TWO LAYOUTS, BY `splash` (0356). NULL is the plain screen: a GROUND panel of
 // the context's theme over the whole surface, the line centred in its normal
@@ -68,8 +72,10 @@ typedef bool voe_game_starting_work(void *context, voe_game_progress *progress);
 					   const char *line);
 
 // `work` run with `context` on one worker while starting frames show its
-// progress line, "Starting" until it sets one. The work's answer once it has
-// ended; false, the worker stopped and joined, when a frame was false.
+// progress line, "Starting" until it sets one. On a true answer, "Loaded in
+// N.N s", the wait's start to the work's end, for 1 s polling as before;
+// headless, one frame and no hold. The work's answer once it has ended; false,
+// the worker stopped and joined, when a frame was false.
 [[nodiscard]] bool voe_game_starting_wait(voe_app *app, voe_ui_context *ui,
 					  voe_base_arena *frame_arena,
 					  const voe_app_picture *splash,

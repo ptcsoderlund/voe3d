@@ -49,8 +49,9 @@
 // device, so game/starting.h's wait draws its progress line in the chosen
 // theme on the engine's splash (splash.h) while loading.h's work prepares the
 // shaders, kept in `<settings>/voe3d/pipelines_editor.cache`, uploads the
-// shapes and reads the models, or loads the scene and its models. A false
-// wait ends the program as a closed window does. The start's steps are timed
+// shapes and reads the models, or loads the scene and its models; the loop's
+// own waits between frames are waits.h's. A false wait ends the program as a
+// closed window does. The start's steps are timed
 // (app/start_log.h) and written after the first frame to stderr and appended
 // to `<settings>/voe3d/start.log`, stderr only under --capture. Everything
 // lives in one arena made first. Each frame the hitch watch's stretches are
@@ -86,6 +87,7 @@
 #include "undo.h"
 #include "view.h"
 #include "view_passes.h"
+#include "waits.h"
 #include "world_step.h"
 
 #include <3d/shape_geometry.h>
@@ -220,7 +222,8 @@ int main(int argc, char *argv[])
 	// A splash wait's worker's own scratch (loading.h).
 	voe_base_arena *worker_scratch;
 	voe_editor_loading_start loading_start;
-	voe_editor_loading_load loading_load;
+	// The loop's splash waits between frames (waits.h).
+	voe_editor_waits waits;
 	voe_app *app;
 	voe_base_error error;
 	voe_platform_window *window;
@@ -418,6 +421,11 @@ int main(int argc, char *argv[])
 		.geometries = &geometries, .models = models, .scratch = arena,
 		.window = window,
 		.resize = { .held = UINT32_MAX } };
+	waits = (voe_editor_waits){
+		.app = app, .ui = ui, .scratch = scratch,
+		.splash = splash_held ? &splash : NULL, .session = &session,
+		.scene = &scene, .models = models, .device = gpu,
+		.worker_scratch = worker_scratch };
 
 	voe_editor_startup_say_descriptions();
 	fflush(stdout);
@@ -447,59 +455,11 @@ int main(int argc, char *argv[])
 		voe_render_light light = { 0 };
 
 		voe_editor_frame_hitches_begin(&hitches);
-		// AN IMPORTED MODEL'S LEVELS MADE BEHIND THE SPLASH (loading.h),
-		// before any load replaces the project it was imported into. The
-		// model is loaded again so its new levels draw at once (0431); a
-		// refused prepare puts its line in the notice and is not reloaded,
-		// which would only meet the same cause again (0445 point 4).
-		if (session.prepare_due) {
-			voe_editor_loading_prepare prepare = {
-				.folder = session.project->folder,
-				.path = session.prepare_path,
-				.scratch = worker_scratch,
-				.remake = session.prepare_remake };
-			if (!voe_game_starting_wait(app, ui, scratch,
-						    splash_held ? &splash : NULL,
-						    voe_editor_loading_prepare_work,
-						    &prepare)) {
-				status = options.capture != NULL ? 1 : 0;
-				break;
-			}
-			voe_base_arena_clear(scratch);
-			if (prepare.refused)
-				session.notice = prepare.refusal;
-			else
-				voe_editor_models_reload(models, &session, gpu,
-							 session.prepare_path,
-							 scratch);
-			session.prepare_due = false;
-			session.prepare_remake = false;
-		}
-
-		// A MAKE THAT CHANGED ONLY SWAPS needs no splash: the levels file
-		// is fresh, and the game's loader patches the new swaps into it
-		// on this reload, twenty bytes and no levels made (0436 point 8).
-		if (session.reload_due) {
-			voe_editor_models_reload(models, &session, gpu,
-						 session.prepare_path, scratch);
-			session.reload_due = false;
-		}
-
-		// NEW OR OPEN'S LOAD ON A WORKER BEHIND THE SPLASH (loading.h);
+		// The prepare, reload and load the session asked for (waits.h);
 		// a false wait ends the program as the start's does.
-		if (session.load_due) {
-			loading_load = (voe_editor_loading_load){
-				.device = gpu, .scratch = worker_scratch,
-				.session = &session, .scene = &scene,
-				.models = models };
-			if (!voe_game_starting_wait(app, ui, scratch,
-						    splash_held ? &splash : NULL,
-						    voe_editor_loading_load_work,
-						    &loading_load)) {
-				status = options.capture != NULL ? 1 : 0;
-				break;
-			}
-			voe_base_arena_clear(scratch);
+		if (!voe_editor_waits_run(&waits)) {
+			status = options.capture != NULL ? 1 : 0;
+			break;
 		}
 
 		// A BUILT REFRESH LANDS HERE, before the undo take and the

@@ -142,6 +142,63 @@ const uint8_t *voe_platform_file_read(const char *path, voe_base_arena *arena,
 	return buffer;
 }
 
+// A synchronous ReadFile that succeeds with 0 bytes is the end of the file,
+// so here a zero ends the loop rather than counting as a stall.
+bool voe_platform_file_read_head(const char *path, uint8_t *buffer,
+				 size_t size, size_t *out_count,
+				 voe_base_error *error)
+{
+	wchar_t wide_path[MAX_PATH];
+	HANDLE file;
+	size_t got = 0;
+
+	VOE_BASE_ASSERT(path != NULL, "reading a file's head with no path");
+	VOE_BASE_ASSERT(buffer != NULL, "reading a file's head into no buffer");
+	VOE_BASE_ASSERT(size > 0, "reading a file's head of no bytes");
+	VOE_BASE_ASSERT(out_count != NULL,
+			"reading a file's head with no count to fill");
+
+	if (!voe_platform_wide_from_utf8(path, wide_path, MAX_PATH)) {
+		VOE_BASE_ERROR("platform", "could not open %s for reading: the path is too long",
+			       path);
+		report(error, VOE_BASE_ERROR_UNAVAILABLE);
+		return false;
+	}
+
+	file = CreateFileW(wide_path, GENERIC_READ, FILE_SHARE_READ, NULL,
+			   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (file == INVALID_HANDLE_VALUE) {
+		VOE_BASE_ERROR("platform",
+			       "could not open %s for reading: error %lu", path,
+			       (unsigned long)GetLastError());
+		report(error, VOE_BASE_ERROR_UNAVAILABLE);
+		return false;
+	}
+
+	while (got < size) {
+		size_t left = size - got;
+		DWORD step = left > 0x40000000u ? 0x40000000u : (DWORD)left;
+		DWORD done = 0;
+
+		if (!ReadFile(file, buffer + got, step, &done, NULL)) {
+			VOE_BASE_ERROR("platform",
+				       "reading %s's head failed after %zu bytes: error %lu",
+				       path, got, (unsigned long)GetLastError());
+			report(error, VOE_BASE_ERROR_REFUSED);
+			(void)CloseHandle(file);
+			return false;
+		}
+		if (done == 0)
+			break;
+		got += done;
+	}
+
+	(void)CloseHandle(file);
+	*out_count = got;
+	report(error, VOE_BASE_OK);
+	return true;
+}
+
 bool voe_platform_file_exists(const char *path)
 {
 	wchar_t wide_path[MAX_PATH];

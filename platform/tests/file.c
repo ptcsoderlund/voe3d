@@ -13,9 +13,9 @@
 // (check.cmake step 5), so this file makes and removes a scratch folder with
 // mkdir/rmdir directly rather than through platform/folder.h, which does not
 // exist yet at this task (it is a later one in card 004). A test file this
-// folder writes is not "reading a file in pieces" (rule 10's reason
-// platform/file.h itself has no such API) — it is proving the promise from
-// outside with whatever the platform hands out.
+// folder writes is proving the promise from outside with whatever the
+// platform hands out. read_head_reads_the_start checks the one partial read
+// platform/file.h has, the head, against a file stdio wrote.
 //
 // voe_platform_file_write IS VERIFIED WITH stdio's fopen/fread AS THE ORACLE,
 // AND NOT THIS FOLDER'S OWN READER. A matching pair of bugs in this folder's
@@ -69,6 +69,7 @@
 #define MOVE_FOLDER_INNER MOVE_FOLDER "/inner.bin"
 #define MOVE_FOLDER_TO "voe_platform_file_test_move_folder_to"
 #define MOVE_FOLDER_TO_INNER MOVE_FOLDER_TO "/inner.bin"
+#define HEAD "voe_platform_file_test_head.bin"
 
 // Reads the whole file into buffer and hands back its length, or -1 if it is
 // not there. room is the size of buffer; a file that does not fit reads as
@@ -236,6 +237,37 @@ static void move_of_nothing_is_unavailable(void)
 	VOE_TEST_CHECK(!voe_platform_file_exists(MOVE_TO));
 }
 
+static void read_head_reads_the_start(void)
+{
+	static const uint8_t bytes[] = { 0x00, 0x11, 0x22, 0x33, 0x44,
+					 0x55, 0x66, 0x77, 0x88, 0xff };
+	uint8_t got[64] = { 0 };
+	size_t count = 0;
+	voe_base_error error = VOE_BASE_ERROR_REFUSED;
+
+	VOE_TEST_CHECK(write_oracle(HEAD, bytes, sizeof bytes));
+
+	VOE_TEST_CHECK(voe_platform_file_read_head(HEAD, got, 4, &count,
+						   &error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_OK);
+	VOE_TEST_CHECK_INT((long long)count, 4);
+	VOE_TEST_CHECK(memcmp(got, bytes, 4) == 0);
+	VOE_TEST_CHECK_INT(got[4], 0);
+
+	VOE_TEST_CHECK(voe_platform_file_read_head(HEAD, got, sizeof got,
+						   &count, &error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_OK);
+	VOE_TEST_CHECK_INT((long long)count, (long long)sizeof bytes);
+	VOE_TEST_CHECK(memcmp(got, bytes, sizeof bytes) == 0);
+
+	error = VOE_BASE_OK;
+	VOE_TEST_CHECK(!voe_platform_file_read_head("voe_platform_file_test_missing.bin",
+						    got, sizeof got, &count,
+						    &error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_UNAVAILABLE);
+	(void)remove(HEAD);
+}
+
 int main(void)
 {
 	// Deliberately includes a zero byte and a 0xff, so a writer that stopped
@@ -253,6 +285,7 @@ int main(void)
 	move_carries_a_folder_whole();
 	move_refuses_a_taken_name();
 	move_of_nothing_is_unavailable();
+	read_head_reads_the_start();
 
 	// The bytes that went in come back, on both sides of the API: stdio
 	// reads back what voe_platform_file_write wrote, and
