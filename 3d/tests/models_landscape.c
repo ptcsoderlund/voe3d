@@ -393,7 +393,8 @@ static void rename_moves_the_entry(voe_3d_models *models)
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 4);
 }
 
-// The forest's text: 8 cells, kind 0 PINE at base size `size0`, copy 0 at the
+// The forest's text: 8 cells, kind 0 PINE at base size `size0`, size ±20 %,
+// turn ±172° and tilt 0 %, copy 0 at the
 // centre and copy 1 at (6, 6) m, loaded at `path` through _load as a file is.
 static const voe_3d_model_entry *load_forest(voe_3d_models *models,
 					     voe_render_device *device,
@@ -411,7 +412,9 @@ static const voe_3d_model_entry *load_forest(voe_3d_models *models,
 
 	snprintf(land.kinds[0], sizeof(land.kinds[0]), "%s", PINE);
 	land.kind_count = 1;
-	land.kind_sizes[0] = size0;
+	land.looks[0] = voe_assets_landscape_look_default();
+	land.looks[0].size = size0;
+	land.looks[0].turn_vary = 172;
 	land.copies = copies;
 	land.copy_count = 2;
 	text = voe_assets_landscape_write(&land, arena);
@@ -521,7 +524,7 @@ static void a_kind_size_places_its_copies_again(voe_3d_models *models)
 	voe_3d_models_landscape_saved(models, FOREST);
 	changes = models->changes;
 	voe_3d_models_landscape_kind_size_set(models, FOREST, 0, 2000);
-	VOE_TEST_CHECK_INT(entry->landscape->kind_sizes[0], 2000);
+	VOE_TEST_CHECK_INT(entry->landscape->looks[0].size, 2000);
 	VOE_TEST_CHECK(entry->edited);
 	VOE_TEST_CHECK(models->changes > changes);
 	scaled_alike(first[0], placed[0], 2.0f);
@@ -555,7 +558,7 @@ static void a_sized_file_loads_its_copies_scaled(voe_3d_models *models,
 	VOE_TEST_CHECK(placed != NULL);
 	if (placed == NULL)
 		return;
-	VOE_TEST_CHECK_INT(entry->landscape->kind_sizes[0], 2000);
+	VOE_TEST_CHECK_INT(entry->landscape->looks[0].size, 2000);
 	VOE_TEST_CHECK_FLOAT(placed[0].scale.x, 2.0f, 1e-6f);
 	VOE_TEST_CHECK_FLOAT(placed[1].scale.x, 3.0f, 1e-6f);
 	on_the_ground(models, entry, 1);
@@ -565,8 +568,6 @@ static void scatter_erase_and_put_back(voe_3d_models *models)
 {
 	voe_3d_foliage_brush brush = { .radius = 3.0f,
 				       .density = 50.0f,
-				       .size_vary = 0.2f,
-				       .turn_vary = 3.0f,
 				       .picked = 1u };
 	const voe_3d_model_entry *entry = voe_3d_models_find(models, FOREST);
 	voe_assets_landscape_copy added[VOE_3D_FOLIAGE_TRIES];
@@ -614,7 +615,10 @@ static void kinds_are_set_and_renamed(voe_3d_models *models)
 	voe_3d_models_landscape_kind_set(models, FOREST, 1, FIR);
 	VOE_TEST_CHECK_INT(entry->landscape->kind_count, 2);
 	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[1], FIR) == 0);
-	VOE_TEST_CHECK_INT(entry->landscape->kind_sizes[1], 0);
+	VOE_TEST_CHECK_INT(entry->landscape->looks[1].size, 0);
+	VOE_TEST_CHECK_INT(entry->landscape->looks[1].turn_vary,
+			   VOE_ASSETS_LANDSCAPE_TURN_VARY_DEFAULT);
+	VOE_TEST_CHECK_INT(entry->landscape->grows[0][1], 0);
 	VOE_TEST_CHECK(entry->edited);
 	voe_3d_models_rename(models, "Trees", "Forest");
 	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[0], MOVED_PINE) == 0);

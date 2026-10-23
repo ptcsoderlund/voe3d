@@ -117,7 +117,9 @@ void voe_3d_models_landscape_kind_set(voe_3d_models *models, const char *path,
 			"a held kind or the next of sixteen");
 	memcpy(land->kinds[index], model, strlen(model) + 1);
 	if (index == land->kind_count) {
-		land->kind_sizes[index] = 0;
+		land->looks[index] = voe_assets_landscape_look_default();
+		for (uint32_t l = 0; l < VOE_ASSETS_LANDSCAPE_LAYERS; l++)
+			land->grows[l][index] = 0;
 		land->kind_count++;
 	}
 	models->entries[at].edited = true;
@@ -143,9 +145,9 @@ void voe_3d_models_landscape_kind_size_set(voe_3d_models *models,
 	voe_scene_transform *placed = models->held[at].placed;
 
 	VOE_BASE_ASSERT(index < land->kind_count, "a held kind");
-	if (land->kind_sizes[index] == size)
+	if (land->looks[index].size == size)
 		return;
-	land->kind_sizes[index] = size;
+	land->looks[index].size = size;
 	for (uint32_t i = 0; i < land->copy_count; i++)
 		if (land->copies[i].kind == index)
 			placed[i] = voe_3d_foliage_place(land, land->copies[i]);

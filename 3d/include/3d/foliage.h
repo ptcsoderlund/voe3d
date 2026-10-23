@@ -3,6 +3,8 @@
 // stamp, an erase stamp, undo's put and the copies placed again over changed
 // heights (0442 points 2 and 3). CPU only; no device.
 //
+//     const voe_3d_foliage_brush brush = { .radius = 4.0f, .density = 4.0f,
+//                                          .picked = 1u };
 //     uint64_t seed = 0x9e3779b97f4a7c15u;
 //     voe_assets_landscape_copy added[VOE_3D_FOLIAGE_TRIES];
 //     const uint32_t n = voe_3d_foliage_scatter(&land, placed, &brush, hit.x,
@@ -20,8 +22,9 @@
 // points uniform in the disc, s clamped to 0.1, at most VOE_3D_FOLIAGE_TRIES.
 // A point is kept where the brush's soft weight beats a random draw, it lies
 // on the square, and no copy, old or kept this stamp, is within the spacing
-// 0.84 · √(100 / density) m. Kind uniform among the picked, scale 1 ± size
-// vary, turn ± turn vary, all from a xorshift64 the caller keeps.
+// 0.84 · √(100 / density) m. Kind uniform among the picked, then from that
+// kind's look (0476 point 1): scale 1 ± its size_vary %, turn ± its
+// turn_vary °, lean its tilt % of 255; all from a xorshift64 the caller keeps.
 //
 // THE SPACING IS WHY A HELD BRUSH STOPS. Discs of the spacing packed at random
 // fill to about 0.55 of the plane, 0.55 / (π · 0.42² · 100 / density) ≈ the
@@ -55,12 +58,6 @@ typedef struct {
 	float softness;
 	// Copies per 100 m², above 0.
 	float density;
-	// 0..1: a copy's scale is 1 ± this.
-	float size_vary;
-	// Radians, 0..π: a copy's turn is ± this.
-	float turn_vary;
-	// 0..1: how far up leans toward the ground's normal.
-	float lean;
 	// Bit k: kind k; kinds at or past the landscape's kind_count are ignored.
 	uint32_t picked;
 } voe_3d_foliage_brush;

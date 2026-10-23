@@ -63,7 +63,8 @@ void voe_3d_models_landscape_put_copies(voe_3d_models *models,
 // Kind `index` of `path`'s grid takes `model`'s path; `index` equal to its
 // kind_count, below VOE_ASSETS_LANDSCAPE_KINDS, adds a kind. Asserts past
 // that and on a path of VOE_ASSETS_LANDSCAPE_KIND_PATH bytes or more. An
-// added kind's base size is 0 (1×); a replaced kind keeps its own.
+// added kind takes voe_assets_landscape_look_default() and no layer grows it;
+// a replaced kind keeps its look.
 void voe_3d_models_landscape_kind_set(voe_3d_models *models, const char *path,
 				      uint32_t index, const char *model);
 
