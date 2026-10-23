@@ -44,3 +44,7 @@ bool voe_game_progress_stopped(voe_game_progress *progress);
 // size with its terminator. A NULL phase writes the empty line.
 void voe_game_progress_line(voe_game_progress *progress, char *buffer,
 			    size_t size);
+
+// "Loaded in N.N s", seconds to one decimal, into buffer, cut to size with its
+// terminator: the line a wait ends on (0470 point 7). Seconds are not negative.
+void voe_game_progress_loaded(double seconds, char *buffer, size_t size);

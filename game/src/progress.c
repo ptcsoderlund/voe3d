@@ -44,3 +44,13 @@ void voe_game_progress_line(voe_game_progress *progress, char *buffer,
 	VOE_BASE_ASSERT(memchr(buffer, '\0', size) != NULL,
 			"a progress line not terminated");
 }
+
+void voe_game_progress_loaded(double seconds, char *buffer, size_t size)
+{
+	VOE_BASE_ASSERT(buffer != NULL && size > 0 && seconds >= 0.0,
+			"a loaded line with no room or a negative time");
+
+	(void)snprintf(buffer, size, "Loaded in %.1f s", seconds);
+	VOE_BASE_ASSERT(memchr(buffer, '\0', size) != NULL,
+			"a loaded line not terminated");
+}

@@ -9,8 +9,8 @@ defines, and `models.h`, which has two and an internal batch.
 - `steps.c` — one fixed step's calls in order (systems, world step, move, transforms, after-the-move systems, world step again, emitters, point lights, waters, sounds with the window's aspect), the mixer in each step, and the bank.
 - `project.c` — the 32 replace keys, a project type's registration and the drain of its replaces; a prefab spawned by name and a tree removed, both queued.
 - `interface.c` — the interface made once, the surface's millimetres, and a frame begun with the pointer divided into them and the asks put in.
-- `starting.c` — the window polled without the app's pace, the line laid out on a ground panel, plain or over the splash's edge colour and centred picture, and drawn in one element-only pass; the wait's worker thread and frame loop; the shaders step.
-- `progress.c` — the progress record's atomic stores and loads and its line.
+- `starting.c` — the window polled without the app's pace, the line laid out on a ground panel, plain or over the splash's edge colour and centred picture, and drawn in one element-only pass; the wait's worker thread, frame loop and timed "Loaded in" hold; the shaders step.
+- `progress.c` — the progress record's atomic stores and loads, its line and the "Loaded in" line.
 - `run.c` — the run's steps in the handed window and its threads, the view's counts said once a second under `VOE_GAME_COUNTS=1`, and the only file naming the cooked scene, prefabs, landscapes, materials and parts, the materials and parts loaded after each models update.
 - `splashscreen.png` — the engine's splash, read by the editor from the source and put beside a game's program by `cmake/game.cmake` when the project has none (0356).
 - `models.c` — an update's, watch's or reload's paths loaded one file at a time as batches of one, a cooked landscape with its kinds, their base sizes and copies and each landscape's kind paths, each failure counted.

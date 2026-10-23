@@ -11,6 +11,7 @@
 
 #include <base/assert.h>
 
+#include <platform/clock.h>
 #include <platform/window.h>
 
 #include <render/device.h>
@@ -210,6 +211,28 @@ static bool starting_shown(voe_app *app, voe_ui_context *ui,
 	return shown;
 }
 
+// How long the loaded line holds, in seconds (0470 point 7).
+#define LOADED_HOLD 1.0
+
+// "Loaded in N.N s" for `seconds`, shown LOADED_HOLD seconds of frames, or one
+// frame headless, where nothing waits. False when the window is closing or a
+// frame was false.
+static bool starting_loaded(voe_app *app, voe_ui_context *ui,
+			    voe_base_arena *frame_arena,
+			    const voe_app_picture *splash, double seconds)
+{
+	double began = voe_platform_clock_now();
+	char line[32];
+
+	voe_game_progress_loaded(seconds, line, sizeof(line));
+	if (voe_app_window(app) == NULL)
+		return starting_shown(app, ui, frame_arena, splash, line);
+	while (voe_platform_clock_now() - began < LOADED_HOLD)
+		if (!starting_shown(app, ui, frame_arena, splash, line))
+			return false;
+	return true;
+}
+
 bool voe_game_starting_wait(voe_app *app, voe_ui_context *ui,
 			    voe_base_arena *frame_arena,
 			    const voe_app_picture *splash,
@@ -219,6 +242,7 @@ bool voe_game_starting_wait(voe_app *app, voe_ui_context *ui,
 	struct starting_worker worker = { .work = work,
 					  .context = context,
 					  .progress = &progress };
+	double began = voe_platform_clock_now();
 	char line[96];
 	thrd_t thread;
 
@@ -230,7 +254,9 @@ bool voe_game_starting_wait(voe_app *app, voe_ui_context *ui,
 	// No thread to be had: the work runs here, the window unanswered until
 	// it ends, which is slow but still a start.
 	if (thrd_create(&thread, starting_worker_run, &worker) != thrd_success)
-		return work(context, &progress);
+		return work(context, &progress) &&
+		       starting_loaded(app, ui, frame_arena, splash,
+				       voe_platform_clock_now() - began);
 	while (!atomic_load(&worker.ended)) {
 		voe_game_progress_line(&progress, line, sizeof(line));
 		if (!starting_shown(app, ui, frame_arena, splash, line)) {
@@ -240,7 +266,9 @@ bool voe_game_starting_wait(voe_app *app, voe_ui_context *ui,
 		}
 	}
 	(void)thrd_join(thread, NULL);
-	return worker.answer;
+	return worker.answer &&
+	       starting_loaded(app, ui, frame_arena, splash,
+			       voe_platform_clock_now() - began);
 }
 
 bool voe_game_starting_shaders(voe_render_device *device,

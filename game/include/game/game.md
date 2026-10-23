@@ -10,7 +10,7 @@ The public headers, one entry each.
 - `prefabs.h` — the cooked prefab table a game spawns from, defined by a project's cooked `prefabs.c`, and the one include that file needs.
 - `interface.h` — the project's interface: font, theme and ui context, the 135 mm surface, and one frame begun with the pointer and the run's asks and handed to the project.
 - `starting.h` — the starting frame, plain (one line centred on the theme's ground) or a splash picture with the line beneath; the wait that shows it while a worker runs a start's work; the shaders step with its cache.
-- `progress.h` — the record a splash wait's worker reports its phase and count into and the main thread reads its line from, with the stop flag; all atomic.
+- `progress.h` — the record a splash wait's worker reports its phase and count into and the main thread reads its line from, with the stop flag, all atomic; and the "Loaded in N.N s" line a wait ends on.
 - `run.h` — the game's whole run in the window it is handed, its start on a worker behind the splash, until the window closes or the interface ends it, saying its counts when `VOE_GAME_COUNTS` asks.
 - `models.h` — the model files a world names read from a folder into a store, and re-read when their stamp changes, with each landscape's foliage kinds and the cooked landscape, parts and material tables loaded into it; shared by the game and the editor.
 - `landscapes.h` — the cooked landscape table a game loads into its model store, each entry with its layer paths and paint and its foliage kinds, copies and kinds' base sizes, defined by a project's cooked `landscapes.c`.
