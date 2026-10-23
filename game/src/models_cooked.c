@@ -1,6 +1,6 @@
-// The cooked copies of game/src/models_cooked.h: a copy's path and key, its
-// take and its save, and the folder and `.parts` helpers the levels files
-// share. A take asks whether the copy is there before reading it, so a missing
+// The cooked copies of game/src/models_cooked.h: a model's and a map's copy,
+// each its path, take and save, a model's key, and the folder and `.parts`
+// helpers the levels files share. A take asks whether the copy is there before reading it, so a missing
 // copy says nothing on stderr; a folder already there is found by a listing
 // for the same reason. Every helper pushes its paths on the arena it is given.
 #include "models_cooked.h"
@@ -82,19 +82,91 @@ bool voe_game_models_folders_make(const char *folder, const char *cache,
 	return made;
 }
 
-const char *voe_game_models_cooked_file(const char *folder, const char *path,
-					voe_base_arena *arena)
+// `<folder>/<cache>/<path><ending>`, on `arena`.
+static const char *cache_file(const char *folder, const char *cache,
+			      const char *path, const char *ending,
+			      voe_base_arena *arena)
 {
 	size_t length = strlen(path);
-	char *name = voe_base_arena_push(arena, length + sizeof(".model"));
+	size_t tail = strlen(ending);
+	char *name = voe_base_arena_push(arena, length + tail + 1);
 
 	VOE_BASE_ASSERT(folder != NULL, "a copy in no folder");
 	VOE_BASE_ASSERT(name != NULL, "no room for a path");
 	memcpy(name, path, length);
-	memcpy(name + length, ".model", sizeof(".model"));
+	memcpy(name + length, ending, tail + 1);
 	return voe_platform_path_join(
-		arena, voe_platform_path_join(arena, folder, "Cache/models"),
-		name);
+		arena, voe_platform_path_join(arena, folder, cache), name);
+}
+
+const char *voe_game_models_cooked_file(const char *folder, const char *path,
+					voe_base_arena *arena)
+{
+	return cache_file(folder, "Cache/models", path, ".model", arena);
+}
+
+const char *voe_game_models_picture_file(const char *folder, const char *path,
+					 voe_assets_image_kind kind,
+					 voe_base_arena *arena)
+{
+	static const char *const ENDINGS[] = { ".colour", ".normal", ".data" };
+
+	VOE_BASE_ASSERT(kind <= VOE_ASSETS_IMAGE_DATA, "a picture of no kind");
+	return cache_file(folder, "Cache/pictures", path, ENDINGS[kind], arena);
+}
+
+bool voe_game_models_picture_take(const char *folder, const char *path,
+				  voe_assets_image_kind kind, uint64_t stamp,
+				  bool compare, voe_base_arena *arena,
+				  voe_assets_image *image)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	const char *file = voe_game_models_picture_file(folder, path, kind, arena);
+	voe_assets_image taken = { 0 };
+	voe_assets_image_kind kept = kind;
+	const uint8_t *bytes = NULL;
+	uint64_t key = 0;
+	size_t size = 0;
+	size_t used = 0;
+
+	VOE_BASE_ASSERT(image != NULL, "taking a copy into no picture");
+	if (voe_platform_file_exists(file))
+		bytes = voe_platform_file_read(file, arena, &size, NULL);
+	if (bytes != NULL &&
+	    voe_assets_image_cooked_read(bytes, size, &taken, &kept, &key,
+					 &used) &&
+	    kept == kind && (!compare || key == stamp)) {
+		*image = taken;
+		return true;
+	}
+	voe_base_arena_rewind(arena, mark);
+	return false;
+}
+
+voe_assets_image voe_game_models_picture_save(const char *folder,
+					      const char *path,
+					      const voe_assets_image *image,
+					      voe_assets_image_kind kind,
+					      uint64_t stamp,
+					      voe_base_arena *arena)
+{
+	voe_assets_image chain = voe_assets_image_mips(arena, image, kind);
+	voe_assets_bytes copy =
+		voe_assets_image_cooked_write(arena, &chain, kind, stamp);
+	const char *cache = voe_platform_path_join(arena, folder,
+						   "Cache/pictures");
+	voe_base_error unsaved = VOE_BASE_OK;
+
+	VOE_BASE_ASSERT(copy.bytes != NULL && copy.count > 0, "an empty copy");
+	if (!voe_game_models_folders_make(folder, cache, path, arena, &unsaved) ||
+	    !voe_platform_file_write(
+		    voe_game_models_picture_file(folder, path, kind, arena),
+		    copy.bytes, copy.count, &unsaved))
+		VOE_BASE_ERROR("game",
+			       "the map's cooked copy could not be saved in the "
+			       "project's `Cache/pictures/`: %s",
+			       voe_base_error_string(unsaved));
+	return chain;
 }
 
 voe_3d_model_cooked_key voe_game_models_cooked_key(const char *folder,

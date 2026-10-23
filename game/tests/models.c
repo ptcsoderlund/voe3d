@@ -119,6 +119,8 @@
 #define LEVELS_ON_DISK LEVELS_FOLDER_ON_DISK "/" GOOD ".levels"
 #define COPIES_FOLDER_ON_DISK CACHE_ON_DISK "/models"
 #define COPY_ON_DISK COPIES_FOLDER_ON_DISK "/" GOOD ".model"
+#define MAP_COPIES_FOLDER_ON_DISK CACHE_ON_DISK "/pictures"
+#define MAP_COPY_ON_DISK MAP_COPIES_FOLDER_ON_DISK "/" PICTURE ".colour"
 
 // Room for the triangle twice over a reload, the pictures' quad, and the
 // shadings of the triangle, the picture and the dot, plus two blended twins:
@@ -772,6 +774,8 @@ static void remove_files(void)
 	remove(LEVELS_FOLDER_ON_DISK);
 	remove(COPY_ON_DISK);
 	remove(COPIES_FOLDER_ON_DISK);
+	remove(MAP_COPY_ON_DISK);
+	remove(MAP_COPIES_FOLDER_ON_DISK);
 	remove(CACHE_ON_DISK);
 	remove(FOLDER);
 }

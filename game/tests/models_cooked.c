@@ -17,6 +17,14 @@
 // prepare_writes_the_copy: with the levels file fresh and the copy gone, a
 // prepare makes it, keyed by the stamp; a second prepare makes nothing.
 //
+// The world's shape also wears a material whose colour map is a 16×16 PNG:
+// materials_write_the_map_copy: the materials call leaves
+// `Cache/pictures/pic.png.colour`, a full chain keyed by the PNG's stamp.
+// material_load_writes_no_copy: the one-material load, the copy gone, loads
+// and writes none.
+// materials_cooked_loads_a_copy_whose_png_is_garbage: a copy written, then
+// the PNG made garbage, the game's materials call loads from the copy, kept.
+//
 // The files and the folders are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include "glb_build.h"
@@ -27,6 +35,9 @@
 #include <3d/model_cooked.h>
 #include <3d/model_levels.h>
 #include <3d/models.h>
+#include <3d/shape_component.h>
+
+#include <assets/image.h>
 
 #include <base/arena.h>
 #include <base/error.h>
@@ -50,6 +61,23 @@
 #define COPY_ON_DISK MODELS_FOLDER_ON_DISK "/" GOOD ".model"
 #define LEVELS_FOLDER_ON_DISK CACHE_ON_DISK "/levels"
 #define LEVELS_ON_DISK LEVELS_FOLDER_ON_DISK "/" GOOD ".levels"
+#define PICTURE "pic.png"
+#define PICTURE_SIDE 16
+#define PICTURE_ON_DISK FOLDER "/" PICTURE
+#define PICTURES_FOLDER_ON_DISK CACHE_ON_DISK "/pictures"
+#define MAP_COPY_ON_DISK PICTURES_FOLDER_ON_DISK "/" PICTURE ".colour"
+#define MATERIAL "pic.material"
+
+// A white material wearing the PNG as its colour map, and no model's parts.
+static const voe_game_materials MATERIALS = {
+	(const voe_game_material[]){ { MATERIAL,
+				       { .colour = { 1.0f, 1.0f, 1.0f },
+					 .roughness = 0.5f,
+					 .repeat = 1.0f,
+					 .colormap = PICTURE } } },
+	1
+};
+static const voe_game_parts NO_PARTS = { NULL, 0 };
 
 // Room for the triangle twice over a watch's reload, with its levels, and the
 // shadings of its part and a blended twin, each twice.
@@ -241,11 +269,143 @@ static void prepare_writes_the_copy(voe_base_arena *scratch)
 	VOE_TEST_CHECK(!made);
 }
 
+// The 16×16 PNG written, a gradient, its stamp returned; scratch rewound.
+static uint64_t png_write(voe_base_arena *scratch)
+{
+	static uint8_t pixels[PICTURE_SIDE * PICTURE_SIDE * 4];
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+	voe_assets_image image = { PICTURE_SIDE, PICTURE_SIDE, pixels, 0 };
+	voe_assets_bytes png = { 0 };
+	uint64_t stamp = 0;
+
+	for (uint32_t i = 0; i < sizeof(pixels); i++)
+		pixels[i] = (uint8_t)(i % 4 == 3 ? 255 : i);
+	VOE_TEST_CHECK(voe_assets_png_encode(scratch, image, &png, NULL));
+	VOE_TEST_CHECK(voe_platform_file_write(PICTURE_ON_DISK, png.bytes,
+					       png.count, NULL));
+	VOE_TEST_CHECK(voe_platform_file_stamp(PICTURE_ON_DISK, &stamp));
+	voe_base_arena_rewind(scratch, mark);
+	return stamp;
+}
+
+// The map's copy's key from its head; 0 when there is none or it will not
+// read.
+static uint64_t map_copy_key(void)
+{
+	uint8_t head[VOE_ASSETS_IMAGE_COOKED_HEAD];
+	uint64_t key = 0;
+	size_t count = 0;
+
+	if (!voe_platform_file_read_head(MAP_COPY_ON_DISK, head, sizeof(head),
+					 &count, NULL) ||
+	    !voe_assets_image_cooked_key(head, count, &key))
+		return 0;
+	return key;
+}
+
+// A grey cube wearing MATERIAL.
+static void shade(voe_ecs_world *world)
+{
+	voe_3d_shape shape = { .kind = VOE_3D_SHAPE_CUBE,
+			       .colour = VOE_3D_SHAPE_GREY };
+
+	snprintf(shape.material, sizeof shape.material, "%s", MATERIAL);
+	VOE_TEST_CHECK(voe_3d_shape_add(world, place(world), shape));
+}
+
+// A new store the world's materials are loaded into, the game's way when
+// `cooked`, with no failure and MATERIAL loaded.
+static voe_3d_models *store_shaded(const voe_ecs_world *world,
+				   voe_render_device *device,
+				   voe_base_arena *scratch, bool cooked)
+{
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_models_failures failures =
+		cooked ? voe_game_models_materials_cooked(world, models, device,
+							  FOLDER, &MATERIALS,
+							  &NO_PARTS, scratch) :
+			 voe_game_models_materials(world, models, device, FOLDER,
+						   &MATERIALS, &NO_PARTS,
+						   scratch);
+	const voe_3d_model_entry *entry = voe_3d_models_find(models, MATERIAL);
+
+	VOE_TEST_CHECK_INT(failures.count, 0);
+	VOE_TEST_CHECK(entry != NULL && entry->loaded && entry->material);
+	return models;
+}
+
+static void materials_write_the_map_copy(const voe_ecs_world *world,
+					 voe_render_device *device,
+					 voe_base_arena *scratch)
+{
+	uint64_t stamp = png_write(scratch);
+	struct voe_base_arena_mark mark;
+	voe_assets_image image = { 0 };
+	voe_assets_image_kind kind = VOE_ASSETS_IMAGE_DATA;
+	const uint8_t *bytes;
+	uint64_t key = 0;
+	size_t size = 0;
+	size_t used = 0;
+
+	remove(MAP_COPY_ON_DISK);
+	store_gone(store_shaded(world, device, scratch, false), device);
+	mark = voe_base_arena_mark(scratch);
+	bytes = voe_platform_file_read(MAP_COPY_ON_DISK, scratch, &size, NULL);
+	VOE_TEST_CHECK(bytes != NULL);
+	if (bytes != NULL)
+		VOE_TEST_CHECK(voe_assets_image_cooked_read(
+			bytes, size, &image, &kind, &key, &used));
+	VOE_TEST_CHECK_INT(image.levels,
+			   voe_assets_image_level_count(PICTURE_SIDE,
+							PICTURE_SIDE));
+	VOE_TEST_CHECK_INT(image.width, PICTURE_SIDE);
+	VOE_TEST_CHECK(kind == VOE_ASSETS_IMAGE_COLOUR);
+	VOE_TEST_CHECK(key == stamp);
+	voe_base_arena_rewind(scratch, mark);
+}
+
+static void material_load_writes_no_copy(voe_render_device *device,
+					 voe_base_arena *scratch)
+{
+	voe_3d_models *models = voe_3d_models_new();
+	voe_base_error error = VOE_BASE_OK;
+
+	remove(MAP_COPY_ON_DISK);
+	VOE_TEST_CHECK(voe_game_models_material_load(models, device, FOLDER,
+						     &MATERIALS.materials[0], 0,
+						     scratch, &error));
+	VOE_TEST_CHECK(!voe_platform_file_exists(MAP_COPY_ON_DISK));
+	store_gone(models, device);
+}
+
+static void
+materials_cooked_loads_a_copy_whose_png_is_garbage(const voe_ecs_world *world,
+						   voe_render_device *device,
+						   voe_base_arena *scratch)
+{
+	static const uint8_t GARBAGE[] = "these bytes are no png";
+	uint64_t stamp = png_write(scratch);
+
+	// ---- a copy written by the materials call
+	remove(MAP_COPY_ON_DISK);
+	store_gone(store_shaded(world, device, scratch, false), device);
+	VOE_TEST_CHECK(map_copy_key() == stamp);
+
+	// ---- the PNG garbage: the game's call loads the copy, kept
+	VOE_TEST_CHECK(voe_platform_file_write(PICTURE_ON_DISK, GARBAGE,
+					       sizeof(GARBAGE) - 1, NULL));
+	store_gone(store_shaded(world, device, scratch, true), device);
+	VOE_TEST_CHECK(map_copy_key() == stamp);
+}
+
 // Every file and folder the cases write, deepest first.
 static void remove_files(void)
 {
 	remove(GOOD_ON_DISK);
+	remove(PICTURE_ON_DISK);
 	remove(COPY_ON_DISK);
+	remove(MAP_COPY_ON_DISK);
+	remove(PICTURES_FOLDER_ON_DISK);
 	remove(MODELS_FOLDER_ON_DISK);
 	remove(LEVELS_ON_DISK);
 	remove(LEVELS_FOLDER_ON_DISK);
@@ -276,12 +436,17 @@ int main(void)
 	VOE_TEST_CHECK(voe_platform_folder_create(FOLDER, NULL));
 	world = voe_game_world_new(arena);
 	wear(world, GOOD);
+	shade(world);
 	update_writes_the_copy(world, device, scratch);
 	a_fresh_copy_is_read_not_written_again(world, device, scratch);
 	a_changed_glb_writes_it_again(world, device, scratch);
 	watch_reloads_and_writes_no_copy(world, device, scratch);
 	update_cooked_loads_a_copy_whose_glb_is_garbage(world, device, scratch);
 	prepare_writes_the_copy(scratch);
+	materials_write_the_map_copy(world, device, scratch);
+	material_load_writes_no_copy(device, scratch);
+	materials_cooked_loads_a_copy_whose_png_is_garbage(world, device,
+							   scratch);
 	remove_files();
 	voe_render_device_destroy(device);
 released:

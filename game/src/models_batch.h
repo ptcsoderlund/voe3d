@@ -38,7 +38,7 @@
 //
 // THE TIMES are each phase's wall seconds over every batch, and the files
 // or copies read; their line, `game: models: <n> files in <s> s: reading <s> s, …`,
-// or the materials' with their three phases (game/src/models_materials.c),
+// or the materials' with their four phases (game/src/models_materials.c),
 // goes to stderr only when a file was read, and is no report: nothing went
 // wrong.
 //
@@ -75,12 +75,13 @@ enum {
 	VOE_GAME_MODELS_PHASES
 };
 
-// The phases a line prints, a bit a slot: a model's seven, a material's three.
+// The phases a line prints, a bit a slot: a model's seven, a material's four.
 enum {
 	VOE_GAME_MODELS_LINE = (1u << VOE_GAME_MODELS_PHASES) - 1,
 	VOE_GAME_MATERIALS_LINE = 1u << VOE_GAME_MODELS_READING |
 				  1u << VOE_GAME_MODELS_DECODING |
-				  1u << VOE_GAME_MODELS_UPLOADING
+				  1u << VOE_GAME_MODELS_UPLOADING |
+				  1u << VOE_GAME_MODELS_COOKING
 };
 
 // Each phase's wall seconds, and the files whose bytes or copy were read.

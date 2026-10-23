@@ -25,14 +25,23 @@
 // The game trusts its copies: files copied into a build get new stamps, so
 // it never compares the key (0470 point 5).
 //
+// A MAP'S COPY (0470 point 2), for the maps a material names, is
+// `<folder>/Cache/pictures/<path>.<colour|normal|data>` by the kind its slot
+// mips it as, keyed by the map's stamp: the materials call cooks as update,
+// the one-material load as watch, materials_cooked (the game) as
+// update_cooked (game/src/models_materials.c).
+//
 // Constraints: a take reads the whole copy onto the caller's arena, the
-// prepare's arrays pointing into it, so the arena must outlive the put. A save
-// pushes about twice the pictures' bytes onto its arena. Neither says a line
-// for a copy that is missing or broken; a failed write is one line on stderr.
+// prepare's arrays or the map's pixels pointing into it, so the arena must
+// outlive the put. A save pushes about twice the pictures' bytes onto its
+// arena. Neither says a line for a copy that is missing or broken; a failed
+// write is one line on stderr.
 #pragma once
 
 #include <3d/model_cooked.h>
 #include <3d/model_prepare.h>
+
+#include <assets/image.h>
 
 #include <base/arena.h>
 #include <base/error.h>
@@ -91,3 +100,29 @@ void voe_game_models_cooked_save(const char *folder, const char *path,
 				 const voe_3d_model_prepared *prepared,
 				 voe_3d_model_cooked_key key,
 				 voe_base_arena *arena);
+
+// `<folder>/Cache/pictures/<path>.<colour|normal|data>` by `kind`, on `arena`.
+const char *voe_game_models_picture_file(const char *folder, const char *path,
+					 voe_assets_image_kind kind,
+					 voe_base_arena *arena);
+
+// The map `path`'s copy of `kind` read whole onto `arena` into `image`, its
+// pixels pointing into it, its key `stamp` when `compare`. False, `image`
+// untouched and `arena` rewound, when it is missing, will not read, is broken,
+// of another kind or its key differs.
+[[nodiscard]] bool voe_game_models_picture_take(const char *folder,
+						const char *path,
+						voe_assets_image_kind kind,
+						uint64_t stamp, bool compare,
+						voe_base_arena *arena,
+						voe_assets_image *image);
+
+// `image`, one level, given its full chain of `kind` on `arena` and returned;
+// that made a copy keyed `stamp` and written atomically with its folders
+// made, a failed write a line on stderr under the caller's subject.
+voe_assets_image voe_game_models_picture_save(const char *folder,
+					      const char *path,
+					      const voe_assets_image *image,
+					      voe_assets_image_kind kind,
+					      uint64_t stamp,
+					      voe_base_arena *arena);

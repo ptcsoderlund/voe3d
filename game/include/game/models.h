@@ -45,8 +45,9 @@
 // MATERIALS come from tables (game/materials.h, 0399 point 7, 0420): each
 // loaded model takes its parts; then each shape's material, part's `wears`
 // and landscape's layer (0402 point 8) the store lacks loads at stamp 0 or
-// stays failed, one at a time, its maps read and decoded on the caller and
-// uploaded in order: `game: materials: …` with those three phases.
+// stays failed, one at a time, each map from its copy `Cache/pictures/<path>.
+// <colour|normal|data>` (0470 point 2) or read, decoded and cooked as models
+// are, then uploaded: `game: materials: …` with its phases.
 // LANDSCAPES come from a table (game/landscapes.h, 0236), never a file.
 //
 // ALL RETURN how many paths failed and the first one's path, the store's own
@@ -115,8 +116,9 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 // `material`'s non-empty maps read from `folder` and decoded one after another
 // on the caller, each on an arena of its own, uploaded in order and loaded with
 // its values as its path's entry at `stamp`, its `game: materials:` line said;
-// scratch rewound. False, `error` set and the entry kept failed, when a map
-// will not read or decode or the store refuses it.
+// scratch rewound. A map's fresh copy is read in its place, but none is ever
+// written. False, `error` set and the entry kept failed, when a map will not
+// read or decode or the store refuses it.
 [[nodiscard]] bool voe_game_models_material_load(
 	voe_3d_models *models, voe_render_device *device, const char *folder,
 	const voe_game_material *material, uint64_t stamp,
@@ -131,6 +133,14 @@ voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 			  voe_render_device *device, const char *folder,
 			  const voe_game_materials *table,
 			  const voe_game_parts *parts, voe_base_arena *scratch);
+
+// The game's materials call: the same, but any map copy that reads is taken,
+// its key not compared, and only a missing one is written (0470 point 5).
+voe_game_models_failures voe_game_models_materials_cooked(
+	const voe_ecs_world *world, voe_3d_models *models,
+	voe_render_device *device, const char *folder,
+	const voe_game_materials *table, const voe_game_parts *parts,
+	voe_base_arena *scratch);
 
 // Reads `<folder>/<path>` and its levels file, making and writing that when
 // missing or stale, then its cooked copy the same way, `made` true when
