@@ -22,12 +22,12 @@
 // With kind PAINT the drag paints `layer` instead (0402 points 3 and 7), and
 // the release's step carries the rectangle's weights. With SCATTER or ERASE
 // it stamps foliage copies (0442 point 3); the step carries those it changed.
-// A kind's base-size edit (0460 point 5) is settled each frame first, brush
-// chosen or none: set live while its slider is held, one step when let go.
+// A kind's look edit (0476 points 1 and 7) is settled each frame first, brush
+// chosen or none: set live while its control is held, one step when let go.
 //
 // Constraints: the numbers are kept inside the ranges below by whoever writes
-// them, the Sculpt, Brush and Foliage sliders clamping, a kind slider to
-// VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN–_MAX thousandths. A stroke mallocs a copy of the
+// them, the Sculpt, Brush and Foliage sliders clamping, a kind's look to
+// assets/landscape.h's ranges. A stroke mallocs a copy of the
 // whole grid at the press, up to 513² heights, or for paint its weights at 8
 // bytes a point, and frees it at the release; a foliage stroke's changed list
 // doubles to fit a stamp's most, an erase's the landscape's copy count; a
@@ -69,20 +69,11 @@ struct voe_editor_models;
 #define VOE_EDITOR_SCULPT_SOFTNESS_MAX 1.0f
 #define VOE_EDITOR_SCULPT_SOFTNESS 0.5f
 
-// The foliage brush's (0442 point 3): density in copies per 100 m², size and
-// lean as shares, turn in radians.
+// The foliage brush's (0442 point 3, 0476 point 1): density in copies per
+// 100 m².
 #define VOE_EDITOR_SCULPT_DENSITY_MIN 0.1f
 #define VOE_EDITOR_SCULPT_DENSITY_MAX 50.0f
 #define VOE_EDITOR_SCULPT_DENSITY 4.0f
-#define VOE_EDITOR_SCULPT_SIZE_VARY_MIN 0.0f
-#define VOE_EDITOR_SCULPT_SIZE_VARY_MAX 1.0f
-#define VOE_EDITOR_SCULPT_SIZE_VARY 0.2f
-#define VOE_EDITOR_SCULPT_TURN_VARY_MIN 0.0f
-#define VOE_EDITOR_SCULPT_TURN_VARY_MAX 3.14159265f
-#define VOE_EDITOR_SCULPT_TURN_VARY 3.14159265f
-#define VOE_EDITOR_SCULPT_LEAN_MIN 0.0f
-#define VOE_EDITOR_SCULPT_LEAN_MAX 1.0f
-#define VOE_EDITOR_SCULPT_LEAN 0.0f
 
 // Raise, Lower, Smooth and Flatten: one button each.
 #define VOE_EDITOR_SCULPT_KINDS 4
@@ -96,10 +87,10 @@ struct voe_editor_models;
 // The Layers section's rows: one per layer, and the add row.
 #define VOE_EDITOR_SCULPT_LAYER_ROWS (VOE_ASSETS_LANDSCAPE_LAYERS + 1)
 
-// The Foliage section's: Scatter and Erase, Density, Size, Turn and Lean, and
-// its rows, one per kind and the add row.
+// The Foliage section's: Scatter and Erase, Density, and its rows, one per
+// kind and the add row.
 #define VOE_EDITOR_SCULPT_FOLIAGE_KINDS 2
-#define VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS 4
+#define VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS 1
 #define VOE_EDITOR_SCULPT_KIND_ROWS (VOE_ASSETS_LANDSCAPE_KINDS + 1)
 
 typedef struct {
@@ -111,13 +102,10 @@ typedef struct {
 	float softness;
 	// The layer a PAINT brush paints.
 	uint32_t layer;
-	// The foliage brush's: the kinds picked, bit k kind k, its numbers, and
+	// The foliage brush's: the kinds picked, bit k kind k, its density, and
 	// the xorshift its scatters draw from, never 0.
 	uint32_t picked;
 	float density;
-	float size_vary;
-	float turn_vary;
-	float lean;
 	uint64_t seed;
 	// The Sculpt section's buttons and Strength slider as drawn this frame,
 	// and the figure beside the slider, kept because a label is read after
@@ -149,22 +137,24 @@ typedef struct {
 	voe_ui_node kind_rows[VOE_EDITOR_SCULPT_KIND_ROWS];
 	voe_ui_rect kinds_seen[VOE_EDITOR_SCULPT_KIND_ROWS];
 	uint32_t kinds_drawn;
-	// Each kind row's base-size slider and its figure, slider i kind i.
+	// Each kind row's Base size slider and its figure, slider i kind i, and
+	// each drawn kind's look, which the read asks with one field changed.
 	voe_ui_node kind_sliders[VOE_ASSETS_LANDSCAPE_KINDS];
 	char kind_figures[VOE_ASSETS_LANDSCAPE_KINDS][VOE_EDITOR_SCULPT_FIGURE];
-	// The last read's base-size ask, when `size_asked`: kind `size_kind` to
-	// `size_to` thousandths; `size_held` that a kind slider is held. Both
-	// taken and cleared by the next voe_editor_sculpt_read.
-	bool size_asked;
-	uint32_t size_kind;
-	uint16_t size_to;
-	bool size_held;
-	// The base-size edit open, when `sizing`: its kind, that kind's stored
-	// size before it (0 meaning 1×), and its landscape's path.
-	bool sizing;
-	uint32_t sizing_kind;
-	uint16_t sizing_before;
-	char sizing_path[VOE_3D_MODEL_PATH];
+	voe_assets_landscape_look kind_looks[VOE_ASSETS_LANDSCAPE_KINDS];
+	// The last read's look ask, when `look_asked`: kind `look_kind` to
+	// `look_to`; `look_held` that a kind's control is held. Both taken and
+	// cleared by the next voe_editor_sculpt_read.
+	bool look_asked;
+	uint32_t look_kind;
+	voe_assets_landscape_look look_to;
+	bool look_held;
+	// The look edit open, when `looking`: its kind, that kind's stored look
+	// before it, and its landscape's path.
+	bool looking;
+	uint32_t looking_kind;
+	voe_assets_landscape_look looking_before;
+	char looking_path[VOE_3D_MODEL_PATH];
 	// The ground under the pointer this frame, when `hit`: (x, z) in the
 	// grid's own space of `entity`'s landscape.
 	bool hit;
@@ -206,7 +196,7 @@ void voe_editor_sculpt_choose_none(voe_editor_sculpt *sculpt);
 bool voe_editor_sculpt_wears(const voe_ecs_world *world, voe_ecs_entity entity);
 
 // One frame of the brush on the selection's ground, after settling the
-// base-size edit the Foliage read asked for. Acts only while a brush is
+// look edit the Foliage read asked for. Acts only while a brush is
 // chosen and the selection wears a loaded landscape; else clears the hover,
 // ends a held stroke and takes nothing. `pointer` is in the root surface's
 // millimetres, `left` the left button down with the pointer in the window,

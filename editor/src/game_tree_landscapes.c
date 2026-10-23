@@ -142,7 +142,7 @@ static const char *landscape_foliage_text(const voe_assets_landscape *landscape,
 			voe_editor_game_tree_c_string(scratch, landscape->kinds[k]));
 		sizes = voe_editor_game_tree_format(scratch, "%s%s%u", sizes,
 						    k == 0 ? "" : ", ",
-						    (unsigned)landscape->kind_sizes[k]);
+						    (unsigned)landscape->looks[k].size);
 	}
 	copies = voe_authoring_landscape_cook_copies(
 		landscape, voe_editor_game_tree_format(scratch, "landscape_%u_copies", n),

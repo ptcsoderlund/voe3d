@@ -282,9 +282,9 @@ carries it out.
   rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
 - `sculpt.h` — the brush a person holds: its kind, layer, radius, strength and softness with
   their ranges, never saved or undone, its sections' nodes, whether a thing wears a landscape, the
-  held drag that sculpts, paints, scatters or erases as one undo step, and a kind's base-size edit.
-- `sculpt.c` — the defaults, the brush put down, the `.landscape` ending matched, the base-size
-  edit set live and closed as a stroke, the ground under the pointer, the press's copy, the stamps
+  held drag that sculpts, paints, scatters or erases as one undo step, and a kind's look edit.
+- `sculpt.c` — the defaults, the brush put down, the `.landscape` ending matched, the look edit
+  set live and closed as a stroke, the ground under the pointer, the press's copy, the stamps
   along the drag, and the release's heights, paint or foliage stroke.
 - `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
   chosen one lit, none while painting or brushing foliage, and the Strength slider, read after the
@@ -301,11 +301,11 @@ carries it out.
 - `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
   read: a fired row chooses PAINT with its layer or none, each row's rectangle kept.
 - `inspector_foliage.h` — the Inspector's Foliage section under Layers: Scatter and Erase, a row per
-  kind toggling it picked with its base-size slider, the add row a dropped `.glb` lands on, and
-  Density, Size ±%, Turn ±° and Tilt with slope % sliders.
+  kind toggling it picked with its Base size slider, the add row a dropped `.glb` lands on, and
+  the brush's Density slider.
 - `inspector_foliage.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
-  the read: a fired button chooses its kind or none, a fired row flips its pick, sliders clamped,
-  a kind slider's size asked.
+  the read: a fired button chooses its kind or none, a fired row flips its pick, Density clamped,
+  a kind slider's look asked with its size changed.
 - `inspector_level.h` — the Inspector's LOD section after Brush or Foliage: per view in use, the LOD it
   draws of a loaded model, of how many, made or own, asked with the draws' own function.
 - `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,
@@ -357,7 +357,7 @@ carries it out.
   stopping at the first refused pass, the shadows, their parts and gathers timed, counts recorded.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or on asking, emptied on a different project, a broken file in the notice, where landscapes with
-  foliage and kinds' base sizes and the project's materials are edited, and models given parts.
+  foliage and kinds' looks and the project's materials are edited, and models given parts.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
@@ -367,7 +367,7 @@ carries it out.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
 - `models.c` — the editor's one model store, filled and watched between frames, and its landscapes
-  with their foliage, kinds' base sizes and materials edited.
+  with their foliage, kinds' looks and materials edited.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.
@@ -395,11 +395,11 @@ carries it out.
   own memory beside the undo line's text, and the file written at once.
 - `material_steps.c` — the copy made and freed, the file's write, and the values put back either
   way into the table, file, store and open copy.
-- `strokes.h` — one sculpting, paint, foliage or base-size stroke: a landscape's path, the rectangle
-  touched and its heights or weights before and after, the copies added or removed, or a kind's base
-  size before and after, its own memory beside the undo line's text, and why.
-- `strokes.c` — the copies made and freed, and the heights, paint, foliage or kind's base size
-  written either way through the store.
+- `strokes.h` — one sculpting, paint, foliage or look stroke: a landscape's path, the rectangle
+  touched and its heights or weights before and after, the copies added or removed, or a kind's
+  look before and after, its own memory beside the undo line's text, and why.
+- `strokes.c` — the copies made and freed, and the heights, paint, foliage or kind's look written
+  either way through the store.
 - `entities.h` — Add entity, a dropped model's thing or prefab's copy, duplicating and deleting
   entities with their trees, and giving or taking components, all through the world's structural
   queue. Its header says the id and name rules.

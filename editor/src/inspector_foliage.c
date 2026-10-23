@@ -5,10 +5,9 @@
 // Button i is brush kind SCATTER + i, so Scatter then Erase. Row i is kind i,
 // so a row's index is the picked bit it flips and the kind a drop replaces;
 // the add row sits at the grid's kind count, the index a drop there adds at.
-// The sliders hold sculpt.h's own numbers; only the figures beside Size ±%,
-// Turn ±° and Tilt with slope % are shown in per cent and degrees. Kind slider
-// i, under row i, shows kind i's base size as a factor; its read asks for
-// thousandths, which sculpt.c sets.
+// The Density slider holds sculpt.h's own number. Kind slider i, under row i,
+// shows kind i's base size as a factor; its read asks for kind i's look as
+// drawn with the size in thousandths, which sculpt.c sets.
 #include "inspector_foliage.h"
 
 #include "inspector_layers.h"
@@ -35,9 +34,6 @@
 // A slider's track, as the Sculpt section's. Millimetres.
 #define SLIDER_WIDE 40.0f
 
-// Degrees in a radian, for Turn's figure.
-#define DEGREES (180.0f / 3.14159265f)
-
 static_assert(VOE_ASSETS_LANDSCAPE_KINDS <= 32,
 	      "a kind past the picked mask's bits");
 static_assert(VOE_3D_BRUSH_ERASE == VOE_3D_BRUSH_SCATTER + 1,
@@ -47,40 +43,12 @@ static const char *const KIND_NAMES[VOE_EDITOR_SCULPT_FOLIAGE_KINDS] = {
 	"Scatter", "Erase"
 };
 
-static const char *const SLIDER_NAMES[VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS] = {
-	"Density", "Size ±%", "Turn ±°", "Tilt with slope %"
-};
+static_assert(VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS == 1,
+	      "the brush's sliders past Density alone");
 
 // A kind slider's range: the file's thousandths as a factor.
 #define KIND_SIZE_MIN (VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN / 1000.0)
 #define KIND_SIZE_MAX (VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX / 1000.0)
-
-static const float SLIDER_MIN[VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS] = {
-	VOE_EDITOR_SCULPT_DENSITY_MIN, VOE_EDITOR_SCULPT_SIZE_VARY_MIN,
-	VOE_EDITOR_SCULPT_TURN_VARY_MIN, VOE_EDITOR_SCULPT_LEAN_MIN
-};
-
-static const float SLIDER_MAX[VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS] = {
-	VOE_EDITOR_SCULPT_DENSITY_MAX, VOE_EDITOR_SCULPT_SIZE_VARY_MAX,
-	VOE_EDITOR_SCULPT_TURN_VARY_MAX, VOE_EDITOR_SCULPT_LEAN_MAX
-};
-
-// What each slider's figure shows of its number: density as it is, size and
-// lean in per cent, turn in degrees.
-static const float FIGURE_SCALE[VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS] = {
-	1.0f, 100.0f, DEGREES, 100.0f
-};
-
-// The number slider `i` writes: density, size vary, turn vary, lean.
-static float *slider_value(voe_editor_sculpt *sculpt, uint32_t i)
-{
-	VOE_BASE_ASSERT(i < VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS, "no such slider");
-
-	return i == 0 ? &sculpt->density :
-	       i == 1 ? &sculpt->size_vary :
-	       i == 2 ? &sculpt->turn_vary :
-			&sculpt->lean;
-}
 
 // Whether brush button `i` is the chosen kind.
 static bool button_chosen(const voe_editor_sculpt *sculpt, uint32_t i)
@@ -117,6 +85,7 @@ static void kind_slider_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
 	const float size = voe_assets_landscape_kind_size(land, i);
 
 	VOE_BASE_ASSERT(i < land->kind_count, "a slider for no kind");
+	sculpt->kind_looks[i] = land->looks[i];
 	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
 						 .gap = ROW_GAP,
 						 .wrap = true });
@@ -132,28 +101,23 @@ static void kind_slider_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
 			"a kind slider not drawn");
 }
 
-// Density, Size ±%, Turn ±° and Tilt with slope %, each a row of name, slider
-// and figure.
-static void sliders_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt)
+// Density, a row of name, slider and figure.
+static void density_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt)
 {
-	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS; i++) {
-		const float value = *slider_value(sculpt, i);
-
-		voe_ui_row_begin(ui, (voe_ui_container){
-					     .across = VOE_UI_ACROSS_CENTER,
-					     .gap = ROW_GAP,
-					     .wrap = true });
-		voe_ui_label(ui, SLIDER_NAMES[i]);
-		sculpt->foliage_sliders[i] =
-			voe_ui_slider(ui, "foliage slider", i, value,
-				      SLIDER_MIN[i], SLIDER_MAX[i], SLIDER_WIDE);
-		snprintf(sculpt->foliage_figures[i],
-			 sizeof sculpt->foliage_figures[i],
-			 i == 0 ? "%.1f" : "%.0f",
-			 (double)(value * FIGURE_SCALE[i]));
-		voe_ui_label(ui, sculpt->foliage_figures[i]);
-		voe_ui_end(ui);
-	}
+	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
+						 .gap = ROW_GAP,
+						 .wrap = true });
+	voe_ui_label(ui, "Density");
+	sculpt->foliage_sliders[0] =
+		voe_ui_slider(ui, "foliage slider", 0, sculpt->density,
+			      VOE_EDITOR_SCULPT_DENSITY_MIN,
+			      VOE_EDITOR_SCULPT_DENSITY_MAX, SLIDER_WIDE);
+	snprintf(sculpt->foliage_figures[0], sizeof sculpt->foliage_figures[0],
+		 "%.1f", (double)sculpt->density);
+	voe_ui_label(ui, sculpt->foliage_figures[0]);
+	voe_ui_end(ui);
+	VOE_BASE_ASSERT(sculpt->foliage_sliders[0] != VOE_UI_NODE_NONE,
+			"the Density slider not drawn");
 }
 
 void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
@@ -208,7 +172,7 @@ void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
 		voe_ui_end(ui);
 	}
 
-	sliders_draw(ui, sculpt);
+	density_draw(ui, sculpt);
 	voe_ui_end(ui);
 }
 
@@ -244,18 +208,18 @@ void voe_editor_inspector_foliage_read(const voe_ui_context *ui,
 		    voe_ui_button_action(ui, sculpt->kind_rows[i]).fired)
 			sculpt->picked ^= 1u << i;
 
-	for (uint32_t i = 0; i < VOE_EDITOR_SCULPT_FOLIAGE_SLIDERS; i++) {
-		float value;
-
-		if (sculpt->foliage_sliders[i] == VOE_UI_NODE_NONE)
-			continue;
-		value = (float)voe_ui_slider_action(ui, sculpt->foliage_sliders[i],
-						    SLIDER_MIN[i], SLIDER_MAX[i])
+	if (sculpt->foliage_sliders[0] != VOE_UI_NODE_NONE) {
+		const float value =
+			(float)voe_ui_slider_action(ui, sculpt->foliage_sliders[0],
+						    VOE_EDITOR_SCULPT_DENSITY_MIN,
+						    VOE_EDITOR_SCULPT_DENSITY_MAX)
 				.value;
-		*slider_value(sculpt, i) =
-			value < SLIDER_MIN[i] ? SLIDER_MIN[i] :
-			value > SLIDER_MAX[i] ? SLIDER_MAX[i] :
-						value;
+
+		sculpt->density = value < VOE_EDITOR_SCULPT_DENSITY_MIN ?
+					  VOE_EDITOR_SCULPT_DENSITY_MIN :
+				  value > VOE_EDITOR_SCULPT_DENSITY_MAX ?
+					  VOE_EDITOR_SCULPT_DENSITY_MAX :
+					  value;
 	}
 
 	for (uint32_t i = 0; i < sculpt->kinds_drawn; i++) {
@@ -266,13 +230,14 @@ void voe_editor_inspector_foliage_read(const voe_ui_context *ui,
 			continue;
 		size = voe_ui_slider_action(ui, sculpt->kind_sliders[i],
 					    KIND_SIZE_MIN, KIND_SIZE_MAX);
-		sculpt->size_held = sculpt->size_held || size.held;
+		sculpt->look_held = sculpt->look_held || size.held;
 		if (!size.changed)
 			continue;
 		to = lround(size.value * 1000.0);
-		sculpt->size_asked = true;
-		sculpt->size_kind = i;
-		sculpt->size_to =
+		sculpt->look_asked = true;
+		sculpt->look_kind = i;
+		sculpt->look_to = sculpt->kind_looks[i];
+		sculpt->look_to.size =
 			(uint16_t)(to < VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN ?
 					   VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN :
 				   to > VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX ?

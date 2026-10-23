@@ -1,4 +1,4 @@
-// A heights, paint, foliage or base-size stroke made with copies of its path
+// A heights, paint, foliage or look stroke made with copies of its path
 // and values, freed, and written back through the model store either way. See strokes.h
 // for why it is its own memory beside the undo line's text.
 #include "strokes.h"
@@ -95,22 +95,21 @@ voe_editor_stroke_new_foliage(const char *path, bool erase,
 	return stroke;
 }
 
-voe_editor_stroke *voe_editor_stroke_new_kind_size(const char *path,
-						   uint32_t kind,
-						   uint16_t before,
-						   uint16_t after)
+voe_editor_stroke *voe_editor_stroke_new_look(const char *path, uint32_t kind,
+					      voe_assets_landscape_look before,
+					      voe_assets_landscape_look after)
 {
 	voe_editor_stroke *stroke;
 
 	VOE_BASE_ASSERT(kind < VOE_ASSETS_LANDSCAPE_KINDS,
-			"a base-size stroke on no kind");
+			"a look stroke on no kind");
 	stroke = voe_editor_stroke_made(path, (voe_3d_landscape_rect){ 0 });
-	stroke->kind_size = true;
+	stroke->look = true;
 	stroke->kind = kind;
-	stroke->size_before = before;
-	stroke->size_after = after;
+	stroke->look_before = before;
+	stroke->look_after = after;
 	VOE_BASE_ASSERT(stroke->before == NULL && stroke->copies == NULL,
-			"a base-size stroke holding values");
+			"a look stroke holding values");
 	return stroke;
 }
 
@@ -131,10 +130,10 @@ void voe_editor_stroke_apply(const voe_editor_stroke *stroke,
 {
 	VOE_BASE_ASSERT(stroke != NULL, "applying no stroke");
 	VOE_BASE_ASSERT(models != NULL, "applying a stroke to no store");
-	if (stroke->kind_size) {
-		voe_editor_models_kind_size_set(models, stroke->path, stroke->kind,
-						forward ? stroke->size_after :
-							  stroke->size_before);
+	if (stroke->look) {
+		voe_editor_models_look_set(models, stroke->path, stroke->kind,
+					   forward ? stroke->look_after :
+						     stroke->look_before);
 		return;
 	}
 	if (stroke->foliage) {

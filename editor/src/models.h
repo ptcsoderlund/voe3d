@@ -179,13 +179,12 @@ void voe_editor_models_put_copies(voe_editor_models *models, const char *path,
 void voe_editor_models_kind_set(voe_editor_models *models, const char *path,
 				uint32_t index, const char *model);
 
-// Kind `index` of `path`'s landscape takes base size `size` in thousandths, 0
-// meaning 1×, its copies placed again (0460 points 3 and 5): a slider's live
-// value or a size stroke put back (strokes.h). Save writes the sizes with the
+// Kind `kind` of `path`'s landscape takes `look`, its copies placed and its
+// grown copies made again as the look asks (0476 point 1): a control's live
+// value or a look stroke put back (strokes.h). Save writes the looks with the
 // kinds, the writer carrying them.
-void voe_editor_models_kind_size_set(voe_editor_models *models,
-				     const char *path, uint32_t index,
-				     uint16_t size);
+void voe_editor_models_look_set(voe_editor_models *models, const char *path,
+				uint32_t kind, voe_assets_landscape_look look);
 
 // Every entry at `from` or under `from/` takes `to` in its place, both under
 // `Assets/`: a rename or move keeps a landscape's unsaved heights (0379 point 6).
