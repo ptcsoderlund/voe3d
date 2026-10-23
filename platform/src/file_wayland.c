@@ -159,6 +159,60 @@ const uint8_t *voe_platform_file_read(const char *path, voe_base_arena *arena,
 	return buffer;
 }
 
+// The loop ends at size or at the end of the file, whichever is first; a
+// folder is caught by fstat as in the whole read, so the categories match.
+bool voe_platform_file_read_head(const char *path, uint8_t *buffer,
+				 size_t size, size_t *out_count,
+				 voe_base_error *error)
+{
+	int file;
+	struct stat info;
+	size_t got = 0;
+
+	VOE_BASE_ASSERT(path != NULL, "reading a file's head with no path");
+	VOE_BASE_ASSERT(buffer != NULL, "reading a file's head into no buffer");
+	VOE_BASE_ASSERT(size > 0, "reading a file's head of no bytes");
+	VOE_BASE_ASSERT(out_count != NULL,
+			"reading a file's head with no count to fill");
+
+	file = open(path, O_RDONLY);
+	if (file < 0) {
+		VOE_BASE_ERROR("platform", "could not open %s for reading: %s",
+			       path, strerror(errno));
+		report(error, VOE_BASE_ERROR_UNAVAILABLE);
+		return false;
+	}
+	if (fstat(file, &info) != 0 || !S_ISREG(info.st_mode)) {
+		VOE_BASE_ERROR("platform", "%s is not a regular file", path);
+		report(error, VOE_BASE_ERROR_UNAVAILABLE);
+		(void)close(file);
+		return false;
+	}
+
+	while (got < size) {
+		ssize_t step = read(file, buffer + got, size - got);
+
+		if (step < 0) {
+			if (errno == EINTR)
+				continue;
+			VOE_BASE_ERROR("platform",
+				       "reading %s's head failed after %zu bytes: %s",
+				       path, got, strerror(errno));
+			report(error, VOE_BASE_ERROR_REFUSED);
+			(void)close(file);
+			return false;
+		}
+		if (step == 0)
+			break;
+		got += (size_t)step;
+	}
+
+	(void)close(file);
+	*out_count = got;
+	report(error, VOE_BASE_OK);
+	return true;
+}
+
 bool voe_platform_file_exists(const char *path)
 {
 	struct stat info;
