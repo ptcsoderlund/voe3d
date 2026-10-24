@@ -102,10 +102,10 @@
 // A NORMAL MAP TILTS THE SHADING NORMAL THROUGH A FRAME BUILT PER PIXEL
 // (ADR-0278). No tangent attribute: the tangent (+u) and bitangent (−v, glTF's
 // green) come from the screen derivatives of the world position and the UV,
-// orthogonalised against the interpolated normal, and each channel maps 0..1
-// to −1..1. The interpolated normal still places the shadow lookup. Seams
-// where a frame flips across a UV island are the cost; a tangent attribute is
-// the card that lifts it. A mirrored half is right by the determinant's sign,
+// orthogonalised against the interpolated normal, x and y map 0..1 to −1..1
+// and z is made from them. The interpolated normal places the shadow lookup.
+// Seams where a frame flips across a UV island are the cost; a tangent
+// attribute is the card that lifts it. A mirrored half is right by the determinant's sign,
 // its bump turned over with its picture: render/tests/surface_maps.c says so.
 //
 // EMISSION IS ADDED LAST: the record's emissive times the emissive map, after
@@ -370,6 +370,12 @@ static const uint VOE_RENDER_NO_TEXTURE = 0;
 // is orthogonalised against the interpolated normal. glTF's green runs along
 // −v, because its v runs down. A UV with no area on screen, or an axis along
 // the normal, has no frame, and the interpolated normal is the answer.
+//
+// THE TEXEL'S BLUE IS NEVER READ (ADR-0477 point 1). A BC5 normal map holds x
+// and y alone and samples blue as nought, so z is made again from them, the
+// unit vector's own z, for every map: one still waiting for compression, its
+// blue whatever the file wrote, draws the same as its compressed copy. A
+// painted landscape's blended texel comes through here too.
 float3 voe_render_mapped_normal(float3 normal, float3 texel, float3 world_dx,
 				float3 world_dy, float2 uv_dx, float2 uv_dy)
 {
@@ -386,7 +392,9 @@ float3 voe_render_mapped_normal(float3 normal, float3 texel, float3 world_dx,
 	    dot(along_v, along_v) < 1e-30)
 		return normal;
 
-	float3 m = texel * 2.0 - 1.0;
+	float3 m;
+	m.xy = texel.xy * 2.0 - 1.0;
+	m.z = sqrt(saturate(1.0 - dot(m.xy, m.xy)));
 	float3 mapped = normalize(along_u) * m.x - normalize(along_v) * m.y +
 			normal * m.z;
 	if (dot(mapped, mapped) < VOE_LEAST)

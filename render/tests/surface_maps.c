@@ -27,7 +27,9 @@
 // 16. the same wearing the +u tilt: the left half brighter than 15's, the
 //     right darker, the bump turned over with its picture as Blender's is;
 // 17, 18. the same along v: the right quad's v running up, a map tilted to
-//     +green and a sun low from +y, left brighter than flat, right darker.
+//     +green and a sun low from +y, left brighter than flat, right darker;
+// 19. case 2 with the flat map's blue 0, as a BC5 map samples it: the
+//     reference, z made from x and y (ADR-0477 point 1).
 // Checked once when written: roughness 0.1 with no map reads 255 where case 11
 // reads 151, and case 13 reads 80, so 12 and 14 would fail under a multiply.
 //
@@ -52,7 +54,7 @@
 
 #define SIDE 64
 #define IMAGE_BYTES ((VkDeviceSize)SIDE * SIDE * 4)
-#define CASES 18
+#define CASES 19
 
 // VK_FORMAT_B8G8R8A8_SRGB, which the headless device takes.
 #define BLUE 0
@@ -68,7 +70,7 @@ static const voe_render_capacities CAPACITIES = {
 	.indices = 30,
 	.geometries = 3,
 	.objects = 1,
-	.shadings = 13,
+	.shadings = 14,
 	.passes = 1,
 };
 
@@ -122,8 +124,9 @@ static const uint32_t PAIR_INDICES[12] = { 3, 2, 1, 3, 1, 0, 7, 6, 5, 7, 5, 4 };
 #define RIGHT_COLUMN (SIDE / 2 + 10)
 
 // Flat, sixty degrees towards +u: (sin 60°, 0, cos 60°) as 0..255, and the
-// same towards glTF's +green, which is −v.
+// same towards glTF's +green, which is −v. Flat again with no blue.
 static const uint8_t FLAT_TEXEL[4] = { 128, 128, 255, 255 };
+static const uint8_t FLAT_NO_BLUE_TEXEL[4] = { 128, 128, 0, 255 };
 static const uint8_t TILTED_TEXEL[4] = { 238, 128, 191, 255 };
 static const uint8_t TILTED_GREEN_TEXEL[4] = { 128, 238, 191, 255 };
 
@@ -321,10 +324,11 @@ static voe_render_texture data_pixel(voe_render_device *device,
 	return texture;
 }
 
-// The thirteen shading records: plain, flat map, tilted map, black and
+// The fourteen shading records: plain, flat map, tilted map, black and
 // glowing, the halves texture repeated four times and with a repeat of 0,
 // plain wholly occluded and not occluded at all, white matte, white with a
-// rough map, white metal and white with a metal map, and plain tilted to green.
+// rough map, white metal and white with a metal map, plain tilted to green,
+// and plain with a flat map of no blue.
 static void make_shadings(voe_render_device *device, voe_render_shading *out)
 {
 	voe_base_error error = VOE_BASE_OK;
@@ -402,6 +406,9 @@ static void make_shadings(voe_render_device *device, voe_render_shading *out)
 	plain.normal_texture = data_pixel(device, TILTED_GREEN_TEXEL).index;
 	VOE_TEST_CHECK(voe_render_shading_create(device, plain, &out[12],
 						 &error));
+	plain.normal_texture = data_pixel(device, FLAT_NO_BLUE_TEXEL).index;
+	VOE_TEST_CHECK(voe_render_shading_create(device, plain, &out[13],
+						 &error));
 }
 
 // Cases 15 to 18 into images 14 to 17: each pair flat and then tilted, under
@@ -449,7 +456,7 @@ int main(void)
 	voe_render_device *device;
 	struct voe_render_buffer readback = { 0 };
 	voe_render_geometry quad = { 0 };
-	voe_render_shading shadings[13] = { 0 };
+	voe_render_shading shadings[14] = { 0 };
 	// Travelling down −Z into the face: N·L of one.
 	voe_render_light sun = {
 		.direction = { 0.0f, 0.0f, -1.0f },
@@ -520,6 +527,8 @@ int main(void)
 		draw_case(device, quad, shadings[i], sun, readback.buffer,
 			  IMAGE_BYTES * (VkDeviceSize)(i + 2));
 	draw_mirrored(device, shadings, readback.buffer);
+	draw_case(device, quad, shadings[13], sun, readback.buffer,
+		  IMAGE_BYTES * 18);
 
 	VOE_TEST_CHECK_INT(voe_render_vk.map_memory(device->device,
 						    readback.memory, 0,
@@ -538,6 +547,7 @@ int main(void)
 		check_same(centre_of(mapped, 13), centre_of(mapped, 12));
 		check_mirrored(mapped, 15);
 		check_mirrored(mapped, 17);
+		check_same(centre_of(mapped, 18), centre_of(mapped, 0));
 		voe_render_vk.unmap_memory(device->device, readback.memory);
 	}
 
