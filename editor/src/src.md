@@ -357,8 +357,8 @@ carries it out.
   gathered after the lights, kept out of the blockers, every place marked and blocker lined,
   stopping at the first refused pass, the shadows, their parts and gathers timed, counts recorded.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
-  or on asking, emptied on a different project, a broken file in the notice, where landscapes with
-  foliage, looks and growth and the project's materials are edited, and models given parts.
+  or on asking, emptied on a different project, a broken file in the notice, where landscapes and
+  the project's materials are edited, models given parts, and maps compressed 2 ms a frame.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
@@ -368,7 +368,8 @@ carries it out.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
 - `models.c` — the editor's one model store, filled and watched between frames, and its landscapes
-  with their foliage, kinds' looks, layers' growth and materials edited.
+  with their foliage, kinds' looks, layers' growth and materials edited, its map queue stepped
+  and the rows naming a written map reloaded.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.

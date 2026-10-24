@@ -11,7 +11,9 @@
 // material set live, or loaded again at the next update when a map changed,
 // as is every held material a read of the tables found new or changed. A read
 // that fails is said in the session's notice, the kept line whole; a landscape
-// re-read names its path as the subject.
+// re-read names its path as the subject. A map with no fresh copy is queued
+// and compressed a step a frame outside a wait, inline under one, every row
+// naming a written map loaded again at the next update.
 // Between frames the update and the watch load whole (0459 point 3).
 #include "models.h"
 
@@ -31,8 +33,14 @@
 // How often the store's files are asked for their stamps, in seconds.
 #define WATCH_SECONDS 1.0
 
+// How long the queue compresses a frame, between frames (0477 point 3).
+#define COMPRESS_SECONDS 0.002
+
 struct voe_editor_models {
 	voe_3d_models *store;
+	// The maps uploaded uncompressed outside a wait, compressed a step a
+	// frame; emptied on a different folder.
+	voe_game_compressing *compressing;
 	// The project's materials and parts, read on a different folder.
 	voe_editor_materials *materials;
 	voe_editor_parts *parts;
@@ -63,6 +71,9 @@ voe_editor_models *voe_editor_models_new(void)
 	VOE_BASE_ASSERT(models != NULL, "out of memory making the model store");
 	models->store = voe_3d_models_new();
 	VOE_BASE_ASSERT(models->store != NULL, "made a model store with none");
+	models->compressing = voe_game_compressing_new();
+	VOE_BASE_ASSERT(models->compressing != NULL,
+			"made a compressing queue with none");
 	models->materials = calloc(1, sizeof(*models->materials));
 	models->before = calloc(1, sizeof(*models->before));
 	models->parts = calloc(1, sizeof(*models->parts));
@@ -80,6 +91,7 @@ void voe_editor_models_destroy(voe_editor_models *models,
 	VOE_BASE_ASSERT(device != NULL, "clearing models with no device");
 	voe_3d_models_clear(models->store, device);
 	voe_3d_models_destroy(models->store);
+	voe_game_compressing_destroy(models->compressing);
 	free(models->materials);
 	free(models->before);
 	free(models->parts);
@@ -99,6 +111,7 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 	    strcmp(folder, models->folder) == 0)
 		return;
 	voe_3d_models_clear(models->store, device);
+	voe_game_compressing_clear(models->compressing);
 	free(models->folder);
 	models->folder = NULL;
 	free(models->resized);
@@ -172,12 +185,34 @@ static void material_reload(voe_editor_models *models,
 		voe_base_report_error_clear();
 		if (!voe_game_models_material_load(models->store, device,
 						   models->folder, row, 0,
-						   scratch, &error))
+						   scratch, models->compressing,
+						   &error))
 			voe_editor_notice_set(notice, "Could not read %s: %s",
 					      row->path,
 					      voe_base_error_string(error));
 	}
 	models->reloads = 0;
+}
+
+// Every held material whose row names `map` in any of its four map slots
+// waits to be loaded again, from the copy just written. A row the store does
+// not hold loads from the copy when first named.
+static void reload_naming(voe_editor_models *models, const char *map)
+{
+	VOE_BASE_ASSERT(models != NULL && models->materials != NULL,
+			"reloading for a map in no store");
+	VOE_BASE_ASSERT(map != NULL && map[0] != '\0', "reloading for no map");
+	for (uint32_t i = 0; i < models->materials->count; i++) {
+		const voe_game_material *row = &models->materials->rows[i];
+		const voe_assets_material_file *values = &row->values;
+
+		if ((strcmp(values->colormap, map) == 0 ||
+		     strcmp(values->normalmap, map) == 0 ||
+		     strcmp(values->ormmap, map) == 0 ||
+		     strcmp(values->emissionmap, map) == 0) &&
+		    voe_3d_models_find(models->store, row->path) != NULL)
+			reload_add(models, row->path);
+	}
 }
 
 void voe_editor_models_update(voe_editor_models *models,
@@ -223,12 +258,21 @@ void voe_editor_models_update(voe_editor_models *models,
 	table = voe_editor_materials_table(models->materials);
 	parts = voe_editor_parts_table(models->parts);
 	voe_base_report_error_clear();
+	// Under a splash a map is compressed inline and shows as progress; the
+	// queue is for the frames outside one.
 	say_failure(&session->notice,
-		    voe_game_models_materials(session->project->world,
-					      models->store, device,
-					      models->folder, &table, &parts,
-					      scratch));
+		    voe_game_models_materials(
+			    session->project->world, models->store, device,
+			    models->folder, &table, &parts, scratch, progress,
+			    progress == NULL ? models->compressing : NULL));
 	material_reload(models, device, scratch, &session->notice);
+	if (progress == NULL) {
+		const char *written = voe_game_compressing_step(
+			models->compressing, COMPRESS_SECONDS, scratch);
+
+		if (written != NULL)
+			reload_naming(models, written);
+	}
 }
 
 // Between frames, since a load waits for the card to go idle. A path the
