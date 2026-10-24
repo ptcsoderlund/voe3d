@@ -244,6 +244,9 @@ struct voe_render_device {
 	// the capacity's.
 	bool output_layer;
 	uint32_t point_shadow_size;
+	// Whether the card had textureCompressionBC and create_device enabled it;
+	// without it texture_blocks.c refuses every upload (ADR-0477 point 6).
+	bool bc;
 
 	// The textures and the samplers they are read through: one per
 	// voe_render_sampling, made once at startup and indexed by a slot's own

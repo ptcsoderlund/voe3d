@@ -198,6 +198,7 @@ static bool build_texture_image(voe_render_device *device,
 			       (int)result);
 		return false;
 	}
+	slot->bytes = requirements.size;
 
 	view.image = slot->image;
 	result = voe_render_vk.create_image_view(device->device, &view, NULL,
@@ -582,6 +583,8 @@ static bool destroy_texture(voe_render_device *device,
 	slot->generation++;
 	slot->live = false;
 	slot->heights = false;
+	slot->bytes = 0;
+	slot->blocks = false;
 
 	// Back to the white default, so the array stays valid — every element
 	// has to be a real descriptor whether or not the shader samples it.
