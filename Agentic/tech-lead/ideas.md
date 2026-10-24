@@ -114,7 +114,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 
 - **Texture streaming** (sponsor, 2026-10-15, asked beside 0429: "If texture streaming helps, we need that as
   well."). Loading only the mip levels a texture is seen at, so far models cost less texture memory and load
-  time. It does not lower triangles, so it is not part of 089; weigh it after 095 (compressed textures, 0462; mips
+  time. It does not lower triangles, so it is not part of 089; weigh it after 096 (compressed textures, 0462; mips
   are what it streams, kept separable by 0454) once a forest of real models shows whether memory or load time
   hurts.
 
