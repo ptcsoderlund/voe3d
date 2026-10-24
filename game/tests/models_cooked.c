@@ -32,6 +32,9 @@
 // loaded again, every texture is compressed and nothing waits.
 // progress_reads_compressing_textures: the colour copy gone, the call with a
 // progress leaves "Compressing textures" over one material.
+// a_cooked_glb_reads_compressing_textures: a `.glb` wearing the PNG and with
+// no copy, a batch of it prepared with a progress at 1/3 leaves "Compressing
+// textures" at 1/3 before its put, and the file's phase says the same.
 //
 // The editor's check before Play and Ship, on the `.glb` and the material:
 // stale_counts_missing_copies: all four copies gone, 4. cook_makes_them_and_
@@ -43,6 +46,7 @@
 //
 // The files and the folders are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
+#include "../src/models_batch.h"
 #include "glb_build.h"
 
 #include <game/models.h>
@@ -85,6 +89,10 @@
 #define NORMAL_COPY_ON_DISK PICTURES_FOLDER_ON_DISK "/" PICTURE ".normal"
 #define DATA_COPY_ON_DISK PICTURES_FOLDER_ON_DISK "/" PICTURE ".data"
 #define MATERIAL "pic.material"
+#define PICTURED "pictured.glb"
+#define PICTURED_ON_DISK FOLDER "/" PICTURED
+#define PICTURED_COPY_ON_DISK MODELS_FOLDER_ON_DISK "/" PICTURED ".model"
+#define PICTURED_LEVELS_ON_DISK LEVELS_FOLDER_ON_DISK "/" PICTURED ".levels"
 
 // A white material wearing the PNG as its colour, normal and ORM maps, and no
 // model's parts.
@@ -525,6 +533,78 @@ static void progress_reads_compressing_textures(const voe_ecs_world *world,
 	VOE_TEST_CHECK(voe_platform_file_exists(MAP_COPY_ON_DISK));
 }
 
+// The triangle with UVs, its material's colour the PNG on disk, packed after
+// them in the BIN chunk, written as PICTURED. Scratch rewound.
+static void pictured_write(voe_base_arena *scratch)
+{
+	static const float UVS[6] = { 0, 0, 1, 0, 0, 1 };
+	static char json[1024];
+	static uint8_t bin[4096];
+	static uint8_t glb[8192];
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+	const uint8_t *png;
+	size_t size = 0;
+	uint32_t length;
+
+	(void)png_write(scratch);
+	png = voe_platform_file_read(PICTURE_ON_DISK, scratch, &size, NULL);
+	VOE_TEST_CHECK(png != NULL && 60 + size <= sizeof(bin));
+	if (png == NULL || 60 + size > sizeof(bin))
+		return;
+	memset(bin, 0, sizeof(bin));
+	memcpy(bin, TRIANGLE, 36);
+	memcpy(bin + 36, UVS, 24);
+	memcpy(bin + 60, png, size);
+	snprintf(json, sizeof(json),
+		 "{\"asset\":{\"version\":\"2.0\"},\"nodes\":[{\"mesh\":0}],"
+		 "\"materials\":[{\"pbrMetallicRoughness\":"
+		 "{\"baseColorTexture\":{\"index\":0}}}],"
+		 "\"meshes\":[{\"primitives\":[{\"attributes\":"
+		 "{\"POSITION\":0,\"TEXCOORD_0\":1},\"material\":0}]}],"
+		 "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,"
+		 "\"count\":3,\"type\":\"VEC3\",\"min\":[0,0,0],"
+		 "\"max\":[1,1,0]},{\"bufferView\":1,\"componentType\":5126,"
+		 "\"count\":3,\"type\":\"VEC2\"}],"
+		 "\"bufferViews\":[{\"buffer\":0,\"byteLength\":36},"
+		 "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":24},"
+		 "{\"buffer\":0,\"byteOffset\":60,\"byteLength\":%u}],"
+		 "\"buffers\":[{\"byteLength\":%u}],"
+		 "\"images\":[{\"bufferView\":2,\"mimeType\":\"image/png\"}],"
+		 "\"textures\":[{\"source\":0}]}",
+		 (unsigned)size, (unsigned)(60 + size));
+	length = glb_pack(glb, sizeof(glb), json, bin,
+			  (uint32_t)((60 + size + 3) & ~(size_t)3));
+	VOE_TEST_CHECK(voe_platform_file_write(PICTURED_ON_DISK, glb, length,
+					       NULL));
+	voe_base_arena_rewind(scratch, mark);
+}
+
+static void a_cooked_glb_reads_compressing_textures(voe_base_arena *scratch)
+{
+	voe_game_progress progress = { 0 };
+	voe_game_models_times times = { 0 };
+	voe_game_models_batch *batch;
+	const char *phase;
+
+	pictured_write(scratch);
+	remove(PICTURED_COPY_ON_DISK);
+	voe_game_progress_set(&progress, "Loading models", 1, 3);
+	batch = voe_game_models_batch_new(FOLDER, 1, VOE_GAME_MODELS_COOK_STALE,
+					  &progress);
+	voe_game_models_batch_add(batch, PICTURED, 0, false);
+	voe_game_models_batch_prepare(batch, &times);
+	phase = atomic_load(&progress.phase);
+	VOE_TEST_CHECK(phase != NULL &&
+		       strcmp(phase, "Compressing textures") == 0);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.done), 1);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.total), 3);
+	VOE_TEST_CHECK(voe_game_models_batch_cooked(batch, 0));
+	VOE_TEST_CHECK(strcmp(voe_game_models_batch_phase(batch, 0),
+			      "Compressing textures") == 0);
+	VOE_TEST_CHECK(voe_platform_file_exists(PICTURED_COPY_ON_DISK));
+	voe_game_models_batch_destroy(batch);
+}
+
 // The `.glb`s the editor's check is given.
 static const char *const GLBS[] = { GOOD };
 
@@ -611,8 +691,11 @@ static void cook_stops_when_asked(voe_base_arena *scratch)
 static void remove_files(void)
 {
 	remove(GOOD_ON_DISK);
+	remove(PICTURED_ON_DISK);
 	remove(PICTURE_ON_DISK);
 	remove(COPY_ON_DISK);
+	remove(PICTURED_COPY_ON_DISK);
+	remove(PICTURED_LEVELS_ON_DISK);
 	remove(MAP_COPY_ON_DISK);
 	remove(NORMAL_COPY_ON_DISK);
 	remove(DATA_COPY_ON_DISK);
@@ -662,6 +745,7 @@ int main(void)
 	a_queued_map_draws_uncompressed(world, device, scratch, queue);
 	the_stepped_queue_writes_the_copy(world, device, scratch, queue);
 	progress_reads_compressing_textures(world, device, scratch);
+	a_cooked_glb_reads_compressing_textures(scratch);
 	stale_counts_missing_copies(scratch);
 	cook_makes_them_and_stale_is_then_0(scratch);
 	an_old_map_copy_counts_stale(scratch);

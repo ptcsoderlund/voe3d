@@ -502,16 +502,24 @@ static void bake_task(voe_game_models_batch *batch, uint32_t index)
 }
 
 // Cooking: a `.glb` baked here, its pictures still decoded, written as its
-// copy on its arena, unless the batch's mode writes none.
+// copy on its arena, unless the batch's mode writes none. The write compresses
+// every picture, minutes for a large one, so the file's phase is "Compressing
+// textures" first, and shown, its counts kept.
 static void cook_task(voe_game_models_batch *batch, uint32_t index)
 {
 	struct batch_file *file = &batch->files[index];
+	voe_game_progress *progress = batch->progress;
 
 	VOE_BASE_ASSERT(index < batch->count, "cooking a file past the batch");
 	if (batch->cooking == VOE_GAME_MODELS_COOK_NEVER ||
 	    file->state != FILE_PREPARED || file->taken)
 		return;
 	VOE_BASE_ASSERT(file->glb, "cooking a file that is no `.glb`");
+	file->phase = "Compressing textures";
+	if (progress != NULL)
+		voe_game_progress_set(progress, file->phase,
+				      atomic_load(&progress->done),
+				      atomic_load(&progress->total));
 	voe_base_report_subject_push(file->path);
 	voe_game_models_cooked_save(batch->folder, file->path, file->prepared,
 				    file->key, file->arena);

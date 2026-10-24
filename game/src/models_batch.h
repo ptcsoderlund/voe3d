@@ -27,8 +27,8 @@
 // copy written, as the batch's mode says: models_cooked.h). No store and no
 // device is touched in them; a `.landscape` or picture path is only read, and
 // loaded whole at its put. The progress, when given, shows a file's phase
-// from its reading: "Preparing models" when it will be cooked, else "Loading
-// models".
+// from its reading: "Preparing models" when it will be cooked, "Compressing
+// textures" from its cooking on, else "Loading models".
 //
 // THE PUT, one file on the device's thread: one with no stamp, known at
 // another or not yet held, or that will not read, is kept failed at 0 with its
@@ -116,8 +116,9 @@ void voe_game_models_batch_prepare(voe_game_models_batch *batch,
 bool voe_game_models_batch_cooked(const voe_game_models_batch *batch,
 				  uint32_t index);
 
-// The phase prepared file `index` shows: "Preparing models" when it is
-// cooked, else "Loading models".
+// The phase prepared file `index` shows: "Compressing textures" when it is
+// cooked, "Preparing models" when it was to be and was not, else "Loading
+// models".
 const char *voe_game_models_batch_phase(const voe_game_models_batch *batch,
 					uint32_t index);
 
