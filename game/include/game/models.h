@@ -19,12 +19,12 @@
 // time. It follows the `.parts` beside the `.glb` (0430 point 5, 0436, 0435
 // point 4). A refused make keeps the entry failed at its stamp (0445 point 4).
 //
-// COOKED COPIES (0470): a `.glb` loads first from `<folder>/Cache/models/
-// <path>.model` when fresh, its key the stamps of the `.glb` and its `.parts`
-// (0 for none): no parse, LODs, decode or bake. Update and prepare write a
-// missing or stale one, remake always, watch and reload never; the game's
-// update_cooked trusts any that reads and writes a missing one. Before Play
-// and Ship the editor calls stale, reading only copies' heads, then cook.
+// COOKED COPIES (0470), pictures and maps compressed (0477): a `.glb` loads
+// first from `Cache/models/<path>.model` when fresh, its key the stamps of
+// the `.glb` and its `.parts` (0 for none): no parse, LODs, decode or bake.
+// Update and prepare write a missing or stale one, remake always, watch and
+// reload never; the game's update_cooked trusts any that reads and writes a
+// missing one. Before Play and Ship the editor calls stale, then cook.
 //
 // PHASES (0457, 0459 point 1): one file at a time on the caller, read, parsed,
 // its LODs made, pictures decoded, baked, uploaded and cooked. A call that
@@ -46,8 +46,8 @@
 // loaded model takes its parts; then each shape's material, part's `wears`
 // and landscape's layer (0402 point 8) the store lacks loads at stamp 0 or
 // stays failed, one at a time, each map from its copy `Cache/pictures/<path>.
-// <colour|normal|data>` (0470 point 2) or read, decoded and cooked as models
-// are, then uploaded: `game: materials: …` with its phases.
+// <colour|normal|data>` (0470 point 2) or read, decoded and cooked, compressed
+// too, then uploaded: `game: materials: …` with its phases.
 // LANDSCAPES come from a table (game/landscapes.h, 0236), never a file.
 //
 // ALL RETURN how many paths failed and the first one's path, the store's own

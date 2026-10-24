@@ -17,17 +17,21 @@
 // prepare_writes_the_copy: with the levels file fresh and the copy gone, a
 // prepare makes it, keyed by the stamp; a second prepare makes nothing.
 //
-// The world's shape also wears a material whose colour map is a 16×16 PNG:
+// The world's shape also wears a material whose colour, normal and ORM maps
+// are one 16×16 PNG:
 // materials_write_the_map_copy: the materials call leaves
-// `Cache/pictures/pic.png.colour`, a full chain keyed by the PNG's stamp.
+// `Cache/pictures/pic.png.<colour|normal|data>`, each a full chain keyed by
+// the PNG's stamp, BC7 but the normal's BC5 (0477).
 // material_load_writes_no_copy: the one-material load, the copy gone, loads
 // and writes none.
 // materials_cooked_loads_a_copy_whose_png_is_garbage: a copy written, then
 // the PNG made garbage, the game's materials call loads from the copy, kept.
 //
 // The editor's check before Play and Ship, on the `.glb` and the material:
-// stale_counts_missing_copies: both copies gone, 2. cook_makes_them_and_
-// stale_is_then_0: both written at their stamps, the progress 2/2.
+// stale_counts_missing_copies: all four copies gone, 4. cook_makes_them_and_
+// stale_is_then_0: all written at their stamps, compressed as above, the
+// progress 4/4. an_old_map_copy_counts_stale: the colour copy's version set
+// back to 1, 1; cooked again, 0.
 // stale_counts_a_changed_glb: rewritten another size, 1.
 // cook_stops_when_asked: stop set, false and the copy keeps its old key.
 //
@@ -72,15 +76,20 @@
 #define PICTURE_ON_DISK FOLDER "/" PICTURE
 #define PICTURES_FOLDER_ON_DISK CACHE_ON_DISK "/pictures"
 #define MAP_COPY_ON_DISK PICTURES_FOLDER_ON_DISK "/" PICTURE ".colour"
+#define NORMAL_COPY_ON_DISK PICTURES_FOLDER_ON_DISK "/" PICTURE ".normal"
+#define DATA_COPY_ON_DISK PICTURES_FOLDER_ON_DISK "/" PICTURE ".data"
 #define MATERIAL "pic.material"
 
-// A white material wearing the PNG as its colour map, and no model's parts.
+// A white material wearing the PNG as its colour, normal and ORM maps, and no
+// model's parts.
 static const voe_game_materials MATERIALS = {
 	(const voe_game_material[]){ { MATERIAL,
 				       { .colour = { 1.0f, 1.0f, 1.0f },
 					 .roughness = 0.5f,
 					 .repeat = 1.0f,
-					 .colormap = PICTURE } } },
+					 .colormap = PICTURE,
+					 .normalmap = PICTURE,
+					 .ormmap = PICTURE } } },
 	1
 };
 static const voe_game_parts NO_PARTS = { NULL, 0 };
@@ -280,7 +289,8 @@ static uint64_t png_write(voe_base_arena *scratch)
 {
 	static uint8_t pixels[PICTURE_SIDE * PICTURE_SIDE * 4];
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
-	voe_assets_image image = { PICTURE_SIDE, PICTURE_SIDE, pixels, 0 };
+	voe_assets_image image = { PICTURE_SIDE, PICTURE_SIDE, pixels, 0,
+				   VOE_ASSETS_IMAGE_RGBA8 };
 	voe_assets_bytes png = { 0 };
 	uint64_t stamp = 0;
 
@@ -340,34 +350,57 @@ static voe_3d_models *store_shaded(const voe_ecs_world *world,
 	return models;
 }
 
-static void materials_write_the_map_copy(const voe_ecs_world *world,
-					 voe_render_device *device,
-					 voe_base_arena *scratch)
+// The map copy `file` reads back as a full chain of `kind` in `format`, keyed
+// `stamp`. Scratch rewound.
+static void map_copy_check(const char *file, voe_assets_image_kind kind,
+			   voe_assets_image_format format, uint64_t stamp,
+			   voe_base_arena *scratch)
 {
-	uint64_t stamp = png_write(scratch);
-	struct voe_base_arena_mark mark;
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	voe_assets_image image = { 0 };
-	voe_assets_image_kind kind = VOE_ASSETS_IMAGE_DATA;
+	voe_assets_image_kind kept = VOE_ASSETS_IMAGE_DATA;
 	const uint8_t *bytes;
 	uint64_t key = 0;
 	size_t size = 0;
 	size_t used = 0;
 
-	remove(MAP_COPY_ON_DISK);
-	store_gone(store_shaded(world, device, scratch, false), device);
-	mark = voe_base_arena_mark(scratch);
-	bytes = voe_platform_file_read(MAP_COPY_ON_DISK, scratch, &size, NULL);
+	bytes = voe_platform_file_read(file, scratch, &size, NULL);
 	VOE_TEST_CHECK(bytes != NULL);
 	if (bytes != NULL)
 		VOE_TEST_CHECK(voe_assets_image_cooked_read(
-			bytes, size, &image, &kind, &key, &used));
+			bytes, size, &image, &kept, &key, &used));
 	VOE_TEST_CHECK_INT(image.levels,
 			   voe_assets_image_level_count(PICTURE_SIDE,
 							PICTURE_SIDE));
 	VOE_TEST_CHECK_INT(image.width, PICTURE_SIDE);
-	VOE_TEST_CHECK(kind == VOE_ASSETS_IMAGE_COLOUR);
+	VOE_TEST_CHECK_INT(image.format, format);
+	VOE_TEST_CHECK(kept == kind);
 	VOE_TEST_CHECK(key == stamp);
 	voe_base_arena_rewind(scratch, mark);
+}
+
+// The three map copies read back BC7, the normal's BC5, keyed `stamp`.
+static void map_copies_check(uint64_t stamp, voe_base_arena *scratch)
+{
+	map_copy_check(MAP_COPY_ON_DISK, VOE_ASSETS_IMAGE_COLOUR,
+		       VOE_ASSETS_IMAGE_BC7, stamp, scratch);
+	map_copy_check(NORMAL_COPY_ON_DISK, VOE_ASSETS_IMAGE_NORMAL,
+		       VOE_ASSETS_IMAGE_BC5, stamp, scratch);
+	map_copy_check(DATA_COPY_ON_DISK, VOE_ASSETS_IMAGE_DATA,
+		       VOE_ASSETS_IMAGE_BC7, stamp, scratch);
+}
+
+static void materials_write_the_map_copy(const voe_ecs_world *world,
+					 voe_render_device *device,
+					 voe_base_arena *scratch)
+{
+	uint64_t stamp = png_write(scratch);
+
+	remove(MAP_COPY_ON_DISK);
+	remove(NORMAL_COPY_ON_DISK);
+	remove(DATA_COPY_ON_DISK);
+	store_gone(store_shaded(world, device, scratch, false), device);
+	map_copies_check(stamp, scratch);
 }
 
 static void material_load_writes_no_copy(voe_render_device *device,
@@ -419,7 +452,9 @@ static void stale_counts_missing_copies(voe_base_arena *scratch)
 	(void)png_write(scratch);
 	remove(COPY_ON_DISK);
 	remove(MAP_COPY_ON_DISK);
-	VOE_TEST_CHECK_INT(stale(scratch), 2);
+	remove(NORMAL_COPY_ON_DISK);
+	remove(DATA_COPY_ON_DISK);
+	VOE_TEST_CHECK_INT(stale(scratch), 4);
 }
 
 static void cook_makes_them_and_stale_is_then_0(voe_base_arena *scratch)
@@ -433,9 +468,36 @@ static void cook_makes_them_and_stale_is_then_0(voe_base_arena *scratch)
 	VOE_TEST_CHECK(voe_game_models_cook(FOLDER, GLBS, 1, &MATERIALS,
 					    scratch, &progress));
 	VOE_TEST_CHECK(copy_key().glb == glb);
-	VOE_TEST_CHECK(map_copy_key() == png);
-	VOE_TEST_CHECK_INT(atomic_load(&progress.done), 2);
-	VOE_TEST_CHECK_INT(atomic_load(&progress.total), 2);
+	map_copies_check(png, scratch);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.done), 4);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.total), 4);
+	VOE_TEST_CHECK_INT(stale(scratch), 0);
+}
+
+// The colour copy rewritten with the version before 0477's, 1, at its head's
+// fifth byte: stale until a cook makes it again. Scratch rewound.
+static void an_old_map_copy_counts_stale(voe_base_arena *scratch)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+	voe_game_progress progress = { 0 };
+	const uint32_t old = 1;
+	const uint8_t *bytes;
+	uint8_t *copy;
+	size_t size = 0;
+
+	bytes = voe_platform_file_read(MAP_COPY_ON_DISK, scratch, &size, NULL);
+	VOE_TEST_CHECK(bytes != NULL && size >= VOE_ASSETS_IMAGE_COOKED_HEAD);
+	if (bytes != NULL && size >= VOE_ASSETS_IMAGE_COOKED_HEAD) {
+		copy = voe_base_arena_push(scratch, size);
+		memcpy(copy, bytes, size);
+		memcpy(copy + 4, &old, sizeof(old));
+		VOE_TEST_CHECK(voe_platform_file_write(MAP_COPY_ON_DISK, copy,
+						       size, NULL));
+	}
+	voe_base_arena_rewind(scratch, mark);
+	VOE_TEST_CHECK_INT(stale(scratch), 1);
+	VOE_TEST_CHECK(voe_game_models_cook(FOLDER, GLBS, 1, &MATERIALS,
+					    scratch, &progress));
 	VOE_TEST_CHECK_INT(stale(scratch), 0);
 }
 
@@ -464,6 +526,8 @@ static void remove_files(void)
 	remove(PICTURE_ON_DISK);
 	remove(COPY_ON_DISK);
 	remove(MAP_COPY_ON_DISK);
+	remove(NORMAL_COPY_ON_DISK);
+	remove(DATA_COPY_ON_DISK);
 	remove(PICTURES_FOLDER_ON_DISK);
 	remove(MODELS_FOLDER_ON_DISK);
 	remove(LEVELS_ON_DISK);
@@ -508,6 +572,7 @@ int main(void)
 							   scratch);
 	stale_counts_missing_copies(scratch);
 	cook_makes_them_and_stale_is_then_0(scratch);
+	an_old_map_copy_counts_stale(scratch);
 	stale_counts_a_changed_glb(scratch);
 	cook_stops_when_asked(scratch);
 	remove_files();

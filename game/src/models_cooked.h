@@ -31,11 +31,17 @@
 // the one-material load as watch, materials_cooked (the game) as
 // update_cooked (game/src/models_materials.c).
 //
+// COPIES ARE COMPRESSED (0477 points 1, 3 and 8): a model's pictures and a
+// map's chain are BC7 blocks, BC5 for a normal map, so every caller that
+// cooks one writes and uploads blocks; a copy of the older RGBA8 version is
+// stale and made again.
+//
 // Constraints: a take reads the whole copy onto the caller's arena, the
 // prepare's arrays or the map's pixels pointing into it, so the arena must
-// outlive the put. A save pushes about twice the pictures' bytes onto its
-// arena. Neither says a line for a copy that is missing or broken; a failed
-// write is one line on stderr.
+// outlive the put. A map's save pushes its chain, then the blocks and the
+// copy, a quarter of the chain each: about twice the picture's RGBA8 bytes.
+// Neither says a line for a copy that is missing or broken; a failed write
+// is one line on stderr.
 #pragma once
 
 #include <3d/model_cooked.h>
@@ -117,12 +123,20 @@ const char *voe_game_models_picture_file(const char *folder, const char *path,
 						voe_base_arena *arena,
 						voe_assets_image *image);
 
-// `image`, one level, given its full chain of `kind` on `arena` and returned;
-// that made a copy keyed `stamp` and written atomically with its folders
-// made, a failed write a line on stderr under the caller's subject.
+// `image`, one level, given its full chain of `kind` on `arena`, compressed
+// by `kind` (0477) and returned, for the caller to upload; that written as
+// the map's copy by voe_game_models_picture_write.
 voe_assets_image voe_game_models_picture_save(const char *folder,
 					      const char *path,
 					      const voe_assets_image *image,
 					      voe_assets_image_kind kind,
 					      uint64_t stamp,
 					      voe_base_arena *arena);
+
+// `chain`, as given, made the map `path`'s copy of `kind` keyed `stamp` on
+// `arena` and written atomically with its folders made; a failed write is a
+// line on stderr under the caller's subject.
+void voe_game_models_picture_write(const char *folder, const char *path,
+				   const voe_assets_image *chain,
+				   voe_assets_image_kind kind, uint64_t stamp,
+				   voe_base_arena *arena);
