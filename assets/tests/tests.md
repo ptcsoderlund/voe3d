@@ -24,6 +24,9 @@ belongs to.
 - `image_levels.c` — chain lengths as Vulkan counts them, a constant's mips
   kept constant for each kind, a checker halved to linear grey, and the cooked
   form round-tripped, refused when broken or short, and its key read alone.
+- `image_bc7.c` — a hand-built block decoded to its texels, and one colour,
+  two colours, a gradient and a cut-out's alpha round-tripped within bounds,
+  the same texels always the same bytes.
 - `json.c` — a document read back as its values, every shape of broken input
   a tolerant reader would let past, and too many values or too deep refused as
   limits.

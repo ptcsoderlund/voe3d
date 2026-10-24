@@ -38,6 +38,11 @@ of them is internal to this folder rather than reachable from outside it.
 - `image_levels.c` — a picture's level count and size, its mip chain made
   level by level, and the cooked form: head and levels written, the key read
   from the head alone, and a read with no copy that bounds every head field.
+- `image_blocks.h` — one 4×4 block of a GPU-compressed texture, encoded and
+  decoded, internal to this folder. Its header says why BC7 is mode 6 alone and
+  why colour is encoded as the bytes are stored.
+- `image_bc7.c` — BC7 mode 6: endpoints along the principal axis, both p-bits
+  tried, nearest indices and one least-squares refit, and the decode a card does.
 - `sectioned.c` — two passes over one line lexer. Its header says why the
   caller states no capacity here where the JSON reader demands one, and why
   there is nothing for rule 14 to worry about.
