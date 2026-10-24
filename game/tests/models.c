@@ -450,19 +450,22 @@ static void check_materials(voe_ecs_world *world, voe_render_device *device,
 	// ---- a shape naming a table material: loaded, a material
 	shade(world, MATERIAL);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, &NO_PARTS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch, NULL,
+					     NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	VOE_TEST_CHECK(material_loaded(models));
 
 	// ---- a path not in the table: one failure, named, then none
 	shade(world, NO_MATERIAL);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, &NO_PARTS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch, NULL,
+					     NULL);
 	VOE_TEST_CHECK_INT(failures.count, 1);
 	VOE_TEST_CHECK(failures.first != NULL &&
 		       strcmp(failures.first, NO_MATERIAL) == 0);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, &NO_PARTS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch, NULL,
+					     NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 
 	// ---- the material on disk as text: a watch leaves it alone
@@ -491,7 +494,7 @@ static void broken_load(voe_render_device *device, voe_base_arena *scratch)
 	voe_base_report_error_clear();
 	VOE_TEST_CHECK(!voe_game_models_material_load(models, device, FOLDER,
 						      &MATERIALS.materials[3],
-						      0, scratch, &error));
+						      0, scratch, NULL, &error));
 	VOE_TEST_CHECK(error != VOE_BASE_OK);
 	entry = voe_3d_models_find(models, BROKEN_MATERIAL);
 	VOE_TEST_CHECK(entry != NULL && !entry->loaded);
@@ -547,7 +550,8 @@ static void check_layers(voe_ecs_world *world, voe_render_device *device,
 	failures = voe_game_models_landscapes(models, device, &LAYERED, scratch);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, &NO_PARTS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch, NULL,
+					     NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	VOE_TEST_CHECK(holds_material(models, MATERIAL));
 	VOE_TEST_CHECK(holds_material(models, GREY_MATERIAL));
@@ -559,7 +563,8 @@ static void check_layers(voe_ecs_world *world, voe_render_device *device,
 					      scratch);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, &NO_PARTS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch, NULL,
+					     NULL);
 	VOE_TEST_CHECK_INT(failures.count, 1);
 	VOE_TEST_CHECK(failures.first != NULL &&
 		       strcmp(failures.first, NO_MATERIAL) == 0);
@@ -590,21 +595,24 @@ static void check_parts(voe_ecs_world *world, voe_render_device *device,
 					  NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, &PARTS, scratch);
+					     &MATERIALS, &PARTS, scratch, NULL,
+					     NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	VOE_TEST_CHECK(wears(models, MATERIAL));
 	VOE_TEST_CHECK(material_loaded(models));
 
 	// ---- a table without the `.glb`: nothing worn
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, &NO_PARTS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch, NULL,
+					     NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	VOE_TEST_CHECK(wears(models, ""));
 
 	// ---- a material with an emission map: in the emissive slot
 	shade(world, GLOW_MATERIAL);
 	failures = voe_game_models_materials(world, models, device, FOLDER,
-					     &MATERIALS, &NO_PARTS, scratch);
+					     &MATERIALS, &NO_PARTS, scratch, NULL,
+					     NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	glow = voe_3d_models_find(models, GLOW_MATERIAL);
 	VOE_TEST_CHECK(glow != NULL && glow->loaded && glow->material);

@@ -26,6 +26,12 @@
 // and writes none.
 // materials_cooked_loads_a_copy_whose_png_is_garbage: a copy written, then
 // the PNG made garbage, the game's materials call loads from the copy, kept.
+// a_queued_map_draws_uncompressed: the colour copy gone, the materials call
+// with a queue leaves one texture uncompressed, one job waiting and no copy.
+// the_stepped_queue_writes_the_copy: stepped to its end, the copy is written;
+// loaded again, every texture is compressed and nothing waits.
+// progress_reads_compressing_textures: the colour copy gone, the call with a
+// progress leaves "Compressing textures" over one material.
 //
 // The editor's check before Play and Ship, on the `.glb` and the material:
 // stale_counts_missing_copies: all four copies gone, 4. cook_makes_them_and_
@@ -330,19 +336,23 @@ static void shade(voe_ecs_world *world)
 }
 
 // A new store the world's materials are loaded into, the game's way when
-// `cooked`, with no failure and MATERIAL loaded.
+// `cooked`, else with `queue`, reporting into `progress`, with no failure and
+// MATERIAL loaded.
 static voe_3d_models *store_shaded(const voe_ecs_world *world,
 				   voe_render_device *device,
-				   voe_base_arena *scratch, bool cooked)
+				   voe_base_arena *scratch, bool cooked,
+				   voe_game_progress *progress,
+				   voe_game_compressing *queue)
 {
 	voe_3d_models *models = voe_3d_models_new();
 	voe_game_models_failures failures =
 		cooked ? voe_game_models_materials_cooked(world, models, device,
 							  FOLDER, &MATERIALS,
-							  &NO_PARTS, scratch) :
+							  &NO_PARTS, scratch,
+							  progress) :
 			 voe_game_models_materials(world, models, device, FOLDER,
 						   &MATERIALS, &NO_PARTS,
-						   scratch);
+						   scratch, progress, queue);
 	const voe_3d_model_entry *entry = voe_3d_models_find(models, MATERIAL);
 
 	VOE_TEST_CHECK_INT(failures.count, 0);
@@ -399,7 +409,8 @@ static void materials_write_the_map_copy(const voe_ecs_world *world,
 	remove(MAP_COPY_ON_DISK);
 	remove(NORMAL_COPY_ON_DISK);
 	remove(DATA_COPY_ON_DISK);
-	store_gone(store_shaded(world, device, scratch, false), device);
+	store_gone(store_shaded(world, device, scratch, false, NULL, NULL),
+		   device);
 	map_copies_check(stamp, scratch);
 }
 
@@ -412,7 +423,7 @@ static void material_load_writes_no_copy(voe_render_device *device,
 	remove(MAP_COPY_ON_DISK);
 	VOE_TEST_CHECK(voe_game_models_material_load(models, device, FOLDER,
 						     &MATERIALS.materials[0], 0,
-						     scratch, &error));
+						     scratch, NULL, &error));
 	VOE_TEST_CHECK(!voe_platform_file_exists(MAP_COPY_ON_DISK));
 	store_gone(models, device);
 }
@@ -427,14 +438,91 @@ materials_cooked_loads_a_copy_whose_png_is_garbage(const voe_ecs_world *world,
 
 	// ---- a copy written by the materials call
 	remove(MAP_COPY_ON_DISK);
-	store_gone(store_shaded(world, device, scratch, false), device);
+	store_gone(store_shaded(world, device, scratch, false, NULL, NULL),
+		   device);
 	VOE_TEST_CHECK(map_copy_key() == stamp);
 
 	// ---- the PNG garbage: the game's call loads the copy, kept
 	VOE_TEST_CHECK(voe_platform_file_write(PICTURE_ON_DISK, GARBAGE,
 					       sizeof(GARBAGE) - 1, NULL));
-	store_gone(store_shaded(world, device, scratch, true), device);
+	store_gone(store_shaded(world, device, scratch, true, NULL, NULL),
+		   device);
 	VOE_TEST_CHECK(map_copy_key() == stamp);
+}
+
+// How many of the device's material textures are not compressed.
+static uint32_t uncompressed(const voe_render_device *device)
+{
+	voe_render_texture_memory memory =
+		voe_render_texture_memory_smooth(device);
+
+	VOE_TEST_CHECK(memory.compressed <= memory.count);
+	return memory.count - memory.compressed;
+}
+
+static void a_queued_map_draws_uncompressed(const voe_ecs_world *world,
+					    voe_render_device *device,
+					    voe_base_arena *scratch,
+					    voe_game_compressing *queue)
+{
+	voe_3d_models *models;
+
+	// ---- every copy written for a fresh PNG, then the colour's gone
+	(void)png_write(scratch);
+	remove(MAP_COPY_ON_DISK);
+	remove(NORMAL_COPY_ON_DISK);
+	remove(DATA_COPY_ON_DISK);
+	store_gone(store_shaded(world, device, scratch, false, NULL, NULL),
+		   device);
+	remove(MAP_COPY_ON_DISK);
+
+	// ---- with the queue: the colour map uncompressed, one job, no copy
+	models = store_shaded(world, device, scratch, false, NULL, queue);
+	VOE_TEST_CHECK_INT(uncompressed(device), 1);
+	VOE_TEST_CHECK_INT(voe_game_compressing_waiting(queue), 1);
+	VOE_TEST_CHECK(!voe_platform_file_exists(MAP_COPY_ON_DISK));
+	store_gone(models, device);
+}
+
+static void the_stepped_queue_writes_the_copy(const voe_ecs_world *world,
+					      voe_render_device *device,
+					      voe_base_arena *scratch,
+					      voe_game_compressing *queue)
+{
+	voe_3d_models *models;
+	uint64_t stamp = 0;
+
+	VOE_TEST_CHECK(voe_platform_file_stamp(PICTURE_ON_DISK, &stamp));
+	// A 16×16 chain is a few dozen blocks, one run of a step.
+	for (uint32_t i = 0; i < 64 && voe_game_compressing_waiting(queue) > 0;
+	     i++)
+		(void)voe_game_compressing_step(queue, 0.002, scratch);
+	VOE_TEST_CHECK_INT(voe_game_compressing_waiting(queue), 0);
+	map_copies_check(stamp, scratch);
+
+	// ---- loaded again, with the queue: every map from its copy
+	models = store_shaded(world, device, scratch, false, NULL, queue);
+	VOE_TEST_CHECK(voe_render_texture_memory_smooth(device).count > 0);
+	VOE_TEST_CHECK_INT(uncompressed(device), 0);
+	VOE_TEST_CHECK_INT(voe_game_compressing_waiting(queue), 0);
+	store_gone(models, device);
+}
+
+static void progress_reads_compressing_textures(const voe_ecs_world *world,
+						voe_render_device *device,
+						voe_base_arena *scratch)
+{
+	voe_game_progress progress = { 0 };
+	const char *phase;
+
+	remove(MAP_COPY_ON_DISK);
+	store_gone(store_shaded(world, device, scratch, false, &progress, NULL),
+		   device);
+	phase = atomic_load(&progress.phase);
+	VOE_TEST_CHECK(phase != NULL &&
+		       strcmp(phase, "Compressing textures") == 0);
+	VOE_TEST_CHECK_INT(atomic_load(&progress.total), 1);
+	VOE_TEST_CHECK(voe_platform_file_exists(MAP_COPY_ON_DISK));
 }
 
 // The `.glb`s the editor's check is given.
@@ -542,10 +630,11 @@ int main(void)
 	voe_base_arena *scratch = voe_base_arena_new(1 << 16);
 	voe_platform_size size = { 16, 16 };
 	voe_base_error error = VOE_BASE_OK;
+	voe_game_compressing *queue = voe_game_compressing_new();
 	voe_render_device *device;
 	voe_ecs_world *world;
 
-	device = voe_render_device_new_headless(arena, size, CAPACITIES, &error);
+	device =voe_render_device_new_headless(arena, size, CAPACITIES, &error);
 	if (device == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
 		    error == VOE_BASE_ERROR_UNSUPPORTED)
@@ -570,6 +659,9 @@ int main(void)
 	material_load_writes_no_copy(device, scratch);
 	materials_cooked_loads_a_copy_whose_png_is_garbage(world, device,
 							   scratch);
+	a_queued_map_draws_uncompressed(world, device, scratch, queue);
+	the_stepped_queue_writes_the_copy(world, device, scratch, queue);
+	progress_reads_compressing_textures(world, device, scratch);
 	stale_counts_missing_copies(scratch);
 	cook_makes_them_and_stale_is_then_0(scratch);
 	an_old_map_copy_counts_stale(scratch);
@@ -578,6 +670,7 @@ int main(void)
 	remove_files();
 	voe_render_device_destroy(device);
 released:
+	voe_game_compressing_destroy(queue);
 	voe_base_arena_destroy(scratch);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
