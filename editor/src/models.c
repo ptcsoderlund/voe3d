@@ -13,9 +13,13 @@
 // that fails is said in the session's notice, the kept line whole; a landscape
 // re-read names its path as the subject. A map with no fresh copy is queued
 // and compressed a step a frame outside a wait, inline under one, every row
-// naming a written map loaded again at the next update.
+// naming a written map loaded again at the next update. Once a second, after
+// the models' watch, the maps the materials name are stamped, and the rows
+// naming a changed one load again, the queue compressing it (0477 point 5).
 // Between frames the update and the watch load whole (0459 point 3).
 #include "models.h"
+
+#include "map_watch.h"
 
 #include <base/assert.h>
 #include <base/error.h>
@@ -35,7 +39,6 @@
 
 // How long the queue compresses a frame, between frames (0477 point 3).
 #define COMPRESS_SECONDS 0.002
-
 struct voe_editor_models {
 	voe_3d_models *store;
 	// The maps uploaded uncompressed outside a wait, compressed a step a
@@ -52,6 +55,9 @@ struct voe_editor_models {
 	char *folder;
 	// The frame clock's reading at the last watch.
 	double looked;
+	// The materials' maps' stamps at the last watch; cleared on a
+	// different folder.
+	voe_editor_map_watch maps;
 	// A landscape whose size was written, to load again at the next
 	// update, the store's own copy; NULL for none.
 	char *resized;
@@ -112,6 +118,7 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 		return;
 	voe_3d_models_clear(models->store, device);
 	voe_game_compressing_clear(models->compressing);
+	voe_editor_map_watch_clear(&models->maps);
 	free(models->folder);
 	models->folder = NULL;
 	free(models->resized);
@@ -195,8 +202,8 @@ static void material_reload(voe_editor_models *models,
 }
 
 // Every held material whose row names `map` in any of its four map slots
-// waits to be loaded again, from the copy just written. A row the store does
-// not hold loads from the copy when first named.
+// waits to be loaded again, from the copy just written or the map changed on
+// disk. A row the store does not hold loads when first named.
 static void reload_naming(voe_editor_models *models, const char *map)
 {
 	VOE_BASE_ASSERT(models != NULL && models->materials != NULL,
@@ -246,16 +253,23 @@ void voe_editor_models_update(voe_editor_models *models,
 		    voe_game_models_update(session->project->world,
 					   models->store, device,
 					   models->folder, scratch, progress));
+	table = voe_editor_materials_table(models->materials);
 	// The watch before the materials, so a model it reloads is given its
-	// parts before it is drawn.
+	// parts before it is drawn, and a changed map's rows load this update.
 	if (now - models->looked >= WATCH_SECONDS) {
+		voe_editor_map_changes changed;
+		uint32_t count;
+
 		models->looked = now;
 		voe_base_report_error_clear();
 		say_failure(&session->notice,
 			    voe_game_models_watch(models->store, device,
 						  models->folder, scratch));
+		count = voe_editor_map_watch_look(&models->maps, models->folder,
+						  table, &changed, scratch);
+		for (uint32_t i = 0; i < count; i++)
+			reload_naming(models, changed.paths[i]);
 	}
-	table = voe_editor_materials_table(models->materials);
 	parts = voe_editor_parts_table(models->parts);
 	voe_base_report_error_clear();
 	// Under a splash a map is compressed inline and shows as progress; the

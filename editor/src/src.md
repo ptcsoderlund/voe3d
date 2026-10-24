@@ -367,9 +367,13 @@ carries it out.
   named by its `.glb`, read when the materials are.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
-- `models.c` — the editor's one model store, filled and watched between frames, and its landscapes
-  with their foliage, kinds' looks, layers' growth and materials edited, its map queue stepped
-  and the rows naming a written map reloaded.
+- `models.c` — the editor's one model store, filled and watched between frames, its materials'
+  maps watched too, and its landscapes with their foliage, kinds' looks, layers' growth and
+  materials edited, its map queue stepped and the rows naming a written or changed map reloaded.
+- `map_watch.h` — the maps the project's materials name, each one's stamp at the last look, a
+  changed one reported once a second so its materials load again; the editor's, not `game`'s.
+- `map_watch.c` — the look's marks, one stamp a map under the folder, a new path noted, a change
+  reported while room is left, and the unnamed paths let go.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.
