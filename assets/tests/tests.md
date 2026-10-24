@@ -23,7 +23,8 @@ belongs to.
   leaning normals averaged to a unit one, and data averaged as stored.
 - `image_levels.c` — chain lengths as Vulkan counts them, a constant's mips
   kept constant for each kind, a checker halved to linear grey, and the cooked
-  form round-tripped, refused when broken or short, and its key read alone.
+  form round-tripped as RGBA8, BC7 and BC5, refused when broken, short, of an
+  unknown format or the old version, and its key read alone.
 - `image_bc7.c` — a hand-built block decoded to its texels, and one colour,
   two colours, a gradient and a cut-out's alpha round-tripped within bounds,
   the same texels always the same bytes.

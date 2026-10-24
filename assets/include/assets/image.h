@@ -252,7 +252,12 @@ voe_assets_image voe_assets_image_compress(voe_base_arena *arena,
 // THE COOKED FORM (0470 point 2): a head, then every level the picture holds,
 // the total padded to 16 so a containing file can hold several in a row,
 // each starting aligned. The head is magic, version, key, kind, width,
-// height and levels, in that order.
+// height, levels and format, in that order, four bytes each but the key's
+// eight, then zeros to its size.
+//
+// A COPY MAY HOLD BLOCKS (0477 point 8): the format says whether the levels
+// are RGBA8 texels or BC7 or BC5 blocks, and the version rose with it, so
+// every copy made before it is stale.
 //
 // IT IS NATIVE-ENDIAN AND FOR THIS MACHINE'S CACHE ONLY. A cooked picture is a
 // copy laid out as it sits in memory so a load is a read and a pointer (0454
@@ -264,9 +269,10 @@ voe_assets_image voe_assets_image_compress(voe_base_arena *arena,
 // again from its source; nothing tries to read an older layout.
 //
 // The head's size in bytes, a multiple of 16.
-#define VOE_ASSETS_IMAGE_COOKED_HEAD 32
+#define VOE_ASSETS_IMAGE_COOKED_HEAD 48
 
-// `image`, with every level it holds, as a cooked picture in `arena`.
+// `image`, with every level it holds and its format, as a cooked picture in
+// `arena`.
 // `key` is the caller's, kept in the head to tell a stale copy from a fresh
 // one (0470: the source's stamp). Cannot fail; no pixels is the caller's bug
 // and asserts.
@@ -282,14 +288,14 @@ voe_assets_bytes voe_assets_image_cooked_write(voe_base_arena *arena,
 					       uint64_t *key);
 
 // A cooked picture read with no copy: `image->pixels` points into `bytes`,
-// which must outlive it and is read through it, never written. `*used` is
-// the padded size, so the next picture
-// in a containing file starts at `bytes + *used`.
+// which must outlive it and is read through it, never written, and
+// `image->format` is the head's. `*used` is the padded size, so the next
+// picture in a containing file starts at `bytes + *used`.
 //
 // False, and every out-parameter untouched, when the magic or version is not
-// this one's, the kind is unknown, a side is zero or past
+// this one's, the kind or format is unknown, a side is zero or past
 // VOE_ASSETS_IMAGE_MAX_SIDE, the levels are more than a full chain, or `size`
-// is short of the padded total. No line is printed: a stale or broken copy is
+// is short of the padded total, the levels sized by the format. No line is printed: a stale or broken copy is
 // made again from its source, not reported.
 [[nodiscard]] bool voe_assets_image_cooked_read(const uint8_t *bytes,
 						size_t size,

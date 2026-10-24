@@ -3,16 +3,17 @@
 // src/image_average.h, and the cooked form written, its key read from the head
 // alone, and read back with no copy.
 //
-// THE HEAD IS SEVEN FIELDS AT FIXED OFFSETS, copied in and out with memcpy so
+// THE HEAD IS EIGHT FIELDS AT FIXED OFFSETS, copied in and out with memcpy so
 // nothing depends on how a struct would be padded or on `bytes` being aligned:
 //   0 magic   4 version   8 key (8 bytes)   16 kind   20 width   24 height
-//   28 levels, then level 0 at 32.
-// Every field is native-endian (the header says why).
+//   28 levels   32 format, zeros to 48, then level 0 at 48.
+// Every field is native-endian (the header says why). Version 2 added the
+// format (0477 point 8).
 //
-// THE READ TRUSTS NOTHING IN THE HEAD UNTIL IT IS BOUNDED. A side is held to
-// VOE_ASSETS_IMAGE_MAX_SIDE and the levels to a full chain before any size is
-// worked out, so the padded total cannot overflow and a damaged count cannot
-// send `pixels` past the end of `bytes`.
+// THE READ TRUSTS NOTHING IN THE HEAD UNTIL IT IS BOUNDED. The format is held
+// to a known one, a side to VOE_ASSETS_IMAGE_MAX_SIDE and the levels to a full
+// chain before any size is worked out, so the padded total cannot overflow and
+// a damaged count cannot send `pixels` past the end of `bytes`.
 #include "image_average.h"
 
 #include <base/assert.h>
@@ -21,7 +22,7 @@
 
 // "VOEP" in a little-endian machine's bytes; only equality matters.
 #define COOKED_MAGIC 0x50454f56u
-#define COOKED_VERSION 1u
+#define COOKED_VERSION 2u
 
 #define AT_MAGIC 0
 #define AT_VERSION 4
@@ -30,8 +31,9 @@
 #define AT_WIDTH 20
 #define AT_HEIGHT 24
 #define AT_LEVELS 28
+#define AT_FORMAT 32
 
-static_assert(VOE_ASSETS_IMAGE_COOKED_HEAD == AT_LEVELS + 4 &&
+static_assert(VOE_ASSETS_IMAGE_COOKED_HEAD == 48 &&
 		      VOE_ASSETS_IMAGE_COOKED_HEAD % 16 == 0,
 	      "the cooked head is its fields and keeps level 0 aligned");
 
@@ -116,20 +118,26 @@ voe_assets_bytes voe_assets_image_cooked_write(voe_base_arena *arena,
 					       voe_assets_image_kind kind,
 					       uint64_t key)
 {
-	// The key's two words are filled after, by memcpy at AT_KEY.
-	const uint32_t head[8] = { COOKED_MAGIC,
-				   COOKED_VERSION,
-				   0,
-				   0,
-				   (uint32_t)kind,
-				   image->width,
-				   image->height,
-				   image->levels > 1 ? image->levels : 1 };
+	// The key's two words are filled after, by memcpy at AT_KEY; the words
+	// past the format stay zero.
+	const uint32_t head[VOE_ASSETS_IMAGE_COOKED_HEAD / 4] = {
+		COOKED_MAGIC,
+		COOKED_VERSION,
+		0,
+		0,
+		(uint32_t)kind,
+		image->width,
+		image->height,
+		image->levels > 1 ? image->levels : 1,
+		(uint32_t)image->format
+	};
 	const size_t size = voe_assets_image_size(image);
 	voe_assets_bytes out;
 
 	VOE_BASE_ASSERT(image->pixels != NULL, "a picture with no pixels cooked");
 	VOE_BASE_ASSERT(kind <= VOE_ASSETS_IMAGE_DATA, "a picture of no kind cooked");
+	VOE_BASE_ASSERT(image->format <= VOE_ASSETS_IMAGE_BC5,
+			"a picture of no format cooked");
 	out.count = padded(VOE_ASSETS_IMAGE_COOKED_HEAD + size);
 	out.bytes = voe_base_arena_push(arena, out.count);
 	memcpy(out.bytes, head, sizeof(head));
@@ -156,37 +164,39 @@ bool voe_assets_image_cooked_read(const uint8_t *bytes, size_t size,
 				  voe_assets_image_kind *kind, uint64_t *key,
 				  size_t *used)
 {
-	uint32_t found_kind, width, height, levels;
+	uint32_t found_kind, format;
+	voe_assets_image found;
 	uint64_t found_key;
 	size_t total;
 
 	if (!voe_assets_image_cooked_key(bytes, size, &found_key))
 		return false;
 	found_kind = read_u32(bytes + AT_KIND);
-	width = read_u32(bytes + AT_WIDTH);
-	height = read_u32(bytes + AT_HEIGHT);
-	levels = read_u32(bytes + AT_LEVELS);
-	if (found_kind > VOE_ASSETS_IMAGE_DATA || width < 1 || height < 1 ||
-	    width > VOE_ASSETS_IMAGE_MAX_SIDE ||
-	    height > VOE_ASSETS_IMAGE_MAX_SIDE || levels < 1 ||
-	    levels > voe_assets_image_level_count(width, height))
+	format = read_u32(bytes + AT_FORMAT);
+	// `pixels` is not const in the picture type; the caller only reads it,
+	// so the const is dropped through an integer, not cast away silently.
+	found = (voe_assets_image){
+		.width = read_u32(bytes + AT_WIDTH),
+		.height = read_u32(bytes + AT_HEIGHT),
+		.pixels = (uint8_t *)(uintptr_t)(bytes +
+						 VOE_ASSETS_IMAGE_COOKED_HEAD),
+		.levels = read_u32(bytes + AT_LEVELS),
+		.format = (voe_assets_image_format)format,
+	};
+	if (found_kind > VOE_ASSETS_IMAGE_DATA ||
+	    format > VOE_ASSETS_IMAGE_BC5 || found.width < 1 ||
+	    found.height < 1 || found.width > VOE_ASSETS_IMAGE_MAX_SIDE ||
+	    found.height > VOE_ASSETS_IMAGE_MAX_SIDE || found.levels < 1 ||
+	    found.levels > voe_assets_image_level_count(found.width, found.height))
 		return false;
 	total = padded(VOE_ASSETS_IMAGE_COOKED_HEAD +
-		       chain_size(width, height, levels));
+		       voe_assets_image_size(&found));
 	if (size < total)
 		return false;
 
-	// `pixels` is not const in the picture type; the caller only reads it,
-	// so the const is dropped through an integer, not cast away silently.
 	*kind = (voe_assets_image_kind)found_kind;
 	*key = found_key;
-	*image = (voe_assets_image){
-		.width = width,
-		.height = height,
-		.pixels = (uint8_t *)(uintptr_t)(bytes +
-						 VOE_ASSETS_IMAGE_COOKED_HEAD),
-		.levels = levels,
-	};
+	*image = found;
 	*used = total;
 	return true;
 }
