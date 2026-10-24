@@ -196,8 +196,8 @@ again, or to find where a claim that has started failing is written down.
   going stale when its `.glb` or version changes, each level's triangles counted, and a view's level
   and pixel share chosen by its screen size; needs no graphics card.
 - `model_cooked.c` — that a prepared sphere written and read back keeps its bake, levels, sphere,
-  flags and edges, mips its picture's full chain, gives its key back and is refused at another
-  version. Needs no graphics card.
+  flags and edges, mips its pictures' full chains as BC7 colour and metal-roughness and BC5 normal,
+  gives its key back and is refused at another version or the old one. Needs no graphics card.
 - `measure.c` — that two hand-built bakes measure 0 alike, a lift's height apart, √2 for a big
   quad's far corner either way, and 0.5 for one vertex lifted in a 32 × 32 grid. Needs no
   graphics card.
