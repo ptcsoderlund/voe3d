@@ -1,6 +1,7 @@
 // Images: bytes in, pixels out, and — for PNG — pixels in, bytes out. PNG and
 // JPEG, both written here (ADR-0023), and nothing fetched. A picture's mip
-// chain and its cooked form, the copy kept in the cache (0470), are here too.
+// chain, its BC7 or BC5 blocks (0477) and its cooked form, the copy kept in
+// the cache (0470), are here too.
 //
 // NOTHING HERE OPENS A FILE, IN EITHER DIRECTION, AND THAT IS A DECISION AND NOT
 // A GAP. platform owns files and now has a call that writes one, so this could
@@ -54,6 +55,14 @@
 // malformed: the file may be fine, and the artist is told to scale it down.
 #define VOE_ASSETS_IMAGE_MAX_SIDE 16384
 
+// How a picture's `pixels` are laid out. Zero is RGBA8, what every decoder
+// hands back and what a zeroed picture means.
+typedef enum {
+	VOE_ASSETS_IMAGE_RGBA8 = 0,
+	VOE_ASSETS_IMAGE_BC7,
+	VOE_ASSETS_IMAGE_BC5
+} voe_assets_image_format;
+
 // A decoded picture. `pixels` is width * height * 4 bytes of RGBA, row zero
 // first, and it lives in the arena that was passed to the decoder — so it is
 // freed by rewinding or destroying that arena and never one allocation at a
@@ -63,11 +72,15 @@
 // decoder hands back and what a zeroed picture means. n means n levels one
 // after another, level i being max(1, width >> i) × max(1, height >> i) RGBA8,
 // the way Vulkan sizes a mip chain (0470 point 3).
+//
+// A BC7 or BC5 picture's `pixels` are 16-byte blocks of 4×4 texels instead:
+// each level's ⌈w/4⌉ × ⌈h/4⌉, row by row, the levels back to back.
 typedef struct {
 	uint32_t width;
 	uint32_t height;
 	uint8_t *pixels;
 	uint32_t levels;
+	voe_assets_image_format format;
 } voe_assets_image;
 
 // Decode a PNG. False on failure, and `image` is untouched when it fails.
@@ -179,7 +192,7 @@ voe_assets_image voe_assets_image_fit(voe_base_arena *arena,
 uint32_t voe_assets_image_level_count(uint32_t width, uint32_t height);
 
 // The bytes of every level `image` holds, level 0 alone when `levels` is 0
-// or 1.
+// or 1: four a texel for RGBA8, sixteen a block for BC7 and BC5.
 size_t voe_assets_image_size(const voe_assets_image *image);
 
 // A copy of `image` with its full chain, in `arena` (0470 point 3).
@@ -199,6 +212,42 @@ size_t voe_assets_image_size(const voe_assets_image *image);
 voe_assets_image voe_assets_image_mips(voe_base_arena *arena,
 				       const voe_assets_image *image,
 				       voe_assets_image_kind kind);
+
+// GPU-COMPRESSED PICTURES (0477 points 1–3): one byte a texel, a quarter of
+// RGBA8, mips included. BC7 for colour and data, since it keeps alpha for a
+// cut-out and has an sRGB form; BC5 for a normal map, since each of x and y
+// gets eight levels of its own in a block and slopes stay smooth. A NORMAL
+// picture keeps x and y alone, and whoever reads it makes z again.
+//
+// The source is RGBA8 with any number of levels, and the blocks follow its
+// chain. A source already BC, or a run of blocks past the count, is the
+// caller's bug and asserts (rule 13).
+//
+// The format a picture of `kind` is compressed to: BC5 for NORMAL, else BC7.
+voe_assets_image_format voe_assets_image_blocks_format(voe_assets_image_kind kind);
+
+// The blocks over every level `image` holds, whatever its format.
+uint32_t voe_assets_image_block_count(const voe_assets_image *image);
+
+// The compressed picture's shape and room in `arena`: `source`'s sides and
+// levels, the format of `kind`, every block zeroed.
+voe_assets_image voe_assets_image_blocks_new(voe_base_arena *arena,
+					     const voe_assets_image *source,
+					     voe_assets_image_kind kind);
+
+// Blocks [first, first + count) of `target`, in chain order, encoded from
+// `source`, so a caller can spread the work across frames (0477 point 3).
+// `target` is what _blocks_new made for `source` and `kind`. An edge block's
+// missing texels repeat the nearest edge texel.
+void voe_assets_image_blocks_encode(const voe_assets_image *source,
+				    voe_assets_image_kind kind,
+				    voe_assets_image *target, uint32_t first,
+				    uint32_t count);
+
+// `source` compressed whole: _blocks_new, then every block encoded.
+voe_assets_image voe_assets_image_compress(voe_base_arena *arena,
+					   const voe_assets_image *source,
+					   voe_assets_image_kind kind);
 
 // THE COOKED FORM (0470 point 2): a head, then every level the picture holds,
 // the total padded to 16 so a containing file can hold several in a row,

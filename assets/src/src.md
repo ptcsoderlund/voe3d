@@ -43,6 +43,11 @@ of them is internal to this folder rather than reachable from outside it.
   why colour is encoded as the bytes are stored.
 - `image_bc7.c` — BC7 mode 6: endpoints along the principal axis, both p-bits
   tried, nearest indices and one least-squares refit, and the decode a card does.
+- `image_bc5.c` — BC5 as two BC4 blocks, red then green: both modes tried from
+  the channel's extent, the lesser error kept, and the decode a card does.
+- `image_blocks.c` — a picture's chain as BC7 or BC5 by its kind: block counts,
+  the compressed picture's room, and a run of blocks in chain order, an edge
+  block repeating the edge texel.
 - `sectioned.c` — two passes over one line lexer. Its header says why the
   caller states no capacity here where the JSON reader demands one, and why
   there is nothing for rule 14 to worry about.

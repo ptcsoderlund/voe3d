@@ -1,5 +1,6 @@
 // One 4×4 block of a GPU-compressed texture, both ways, internal to assets:
-// BC7 implemented in src/image_bc7.c. The encode is what the cook and the
+// BC7 implemented in src/image_bc7.c, BC5 in src/image_bc5.c. The encode is
+// what the cook and the
 // editor's queue run on the CPU (0477 point 2); the decode is what a card
 // does with the same 16 bytes, so a test can hold the encoder to what draws.
 //
@@ -17,7 +18,8 @@
 // map's blocks are sRGB, read as sRGB by the format the upload names, and a
 // data map's are numbers. The error the encoder minimises is in those bytes.
 //
-// Card 02 adds BC5 here, two BC4 blocks for a normal map's x and y.
+// BC5 is two BC4 blocks, red then green: a normal map's x and y, each with
+// eight levels of its own (0477 point 2). Blue and alpha are not kept.
 #pragma once
 
 #include <stdint.h>
@@ -28,3 +30,10 @@ void voe_assets_bc7_encode(const uint8_t rgba[64], uint8_t block[16]);
 
 // A mode 6 `block` as the sixteen texels a card decodes it to.
 void voe_assets_bc7_decode(const uint8_t block[16], uint8_t rgba[64]);
+
+// `rgba`'s red and green, sixteen texels, as one BC5 block. No allocation;
+// the same texels always give the same bytes.
+void voe_assets_bc5_encode(const uint8_t rgba[64], uint8_t block[16]);
+
+// A BC5 `block` as a card decodes it: red and green, blue 0, alpha 255.
+void voe_assets_bc5_decode(const uint8_t block[16], uint8_t rgba[64]);

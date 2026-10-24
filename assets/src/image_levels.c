@@ -76,6 +76,8 @@ uint32_t voe_assets_image_level_count(uint32_t width, uint32_t height)
 
 size_t voe_assets_image_size(const voe_assets_image *image)
 {
+	if (image->format != VOE_ASSETS_IMAGE_RGBA8)
+		return (size_t)voe_assets_image_block_count(image) * 16;
 	return chain_size(image->width, image->height,
 			  image->levels > 1 ? image->levels : 1);
 }
