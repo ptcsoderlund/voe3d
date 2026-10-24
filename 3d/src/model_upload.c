@@ -12,6 +12,7 @@
 // Every index here came out of a file, so each is checked where it reaches an
 // array rather than trusted from `assets` a folder away.
 #include "model_upload.h"
+#include "picture_upload.h"
 
 #include <base/assert.h>
 
@@ -22,25 +23,14 @@ static void wanted(bool *marks, uint32_t count, uint32_t index)
 		marks[index] = true;
 }
 
-// Uploads picture `i` in `kind` into `id` and lists it: with the levels it
-// carries, else SMOOTH and mipped on the GPU.
+// Uploads picture `i` in `kind` into `id` and lists it, in whichever shape it
+// came (picture_upload.h).
 static bool upload_picture(voe_render_device *device,
 			   const voe_assets_model *model, uint32_t i,
 			   voe_render_texture_kind kind, voe_render_texture *id,
 			   voe_3d_model_upload *out, voe_base_error *error)
 {
-	const voe_assets_image *image = &model->images[i];
-	const bool made =
-		image->levels > 1 ?
-			voe_render_texture_create_levels(
-				device, kind, image->width, image->height,
-				image->levels, image->pixels, id, error) :
-			voe_render_texture_create(device, kind,
-						  VOE_RENDER_SAMPLING_SMOOTH,
-						  image->width, image->height,
-						  image->pixels, id, error);
-
-	if (!made)
+	if (!voe_3d_picture_upload(device, &model->images[i], kind, id, error))
 		return false;
 	out->textures[out->texture_count++] = *id;
 	return true;
