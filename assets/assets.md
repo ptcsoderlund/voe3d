@@ -19,11 +19,10 @@ way out: a decoder takes a buffer and an encoder hands one back, since
   `[Section]` headers and `key=value` lines, handed back as text and never
   interpreted. Its header says why it is layer one of three and why comments
   are `//`.
-- `include/assets/landscape.h` — a `.landscape` file's text to a grid of up
-  to 2048 cells of heights in whole millimetres, up to eight material layers,
-  each point's paint weights and the foliage kinds, their base sizes and copies,
-  and back, and a
-  grid resampled bilinearly.
+- `include/assets/landscape.h` — a `.landscape` file's text to a grid of
+  heights, up to eight material layers, each point's paint weights, the
+  foliage kinds with each kind's look, each layer's growth of each kind and the
+  copies, and back, and a grid resampled bilinearly.
 - `include/assets/material.h` — a `.material` file's text to a shader, its
   factors, repeat and three map paths, and back. Its header says the defaults
   and why a missing key reads as one.

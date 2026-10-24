@@ -1,11 +1,20 @@
 // The Inspector's Layers section, under Sculpt on a thing that wears a loaded
 // landscape (0402 point 7): a "Layers" heading as Sculpt's, one row per layer
 // of the landscape's grid by its material's file name, the one being painted
-// drawn chosen, then "Drop a material to add a layer" while it holds fewer
-// than eight. Pressing a row chooses painting that layer with Sculpt's
-// sliders, also while SCATTER or ERASE is chosen (inspector_foliage.h) and no
-// row is lit; pressing it again chooses none. A `.material` dropped on a row
-// replaces that layer, on the last row adds one (assets_drag.h).
+// drawn chosen with its grow rows under it, then "Drop a material to add a
+// layer" while it holds fewer than eight. Pressing a row chooses painting
+// that layer with Sculpt's sliders, also while SCATTER or ERASE is chosen
+// (inspector_foliage.h) and no row is lit; pressing it again chooses none. A
+// `.material` dropped on a row replaces that layer, on the last row adds one
+// (assets_drag.h).
+//
+// THE GROW ROWS CHOOSE WHAT GROWS ON THE LAYER (0473 point 3): "Grows", then
+// per foliage kind a tick by its model's file name, and for a ticked one a
+// Density slider in copies per 100 m², 0.1 to 50. The choice is the layer
+// row's, saved with it, and a row given another material keeps it (0476 point
+// 2). The ticked kinds grow by themselves where the layer is painted, thick
+// where the paint is strong; each tick and each density is one undo step,
+// asked of sculpt.h's grow edit.
 //
 //     voe_editor_inspector_layers_forget(&scene->sculpt);        // frame opened
 //     voe_editor_inspector_layers_draw(ui, &scene->sculpt, store,
@@ -61,7 +70,8 @@ void voe_editor_inspector_layers_draw(voe_ui_context *ui,
 				      const voe_ecs_world *world,
 				      voe_ecs_entity entity);
 
-// After voe_ui_frame_end: a fired layer row chooses PAINT with that layer, or
-// none when it was the chosen one; each row's rectangle kept.
+// After voe_ui_frame_end: a fired tick or a changed Density slider asks the
+// chosen layer's growth of its kind; a fired layer row chooses PAINT with that
+// layer, or none when it was the chosen one; each row's rectangle kept.
 void voe_editor_inspector_layers_read(const voe_ui_context *ui,
 				      voe_editor_sculpt *sculpt);

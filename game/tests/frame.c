@@ -313,7 +313,7 @@ static void landscape_case(voe_app *app, voe_base_arena *arena,
 	const voe_game_landscapes table = {
 		(const voe_game_landscape[]){
 			{ LAND_PATH, 512.0f, LAND_CELLS, FLAT, NULL, 0, NULL,
-			  NULL, 0, NULL, 0, NULL } },
+			  NULL, 0, NULL, 0, NULL, NULL } },
 		1
 	};
 	voe_platform_size size = { WIDTH, HEIGHT };

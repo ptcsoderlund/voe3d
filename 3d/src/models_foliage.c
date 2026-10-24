@@ -1,16 +1,20 @@
 // The model store's foliage calls (3d/models_foliage.h): each finds a loaded
 // landscape's entry, hands its grid and its held placed transforms to
-// 3d/foliage.h, and marks the entry edited when a copy or a kind changed. A
-// scatter or erase that changed a copy, every put of copies, every kind set
-// and every changed kind size raise the store's `changes`, so the bounce
-// relights (0451 point 3); a kind size places that kind's copies again.
+// 3d/foliage.h, and marks the entry edited when a copy, a kind, a look or a
+// growth changed. A scatter or erase that changed a copy, every put of copies,
+// every kind set and every changed look or growth raise the store's
+// `changes`, so the bounce relights (0451 point 3); a new size places that
+// kind's copies again, and a new size, spread or growth remakes its grown
+// copies over the grid through models_landscape.c's regrow.
 //
 // Used by the editor: the scatter and erase brushes while a stroke is held,
-// the put for its undo step, the kind set for a dropped model; and by what
-// draws the copies, through _placed.
+// the put for its undo step, the kind set for a dropped model, the look and
+// growth sets for a kind's settings; and by what draws the copies, through
+// _placed and _grown.
 //
 // Constraints: a path is found by models_landscape.c's walk over the entries;
-// the placed transforms are models_landscape.c's, made at the load.
+// the placed transforms and grown copies are models_landscape.c's, made at
+// the load. A look or growth set remakes the whole grid for its kind.
 #include <3d/models_foliage.h>
 
 #include "models_store.h"
@@ -117,24 +121,48 @@ void voe_3d_models_landscape_kind_set(voe_3d_models *models, const char *path,
 			"a held kind or the next of sixteen");
 	memcpy(land->kinds[index], model, strlen(model) + 1);
 	if (index == land->kind_count) {
-		land->kind_sizes[index] = 0;
+		land->looks[index] = voe_assets_landscape_look_default();
+		for (uint32_t l = 0; l < VOE_ASSETS_LANDSCAPE_LAYERS; l++)
+			land->grows[l][index] = 0;
 		land->kind_count++;
 	}
 	models->entries[at].edited = true;
 	models->changes++;
 }
 
-// One walk of the copies, each of kind `index` placed again at the new size.
-void voe_3d_models_landscape_kind_size_set(voe_3d_models *models,
-					   const char *path, uint32_t index,
-					   uint16_t size)
+// Kind `kind` of entry `at` remade over the whole grid, the entry edited and
+// the store's changes raised.
+static void remade(voe_3d_models *models, uint32_t at, uint32_t kind)
+{
+	const voe_3d_model_entry *entry = &models->entries[at];
+	const uint32_t n = entry->landscape->cells + 1;
+
+	VOE_BASE_ASSERT(kind < entry->landscape->kind_count, "a held kind");
+	(void)voe_3d_models_regrow(entry->landscape, &models->held[at],
+				   entry->path,
+				   (voe_3d_landscape_rect){ 0, 0, n, n },
+				   1u << kind);
+	models->entries[at].edited = true;
+	models->changes++;
+}
+
+// One walk of the copies, each of kind `kind` placed again, when the size
+// moved; the grown remade when the size or a spread moved.
+void voe_3d_models_landscape_look_set(voe_3d_models *models, const char *path,
+				      uint32_t kind,
+				      voe_assets_landscape_look look)
 {
 	VOE_BASE_ASSERT(models != NULL && path != NULL,
-			"setting a kind's size needs a store and a path");
-	VOE_BASE_ASSERT(size == 0 ||
-				(size >= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN &&
-				 size <= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX),
-			"a kind size the file can hold");
+			"setting a kind's look needs a store and a path");
+	VOE_BASE_ASSERT((look.size == 0 ||
+			 (look.size >= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN &&
+			  look.size <= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX)) &&
+				look.size_vary <=
+					VOE_ASSETS_LANDSCAPE_SIZE_VARY_MAX &&
+				look.turn_vary <=
+					VOE_ASSETS_LANDSCAPE_TURN_VARY_MAX &&
+				look.tilt <= VOE_ASSETS_LANDSCAPE_TILT_MAX,
+			"a look the file can hold");
 	const uint32_t at = voe_3d_models_landscape_index(models, path);
 
 	if (at == VOE_3D_MODELS)
@@ -142,15 +170,67 @@ void voe_3d_models_landscape_kind_size_set(voe_3d_models *models,
 	voe_assets_landscape *land = models->entries[at].landscape;
 	voe_scene_transform *placed = models->held[at].placed;
 
-	VOE_BASE_ASSERT(index < land->kind_count, "a held kind");
-	if (land->kind_sizes[index] == size)
+	VOE_BASE_ASSERT(kind < land->kind_count, "a held kind");
+	const voe_assets_landscape_look was = land->looks[kind];
+	const bool sized = was.size != look.size;
+	const bool spread = was.size_vary != look.size_vary ||
+			    was.turn_vary != look.turn_vary ||
+			    was.tilt != look.tilt;
+
+	if (!sized && !spread && was.shadowless == look.shadowless)
 		return;
-	land->kind_sizes[index] = size;
-	for (uint32_t i = 0; i < land->copy_count; i++)
-		if (land->copies[i].kind == index)
+	land->looks[kind] = look;
+	for (uint32_t i = 0; sized && i < land->copy_count; i++)
+		if (land->copies[i].kind == kind)
 			placed[i] = voe_3d_foliage_place(land, land->copies[i]);
+	if (sized || spread) {
+		remade(models, at, kind);
+		return;
+	}
 	models->entries[at].edited = true;
 	models->changes++;
+}
+
+void voe_3d_models_landscape_grow_set(voe_3d_models *models, const char *path,
+				      uint32_t layer, uint32_t kind,
+				      uint16_t density)
+{
+	VOE_BASE_ASSERT(models != NULL && path != NULL,
+			"setting a growth needs a store and a path");
+	VOE_BASE_ASSERT(density <= VOE_ASSETS_LANDSCAPE_GROW_MAX,
+			"a density the file can hold");
+	const uint32_t at = voe_3d_models_landscape_index(models, path);
+
+	if (at == VOE_3D_MODELS)
+		return;
+	voe_assets_landscape *land = models->entries[at].landscape;
+
+	VOE_BASE_ASSERT(layer < land->layer_count && kind < land->kind_count,
+			"a held layer and kind");
+	if (land->grows[layer][kind] == density)
+		return;
+	land->grows[layer][kind] = density;
+	remade(models, at, kind);
+}
+
+voe_3d_models_grown voe_3d_models_landscape_grown(const voe_3d_models *models,
+						  const voe_3d_model_entry *entry)
+{
+	VOE_BASE_ASSERT(models != NULL, "grown copies need a store");
+	VOE_BASE_ASSERT(entry != NULL, "grown copies need an entry");
+
+	for (uint32_t i = 0; i < models->count; i++) {
+		if (&models->entries[i] != entry)
+			continue;
+		if (!entry->loaded || entry->landscape == NULL)
+			break;
+		return (voe_3d_models_grown){
+			.copies = models->held[i].grown,
+			.placed = models->held[i].grown_placed,
+			.count = models->held[i].grown_count,
+		};
+	}
+	return (voe_3d_models_grown){ 0 };
 }
 
 const voe_scene_transform *

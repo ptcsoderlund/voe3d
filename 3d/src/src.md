@@ -101,12 +101,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
   the level before in its band, and blended or fading ones held, a faded-out row and a landscape
   skipped, and a row the camera cannot see skipped and counted.
-- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part, rest and tier,
-  and the groups' solid and cast draws by tier, why a copy is sorted once a view, why rest groups
-  do not cast, and why the bounce sun maps draw every tier; internal.
-- `draw_foliage.c` — the foliage gathering: each drawn landscape row's copies given their level
-  and tier by the camera's and the suns' cascades' planes, counted, filled contiguously and
-  written as render instances in one call; then each group's instanced draw.
+- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part, rest, tier and
+  casts, and the groups' solid and cast draws, why a copy is sorted once a view, why rest groups
+  and a shadowless kind's do not cast, and why the bounce sun maps draw every tier; internal.
+- `draw_foliage.c` — the foliage gathering: each drawn landscape row's own then grown copies given
+  level and tier by the camera's and cascades' planes, a shadowless kind's seen or left out,
+  counted, filled and written as instances in one call; then each group's instanced draw.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended unless outside the pass's planes, and why one eye chooses the same nodes in
   every pass and the cull comes after; internal.
@@ -170,8 +170,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models.c` — the store's table of entries with an arena each, the `.glb` load as a prepare and
   a put that uploads each part with its blended twin and gives back what a failure made; the parts
   set; pictures on the quad, the dot and the water apart.
-- `models_store.h` — the store's internal table with its count of changes
-  the bounce relights by, the prepared `.glb` and the helpers the store's files share.
+- `models_store.h` — the store's internal table with its count of changes the bounce relights
+  by, a landscape's grown copies beside the file's, the prepared `.glb` and the helpers the
+  store's files share.
 - `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until
   one matches no part, or a levels file read and checked against the bake, the shape built and
   the sphere measured.
@@ -182,11 +183,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
   levels joined by material, or made levels' indices shared over level 0's vertices, each bounded
   by the file's error and swap; the level-0 mirror and the free.
 - `models_landscape.c` — a landscape's grid copied with its layers, paint, foliage kinds and
-  copies, each placed, uploaded as heights, paint and a pyramid on the shared grid; brushes and
-  puts growing its dirt, written a budget at a time, and placing copies again; renames following.
+  copies, each placed, its grown copies made, uploaded as heights, paint and a pyramid; brushes
+  and puts growing its dirt, placing copies again and remaking the grown; renames following.
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
-  handed to foliage.c, a kind's base size set placing its copies again, the entry marked edited
-  and the store's count raised on a change.
+  handed to foliage.c, a kind's look or a layer's growth set placing copies again and remaking
+  that kind's grown copies, the entry marked edited and the store's count raised on a change.
 - `models_material.c` — a `.material`'s four maps, decoded by the load under each map's name as
   the subject or already by the caller, put mipped with its record, cutout, emission and sides
   and its twin as one part with no geometry; the set marking it and the frame rewriting both records.
@@ -198,9 +199,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
   heights or, painting, on a layer's weights.
 - `brush_weight.h` — a brush's soft weight by radius and softness, shared by the sculpt, paint and
   foliage stamps; internal.
-- `foliage.c` — a copy placed on the bilinear ground's normal at its kind's base size, a scatter stamp's tries drawn up
-  front and refused against the near copies in one walk, erase and undo by moving the last in, and
-  the replace over a rect.
+- `foliage.c` — a copy placed on the bilinear ground's normal at its kind's base size, a scatter
+  stamp's tries drawn up front with the spreads of each one's kind and refused against the near
+  copies in one walk, erase and undo by moving the last in, and the replace over a rect.
+- `foliage_grow.c` — the area's grown copies of the remade kinds removed, then each kind's
+  lattice cells over it hashed, jittered, kept by the bilinear paint and placed.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
 - `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, borders

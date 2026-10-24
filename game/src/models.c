@@ -16,7 +16,7 @@
 // The update's and the watch's gathering and the dot and water are internal
 // calls (models_batch.h).
 // A cooked landscape's millimetres become metres in scratch, rewound after it,
-// its layer and kind paths and kinds' base sizes copied, its copies handed on
+// its layer and kind paths, kinds' looks and layers' grows copied, its copies handed on
 // for the store to copy,
 // its paint widened to both planes in scratch too. The public prepare reads
 // its `.glb` and levels file on scratch, rewound, then prepares a batch of
@@ -455,9 +455,43 @@ static void copy_layers(voe_assets_landscape *landscape,
 		memset(landscape->paint + plane, 0, plane);
 }
 
-// `cooked`'s kind paths and base sizes into `landscape`, NULL sizes left 0
-// (1×), and its copies handed on as they are: the store copies them into its
-// own room and never writes these.
+// Cooked look `look`, asserted in the ranges assets/landscape.h reads.
+static voe_assets_landscape_look checked_look(voe_assets_landscape_look look)
+{
+	VOE_BASE_ASSERT(look.size == 0 ||
+				(look.size >= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN &&
+				 look.size <= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX),
+			"a cooked kind size out of range");
+	VOE_BASE_ASSERT(look.size_vary <= VOE_ASSETS_LANDSCAPE_SIZE_VARY_MAX &&
+				look.turn_vary <= VOE_ASSETS_LANDSCAPE_TURN_VARY_MAX &&
+				look.tilt <= VOE_ASSETS_LANDSCAPE_TILT_MAX,
+			"a cooked kind spread out of range");
+	return look;
+}
+
+// `cooked`'s densities into `landscape`'s grows, layer by layer, after its
+// layers and kinds are set; NULL leaves every one 0.
+static void copy_grows(voe_assets_landscape *landscape,
+		       const voe_game_landscape *cooked)
+{
+	VOE_BASE_ASSERT(landscape->layer_count == cooked->layer_count &&
+				landscape->kind_count == cooked->kind_count,
+			"grows copied before the layers and kinds");
+	for (uint32_t l = 0; cooked->grows != NULL && l < cooked->layer_count;
+	     l++) {
+		for (uint32_t k = 0; k < cooked->kind_count; k++) {
+			uint16_t grow = cooked->grows[l * cooked->kind_count + k];
+
+			VOE_BASE_ASSERT(grow <= VOE_ASSETS_LANDSCAPE_GROW_MAX,
+					"a cooked density out of range");
+			landscape->grows[l][k] = grow;
+		}
+	}
+}
+
+// `cooked`'s kind paths, looks and grows into `landscape`, NULL looks each
+// the default, and its copies handed on as they are: the store copies them
+// into its own room and never writes these.
 static void copy_foliage(voe_assets_landscape *landscape,
 			 const voe_game_landscape *cooked)
 {
@@ -471,17 +505,13 @@ static void copy_foliage(voe_assets_landscape *landscape,
 		VOE_BASE_ASSERT(length < VOE_ASSETS_LANDSCAPE_KIND_PATH,
 				"a cooked kind path too long");
 		memcpy(landscape->kinds[k], cooked->kinds[k], length + 1);
-		if (cooked->kind_sizes == NULL)
-			continue;
-		VOE_BASE_ASSERT(cooked->kind_sizes[k] == 0 ||
-					(cooked->kind_sizes[k] >=
-						 VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN &&
-					 cooked->kind_sizes[k] <=
-						 VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX),
-				"a cooked kind size out of range");
-		landscape->kind_sizes[k] = cooked->kind_sizes[k];
+		landscape->looks[k] =
+			cooked->looks == NULL ?
+				voe_assets_landscape_look_default() :
+				checked_look(cooked->looks[k]);
 	}
 	landscape->kind_count = cooked->kind_count;
+	copy_grows(landscape, cooked);
 	landscape->copies = (voe_assets_landscape_copy *)cooked->copies;
 	landscape->copy_count = cooked->copy_count;
 }

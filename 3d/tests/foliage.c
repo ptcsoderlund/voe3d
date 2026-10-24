@@ -3,8 +3,8 @@
 // density and stopping, spaced, of the picked kind and within its radius; a
 // seed giving the same copies twice; erase by kind and undo's put both ways; a
 // copy leaning on a 45° plane or standing upright; _replace following a
-// raised height; and a kind's base size scaling its copy. Needs no graphics
-// card.
+// raised height; a kind's base size scaling its copy; and a stamp's scale,
+// turn and lean drawn from each copy's kind's look. Needs no graphics card.
 #include <3d/foliage.h>
 #include <3d/landscape.h>
 #include <assets/landscape.h>
@@ -32,6 +32,9 @@ static struct grown flat_with_room(voe_base_arena *arena)
 	};
 
 	out.land.kind_count = 2;
+	// Size ±20 %, turn ±180°, tilt 0 %.
+	out.land.looks[0] = voe_assets_landscape_look_default();
+	out.land.looks[1] = voe_assets_landscape_look_default();
 	out.land.copies = voe_base_arena_push(
 		arena, sizeof(voe_assets_landscape_copy) *
 			       VOE_ASSETS_LANDSCAPE_COPIES);
@@ -44,22 +47,25 @@ static const voe_3d_foliage_brush kind_one = {
 	.radius = 10.0f,
 	.softness = 0.0f,
 	.density = 4.0f,
-	.size_vary = 0.2f,
-	.turn_vary = 3.14159265f,
-	.lean = 0.0f,
 	.picked = 1u << 1,
 };
 
-// 100 stamps of 0.1 s at the centre; how many they said they added.
-static uint32_t hold(struct grown *g, uint64_t seed)
+// 100 stamps of 0.1 s of `brush` at the centre; how many they said they added.
+static uint32_t hold_with(struct grown *g, const voe_3d_foliage_brush *brush,
+			  uint64_t seed)
 {
 	voe_assets_landscape_copy added[VOE_3D_FOLIAGE_TRIES];
 	uint32_t total = 0;
 
 	for (int i = 0; i < STAMPS; i++)
-		total += voe_3d_foliage_scatter(&g->land, g->placed, &kind_one,
+		total += voe_3d_foliage_scatter(&g->land, g->placed, brush,
 						0.0f, 0.0f, 0.1f, &seed, added);
 	return total;
+}
+
+static uint32_t hold(struct grown *g, uint64_t seed)
+{
+	return hold_with(g, &kind_one, seed);
 }
 
 static bool same(voe_assets_landscape_copy a, voe_assets_landscape_copy b)
@@ -200,7 +206,7 @@ static void a_kinds_base_size_scales_its_copies(voe_base_arena *arena)
 	voe_assets_landscape_copy big = small;
 
 	big.kind = 1;
-	g.land.kind_sizes[1] = 2000;
+	g.land.looks[1].size = 2000;
 	const voe_scene_transform a = voe_3d_foliage_place(&g.land, small);
 	const voe_scene_transform b = voe_3d_foliage_place(&g.land, big);
 
@@ -217,6 +223,40 @@ static void a_kinds_base_size_scales_its_copies(voe_base_arena *arena)
 		       b.rotation.w == a.rotation.w);
 }
 
+// Kind 0 with no size or turn spread and full tilt, kind 1 at the defaults,
+// both picked: every kind 0 copy at scale 1000, turn 0 and lean 255, and kind
+// 1's scales not all one.
+static void a_copy_spreads_as_its_kind_says(voe_base_arena *arena)
+{
+	struct grown g = flat_with_room(arena);
+	voe_3d_foliage_brush both = kind_one;
+	uint32_t zeros = 0, ones = 0;
+	bool fixed = true, differ = false;
+	uint16_t first = 0;
+
+	g.land.looks[0].size_vary = 0;
+	g.land.looks[0].turn_vary = 0;
+	g.land.looks[0].tilt = 100;
+	both.picked = 3u;
+	(void)hold_with(&g, &both, 0x9e3779b97f4a7c15u);
+	for (uint32_t i = 0; i < g.land.copy_count; i++) {
+		const voe_assets_landscape_copy c = g.land.copies[i];
+
+		if (c.kind == 0) {
+			zeros++;
+			fixed &= c.scale == 1000 && c.turn == 0 && c.lean == 255;
+			continue;
+		}
+		if (ones++ == 0)
+			first = c.scale;
+		differ |= c.scale != first;
+		fixed &= c.lean == 0;
+	}
+	VOE_TEST_CHECK(zeros > 0 && ones > 1);
+	VOE_TEST_CHECK(fixed);
+	VOE_TEST_CHECK(differ);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(ARENA);
@@ -227,6 +267,7 @@ int main(void)
 	a_copy_leans_on_a_slope(arena);
 	replace_follows_a_raised_height(arena);
 	a_kinds_base_size_scales_its_copies(arena);
+	a_copy_spreads_as_its_kind_says(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

@@ -10,6 +10,13 @@
 // paths following. The foliage calls are models_foliage.c's. A load raises
 // the store's `changes` through keep, and so does every placing again.
 //
+// GROWN COPIES (3d/foliage_grow.h, 0476 point 4) are made for every kind over
+// the whole grid at a load, after the file's copies are placed, and remade for
+// every kind over the rect a paint or height stamp or put changes, so they
+// follow the paint and stand on the new heights. A remake that may have
+// changed them raises `changes`; reaching VOE_3D_FOLIAGE_GROWN is said once
+// on stderr per entry.
+//
 // Used by models.c's _load for a `.landscape` path, by the draw files through
 // voe_3d_models_terrain_of, and by the editor: the brush and the frame while a
 // stroke is held, the puts for an undo step, the layer set for a dropped
@@ -20,10 +27,12 @@
 // writes whole rows of the rect, the first entries first, so one big put can
 // hold another landscape's dirt back a few frames. The frame, the rename and
 // the lookup walk every entry. A layer or kind path that would not fit renamed
-// is kept. A landscape holds room for every copy it may have, about 4 MB.
+// is kept. A landscape holds room for every copy it may have, the file's and
+// the grown, about 8 MB. A remake over a stamp's rect walks every grown copy.
 #include "models_store.h"
 
 #include <3d/foliage.h>
+#include <3d/foliage_grow.h>
 #include <3d/landscape.h>
 #include <3d/models.h>
 #include <assets/landscape.h>
@@ -231,7 +240,14 @@ bool voe_3d_models_load_landscape(voe_3d_models *models,
 		held.memory, VOE_ASSETS_LANDSCAPE_COPIES * sizeof(*held.placed));
 	voe_3d_foliage_replace(entry.landscape, held.placed,
 			       (voe_3d_landscape_rect){ 0, 0, n, n });
-	loaded = upload_landscape(models, device, &entry, &held, error);
+	held.grown = voe_base_arena_push(
+		held.memory, VOE_3D_FOLIAGE_GROWN * sizeof(*held.grown));
+	held.grown_placed = voe_base_arena_push(
+		held.memory, VOE_3D_FOLIAGE_GROWN * sizeof(*held.grown_placed));
+	(void)voe_3d_models_regrow(entry.landscape, &held, path,
+				   (voe_3d_landscape_rect){ 0, 0, n, n },
+				   UINT32_MAX);
+	loaded =upload_landscape(models, device, &entry, &held, error);
 	if (!loaded) {
 		VOE_BASE_ERROR("3d", "could not load the landscape %s", path);
 		entry.landscape = NULL;
@@ -297,32 +313,76 @@ static void grow(voe_3d_landscape_rect *dirty, voe_3d_landscape_rect changed)
 	dirty->z1 = changed.z1 > dirty->z1 ? changed.z1 : dirty->z1;
 }
 
+// Whether any kind in `kinds` is grown by one of `land`'s layers.
+static bool any_grows(const voe_assets_landscape *land, uint32_t kinds)
+{
+	VOE_BASE_ASSERT(land->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS &&
+				land->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
+			"at most the layers and kinds");
+	for (uint32_t k = 0; k < land->kind_count; k++) {
+		if (((kinds >> k) & 1u) == 0)
+			continue;
+		for (uint32_t l = 0; l < land->layer_count; l++)
+			if (land->grows[l][k] > 0)
+				return true;
+	}
+	return false;
+}
+
+bool voe_3d_models_regrow(const voe_assets_landscape *land, entry_held *held,
+			  const char *path, voe_3d_landscape_rect rect,
+			  uint32_t kinds)
+{
+	VOE_BASE_ASSERT(land != NULL && held != NULL && path != NULL,
+			"a remake needs a landscape, its held room and a path");
+	VOE_BASE_ASSERT(held->grown != NULL && held->grown_placed != NULL,
+			"a landscape's grown room held at its load");
+	const uint32_t before = held->grown_count;
+
+	held->grown_count = voe_3d_foliage_grow(land, rect, kinds, held->grown,
+						held->grown_placed, before);
+	if (held->grown_count >= VOE_3D_FOLIAGE_GROWN && !held->grown_full) {
+		VOE_BASE_ERROR("3d", "%s grows more than %u copies; the rest are "
+				     "left out",
+			       path, (unsigned)VOE_3D_FOLIAGE_GROWN);
+		held->grown_full = true;
+	}
+	return held->grown_count != before || any_grows(land, kinds);
+}
+
 // The heights `changed` refreshed in the pyramid, the copies over them placed
-// again, the store's changes raised, the rect added to the dirty rect, and the
-// entry edited; nothing for an empty rect.
+// again and the grown remade, the store's changes raised, the rect added to
+// the dirty rect, and the entry edited; nothing for an empty rect.
 static void grow_dirt(voe_3d_models *models, uint32_t index,
 		      voe_3d_landscape_rect changed)
 {
 	entry_held *held = &models->held[index];
+	const voe_3d_model_entry *entry = &models->entries[index];
 
 	if (is_empty(changed))
 		return;
-	voe_3d_landscape_lod_update(&held->lod,
-				    models->entries[index].landscape, changed);
-	voe_3d_foliage_replace(models->entries[index].landscape, held->placed,
-			       changed);
+	voe_3d_landscape_lod_update(&held->lod, entry->landscape, changed);
+	voe_3d_foliage_replace(entry->landscape, held->placed, changed);
+	(void)voe_3d_models_regrow(entry->landscape, held, entry->path,
+				   changed, UINT32_MAX);
 	models->changes++;
 	grow(&held->dirty, changed);
 	models->entries[index].edited = true;
 }
 
-// The paint `changed` added to the paint's dirty rect and the entry edited;
-// nothing for an empty rect.
+// The paint `changed` added to the paint's dirty rect, the grown copies over
+// it remade, raising the store's changes when they may have changed, and the
+// entry edited; nothing for an empty rect.
 static void grow_paint(voe_3d_models *models, uint32_t index,
 		       voe_3d_landscape_rect changed)
 {
+	const voe_3d_model_entry *entry = &models->entries[index];
+
 	if (is_empty(changed))
 		return;
+	if (voe_3d_models_regrow(entry->landscape, &models->held[index],
+				 entry->path, changed, UINT32_MAX))
+		models->changes++;
 	grow(&models->held[index].paint_dirty, changed);
 	models->entries[index].edited = true;
 }

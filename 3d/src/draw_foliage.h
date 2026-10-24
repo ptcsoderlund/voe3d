@@ -6,14 +6,22 @@
 //
 //     struct voe_3d_foliage_key key = { .kind = entry, .level = 1, .part = 0,
 //                                       .rest = false,
-//                                       .tier = VOE_3D_FOLIAGE_SEEN };
+//                                       .tier = VOE_3D_FOLIAGE_SEEN,
+//                                       .casts = true };
 //     (void)voe_3d_draw_foliage_solid(device, &frame);
 //
-// A GROUP IS ONE (kind, level, part, rest, tier): the kind's loaded `.glb`
-// entry, so two landscape rows naming one file share its groups; the level its
-// copies are drawn at; the level-0 part they wear; whether they are a band's
-// level-before copies, dithered the other way (0432 point 3); and their tier.
-// Equal keys are one group, whichever row and copy filled it.
+// A GROUP IS ONE (kind, level, part, rest, tier, casts): the kind's loaded
+// `.glb` entry, so two landscape rows naming one file share its groups; the
+// level its copies are drawn at; the level-0 part they wear; whether they are a
+// band's level-before copies, dithered the other way (0432 point 3); their
+// tier; and whether the row's look of the kind casts. Equal keys are one group,
+// whichever row and copy, hand-painted or grown, filled it.
+//
+// A SHADOWLESS KIND (0476 point 6) is gathered seen or not at all: its copies
+// are kept out of the cast and unseen tiers because nothing but the shadow
+// passes would draw them there, and its groups' `casts` keeps the seen ones out
+// of the cascades and the bounce sun maps. They are still shadowed: the camera
+// draws them lit as any copy.
 //
 // A COPY IS SORTED ONCE A VIEW, NOT PER PASS (0464 point 4): seen, cast or
 // unseen (3d/draw_system.h). An instanced group cannot skip copies, and a
@@ -52,6 +60,7 @@ struct voe_3d_foliage_key {
 	uint32_t part;
 	bool rest;
 	voe_3d_foliage_tier tier;
+	bool casts;
 };
 
 // Every seen group of `frame`, `rest` ones too, drawn solid into the open
@@ -61,8 +70,9 @@ struct voe_3d_foliage_key {
 [[nodiscard]] bool voe_3d_draw_foliage_solid(voe_render_device *device,
 					      const voe_3d_frame *frame);
 
-// Every group of `frame` not `rest` whose worn material casts
-// (voe_3d_draw_casts), seen or cast or, with `every_tier`, of any tier, drawn
+// Every group of `frame` not `rest`, whose `casts` is true and whose worn
+// material casts (voe_3d_draw_casts), seen or cast or, with `every_tier`, of
+// any tier, drawn
 // into the open shadow pass. With `counts`, each such group's instances drawn
 // are added to its `cast` and those of the unseen ones left out to
 // `cast_skipped`, a copy of a kind of several parts once a part; NULL counts

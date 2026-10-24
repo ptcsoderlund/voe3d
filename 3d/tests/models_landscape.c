@@ -12,6 +12,9 @@
 // back by undo's put; a kind set adding a second at size 0; a rename following
 // a kind. A kind's base size at 2× doubling its copies' scales and back at 0
 // restoring them; a file with size0=2000 loading its copies at twice scale.
+// Two layers, rock growing kind 0: grown copies only on rock; a rock stamp
+// adding some and its undo's paint put taking them back; rock's growth to 0
+// and back; an erase leaving them; a shadowless look relighting.
 //
 // THE GRID IS 16 METRES OF 8 CELLS, a cell 2 m. A brush of radius 3 at the
 // centre touches heights 3 to 5 on each axis. The wide one is 1024 cells, so
@@ -52,13 +55,14 @@
 #define MOVED_PINE "Forest/pine.glb"
 #define FIR "Woods/fir.glb"
 #define SIZED_FOREST "Woods/Sized.landscape"
+#define GROWN "Woods/Grown.landscape"
 
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 33 * 33,
 	.indices = 32 * 32 * 6,
 	.geometries = 1,
 	.objects = 8,
-	.shadings = 10,
+	.shadings = 12,
 	.passes = 1,
 	.heights_texels = VOE_3D_LANDSCAPE_WRITE_TEXELS,
 };
@@ -393,7 +397,8 @@ static void rename_moves_the_entry(voe_3d_models *models)
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 4);
 }
 
-// The forest's text: 8 cells, kind 0 PINE at base size `size0`, copy 0 at the
+// The forest's text: 8 cells, kind 0 PINE at base size `size0`, size ±20 %,
+// turn ±172° and tilt 0 %, copy 0 at the
 // centre and copy 1 at (6, 6) m, loaded at `path` through _load as a file is.
 static const voe_3d_model_entry *load_forest(voe_3d_models *models,
 					     voe_render_device *device,
@@ -411,7 +416,9 @@ static const voe_3d_model_entry *load_forest(voe_3d_models *models,
 
 	snprintf(land.kinds[0], sizeof(land.kinds[0]), "%s", PINE);
 	land.kind_count = 1;
-	land.kind_sizes[0] = size0;
+	land.looks[0] = voe_assets_landscape_look_default();
+	land.looks[0].size = size0;
+	land.looks[0].turn_vary = 172;
 	land.copies = copies;
 	land.copy_count = 2;
 	text = voe_assets_landscape_write(&land, arena);
@@ -500,8 +507,18 @@ static void scaled_alike(voe_scene_transform a, voe_scene_transform b,
 		       b.rotation.w == a.rotation.w);
 }
 
+// Kind 0's look of `entry` at base size `size`, the rest kept.
+static voe_assets_landscape_look sized(const voe_3d_model_entry *entry,
+				       uint16_t size)
+{
+	voe_assets_landscape_look look = entry->landscape->looks[0];
+
+	look.size = size;
+	return look;
+}
+
 // Kind 0 at 2× doubles both copies' scales and marks the forest edited; the
-// same size again changes nothing; back to 0 gives the first transforms.
+// same look again changes nothing; back to 0 gives the first transforms.
 static void a_kind_size_places_its_copies_again(voe_3d_models *models)
 {
 	const voe_3d_model_entry *entry = voe_3d_models_find(models, FOREST);
@@ -516,12 +533,12 @@ static void a_kind_size_places_its_copies_again(voe_3d_models *models)
 	if (placed == NULL || entry->landscape->copy_count != 2)
 		return;
 	memcpy(first, placed, sizeof(first));
-	voe_3d_models_landscape_kind_size_set(models, "Woods/none.landscape", 0,
-					      2000);
+	voe_3d_models_landscape_look_set(models, "Woods/none.landscape", 0,
+					 sized(entry, 2000));
 	voe_3d_models_landscape_saved(models, FOREST);
 	changes = models->changes;
-	voe_3d_models_landscape_kind_size_set(models, FOREST, 0, 2000);
-	VOE_TEST_CHECK_INT(entry->landscape->kind_sizes[0], 2000);
+	voe_3d_models_landscape_look_set(models, FOREST, 0, sized(entry, 2000));
+	VOE_TEST_CHECK_INT(entry->landscape->looks[0].size, 2000);
 	VOE_TEST_CHECK(entry->edited);
 	VOE_TEST_CHECK(models->changes > changes);
 	scaled_alike(first[0], placed[0], 2.0f);
@@ -529,11 +546,11 @@ static void a_kind_size_places_its_copies_again(voe_3d_models *models)
 
 	voe_3d_models_landscape_saved(models, FOREST);
 	changes = models->changes;
-	voe_3d_models_landscape_kind_size_set(models, FOREST, 0, 2000);
+	voe_3d_models_landscape_look_set(models, FOREST, 0, sized(entry, 2000));
 	VOE_TEST_CHECK(!entry->edited);
 	VOE_TEST_CHECK_INT(models->changes, changes);
 
-	voe_3d_models_landscape_kind_size_set(models, FOREST, 0, 0);
+	voe_3d_models_landscape_look_set(models, FOREST, 0, sized(entry, 0));
 	VOE_TEST_CHECK(entry->edited);
 	scaled_alike(first[0], placed[0], 1.0f);
 	scaled_alike(first[1], placed[1], 1.0f);
@@ -555,7 +572,7 @@ static void a_sized_file_loads_its_copies_scaled(voe_3d_models *models,
 	VOE_TEST_CHECK(placed != NULL);
 	if (placed == NULL)
 		return;
-	VOE_TEST_CHECK_INT(entry->landscape->kind_sizes[0], 2000);
+	VOE_TEST_CHECK_INT(entry->landscape->looks[0].size, 2000);
 	VOE_TEST_CHECK_FLOAT(placed[0].scale.x, 2.0f, 1e-6f);
 	VOE_TEST_CHECK_FLOAT(placed[1].scale.x, 3.0f, 1e-6f);
 	on_the_ground(models, entry, 1);
@@ -565,8 +582,6 @@ static void scatter_erase_and_put_back(voe_3d_models *models)
 {
 	voe_3d_foliage_brush brush = { .radius = 3.0f,
 				       .density = 50.0f,
-				       .size_vary = 0.2f,
-				       .turn_vary = 3.0f,
 				       .picked = 1u };
 	const voe_3d_model_entry *entry = voe_3d_models_find(models, FOREST);
 	voe_assets_landscape_copy added[VOE_3D_FOLIAGE_TRIES];
@@ -614,11 +629,163 @@ static void kinds_are_set_and_renamed(voe_3d_models *models)
 	voe_3d_models_landscape_kind_set(models, FOREST, 1, FIR);
 	VOE_TEST_CHECK_INT(entry->landscape->kind_count, 2);
 	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[1], FIR) == 0);
-	VOE_TEST_CHECK_INT(entry->landscape->kind_sizes[1], 0);
+	VOE_TEST_CHECK_INT(entry->landscape->looks[1].size, 0);
+	VOE_TEST_CHECK_INT(entry->landscape->looks[1].turn_vary,
+			   VOE_ASSETS_LANDSCAPE_TURN_VARY_DEFAULT);
+	VOE_TEST_CHECK_INT(entry->landscape->grows[0][1], 0);
 	VOE_TEST_CHECK(entry->edited);
 	voe_3d_models_rename(models, "Trees", "Forest");
 	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[0], MOVED_PINE) == 0);
 	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[1], FIR) == 0);
+}
+
+// 64 m of 8 cells, a cell 8 m: layers GRASS and ROCK, layer 1 growing kind 0
+// PINE at 40 tenths, the points of columns 0 to 3 all layer 1, so rock fades
+// out between x = −8 m and 0. Loaded with no file copies.
+static const voe_3d_model_entry *load_grown(voe_3d_models *models,
+					    voe_render_device *device,
+					    voe_base_arena *arena)
+{
+	voe_assets_landscape land = voe_assets_landscape_flat(64.0f, 8, arena);
+	uint8_t *paint = voe_base_arena_push(arena, 81 * 8);
+	voe_base_error error = VOE_BASE_OK;
+	const voe_3d_model_entry *entry;
+
+	memset(paint, 0, 81 * 8);
+	for (uint32_t i = 0; i < 81; i++)
+		paint[i * 4 + (i % 9 < 4 ? 1 : 0)] = 255;
+	land.paint = paint;
+	snprintf(land.layers[0], sizeof(land.layers[0]), "%s", GRASS);
+	snprintf(land.layers[1], sizeof(land.layers[1]), "%s", ROCK);
+	land.layer_count = 2;
+	snprintf(land.kinds[0], sizeof(land.kinds[0]), "%s", PINE);
+	land.kind_count = 1;
+	land.looks[0] = voe_assets_landscape_look_default();
+	land.grows[1][0] = 40;
+	VOE_TEST_CHECK(voe_3d_models_load_landscape(models, device, GROWN, 1,
+						    &land, &error));
+	entry = voe_3d_models_find(models, GROWN);
+	if (entry == NULL || !entry->loaded || entry->landscape == NULL) {
+		VOE_TEST_CHECK(false);
+		return NULL;
+	}
+	return entry;
+}
+
+static uint32_t grown_count(const voe_3d_models *models,
+			    const voe_3d_model_entry *entry)
+{
+	return voe_3d_models_landscape_grown(models, entry).count;
+}
+
+// The grown copies stand only where rock is painted, each placed at its x.
+static uint32_t grown_only_on_rock(voe_3d_models *models,
+				   const voe_3d_model_entry *entry)
+{
+	const voe_3d_models_grown grown =
+		voe_3d_models_landscape_grown(models, entry);
+
+	VOE_TEST_CHECK(grown.count > 0 && grown.placed != NULL);
+	VOE_TEST_CHECK(entry->landscape->copy_count == 0);
+	for (uint32_t i = 0; i < grown.count; i++) {
+		VOE_TEST_CHECK(grown.copies[i].x < 0);
+		VOE_TEST_CHECK_INT(grown.copies[i].kind, 0);
+		VOE_TEST_CHECK_FLOAT((float)grown.placed[i].position.x,
+				     (float)grown.copies[i].x * 0.001f, 1e-4f);
+	}
+	return grown.count;
+}
+
+// A stamp of rock east of the fade adds grown copies; the old weights put
+// back over its rect give back the old count.
+static void a_paint_stamp_grows_and_its_undo_takes_back(
+	voe_3d_models *models, const voe_3d_model_entry *entry, uint32_t first,
+	voe_base_arena *arena)
+{
+	const voe_3d_brush paint = { .kind = VOE_3D_BRUSH_PAINT,
+				     .radius = 12.0f,
+				     .strength = 1.0f,
+				     .softness = 0.5f,
+				     .layer = 1 };
+	uint8_t old[81 * 8], values[81 * 8];
+	const uint32_t changes = models->changes;
+	voe_3d_landscape_rect rect;
+	size_t k = 0;
+
+	memcpy(old, entry->landscape->paint, sizeof(old));
+	rect = voe_3d_models_landscape_brush(models, GROWN, &paint, 16.0f, 0.0f,
+					     0.2f, arena);
+	VOE_TEST_CHECK(!is_empty(rect));
+	VOE_TEST_CHECK(grown_count(models, entry) > first);
+	VOE_TEST_CHECK(models->changes > changes);
+	for (uint32_t p = 0; p < 2; p++)
+		for (uint32_t r = rect.z0; r < rect.z1; r++)
+			for (uint32_t c = rect.x0; c < rect.x1; c++)
+				for (uint32_t b = 0; b < 4; b++)
+					values[k++] =
+						old[p * 81 * 4 + (r * 9 + c) * 4 + b];
+	voe_3d_models_landscape_put_paint(models, GROWN, rect, values);
+	VOE_TEST_CHECK_INT(grown_count(models, entry), first);
+}
+
+// Rock growing none leaves none, back at 40 the first count; an erase of
+// kind 0 leaves them; a look changing only `shadowless` relights and keeps
+// them.
+static void the_material_owns_its_growth(voe_3d_models *models,
+					 const voe_3d_model_entry *entry,
+					 uint32_t first)
+{
+	const voe_3d_foliage_brush erase = { .radius = 40.0f,
+					     .density = 4.0f,
+					     .picked = 1u };
+	voe_assets_landscape_copy removed[4];
+	voe_assets_landscape_look look = entry->landscape->looks[0];
+	uint32_t changes;
+
+	voe_3d_models_landscape_saved(models, GROWN);
+	voe_3d_models_landscape_grow_set(models, GROWN, 1, 0, 0);
+	VOE_TEST_CHECK_INT(grown_count(models, entry), 0);
+	VOE_TEST_CHECK_INT(entry->landscape->grows[1][0], 0);
+	VOE_TEST_CHECK(entry->edited);
+	voe_3d_models_landscape_grow_set(models, GROWN, 1, 0, 40);
+	VOE_TEST_CHECK_INT(grown_count(models, entry), first);
+
+	VOE_TEST_CHECK_INT(voe_3d_models_landscape_erase(models, GROWN, &erase,
+							 0.0f, 0.0f, removed, 4),
+			   0);
+	VOE_TEST_CHECK_INT(grown_count(models, entry), first);
+
+	voe_3d_models_landscape_saved(models, GROWN);
+	changes = models->changes;
+	look.shadowless = true;
+	voe_3d_models_landscape_look_set(models, GROWN, 0, look);
+	VOE_TEST_CHECK(entry->landscape->looks[0].shadowless);
+	VOE_TEST_CHECK(models->changes > changes);
+	VOE_TEST_CHECK(entry->edited);
+	VOE_TEST_CHECK_INT(grown_count(models, entry), first);
+	changes = models->changes;
+	voe_3d_models_landscape_look_set(models, GROWN, 0, look);
+	VOE_TEST_CHECK_INT(models->changes, changes);
+}
+
+static void layers_grow_their_kinds(voe_3d_models *models,
+				    voe_render_device *device,
+				    voe_base_arena *arena)
+{
+	const voe_3d_model_entry *entry = load_grown(models, device, arena);
+	const voe_3d_models_grown none = voe_3d_models_landscape_grown(
+		models, voe_3d_models_find(models, "Land/bad.landscape"));
+	uint32_t first;
+
+	VOE_TEST_CHECK(none.copies == NULL && none.placed == NULL &&
+		       none.count == 0);
+	if (entry == NULL)
+		return;
+	first = grown_only_on_rock(models, entry);
+	printf("rock grows %u copies\n", first);
+	a_paint_stamp_grows_and_its_undo_takes_back(models, entry, first,
+						    arena);
+	the_material_owns_its_growth(models, entry, first);
 }
 
 int main(void)
@@ -655,6 +822,7 @@ int main(void)
 	scatter_erase_and_put_back(models);
 	kinds_are_set_and_renamed(models);
 	a_sized_file_loads_its_copies_scaled(models, device, arena);
+	layers_grow_their_kinds(models, device, arena);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);

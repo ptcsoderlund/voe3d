@@ -1,8 +1,8 @@
 // The landscape file: a written grid reads back as itself up to 2048 cells,
 // heights round to the millimetre, a resample keeps a plane and its corners,
 // layers and paint round-trip byte for byte and resample to sums of 255,
-// foliage kinds, their base sizes and copies round-trip byte for byte and a
-// resample keeps them, and each refusal comes with its category.
+// foliage kinds, their looks, each layer's grows and copies round-trip byte for
+// byte and a resample keeps them, and each refusal comes with its category.
 //
 // The files refused are written by hand at four cells, the smallest a file may
 // have, so each case shows the one thing wrong with it.
@@ -436,6 +436,8 @@ static voe_assets_landscape forested(voe_base_arena *arena)
 	snprintf(grid.kinds[0], sizeof(grid.kinds[0]), "Assets/pine.glb");
 	snprintf(grid.kinds[1], sizeof(grid.kinds[1]), "Assets/\"birch\".glb");
 	grid.kind_count = 2;
+	grid.looks[0] = voe_assets_landscape_look_default();
+	grid.looks[1] = voe_assets_landscape_look_default();
 	grid.copies = voe_base_arena_push(arena, sizeof(three_copies));
 	memcpy(grid.copies, three_copies, sizeof(three_copies));
 	grid.copy_count = 3;
@@ -564,7 +566,7 @@ static void kind_sizes_round_trip_byte_for_byte(voe_base_arena *arena)
 	voe_assets_landscape_text again;
 	voe_assets_landscape back;
 
-	grid.kind_sizes[1] = 2000;
+	grid.looks[1].size = 2000;
 	text = voe_assets_landscape_write(&grid, arena);
 	VOE_TEST_CHECK(strstr(text.text, "kind0=\"Assets/pine.glb\"\nkind1=") !=
 		       NULL);
@@ -574,8 +576,8 @@ static void kind_sizes_round_trip_byte_for_byte(voe_base_arena *arena)
 
 	VOE_TEST_CHECK(voe_assets_landscape_read(text.text, text.size, arena,
 						 &back, NULL));
-	VOE_TEST_CHECK_INT(back.kind_sizes[0], 0);
-	VOE_TEST_CHECK_INT(back.kind_sizes[1], 2000);
+	VOE_TEST_CHECK_INT(back.looks[0].size, 0);
+	VOE_TEST_CHECK_INT(back.looks[1].size, 2000);
 	VOE_TEST_CHECK(voe_assets_landscape_kind_size(&back, 0) == 1.0f);
 	VOE_TEST_CHECK(voe_assets_landscape_kind_size(&back, 1) == 2.0f);
 	again = voe_assets_landscape_write(&back, arena);
@@ -583,7 +585,7 @@ static void kind_sizes_round_trip_byte_for_byte(voe_base_arena *arena)
 	VOE_TEST_CHECK(strcmp(again.text, text.text) == 0);
 
 	// A kind at exactly 1× is written without its size line.
-	grid.kind_sizes[0] = 1000;
+	grid.looks[0].size = 1000;
 	text = voe_assets_landscape_write(&grid, arena);
 	VOE_TEST_CHECK(strstr(text.text, "size0=") == NULL);
 	VOE_TEST_CHECK(strstr(text.text, "size1=2000\n") != NULL);
@@ -617,11 +619,11 @@ static void a_resample_keeps_the_kind_sizes(voe_base_arena *arena)
 	voe_assets_landscape grid = forested(arena);
 	voe_assets_landscape eight;
 
-	grid.kind_sizes[0] = 250;
-	grid.kind_sizes[1] = 2000;
+	grid.looks[0].size = 250;
+	grid.looks[1].size = 2000;
 	eight = voe_assets_landscape_resample(&grid, 8, arena);
-	VOE_TEST_CHECK_INT(eight.kind_sizes[0], 250);
-	VOE_TEST_CHECK_INT(eight.kind_sizes[1], 2000);
+	VOE_TEST_CHECK_INT(eight.looks[0].size, 250);
+	VOE_TEST_CHECK_INT(eight.looks[1].size, 2000);
 	VOE_TEST_CHECK(voe_assets_landscape_kind_size(&eight, 1) == 2.0f);
 }
 
@@ -631,8 +633,169 @@ static void a_flat_grids_kind_added_by_hand_is_1x(voe_base_arena *arena)
 
 	snprintf(flat.kinds[0], sizeof(flat.kinds[0]), "Assets/oak.glb");
 	flat.kind_count = 1;
-	VOE_TEST_CHECK_INT(flat.kind_sizes[0], 0);
+	VOE_TEST_CHECK_INT(flat.looks[0].size, 0);
 	VOE_TEST_CHECK(voe_assets_landscape_kind_size(&flat, 0) == 1.0f);
+}
+
+static bool same_look(voe_assets_landscape_look a, voe_assets_landscape_look b)
+{
+	return a.size == b.size && a.size_vary == b.size_vary &&
+	       a.turn_vary == b.turn_vary && a.tilt == b.tilt &&
+	       a.shadowless == b.shadowless;
+}
+
+// `forested` on two layers, kind 0 with every look key off the default and
+// kind 1 shadowless, layer 0 growing kind 1 and layer 1 both.
+static voe_assets_landscape grown(voe_base_arena *arena)
+{
+	voe_assets_landscape grid = forested(arena);
+
+	grid.layer_count = 2;
+	snprintf(grid.layers[0], sizeof(grid.layers[0]), "Assets/grass.material");
+	snprintf(grid.layers[1], sizeof(grid.layers[1]), "Assets/rock.material");
+	// All layer 0, as a read gives it.
+	grid.paint = voe_base_arena_push(arena, 8 * 25);
+	for (size_t p = 0; p < 25; p++)
+		set_weight(&grid, p, 0, 255);
+	grid.looks[0] = (voe_assets_landscape_look){ .size = 2000,
+						     .size_vary = 35,
+						     .turn_vary = 0,
+						     .tilt = 100 };
+	grid.looks[1].shadowless = true;
+	grid.grows[0][1] = 1;
+	grid.grows[1][0] = 40;
+	grid.grows[1][1] = VOE_ASSETS_LANDSCAPE_GROW_MAX;
+	return grid;
+}
+
+static void looks_and_grows_round_trip_byte_for_byte(voe_base_arena *arena)
+{
+	const voe_assets_landscape grid = grown(arena);
+	const voe_assets_landscape_text text =
+		voe_assets_landscape_write(&grid, arena);
+	voe_assets_landscape_text again;
+	voe_assets_landscape back;
+
+	VOE_TEST_CHECK(strstr(text.text, "layer1=\"Assets/rock.material\"\n"
+					 "grow0_1=1\ngrow1_0=40\ngrow1_1=500\n\n"
+					 "[Foliage]\n") != NULL);
+	VOE_TEST_CHECK(strstr(text.text, "kind0=\"Assets/pine.glb\"\nsize0=2000\n"
+					 "vary0=35\nturn0=0\ntilt0=100\nkind1=") !=
+		       NULL);
+	VOE_TEST_CHECK(strstr(text.text, "\\\"birch\\\".glb\"\nshadow1=0\n\n") !=
+		       NULL);
+	VOE_TEST_CHECK(strstr(text.text, "shadow0") == NULL);
+	VOE_TEST_CHECK(strstr(text.text, "grow0_0") == NULL);
+
+	VOE_TEST_CHECK(voe_assets_landscape_read(text.text, text.size, arena,
+						 &back, NULL));
+	VOE_TEST_CHECK(same_look(back.looks[0], grid.looks[0]));
+	VOE_TEST_CHECK(same_look(back.looks[1], grid.looks[1]));
+	VOE_TEST_CHECK(memcmp(back.grows, grid.grows, sizeof(back.grows)) == 0);
+	again = voe_assets_landscape_write(&back, arena);
+	VOE_TEST_CHECK_INT(again.size, text.size);
+	VOE_TEST_CHECK(strcmp(again.text, text.text) == 0);
+}
+
+// Two layers then two kinds: grow keys, look keys and the heights go in.
+static const char *const two_layers_two_kinds =
+	"[Landscape]\nsize=64\ncells=4\n[Layers]\nlayer0=\"a.material\"\n"
+	"layer1=\"b.material\"\n%s[Foliage]\nkind0=\"a.glb\"\nkind1=\"b.glb\"\n"
+	"%s%s";
+
+static void no_look_keys_read_as_the_default(voe_base_arena *arena)
+{
+	const voe_assets_landscape_look fallback =
+		voe_assets_landscape_look_default();
+	char text[1024];
+	voe_assets_landscape out;
+	voe_assets_landscape_text written;
+	bool none_grown = true;
+
+	VOE_TEST_CHECK_INT(fallback.size, 0);
+	VOE_TEST_CHECK_INT(fallback.size_vary, 20);
+	VOE_TEST_CHECK_INT(fallback.turn_vary, 180);
+	VOE_TEST_CHECK_INT(fallback.tilt, 0);
+	VOE_TEST_CHECK(!fallback.shadowless);
+	snprintf(text, sizeof(text), two_layers_two_kinds, "", "",
+		 four_flat_rows);
+	VOE_TEST_CHECK(read_text(arena, text, &out, NULL));
+	VOE_TEST_CHECK(same_look(out.looks[0], fallback));
+	VOE_TEST_CHECK(same_look(out.looks[1], fallback));
+	for (uint32_t l = 0; l < VOE_ASSETS_LANDSCAPE_LAYERS; l++)
+		for (uint32_t k = 0; k < VOE_ASSETS_LANDSCAPE_KINDS; k++)
+			none_grown = none_grown && out.grows[l][k] == 0;
+	VOE_TEST_CHECK(none_grown);
+	written = voe_assets_landscape_write(&out, arena);
+	VOE_TEST_CHECK(strstr(written.text, "kind1=\"b.glb\"\n\n[Heights]") !=
+		       NULL);
+	VOE_TEST_CHECK(strstr(written.text, "size0") == NULL &&
+		       strstr(written.text, "vary") == NULL &&
+		       strstr(written.text, "turn") == NULL &&
+		       strstr(written.text, "tilt") == NULL &&
+		       strstr(written.text, "shadow") == NULL &&
+		       strstr(written.text, "grow") == NULL);
+}
+
+static void bad_looks_and_grows_are_malformed(voe_base_arena *arena)
+{
+	const char *const bad_looks[] = {
+		"vary0=101\n", "vary0=1.5\n", "turn1=181\n", "turn0=-1\n",
+		"tilt0=101\n", "shadow0=2\n", "shadow1=x\n",
+	};
+	const char *const bad_grows[] = {
+		// A layer and a kind past their counts.
+		"grow2_0=40\n", "grow0_2=40\n",
+		// Densities out of range or not whole.
+		"grow0_0=0\n", "grow0_0=501\n", "grow1_1=2.5\n",
+		// Not shaped grow<l>_<k>.
+		"grow1=40\n", "grow_0_0=40\n", "grow0_0x=40\n",
+	};
+	char text[1024];
+
+	for (size_t i = 0; i < sizeof(bad_looks) / sizeof(bad_looks[0]); i++) {
+		snprintf(text, sizeof(text), two_layers_two_kinds, "",
+			 bad_looks[i], four_flat_rows);
+		refused_as(arena, text, VOE_BASE_ERROR_MALFORMED);
+	}
+	for (size_t i = 0; i < sizeof(bad_grows) / sizeof(bad_grows[0]); i++) {
+		snprintf(text, sizeof(text), two_layers_two_kinds, bad_grows[i],
+			 "", four_flat_rows);
+		refused_as(arena, text, VOE_BASE_ERROR_MALFORMED);
+	}
+	// And the ranges' ends are read.
+	snprintf(text, sizeof(text), two_layers_two_kinds,
+		 "grow0_0=1\ngrow1_1=500\n",
+		 "vary0=0\nturn0=180\ntilt0=100\nshadow0=1\nvary1=100\n"
+		 "turn1=0\nshadow1=0\n",
+		 four_flat_rows);
+	{
+		voe_assets_landscape out;
+
+		VOE_TEST_CHECK(read_text(arena, text, &out, NULL));
+		VOE_TEST_CHECK_INT(out.grows[0][0], 1);
+		VOE_TEST_CHECK_INT(out.grows[1][1], 500);
+		VOE_TEST_CHECK(same_look(out.looks[0],
+					 (voe_assets_landscape_look){
+						 .turn_vary = 180, .tilt = 100 }));
+		VOE_TEST_CHECK(same_look(out.looks[1],
+					 (voe_assets_landscape_look){
+						 .size_vary = 100,
+						 .shadowless = true }));
+	}
+}
+
+static void a_resample_keeps_looks_and_grows(voe_base_arena *arena)
+{
+	const voe_assets_landscape grid = grown(arena);
+	const voe_assets_landscape eight =
+		voe_assets_landscape_resample(&grid, 8, arena);
+
+	VOE_TEST_CHECK(same_look(eight.looks[0], grid.looks[0]));
+	VOE_TEST_CHECK(same_look(eight.looks[1], grid.looks[1]));
+	VOE_TEST_CHECK(memcmp(eight.grows, grid.grows, sizeof(eight.grows)) ==
+		       0);
+	VOE_TEST_CHECK_INT(eight.grows[1][1], VOE_ASSETS_LANDSCAPE_GROW_MAX);
 }
 
 int main(void)
@@ -660,6 +823,10 @@ int main(void)
 	a_bad_kind_size_is_malformed(arena);
 	a_resample_keeps_the_kind_sizes(arena);
 	a_flat_grids_kind_added_by_hand_is_1x(arena);
+	looks_and_grows_round_trip_byte_for_byte(arena);
+	no_look_keys_read_as_the_default(arena);
+	bad_looks_and_grows_are_malformed(arena);
+	a_resample_keeps_looks_and_grows(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

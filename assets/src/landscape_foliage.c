@@ -1,6 +1,7 @@
-// The landscape file's `[Foliage]` and `[Copies]` behind landscape_foliage.h:
-// quoted kind paths read to the first missing key, and one line of six whole
-// numbers a copy, both read into the landscape and printed back.
+// The landscape file's `[Foliage]`, `[Layers]`' grow keys and `[Copies]` behind
+// landscape_foliage.h: quoted kind paths read to the first missing key with
+// their looks, each layer's density of each kind, and one line of six whole
+// numbers a copy, all read into the landscape and printed back.
 //
 // THE COPIES' KEYS ARE WALKED ONCE, NOT LOOKED UP BY NAME, as
 // `landscape_paint.c` walks its rows: 65536 lookups would each scan the
@@ -13,14 +14,21 @@
 // {x, z, turn, scale, kind, lean} in memory, the order a cooked initializer
 // fills; each number is range-checked against its field before it is narrowed.
 //
-// A KIND'S SIZE `size<k>` FOLLOWS `kind<k>` (0460 point 1), whole thousandths
-// from 100 to 10000, printed only when neither 0 nor 1000: a 1× kind's lines
-// are as they were before sizes, and 0 in memory means 1× (point 2).
+// A KIND'S LOOK FOLLOWS `kind<k>` (0460 point 1, 0476 point 1): `size<k>`,
+// `vary<k>`, `turn<k>`, `tilt<k>` and `shadow<k>`, each a whole number in its
+// range, one table for the read and the print. A key is printed only off the
+// default, and 1000 is a size's default too: a 1× kind's lines are as they were
+// before sizes, and 0 in memory means 1× (0460 point 2).
+//
+// [Layers] IS WALKED ONCE FOR `grow<l>_<k>` (0476 point 2): any key starting
+// `grow`, so one naming a layer or kind not in the file is refused, not
+// skipped. It is read after the kinds, since its k is checked against them.
 #include "landscape_foliage.h"
 
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,28 +51,79 @@ static bool refuse(voe_base_error *error, voe_base_error code, const char *key,
 	return false;
 }
 
-// Kind k's optional `size<k>` into `into`, left 0 when missing.
-static bool read_kind_size(const voe_assets_sectioned *doc, uint32_t section,
-			   uint32_t k, voe_assets_landscape *into,
-			   voe_base_error *error)
+// A look's keys, in the order a kind's lines print them.
+enum { LOOK_SIZE, LOOK_VARY, LOOK_TURN, LOOK_TILT, LOOK_SHADOW, LOOK_KEYS };
+
+static const struct {
+	const char *key;
+	long long lowest, highest;
+	const char *wrong;
+} look_keys[LOOK_KEYS] = {
+	{ "size", VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN,
+	  VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX,
+	  "a size not a whole number from 100 to 10000" },
+	{ "vary", 0, VOE_ASSETS_LANDSCAPE_SIZE_VARY_MAX,
+	  "a size spread not a whole number from 0 to 100" },
+	{ "turn", 0, VOE_ASSETS_LANDSCAPE_TURN_VARY_MAX,
+	  "a turn spread not a whole number from 0 to 180" },
+	{ "tilt", 0, VOE_ASSETS_LANDSCAPE_TILT_MAX,
+	  "a tilt not a whole number from 0 to 100" },
+	{ "shadow", 0, 1, "a shadow not 0 or 1" },
+};
+
+// `value` as a whole number from `lowest` to `highest` with nothing after it.
+static bool whole_in_range(const char *value, long long lowest,
+			   long long highest, long long *out)
 {
-	char name[16];
-	const char *value;
 	char *end;
 	long long parsed;
 
-	snprintf(name, sizeof(name), "size%u", k);
-	value = voe_assets_sectioned_value(doc, section, name);
-	if (value == NULL)
-		return true;
 	errno = 0;
 	parsed = strtoll(value, &end, 10);
-	if (end == value || *end != '\0' || errno == ERANGE ||
-	    parsed < VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN ||
-	    parsed > VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX)
-		return refuse(error, VOE_BASE_ERROR_MALFORMED, name,
-			      "a size not a whole number from 100 to 10000");
-	into->kind_sizes[k] = (uint16_t)parsed;
+	if (end == value || *end != '\0' || errno == ERANGE || parsed < lowest ||
+	    parsed > highest)
+		return false;
+	*out = parsed;
+	return true;
+}
+
+// `look` as its keys' values, LOOK_KEYS of them, shadow 1 for casting.
+static void look_values(voe_assets_landscape_look look, long long *values)
+{
+	values[LOOK_SIZE] = look.size;
+	values[LOOK_VARY] = look.size_vary;
+	values[LOOK_TURN] = look.turn_vary;
+	values[LOOK_TILT] = look.tilt;
+	values[LOOK_SHADOW] = look.shadowless ? 0 : 1;
+}
+
+// Kind k's look keys into `into`, each missing one the default's.
+static bool read_look(const voe_assets_sectioned *doc, uint32_t section,
+		      uint32_t k, voe_assets_landscape *into,
+		      voe_base_error *error)
+{
+	long long values[LOOK_KEYS];
+
+	look_values(voe_assets_landscape_look_default(), values);
+	for (uint32_t i = 0; i < LOOK_KEYS; i++) {
+		char name[16];
+		const char *value;
+
+		snprintf(name, sizeof(name), "%s%u", look_keys[i].key, k);
+		value = voe_assets_sectioned_value(doc, section, name);
+		if (value != NULL &&
+		    !whole_in_range(value, look_keys[i].lowest,
+				    look_keys[i].highest, &values[i]))
+			return refuse(error, VOE_BASE_ERROR_MALFORMED, name,
+				      look_keys[i].wrong);
+	}
+	into->looks[k] = (voe_assets_landscape_look){
+		.size = (uint16_t)values[LOOK_SIZE],
+		.size_vary = (uint8_t)values[LOOK_VARY],
+		.turn_vary = (uint8_t)values[LOOK_TURN],
+		.tilt = (uint8_t)values[LOOK_TILT],
+		.shadowless = values[LOOK_SHADOW] == 0,
+	};
 	return true;
 }
 
@@ -95,9 +154,59 @@ static bool read_kinds(const voe_assets_sectioned *doc, const char *text,
 			return refuse(error, VOE_BASE_ERROR_MALFORMED, name,
 				      "a path of 128 bytes or more");
 		memcpy(into->kinds[k], path, length + 1);
-		if (!read_kind_size(doc, section, k, into, error))
+		if (!read_look(doc, section, k, into, error))
 			return false;
 		into->kind_count = k + 1;
+	}
+	return true;
+}
+
+// `grow<l>_<k>`'s l and k; false when `name` is not shaped so.
+static bool grow_key(const char *name, unsigned long *layer,
+		     unsigned long *kind)
+{
+	char *end;
+
+	if (!isdigit((unsigned char)name[4]))
+		return false;
+	*layer = strtoul(name + 4, &end, 10);
+	if (*end != '_' || !isdigit((unsigned char)end[1]))
+		return false;
+	*kind = strtoul(end + 1, &end, 10);
+	return *end == '\0';
+}
+
+// `[Layers]`' keys walked once, each starting `grow` a layer's density of a
+// kind, into `into`, whose layer and kind counts are read already.
+static bool read_grows(const voe_assets_sectioned *doc,
+		       voe_assets_landscape *into, voe_base_error *error)
+{
+	const uint32_t section = voe_assets_sectioned_find(doc, "Layers");
+	const voe_assets_sectioned_section *keys;
+
+	if (section == VOE_ASSETS_SECTIONED_NONE)
+		return true;
+	keys = &doc->sections[section];
+	for (uint32_t i = 0; i < keys->key_count; i++) {
+		const voe_assets_sectioned_key *key =
+			&doc->keys[keys->first_key + i];
+		unsigned long layer;
+		unsigned long kind;
+		long long density;
+
+		if (strncmp(key->name, "grow", 4) != 0)
+			continue;
+		if (!grow_key(key->name, &layer, &kind) ||
+		    layer >= into->layer_count || kind >= into->kind_count)
+			return refuse(error, VOE_BASE_ERROR_MALFORMED, key->name,
+				      "a grow key whose layer or kind is not in "
+				      "the file");
+		if (!whole_in_range(key->value, 1, VOE_ASSETS_LANDSCAPE_GROW_MAX,
+				    &density))
+			return refuse(error, VOE_BASE_ERROR_MALFORMED, key->name,
+				      "a density not a whole number from 1 to "
+				      "500");
+		into->grows[layer][kind] = (uint16_t)density;
 	}
 	return true;
 }
@@ -191,6 +300,15 @@ static bool read_copies(const voe_assets_sectioned *doc, voe_base_arena *arena,
 	return true;
 }
 
+voe_assets_landscape_look voe_assets_landscape_look_default(void)
+{
+	return (voe_assets_landscape_look){
+		.size_vary = VOE_ASSETS_LANDSCAPE_SIZE_VARY_DEFAULT,
+		.turn_vary = VOE_ASSETS_LANDSCAPE_TURN_VARY_DEFAULT,
+		.tilt = VOE_ASSETS_LANDSCAPE_TILT_DEFAULT,
+	};
+}
+
 float voe_assets_landscape_kind_size(const voe_assets_landscape *landscape,
 				     uint32_t kind)
 {
@@ -198,7 +316,7 @@ float voe_assets_landscape_kind_size(const voe_assets_landscape *landscape,
 	VOE_BASE_ASSERT(kind < VOE_ASSETS_LANDSCAPE_KINDS,
 			"a kind past the most a landscape holds");
 
-	const uint16_t thousandths = landscape->kind_sizes[kind];
+	const uint16_t thousandths = landscape->looks[kind].size;
 
 	return thousandths == 0 ? 1.0f : (float)thousandths / 1000.0f;
 }
@@ -214,7 +332,55 @@ bool voe_assets_landscape_foliage_read(const voe_assets_sectioned *doc,
 	VOE_BASE_ASSERT(arena != NULL, "reading foliage with no arena");
 
 	return read_kinds(doc, text, size, into, error) &&
+	       read_grows(doc, into, error) &&
 	       read_copies(doc, arena, into, error);
+}
+
+void voe_assets_landscape_grows_print(
+	struct voe_assets_landscape_printer *printer,
+	const voe_assets_landscape *landscape)
+{
+	VOE_BASE_ASSERT(printer != NULL, "printing grows to no printer");
+	VOE_BASE_ASSERT(landscape->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS &&
+				landscape->kind_count <=
+					VOE_ASSETS_LANDSCAPE_KINDS,
+			"printing grows past what a landscape holds");
+
+	for (uint32_t l = 0; l < landscape->layer_count; l++)
+		for (uint32_t k = 0; k < landscape->kind_count; k++) {
+			const uint16_t density = landscape->grows[l][k];
+
+			VOE_BASE_ASSERT(density <= VOE_ASSETS_LANDSCAPE_GROW_MAX,
+					"writing a density the reader would refuse");
+			if (density > 0)
+				voe_assets_landscape_print(printer,
+							   "grow%u_%u=%u\n", l, k,
+							   (unsigned)density);
+		}
+}
+
+// Kind k's look keys, each only off the default.
+static void print_look(struct voe_assets_landscape_printer *printer,
+		       uint32_t k, voe_assets_landscape_look look)
+{
+	long long values[LOOK_KEYS];
+	long long defaults[LOOK_KEYS];
+
+	look_values(look, values);
+	look_values(voe_assets_landscape_look_default(), defaults);
+	for (uint32_t i = 0; i < LOOK_KEYS; i++) {
+		const bool is_default =
+			values[i] == defaults[i] ||
+			(i == LOOK_SIZE && values[i] == 1000);
+
+		VOE_BASE_ASSERT(is_default || (values[i] >= look_keys[i].lowest &&
+					       values[i] <= look_keys[i].highest),
+				"writing a look the reader would refuse");
+		if (!is_default)
+			voe_assets_landscape_print(printer, "%s%u=%lld\n",
+						   look_keys[i].key, k,
+						   values[i]);
+	}
 }
 
 void voe_assets_landscape_kinds_print(
@@ -230,17 +396,10 @@ void voe_assets_landscape_kinds_print(
 	voe_assets_landscape_print(printer, "[Foliage]\n");
 	for (uint32_t k = 0; k < landscape->kind_count; k++) {
 		char quoted[VOE_ASSETS_LANDSCAPE_QUOTED_PATH];
-		const uint16_t size = landscape->kind_sizes[k];
 
-		VOE_BASE_ASSERT(size == 0 ||
-					(size >= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MIN &&
-					 size <= VOE_ASSETS_LANDSCAPE_KIND_SIZE_MAX),
-				"writing a kind size the reader would refuse");
 		voe_assets_landscape_quote(landscape->kinds[k], quoted);
 		voe_assets_landscape_print(printer, "kind%u=%s\n", k, quoted);
-		if (size != 0 && size != 1000)
-			voe_assets_landscape_print(printer, "size%u=%u\n", k,
-						   (unsigned)size);
+		print_look(printer, k, landscape->looks[k]);
 	}
 	voe_assets_landscape_print(printer, "\n");
 }

@@ -133,7 +133,8 @@ voe_scene_transform voe_3d_foliage_place(const voe_assets_landscape *landscape,
 }
 
 // One try: a point uniform in the disc and its copy, refused already when it
-// is off the square or its weight does not beat a draw. Six draws always.
+// is off the square or its weight does not beat a draw. Six draws always; the
+// kind is drawn before its spreads are read from its look.
 static struct foliage_try try_point(const voe_assets_landscape *landscape,
 				    const voe_3d_foliage_brush *brush, float x,
 				    float z, uint32_t kinds, uint64_t *seed)
@@ -141,17 +142,25 @@ static struct foliage_try try_point(const voe_assets_landscape *landscape,
 	const float reach = brush->radius * sqrtf(draw(seed));
 	const float angle = TWO_PI * draw(seed);
 	const float beat = draw(seed);
-	const float kind = draw(seed);
+	const uint8_t kind = nth_kind(kinds, draw(seed));
 	const float size = draw(seed);
 	const float turn = draw(seed);
+	const voe_assets_landscape_look look = landscape->looks[kind];
+
+	VOE_BASE_ASSERT(look.size_vary <= VOE_ASSETS_LANDSCAPE_SIZE_VARY_MAX &&
+				look.turn_vary <=
+					VOE_ASSETS_LANDSCAPE_TURN_VARY_MAX &&
+				look.tilt <= VOE_ASSETS_LANDSCAPE_TILT_MAX,
+			"a kind's spreads in range");
 	const float px = x + reach * cosf(angle);
 	const float pz = z + reach * sinf(angle);
 	const float half = 0.5f * landscape->size;
-	const float scale = (1.0f + brush->size_vary * (2.0f * size - 1.0f)) *
-			    1000.0f;
-	const long units = lroundf(brush->turn_vary * (2.0f * turn - 1.0f) /
-				   TWO_PI * TURN_UNITS);
-	const float lean = fminf(fmaxf(brush->lean, 0.0f), 1.0f) * 255.0f;
+	const float scale =
+		(1.0f + (float)look.size_vary / 100.0f * (2.0f * size - 1.0f)) *
+		1000.0f;
+	const long units = lroundf((float)look.turn_vary * (2.0f * turn - 1.0f) /
+				   360.0f * TURN_UNITS);
+	const float lean = (float)look.tilt / 100.0f * 255.0f;
 	const float weight =
 		voe_3d_brush_weight(brush->radius, brush->softness, reach);
 	struct foliage_try out = {
@@ -161,7 +170,7 @@ static struct foliage_try try_point(const voe_assets_landscape *landscape,
 			.turn = (uint16_t)(uint32_t)units,
 			.scale = (uint16_t)lroundf(
 				fminf(fmaxf(scale, 1.0f), 65535.0f)),
-			.kind = nth_kind(kinds, kind),
+			.kind = kind,
 			.lean = (uint8_t)lroundf(lean),
 		},
 	};
