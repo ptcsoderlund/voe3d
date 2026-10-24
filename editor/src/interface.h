@@ -416,8 +416,13 @@
 // "Largest size", eleven; each of the six buttons' border and fill, twelve;
 // "512", "1024", "2048" and "4096", fifteen; "Import" and "Cancel", twelve.
 // 52699 + 1095 = 53794 elements. No scroll area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2698
-#define VOE_EDITOR_INTERFACE_ELEMENTS 53794
+//
+// THE FRAME BREAKDOWN'S TEXTURES ROW (frame_breakdown.h, ADR-0477) ADDS THREE
+// NODES, the row and its two labels, and SIXTY-FOUR ELEMENTS: "Textures",
+// eight, and at most fifty-six characters. 2698 + 3 = 2701 nodes, 53794 + 64 =
+// 53858 elements. No scroll area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2701
+#define VOE_EDITOR_INTERFACE_ELEMENTS 53858
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and

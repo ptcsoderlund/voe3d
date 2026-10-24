@@ -3,8 +3,10 @@
 // work is argued from a measurement. A title row "Frame" with an × at its right
 // (0363 point 2), a row per pass, name left and milliseconds right, then Total,
 // then Triangles, the frame's triangle count (ADR-0425 point 7), then Draws, its
-// draw commands, far fewer than trees (0442), then two rows per picture drawn,
-// `Camera` or `View N` with its things drawn and skipped and `  shadows` with its
+// draw commands, far fewer than trees (0442), then Textures, the material
+// textures' video memory in MB to one decimal and how many of them are
+// compressed (0477 point 7), then two rows per picture drawn, `Camera` or
+// `View N` with its things drawn and skipped and `  shadows` with its
 // cascades' (0465 point 1) — an anchored panel at a point the caller gives.
 //
 //     voe_editor_frame_breakdown breakdown = { 0 };
@@ -26,22 +28,24 @@
 // a quarter second is still quick enough to see a change follow an edit. A
 // refresh with no measurement, or a card that writes no timestamps, keeps the
 // times last shown; "No GPU timings" stands until one ever is. The pictures'
-// counts are the CPU's own, exact the frame they are made, so every refresh
-// copies them, measured or not.
+// counts and the textures' memory are the CPU's own, exact when read, so every
+// refresh copies them, measured or not, and Textures always shows.
 //
 // Constraints. At most VOE_EDITOR_FRAME_PASSES passes; a frame with more shows
 // its first ones, and raising the number, with interface.h's budget, lifts it.
-// NODES, AT MOST 236: the panel, one; the title row, its label and the × as a
+// NODES, AT MOST 239: the panel, one; the title row, its label and the × as a
 // button and a label, four; per pass a row and two labels, three, 192; the
-// total's, the triangles' and the draws' rows and two labels each, nine; per
-// picture, VOE_EDITOR_VIEWS + 1 (5), two rows and two labels each, thirty.
-// ELEMENTS, AT MOST 3443: the panel's border and fill, two; "Frame", five; the
+// total's, the triangles', the draws' and the textures' rows and two labels
+// each, twelve; per picture, VOE_EDITOR_VIEWS + 1 (5), two rows and two labels
+// each, thirty.
+// ELEMENTS, AT MOST 3507: the panel's border and fill, two; "Frame", five; the
 // ×'s border, fill and character, three; per pass its name, at most
 // VOE_RENDER_PASS_NAME - 1 (31) characters, and its milliseconds, at most
 // VOE_EDITOR_FRAME_MILLISECONDS - 1 (15), 2944; "Total" and its milliseconds,
 // twenty; "Triangles" and at most VOE_EDITOR_FRAME_TRIANGLES - 1 (20) digits,
 // twenty-nine; "Draws" and at most VOE_EDITOR_FRAME_DRAWS - 1 (10) digits,
-// fifteen; per picture its name, at most "Camera"'s six, "  shadows", nine,
+// fifteen; "Textures" and at most VOE_EDITOR_FRAME_TEXTURES - 1 (56),
+// sixty-four; per picture its name, at most "Camera"'s six, "  shadows", nine,
 // and two counts of at most VOE_EDITOR_FRAME_COUNTS - 1 (35), eighty-five
 // apiece, 425. Those are what interface.h's budget counts.
 #pragma once
@@ -70,6 +74,10 @@
 // The bytes of one counts label with its NUL: "<drawn> drawn, <skipped> skipped"
 // with two uint32_t's of 10 digits.
 #define VOE_EDITOR_FRAME_COUNTS 36
+// The bytes of the textures label with its NUL: "<MB> MB, <n> of <m>
+// compressed", a uint64_t's bytes as MB to one decimal, 16 characters, and two
+// uint32_t's of 10 digits.
+#define VOE_EDITOR_FRAME_TEXTURES 57
 
 // Zeroed is a panel never shown and never measured.
 typedef struct {
@@ -84,12 +92,15 @@ typedef struct {
 	// The pictures drawn at the last refresh, in drawing order (view.h).
 	voe_editor_picture_counts pictures[VOE_EDITOR_VIEWS + 1];
 	uint32_t picture_count;
+	// The material textures at the last refresh (render/device.h).
+	voe_render_texture_memory textures;
 	// Kept here because a label's text is drawn after the call that made
 	// it (ui/widgets.h); the names are drawn from `passes`.
 	char milliseconds[VOE_EDITOR_FRAME_PASSES][VOE_EDITOR_FRAME_MILLISECONDS];
 	char total_milliseconds[VOE_EDITOR_FRAME_MILLISECONDS];
 	char triangles_label[VOE_EDITOR_FRAME_TRIANGLES];
 	char draws_label[VOE_EDITOR_FRAME_DRAWS];
+	char textures_label[VOE_EDITOR_FRAME_TEXTURES];
 	char picture_names[VOE_EDITOR_VIEWS + 1][VOE_EDITOR_FRAME_PICTURE];
 	char drawn_labels[VOE_EDITOR_VIEWS + 1][VOE_EDITOR_FRAME_COUNTS];
 	char cast_labels[VOE_EDITOR_VIEWS + 1][VOE_EDITOR_FRAME_COUNTS];
@@ -101,8 +112,8 @@ void voe_editor_frame_breakdown_show(voe_editor_frame_breakdown *breakdown);
 void voe_editor_frame_breakdown_hide(voe_editor_frame_breakdown *breakdown);
 
 // While showing, adds `seconds` to the time since the last refresh and, once a
-// quarter second has passed, copies `views`' pictures' counts in, then `gpu`'s
-// newest pass times and frame time. The frame's triangle and draw counts are
+// quarter second has passed, copies `views`' pictures' counts and `gpu`'s
+// material textures' memory in, then `gpu`'s newest pass times and frame time. The frame's triangle and draw counts are
 // taken with the times and lag as they do. Not showing, it changes nothing
 // shown; no measurement keeps the times shown.
 void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
