@@ -15,7 +15,7 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **assets** — glTF, images, WAV, fonts, landscapes, materials, sectioned text to CPU data; JSON.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text read and written, paths followed; cooked to C.
-- **render** — all of Vulkan: card, mips, heights, timed passes, light, bounce, sky, haze, tone.
+- **render** — all of Vulkan: card, mips, BC, heights, timed passes, light, bounce, sky, haze, tone.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
@@ -57,4 +57,4 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - 0405, 0406, 0411, 0413–0416, 0418, 0423 — Sky, Haze, Picture; only lights light; env via platform.
 - 0425, 0427–0430, 0432–0437, 0441 — LODs: made, chosen by error on screen, dissolved; off switch.
 - 0442–0445, 0449–0450, 0452–0454, 0469–0471, 0473–0475 — Foliage; import errors; brushes; grown.
-- 0455–0459, 0462, 0463, 0465–0467 — Import size; one loading thread; hitches; cull; counts; blend.
+- 0455–0459, 0462–0463, 0465–0467, 0477 — Import size; one thread; hitches; cull; counts; blend; BC.

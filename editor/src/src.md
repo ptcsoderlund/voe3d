@@ -168,8 +168,8 @@ carries it out.
   triangles, draws, the textures' MB and how many are compressed, and each picture's drawn and
   skipped with its shadows', copied four times a second, under a title row with its ×.
 - `frame_breakdown.c` — the quarter-second copy of the pictures' counts, the textures' memory and
-  the triangle and draw counts, keeping the last times on no measurement, the panel's one frame of `ui` calls, and the
-  read of its × afterwards.
+  the triangle and draw counts, keeping the last times on no measurement, the panel's one frame of
+  `ui` calls, and the read of its × afterwards.
 - `frame_hitches.h` — the editor's hitch watch: its own span's CPU stretches, the pace's wait, the
   shadows' and bounce's parts and foliage gathers timed, and an `editor: hitch:` line on stderr for
   each frame stalled on the CPU or the card, saying whether a light bounced (0458, 0461, 0463).
