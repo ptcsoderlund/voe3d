@@ -1,10 +1,10 @@
-# 098 — The hill, shipped
+# 103 — The hill, shipped
 
 ## What
 A project whose world has no player ships as a build that flies through it with a free camera: mouse
 to look, keys or a gamepad to fly, a key to go faster. The build opens on a camera I place in the editor.
-The hill, its ground, grass, forest, sky, house and tower look as in the editor's view and in Play. It
-runs smoothly on my laptop. With this, 0.3 is done (0374).
+The hill, its ground, grass, forest, sky, clouds, fog, house and tower look as in the editor's view and in Play. It
+runs smoothly on my laptop. With this, 0.3 is done (0374, 0479).
 
 ## Why
 0.3 is the world without the player, flown through as a shipped build. This is its finish line.
@@ -14,7 +14,8 @@ runs smoothly on my laptop. With this, 0.3 is done (0374).
 2. Run the shipped build. It opens on that view, and it looks as the editor's view does.
 3. Fly with mouse and keys, then with a gamepad. Hold the fast key and cross the valley.
 4. Fly through the forest, low over the grass, and up to the hilltop. It stays smooth on my laptop.
-5. Climb to the tower's top and look out. Sky, haze, the far forest and the ridges show to the horizon.
+5. Climb to the tower's top and look out. Sky, drifting clouds and their shadows, haze, fog in the valley, the
+   far forest and the ridges show to the horizon.
 6. Quit and run it again. It starts as before, without preparing anything again.
 7. Look at the shipped folder's size. If it feels too big to hand someone, say so: that decides whether the
    cooked files are squeezed and packed (0454).

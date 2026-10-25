@@ -31,7 +31,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   After the coin game, whose GUI is written in code (0194). The editor then sets the file format, from what
   that game actually needed.
 - **A toggle for the move and rotate gizmos** to follow the entity's own axes rather than the world's (left
-  out of 015 and 035). The scale gizmo is 098's (0438, 0467).
+  out of 015 and 035). The scale gizmo is 099's (0438, 0467).
 - **A developer picks the graphics card from code**, and a finished game lets the player pick one in its
   settings — both later, once 0201's automatic choice is in and proven.
 - **A view recorder**: something in the game that films from its own place and renders to a texture, for a
@@ -106,7 +106,13 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 
 - **Light glows tint the haze, and fog beyond haze** (sponsor, 2026-10-13, 0411). Distance turning golden
   towards a low sun: each directional light's glow colouring the haze in its direction. Kept out of 087 so the
-  haze stays purely the sky's; volumetric fog and other fog kinds will give more options later.
+  haze stays purely the sky's; volumetric fog is 102's (0480), other fog kinds may give more options later.
+
+- **Godrays in the haze** (sponsor, 2026-10-25, 0480: "We leave haze as it is now. We probably revisit this
+  later. Its all theoretical so I cant make the right decisions yet."). Haze taking the sun's, clouds' and
+  buildings' shadows along the view, so far beams through cloud gaps show without a fog volume; a Godrays
+  strength on the Haze row, 0 being today's haze. Costs a march through the shadows over the whole screen.
+  Weigh it once 101's clouds and 102's fog beams can be seen.
 
 - **Height fog on surfaces** (sponsor, 2026-10-13, 0418). Haze that pools in valleys and leaves hilltops clear,
   using the Haze row's height for the ground as well as the sky. Kept out of 087, where the height only veils
