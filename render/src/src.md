@@ -114,6 +114,10 @@ which file to open — what each one owns, and where the seams between them run.
   chain for a SMOOTH texture, the three samplers, and the slot table the ids name.
 - `texture_given.c` — a SMOOTH texture whose levels the caller gives (0470), uploaded as they are
   from one staging buffer with one region per level, no chain built.
+- `texture_blocks.c` — a SMOOTH texture of BC7 or BC5 blocks whose levels the caller gives (0477),
+  one region per level, refused on a card without textureCompressionBC.
+- `texture_memory.c` — what the live SMOOTH textures take, as the card sized their memory, how many
+  and how many compressed: one walk of the slot table.
 - `texture_levels.c` — a texture's mip chain, blitted level by level from the upload inside its
   one submission, every level left ready for the shader.
 - `texture_heights.c` — a landscape's R32F heights texture, made through texture.c's upload, and the

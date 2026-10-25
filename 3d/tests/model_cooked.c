@@ -1,16 +1,19 @@
-// THE CLAIMS, on the sphere `.glb` of model_glb.inc given one 8 × 8 picture
-// its material's base colour names, none needing a graphics card:
+// THE CLAIMS, on the sphere `.glb` of model_glb.inc given three 8 × 8
+// pictures its material names as base colour, metal-roughness and normal, none
+// needing a graphics card:
 //
 // 1. round_trip_keeps_the_bake: a 16 × 32 sphere prepared with a levels file
 //    made at the defaults, and the same sphere with its own level, each
 //    written and read back: every part's vertex and index bytes of level 0,
 //    of every own level and of every made level the same, the sphere, the
 //    flags, the own count, the level and part counts and the edge count too.
-// 2. round_trip_mips_every_picture: the picture read back has
-//    voe_assets_image_level_count(8, 8) levels.
+// 2. round_trip_mips_and_compresses_every_picture: each picture read back has
+//    voe_assets_image_level_count(8, 8) levels, the colour and metal-roughness
+//    ones BC7 and the normal one BC5 (0477).
 // 3. key_comes_back: the key written is the read's and the head's alone.
 // 4. a_changed_version_is_refused: the copy with its version word raised by
-//    one reads NULL, and its head gives no key.
+//    one, or set to 1, the version before its pictures were blocks, reads
+//    NULL, and its head gives no key.
 #include "../src/models_store.h"
 
 #include <3d/model_cooked.h>
@@ -34,18 +37,21 @@
 #include "model_glb.inc"
 
 #define SIDE 8u
+#define PICTURES 3u
 
 static const voe_3d_model_cooked_key KEY = { 11, 22 };
 
 // The sphere, with its own level or a made levels file, read, given its
-// picture, prepared; NULL when any step fails.
+// pictures (0 base colour, 1 metal-roughness, 2 normal), prepared; NULL when
+// any step fails.
 static const voe_3d_model_prepared *sphere_prepared(voe_base_arena *arena,
 						    bool own)
 {
 	voe_base_error error = VOE_BASE_OK;
 	voe_assets_model *model = voe_base_arena_push(arena, sizeof(*model));
 	voe_assets_material *materials;
-	voe_assets_image *image = voe_base_arena_push(arena, sizeof(*image));
+	voe_assets_image *images =
+		voe_base_arena_push(arena, PICTURES * sizeof(*images));
 	size_t size, levels_size = 0;
 	const uint8_t *glb = sphere_glb(arena, 16, 32, own, &size);
 	const uint8_t *levels = NULL;
@@ -58,14 +64,21 @@ static const voe_3d_model_prepared *sphere_prepared(voe_base_arena *arena,
 	memcpy(materials, model->materials,
 	       model->material_count * sizeof(*materials));
 	materials[0].base_colour_image = 0;
+	materials[0].metallic_roughness_image = 1;
+	materials[0].normal_image = 2;
 	model->materials = materials;
-	*image = (voe_assets_image){ .width = SIDE, .height = SIDE, .levels = 1,
-				     .pixels = voe_base_arena_push(
-					     arena, SIDE * SIDE * 4) };
-	for (uint32_t i = 0; i < SIDE * SIDE * 4; i++)
-		image->pixels[i] = (uint8_t)(i * 7);
-	model->images = image;
-	model->image_count = 1;
+	for (uint32_t p = 0; p < PICTURES; p++) {
+		voe_assets_image *image = &images[p];
+
+		*image = (voe_assets_image){
+			.width = SIDE, .height = SIDE, .levels = 1,
+			.pixels = voe_base_arena_push(arena, SIDE * SIDE * 4)
+		};
+		for (uint32_t i = 0; i < SIDE * SIDE * 4; i++)
+			image->pixels[i] = (uint8_t)(i * 7 + p);
+	}
+	model->images = images;
+	model->image_count = PICTURES;
 	if (!own) {
 		levels = voe_3d_model_levels_make(arena, glb, size,
 						  VOE_ASSETS_LEVELS_DEFAULT,
@@ -159,19 +172,26 @@ static void round_trip_keeps_the_bake(voe_base_arena *arena, bool own)
 	VOE_TEST_CHECK_INT(is->shape.edge_count, was->shape.edge_count);
 }
 
-static void round_trip_mips_every_picture(voe_base_arena *arena)
+static void round_trip_mips_and_compresses_every_picture(voe_base_arena *arena)
 {
+	static const voe_assets_image_format formats[PICTURES] = {
+		VOE_ASSETS_IMAGE_BC7, VOE_ASSETS_IMAGE_BC7, VOE_ASSETS_IMAGE_BC5
+	};
 	const voe_3d_model_prepared *was = sphere_prepared(arena, false);
 	voe_3d_model_cooked_key key;
 	const voe_3d_model_prepared *is =
 		was == NULL ? NULL : round_trip(arena, was, &key);
 
-	VOE_TEST_CHECK(is != NULL && is->model->image_count == 1);
-	if (is == NULL || is->model->image_count != 1)
+	VOE_TEST_CHECK(is != NULL && is->model->image_count == PICTURES);
+	if (is == NULL || is->model->image_count != PICTURES)
 		return;
-	VOE_TEST_CHECK_INT(is->model->images[0].levels,
-			   voe_assets_image_level_count(SIDE, SIDE));
+	for (uint32_t p = 0; p < PICTURES; p++) {
+		VOE_TEST_CHECK_INT(is->model->images[p].levels,
+				   voe_assets_image_level_count(SIDE, SIDE));
+		VOE_TEST_CHECK_INT(is->model->images[p].format, formats[p]);
+	}
 	VOE_TEST_CHECK_INT(is->model->materials[0].base_colour_image, 0);
+	VOE_TEST_CHECK_INT(is->model->materials[0].normal_image, 2);
 }
 
 static void key_comes_back(voe_base_arena *arena)
@@ -192,7 +212,8 @@ static void key_comes_back(voe_base_arena *arena)
 	VOE_TEST_CHECK(head.glb == KEY.glb && head.parts == KEY.parts);
 }
 
-static void a_changed_version_is_refused(voe_base_arena *arena)
+// `old`: the version word set to 1, the layout before 0477; else raised by one.
+static void a_changed_version_is_refused(voe_base_arena *arena, bool old)
 {
 	const voe_3d_model_prepared *was = sphere_prepared(arena, false);
 	voe_3d_model_cooked_key key = { 0 };
@@ -204,7 +225,7 @@ static void a_changed_version_is_refused(voe_base_arena *arena)
 		return;
 	copy = voe_3d_model_cooked_write(arena, was, KEY);
 	memcpy(&version, copy.bytes + 4, sizeof(version));
-	version++;
+	version = old ? 1u : version + 1;
 	memcpy(copy.bytes + 4, &version, sizeof(version));
 	VOE_TEST_CHECK(voe_3d_model_cooked_read(arena, copy.bytes, copy.count,
 						&key) == NULL);
@@ -218,9 +239,10 @@ int main(void)
 
 	round_trip_keeps_the_bake(arena, false);
 	round_trip_keeps_the_bake(arena, true);
-	round_trip_mips_every_picture(arena);
+	round_trip_mips_and_compresses_every_picture(arena);
 	key_comes_back(arena);
-	a_changed_version_is_refused(arena);
+	a_changed_version_is_refused(arena, false);
+	a_changed_version_is_refused(arena, true);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

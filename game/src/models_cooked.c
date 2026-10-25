@@ -8,7 +8,9 @@
 // `.glb`s of the paths given, then each table row's four maps in order. An
 // input is stale when it has a stamp and its copy's head is missing, will not
 // read or holds another key; a model is cooked through the public prepare, a
-// map read, decoded and saved here, each on scratch, rewound after it.
+// map read, decoded and saved here, each on scratch, rewound after it. A
+// map's save mips, compresses by kind (0477) and writes, the write its own
+// call so a chain compressed elsewhere is written the same way.
 //
 // Constraints: a map is compared with every map before it to count a path and
 // kind once, a square in the table's maps; a sorted table would lift it.
@@ -171,8 +173,19 @@ voe_assets_image voe_game_models_picture_save(const char *folder,
 					      voe_base_arena *arena)
 {
 	voe_assets_image chain = voe_assets_image_mips(arena, image, kind);
+	voe_assets_image blocks = voe_assets_image_compress(arena, &chain, kind);
+
+	voe_game_models_picture_write(folder, path, &blocks, kind, stamp, arena);
+	return blocks;
+}
+
+void voe_game_models_picture_write(const char *folder, const char *path,
+				   const voe_assets_image *chain,
+				   voe_assets_image_kind kind, uint64_t stamp,
+				   voe_base_arena *arena)
+{
 	voe_assets_bytes copy =
-		voe_assets_image_cooked_write(arena, &chain, kind, stamp);
+		voe_assets_image_cooked_write(arena, chain, kind, stamp);
 	const char *cache = voe_platform_path_join(arena, folder,
 						   "Cache/pictures");
 	voe_base_error unsaved = VOE_BASE_OK;
@@ -186,7 +199,6 @@ voe_assets_image voe_game_models_picture_save(const char *folder,
 			       "the map's cooked copy could not be saved in the "
 			       "project's `Cache/pictures/`: %s",
 			       voe_base_error_string(unsaved));
-	return chain;
 }
 
 voe_3d_model_cooked_key voe_game_models_cooked_key(const char *folder,

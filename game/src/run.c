@@ -179,7 +179,7 @@ static bool run_start_work(void *context, voe_game_progress *progress)
 	(void)voe_game_models_materials_cooked(
 		start->world, start->store, start->device, start->folder,
 		&voe_game_materials_cooked, &voe_game_parts_cooked,
-		start->scratch);
+		start->scratch, progress);
 	if (voe_game_progress_stopped(progress))
 		return false;
 	voe_app_start_log_step(start->log, "shapes and models");
@@ -275,7 +275,7 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 			(void)voe_game_models_materials_cooked(
 				world, models->store, voe_app_device(app),
 				models->folder, &voe_game_materials_cooked,
-				&voe_game_parts_cooked, scratch);
+				&voe_game_parts_cooked, scratch, NULL);
 			asks =(voe_game_project_asks){ 0 };
 		}
 		if (!asks.paused)
@@ -291,7 +291,7 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 		(void)voe_game_models_materials_cooked(
 			world, models->store, voe_app_device(app),
 			models->folder, &voe_game_materials_cooked,
-			&voe_game_parts_cooked, scratch);
+			&voe_game_parts_cooked, scratch, NULL);
 		// The ui frame is laid out in scratch and gone by the next.
 		voe_base_arena_clear(scratch);
 		if (!voe_game_interface_run(interface, scratch, world,

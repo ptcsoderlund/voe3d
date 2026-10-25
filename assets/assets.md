@@ -13,8 +13,8 @@ way out: a decoder takes a buffer and an encoder hands one back, since
   why no coordinate is converted, and which failures are malformed.
 - `include/assets/image.h` — pictures, both directions: PNG and JPEG decoded to
   RGBA8, RGBA8 encoded back as a PNG, a picture shrunk to a largest side, its
-  mip chain and its cooked form. Its header says why output is always four
-  channels and why nothing turns an image the right way up.
+  mip chain, its BC7 or BC5 blocks and its cooked form. Its header says why
+  BC7 and BC5 and why nothing turns an image the right way up.
 - `include/assets/sectioned.h` — the engine's own authored text format:
   `[Section]` headers and `key=value` lines, handed back as text and never
   interpreted. Its header says why it is layer one of three and why comments

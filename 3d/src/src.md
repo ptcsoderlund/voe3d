@@ -158,6 +158,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
   listed, shared by the import and the model store; internal.
 - `model_upload.c` — each picture once per colour space wanted, a record per material and
   one default shared by the primitives naming none.
+- `picture_upload.h` — one picture as one SMOOTH texture, blocks, an RGBA8 chain or one level the
+  GPU mips, shared by a model's pictures and a material's maps; internal.
+- `picture_upload.c` — the picture's format into `render`'s blocks, and the create of its shape.
 - `import.c` — the model's upload, its geometry and the tree walk that turns a read model
   into one entity per drawn primitive, a full world and a deep nesting said as limits.
 - `model_bake.h` — a read model's nodes of one level baked into its vertices, its vertex colours

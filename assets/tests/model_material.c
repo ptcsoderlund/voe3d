@@ -118,8 +118,10 @@ static voe_assets_model orm_model(voe_assets_material *materials,
 		occlusion_pixels[i * 4 + 2] = 9;
 		occlusion_pixels[i * 4 + 3] = 255;
 	}
-	images[0] = (voe_assets_image){ 2, 2, packed_pixels, 0 };
-	images[1] = (voe_assets_image){ 4, 4, occlusion_pixels, 0 };
+	images[0] = (voe_assets_image){ 2, 2, packed_pixels, 0,
+					VOE_ASSETS_IMAGE_RGBA8 };
+	images[1] = (voe_assets_image){ 4, 4, occlusion_pixels, 0,
+					VOE_ASSETS_IMAGE_RGBA8 };
 	for (uint32_t i = 0; i < 4; i++)
 		materials[i] = gltf_material();
 	// Factors of 1 keep the picture as painted.
@@ -186,8 +188,10 @@ static uint8_t grey_pixels[2 * 2 * 4];
 static void orm_multiplies_the_picture_by_the_factors(voe_base_arena *arena)
 {
 	voe_assets_material materials[4];
-	voe_assets_image images[2] = { { 2, 2, bark_pixels, 0 },
-				       { 2, 2, grey_pixels, 0 } };
+	voe_assets_image images[2] = {
+		{ 2, 2, bark_pixels, 0, VOE_ASSETS_IMAGE_RGBA8 },
+		{ 2, 2, grey_pixels, 0, VOE_ASSETS_IMAGE_RGBA8 }
+	};
 	const float metallic[4] = { 0.0f, 1.0f, 0.5f, 2.0f };
 	const voe_assets_model model = { .materials = materials,
 					 .material_count = 4,

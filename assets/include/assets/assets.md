@@ -7,7 +7,7 @@ and the questions each header answers, stays on `assets/assets.md`.
   decoded or left encoded, and a node tree.
 - `image.h` — pictures, both directions: PNG and JPEG decoded to RGBA8,
   RGBA8 encoded back as a PNG, a picture shrunk to a largest side, its full
-  mip chain, and its cooked form for the cache.
+  mip chain, its BC7 or BC5 blocks, and its cooked form for the cache.
 - `sectioned.h` — the engine's own authored text format: `[Section]` headers and
   `key=value` lines, handed back as text and never interpreted.
 - `landscape.h` — a `.landscape` file's text to a grid of up to 2048 cells of

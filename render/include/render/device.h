@@ -1255,6 +1255,40 @@ bool voe_render_geometry_destroy(voe_render_device *device,
 	uint32_t height, uint32_t level_count, const uint8_t *rgba,
 	voe_render_texture *out, voe_base_error *error);
 
+// The block formats a material texture is compressed into (ADR-0477 point 1).
+// BC7 is read as sRGB for VOE_RENDER_TEXTURE_COLOUR and as numbers for DATA; BC5
+// holds two channels, x and y of a normal map, and is numbers for either kind.
+typedef enum {
+	VOE_RENDER_BLOCKS_BC7,
+	VOE_RENDER_BLOCKS_BC5,
+} voe_render_blocks;
+
+// The same as _create_levels, for a chain already compressed into `blocks`:
+// always SMOOTH, the `level_count` levels as given, the bytes copied, the GPU
+// waited for. Every 4×4 block is 16 bytes, and level i is ⌈max(1, width >> i) /
+// 4⌉ × ⌈max(1, height >> i) / 4⌉ blocks, row-major, the levels back to back.
+// Fails REFUSED, with one line, on a card without textureCompressionBC, and as
+// _create does otherwise; a level_count of 0 or past the full chain asserts.
+[[nodiscard]] bool voe_render_texture_create_blocks(
+	voe_render_device *device, voe_render_texture_kind kind,
+	voe_render_blocks blocks, uint32_t width, uint32_t height,
+	uint32_t level_count, const uint8_t *bytes, voe_render_texture *out,
+	voe_base_error *error);
+
+// What the material textures take (ADR-0477 point 7): the SMOOTH textures alive,
+// slot 0's white default not among them, their images' memory as the card sized
+// it, how many there are, and how many of those are blocks.
+typedef struct {
+	uint64_t bytes;
+	uint32_t count;
+	uint32_t compressed;
+} voe_render_texture_memory;
+
+// One walk of the texture table. On the owner's thread, which is the one that
+// may not race a worker's create or destroy.
+voe_render_texture_memory
+voe_render_texture_memory_smooth(const voe_render_device *device);
+
 // Gives the slot back and bumps its generation, so every id naming it — the
 // caller's, and any copy anywhere else — is refused from here on. False when the
 // id was already stale, which is not an error and needs no handling: it means

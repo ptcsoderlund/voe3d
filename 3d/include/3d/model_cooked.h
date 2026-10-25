@@ -36,10 +36,14 @@
 // occlusion data, one no material names colour. A picture used two ways keeps
 // its first use's chain in both.
 //
-// CONSTRAINTS: the write pushes every picture's mipped copy and the copy itself
-// onto `arena`, about twice the pictures' bytes beside the result. The read
-// checks every count, range and index against what it indexes, so a damaged
-// copy cannot read past an array; it does not check floats.
+// PICTURES ARE COOKED AS BLOCKS BY THEIR USE (0477): the chain of a colour or
+// data picture as BC7, of a normal one as BC5, so a read brings its format.
+//
+// CONSTRAINTS: the write pushes every picture's mipped copy, its blocks and the
+// copy itself onto `arena`: the RGBA8 chains and a quarter more beside the
+// result. The read checks every count, range and index against what it
+// indexes, so a damaged copy cannot read past an array; it does not check
+// floats.
 #pragma once
 
 #include <3d/model_prepare.h>
@@ -60,7 +64,8 @@ typedef struct {
 
 // `prepared` as a cooked copy on `arena`, keyed `key`. Asserts its pictures
 // are decoded; each is given its full chain (voe_assets_image_mips) of the
-// kind its first use says, and written with key 0. Cannot fail.
+// kind its first use says, compressed by that kind and written with key 0.
+// Cannot fail.
 voe_assets_bytes voe_3d_model_cooked_write(voe_base_arena *arena,
 					   const voe_3d_model_prepared *prepared,
 					   voe_3d_model_cooked_key key);

@@ -222,6 +222,16 @@ static bool create_device(voe_render_device *device)
 		VOE_BASE_ERROR("render",
 			       "this graphics card cannot write a layer from a vertex shader (shaderOutputLayer); point lights will cast no shadow");
 
+	// What a compressed material texture is read in (ADR-0477 point 6).
+	// Queried for the same reason: a card without it runs everything else,
+	// and texture_blocks.c refuses a compressed upload.
+	device->bc = available.features.textureCompressionBC == VK_TRUE;
+	features.features.textureCompressionBC =
+		available.features.textureCompressionBC;
+	if (!device->bc)
+		VOE_BASE_ERROR("render",
+			       "this graphics card cannot read BC7 or BC5 blocks (textureCompressionBC); compressed textures will be refused");
+
 	result = voe_render_vk.create_device(device->physical, &info, NULL,
 					     &device->device);
 	if (result != VK_SUCCESS) {

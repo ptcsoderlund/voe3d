@@ -10,8 +10,10 @@
 // folder and read onto the material's arena, under its path as the subject),
 // decoding pictures (each map read, on its own arena, under its path and "the
 // <kind> map `path`" as 3d says it), cooking (each decoded map mipped and
-// written as its copy, unless the mode writes none), uploading (through
-// voe_3d_models_put_material, a copy's levels as they are, under its path). A
+// written as its copy, compressed, unless the mode writes none; given a queue,
+// mipped and added to it instead, game/compressing.h, 0477 point 3), uploading
+// (through voe_3d_models_put_material, a copy's or a queued map's levels as
+// they are, under its path). A
 // map that will not read or decode keeps the material failed at its stamp,
 // the cause said where it was met (0445); every failure counted. Each
 // material's arenas are destroyed after its put; `scratch` holds only the
@@ -21,6 +23,10 @@
 // call takes a fresh copy and writes a missing or stale one; the one-material
 // load takes a fresh one and writes none; materials_cooked, the game's,
 // takes any copy that reads and writes one only when there is none that does.
+//
+// THE PROGRESS (0477 point 3): "Loading materials" done/total before each
+// material is read, then "Compressing textures" at the same count once it is
+// read when a map of it will be cooked inline.
 //
 // THE LINE, `game: materials: <n> files in <s> s: reading <s> s, decoding
 // pictures <s> s, uploading <s> s, cooking <s> s`, the maps or copies read,
@@ -86,12 +92,17 @@ struct chunk_material {
 };
 
 // A chunk of materials of `folder`: one, as each call loads them, taking and
-// writing map copies as `cooking` says.
+// writing map copies as `cooking` says, or queueing maps in `compressing`
+// when not NULL; `done` of `total` the call's count for `progress`.
 struct chunk {
 	const char *folder;
 	struct chunk_material *materials;
 	uint32_t count;
 	enum voe_game_models_cooking cooking;
+	voe_game_compressing *compressing;
+	voe_game_progress *progress;
+	uint32_t done;
+	uint32_t total;
 };
 
 // The `index`th map's path of `values`, "" for none.
@@ -205,30 +216,57 @@ static void chunk_decode(struct chunk *chunk, uint32_t index)
 	voe_base_report_subject_pop();
 }
 
+// Whether the chunk's read maps will be cooked inline: one was read, not
+// taken, with no queue and a mode that writes.
+static bool chunk_cooks(const struct chunk *chunk)
+{
+	VOE_BASE_ASSERT(chunk != NULL, "no chunk");
+	if (chunk->compressing != NULL ||
+	    chunk->cooking == VOE_GAME_MODELS_COOK_NEVER)
+		return false;
+	for (uint32_t i = 0; i < chunk->count; i++)
+		for (uint32_t k = 0; k < MAPS; k++)
+			if (chunk->materials[i].read &&
+			    chunk->materials[i].maps[k].size > 0)
+				return true;
+	return false;
+}
+
 // Cooking: one decoded map of a read material, its copy not taken, given its
-// full chain and written as its copy under its path, unless the chunk's mode
-// writes none.
+// full chain on the CPU and added to the chunk's queue, or else written as its
+// copy under its path unless the chunk's mode writes none.
 static void chunk_cook(struct chunk *chunk, uint32_t index)
 {
 	struct chunk_material *read = &chunk->materials[index / MAPS];
 	uint32_t k = index % MAPS;
+	const char *path = map_path(&read->material->values, k);
 
 	VOE_BASE_ASSERT(index < chunk->count * MAPS, "cooking past the chunk");
-	if (chunk->cooking == VOE_GAME_MODELS_COOK_NEVER || !read->read ||
-	    read->taken[k] || read->decoded[k] != VOE_BASE_OK ||
+	if (!read->read || read->taken[k] || read->decoded[k] != VOE_BASE_OK ||
 	    read->pictures[k].width == 0)
+		return;
+	if (chunk->compressing == NULL &&
+	    chunk->cooking == VOE_GAME_MODELS_COOK_NEVER)
 		return;
 	VOE_BASE_ASSERT(read->picture_arenas[k] != NULL, "a map with no arena");
 	voe_base_report_subject_push(read->material->path);
-	read->pictures[k] = voe_game_models_picture_save(
-		chunk->folder, map_path(&read->material->values, k),
-		&read->pictures[k], MAP_KINDS[k], read->stamps[k],
-		read->picture_arenas[k]);
+	if (chunk->compressing != NULL) {
+		read->pictures[k] = voe_assets_image_mips(read->picture_arenas[k],
+							  &read->pictures[k],
+							  MAP_KINDS[k]);
+		voe_game_compressing_add(chunk->compressing, chunk->folder, path,
+					 MAP_KINDS[k], read->stamps[k],
+					 &read->pictures[k]);
+	} else {
+		read->pictures[k] = voe_game_models_picture_save(
+			chunk->folder, path, &read->pictures[k], MAP_KINDS[k],
+			read->stamps[k], read->picture_arenas[k]);
+	}
 	voe_base_report_subject_pop();
 }
 
 // Reading, decoding pictures, then cooking, each timed, index by index in
-// order.
+// order; "Compressing textures" said once read when a map is cooked inline.
 static void chunk_prepare(struct chunk *chunk, voe_game_models_times *times)
 {
 	double before = voe_platform_clock_now();
@@ -238,6 +276,9 @@ static void chunk_prepare(struct chunk *chunk, voe_game_models_times *times)
 		chunk_read(chunk, i);
 	times->seconds[VOE_GAME_MODELS_READING] +=
 		voe_platform_clock_now() - before;
+	if (chunk_cooks(chunk))
+		voe_game_progress_set(chunk->progress, "Compressing textures",
+				      chunk->done, chunk->total);
 	before = voe_platform_clock_now();
 	for (uint32_t i = 0; i < chunk->count * MAPS; i++)
 		chunk_decode(chunk, i);
@@ -305,11 +346,15 @@ bool voe_game_models_material_load(voe_3d_models *models,
 				   const char *folder,
 				   const voe_game_material *material,
 				   uint64_t stamp, voe_base_arena *scratch,
+				   voe_game_compressing *compressing,
 				   voe_base_error *error)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	voe_game_models_times times = { 0 };
-	struct chunk chunk = { folder, NULL, 1, VOE_GAME_MODELS_COOK_NEVER };
+	struct chunk chunk = { .folder = folder,
+			       .count = 1,
+			       .cooking = VOE_GAME_MODELS_COOK_NEVER,
+			       .compressing = compressing };
 	bool loaded;
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
@@ -443,18 +488,24 @@ static void gather_all(const voe_ecs_world *world, voe_3d_models *models,
 	}
 }
 
-// The materials call, its map copies taken and written as `cooking` says.
+// The materials call, its map copies taken and written as `cooking` says, or
+// its maps queued in `compressing`, reporting into `progress`.
 static voe_game_models_failures
 materials_load(const voe_ecs_world *world, voe_3d_models *models,
 	       voe_render_device *device, const char *folder,
 	       const voe_game_materials *table, const voe_game_parts *parts,
-	       voe_base_arena *scratch, enum voe_game_models_cooking cooking)
+	       voe_base_arena *scratch, enum voe_game_models_cooking cooking,
+	       voe_game_progress *progress, voe_game_compressing *compressing)
 {
 	struct voe_base_arena_mark mark;
 	voe_game_models_failures failures = { 0 };
 	voe_game_models_times times = { 0 };
 	struct gathered gathered = { 0 };
-	struct chunk chunk = { folder, NULL, 1, cooking };
+	struct chunk chunk = { .folder = folder,
+			       .count = 1,
+			       .cooking = cooking,
+			       .compressing = compressing,
+			       .progress = progress };
 
 	VOE_BASE_ASSERT(models != NULL && device != NULL, "no store or device");
 	VOE_BASE_ASSERT(folder != NULL && table != NULL && parts != NULL &&
@@ -466,9 +517,15 @@ materials_load(const voe_ecs_world *world, voe_3d_models *models,
 		scratch, VOE_3D_MODELS * sizeof(*gathered.indices));
 	gather_all(world, models, table, &gathered, &failures);
 	chunk.materials = voe_base_arena_push(scratch, sizeof(*chunk.materials));
+	chunk.total = gathered.count;
 	for (uint32_t i = 0; i < gathered.count; i++) {
 		voe_base_error error;
 
+		if (voe_game_progress_stopped(progress))
+			break;
+		chunk.done = i;
+		voe_game_progress_set(progress, "Loading materials", i,
+				      gathered.count);
 		*chunk.materials = (struct chunk_material){
 			.material = &table->materials[gathered.indices[i]]
 		};
@@ -488,18 +545,22 @@ voe_game_models_failures
 voe_game_models_materials(const voe_ecs_world *world, voe_3d_models *models,
 			  voe_render_device *device, const char *folder,
 			  const voe_game_materials *table,
-			  const voe_game_parts *parts, voe_base_arena *scratch)
+			  const voe_game_parts *parts, voe_base_arena *scratch,
+			  voe_game_progress *progress,
+			  voe_game_compressing *compressing)
 {
 	return materials_load(world, models, device, folder, table, parts,
-			      scratch, VOE_GAME_MODELS_COOK_STALE);
+			      scratch, VOE_GAME_MODELS_COOK_STALE, progress,
+			      compressing);
 }
 
 voe_game_models_failures voe_game_models_materials_cooked(
 	const voe_ecs_world *world, voe_3d_models *models,
 	voe_render_device *device, const char *folder,
 	const voe_game_materials *table, const voe_game_parts *parts,
-	voe_base_arena *scratch)
+	voe_base_arena *scratch, voe_game_progress *progress)
 {
 	return materials_load(world, models, device, folder, table, parts,
-			      scratch, VOE_GAME_MODELS_COOK_MISSING);
+			      scratch, VOE_GAME_MODELS_COOK_MISSING, progress,
+			      NULL);
 }

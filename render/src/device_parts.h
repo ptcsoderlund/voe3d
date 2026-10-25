@@ -283,6 +283,11 @@ struct voe_render_texture_slot {
 	bool heights;
 	uint32_t width;
 	uint32_t height;
+	// The image's memory as the card sized it, taken where it is bound, and
+	// whether the image holds BC blocks (texture_blocks.c); both nought again
+	// on destroy. voe_render_texture_memory_smooth sums them.
+	VkDeviceSize bytes;
+	bool blocks;
 };
 
 #define VOE_RENDER_WINDOW_DEPTH UINT32_MAX

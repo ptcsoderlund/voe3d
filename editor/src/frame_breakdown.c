@@ -1,5 +1,5 @@
-// The Frame panel's quarter-second copy of render's timings and the pictures'
-// counts, its one frame of `ui` calls and the read of its × afterwards. See the
+// The Frame panel's quarter-second copy of render's timings, the pictures'
+// counts and the material textures' memory, its one frame of `ui` calls and the read of its × afterwards. See the
 // header for the lag.
 #include "frame_breakdown.h"
 
@@ -77,6 +77,24 @@ static void pictures_take(voe_editor_frame_breakdown *breakdown,
 			"more pictures kept than there is room for");
 }
 
+// Copies `gpu`'s material textures' memory and writes the Textures label.
+static void textures_take(voe_editor_frame_breakdown *breakdown,
+			  const voe_render_device *gpu)
+{
+	VOE_BASE_ASSERT(breakdown != NULL, "taking textures into no breakdown");
+	VOE_BASE_ASSERT(gpu != NULL, "taking the textures of no device");
+
+	breakdown->textures = voe_render_texture_memory_smooth(gpu);
+	// A number past the line is cut by snprintf, never overrun.
+	(void)snprintf(breakdown->textures_label, VOE_EDITOR_FRAME_TEXTURES,
+		       "%.1f MB, %" PRIu32 " of %" PRIu32 " compressed",
+		       (double)breakdown->textures.bytes / (1024.0 * 1024.0),
+		       breakdown->textures.compressed, breakdown->textures.count);
+	VOE_BASE_ASSERT(breakdown->textures.compressed <=
+				breakdown->textures.count,
+			"more textures compressed than there are");
+}
+
 void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
 				     const voe_render_device *gpu,
 				     const voe_editor_views *views,
@@ -100,6 +118,7 @@ void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
 	// measured keeps the times last shown until the next refresh.
 	breakdown->since_refresh = 0.0f;
 	pictures_take(breakdown, views);
+	textures_take(breakdown, gpu);
 	if (!voe_render_frame_gpu_time(gpu, &total))
 		return;
 	count = voe_render_frame_pass_times(gpu, passes, VOE_EDITOR_FRAME_PASSES);
@@ -173,6 +192,7 @@ void voe_editor_frame_breakdown_draw(voe_ui_context *ui,
 		row_draw(ui, "Triangles", breakdown->triangles_label);
 		row_draw(ui, "Draws", breakdown->draws_label);
 	}
+	row_draw(ui, "Textures", breakdown->textures_label);
 	for (uint32_t i = 0; i < breakdown->picture_count; i++) {
 		row_draw(ui, breakdown->picture_names[i],
 			 breakdown->drawn_labels[i]);

@@ -3,8 +3,8 @@
 //
 // THE WRITE WALKS TWICE: once measuring, `at` NULL, then filling the bytes it
 // measured, pushed once and zeroed, so a gap before a section is zero and the
-// walk that sizes the copy is the walk that writes it. The pictures are mipped
-// and cooked before either walk.
+// walk that sizes the copy is the walk that writes it. The pictures are mipped,
+// compressed by their kind (0477) and cooked before either walk.
 //
 // THE READ IS A CURSOR that turns false at the first count past its limit or
 // section past the bytes, every later take then giving nothing, so each step
@@ -30,7 +30,7 @@
 
 // "VOEM" in a little-endian word.
 #define MAGIC 0x4D454F56u
-#define VERSION 1u
+#define VERSION 2u
 #define ALIGN 16u
 
 // Where a write is: `at` NULL while it measures.
@@ -177,8 +177,10 @@ voe_assets_bytes voe_3d_model_cooked_write(voe_base_arena *arena,
 		const voe_assets_image_kind kind = kind_of(model, i);
 		const voe_assets_image mipped =
 			voe_assets_image_mips(arena, &model->images[i], kind);
+		const voe_assets_image blocks =
+			voe_assets_image_compress(arena, &mipped, kind);
 
-		pictures[i] = voe_assets_image_cooked_write(arena, &mipped,
+		pictures[i] = voe_assets_image_cooked_write(arena, &blocks,
 							    kind, 0);
 	}
 	put_copy(&w, prepared, pictures, key, 0);

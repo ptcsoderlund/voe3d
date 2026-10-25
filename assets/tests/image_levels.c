@@ -1,8 +1,8 @@
 // A picture's levels from outside: the chain's length as Vulkan counts it, a
 // constant picture's mips staying that constant for every kind, a checker
-// halving to the grey of linear light, and the cooked form round-tripped,
-// refused when its magic is wrong or its bytes cut short, and its key read
-// from the head alone.
+// halving to the grey of linear light, and the cooked form round-tripped as
+// RGBA8, BC7 and BC5, refused when its magic, version or format is wrong or
+// its bytes cut short, and its key read from the head alone.
 //
 // 5×3 is the shape that matters: its sides halve to 2×1 and then 1×1, so one
 // side bottoms out at 1 before the other and every footprint is uneven.
@@ -164,6 +164,83 @@ static void cooked_refuses_a_wrong_magic_or_short_bytes(void)
 	voe_base_arena_destroy(arena);
 }
 
+// A 5×3 picture of `kind`, mipped, compressed, cooked and read back: its
+// blocks and format as they went in, pixels pointing into the bytes.
+static void cooked_keeps_blocks(voe_assets_image_kind kind,
+				voe_assets_image_format format)
+{
+	static const uint8_t TEXEL[4] = { 200, 100, 50, 255 };
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	const voe_assets_image one = filled(arena, 5, 3, TEXEL);
+	const voe_assets_image mips = voe_assets_image_mips(arena, &one, kind);
+	const voe_assets_image blocks =
+		voe_assets_image_compress(arena, &mips, kind);
+	const voe_assets_bytes bytes =
+		voe_assets_image_cooked_write(arena, &blocks, kind, KEY);
+	voe_assets_image read = { 0 };
+	voe_assets_image_kind read_kind = VOE_ASSETS_IMAGE_DATA;
+	uint64_t key = 0;
+	size_t used = 0;
+
+	VOE_TEST_CHECK_INT((int)blocks.format, (int)format);
+	// 2×1, 1×1 and 1×1 blocks: four of sixteen bytes.
+	VOE_TEST_CHECK_INT((int)bytes.count,
+			   (int)(VOE_ASSETS_IMAGE_COOKED_HEAD + 64));
+	VOE_TEST_CHECK(voe_assets_image_cooked_read(bytes.bytes, bytes.count,
+						    &read, &read_kind, &key,
+						    &used));
+	VOE_TEST_CHECK_INT((int)read.format, (int)format);
+	VOE_TEST_CHECK_INT((int)read_kind, (int)kind);
+	VOE_TEST_CHECK_INT((int)read.levels, 3);
+	VOE_TEST_CHECK_INT((int)used, (int)bytes.count);
+	VOE_TEST_CHECK(read.pixels == bytes.bytes + VOE_ASSETS_IMAGE_COOKED_HEAD);
+	VOE_TEST_CHECK(memcmp(read.pixels, blocks.pixels,
+			      voe_assets_image_size(&blocks)) == 0);
+
+	voe_base_arena_destroy(arena);
+}
+
+static void cooked_keeps_bc7_and_bc5(void)
+{
+	cooked_keeps_blocks(VOE_ASSETS_IMAGE_COLOUR, VOE_ASSETS_IMAGE_BC7);
+	cooked_keeps_blocks(VOE_ASSETS_IMAGE_NORMAL, VOE_ASSETS_IMAGE_BC5);
+}
+
+// A good copy with one head word at `at` set to `value`, as image.h orders
+// the head.
+static voe_assets_bytes cooked_with(voe_base_arena *arena, size_t at,
+				    uint32_t value)
+{
+	voe_assets_image mips;
+	const voe_assets_bytes bytes = cooked(arena, &mips);
+
+	memcpy(bytes.bytes + at, &value, sizeof(value));
+	return bytes;
+}
+
+static void cooked_refuses_an_unknown_format_or_the_old_version(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
+	// The format follows magic, version, key, kind, width, height, levels.
+	const voe_assets_bytes unknown = cooked_with(arena, 32, 3);
+	// Version 1, the copies made before blocks.
+	const voe_assets_bytes old = cooked_with(arena, 4, 1);
+	voe_assets_image read = { 0 };
+	voe_assets_image_kind kind = VOE_ASSETS_IMAGE_COLOUR;
+	uint64_t key = 0;
+	size_t used = 0;
+
+	VOE_TEST_CHECK(!voe_assets_image_cooked_read(
+		unknown.bytes, unknown.count, &read, &kind, &key, &used));
+	VOE_TEST_CHECK(!voe_assets_image_cooked_read(old.bytes, old.count, &read,
+						     &kind, &key, &used));
+	VOE_TEST_CHECK(!voe_assets_image_cooked_key(old.bytes, old.count, &key));
+	VOE_TEST_CHECK(read.pixels == NULL);
+	VOE_TEST_CHECK(key == 0);
+
+	voe_base_arena_destroy(arena);
+}
+
 static void key_reads_from_the_head_alone(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -187,6 +264,8 @@ int main(void)
 	mips_halve_a_checker_to_grey();
 	cooked_round_trips();
 	cooked_refuses_a_wrong_magic_or_short_bytes();
+	cooked_keeps_bc7_and_bc5();
+	cooked_refuses_an_unknown_format_or_the_old_version();
 	key_reads_from_the_head_alone();
 	return voe_test_result();
 }

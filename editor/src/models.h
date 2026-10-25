@@ -11,52 +11,47 @@
 //     voe_editor_models_destroy(models, gpu);
 //
 // ONE FOR THE PROGRAM, NOT ONE PER PROJECT. What the store holds lives on the
-// device, and the device outlives every project the editor opens: New and Open
-// swap the project and keep the device. So the store is made once beside the
-// device and emptied when the session's folder differs from the one it last
-// read against; a store per project would be torn down and made again at every
-// swap for nothing. An untitled project has no folder to read from, so its
-// model rows draw as nothing until it is saved.
+// device, which outlives every project: New and Open swap the project and keep
+// the device. So the store is made once beside it and emptied when the
+// session's folder differs from the one it last read against. An untitled
+// project has no folder, so its model rows draw as nothing until it is saved.
 //
 // BETWEEN FRAMES, because a load waits for the card to go idle
-// (game/models.h): the update runs after the world step, so this frame's rows
-// are read, and before the frame's draw opens. During a splash wait a worker
-// may call it instead
-// (0370 point 4), with the wait's progress, which game/models.h reports into
+// (game/models.h): after the world step, so this frame's rows are read, and
+// before the draw opens. During a splash wait a worker may call it instead
+// (0370 point 4) with the wait's progress, which game/models.h reports into
 // and stops on, and it loads whole; every other call passes NULL.
 //
-// ONCE A SECOND the store's files are asked for their stamps (0277 point 5):
-// often enough for a person exporting from Blender, and not a file system
-// call per model every frame. A prepared model is also loaded again on asking.
+// ONCE A SECOND the store's files are asked for their stamps (0277 point 5),
+// not a file system call per model every frame. A prepared model is also
+// loaded again on asking.
 //
-// A BROKEN FILE sets the session notice to `Could not read <path>: <reason>`
-// (0277 point 9), the reason being the last phrase of base/report.h's first
-// kept error: the lowest site that refused the file ("a file too short to hold
-// even the header"), else game/models.c's category. The thing draws as
-// nothing and the file is not read again until its stamp changes, so the
+// A BROKEN FILE sets the notice to `Could not read <path>: <reason>` (0277
+// point 9), the last phrase of base/report.h's first kept error. The thing
+// draws as nothing and is not read again until its stamp changes, so the
 // notice is set once, not once a frame.
 //
 // A LANDSCAPE IS EDITED IN THE STORE AND ONLY THROUGH THIS FILE (0379 points
-// 4 and 6): its grid is the store's, so the calls into 3d/models.h that write
-// and re-read it are made here and nowhere else. Each frame _frame, inside the
-// draw, writes its dirty heights into its texture (0396 point 5). Save writes
-// every edited one to its file; a New or Open reads every edited one again.
-// Its paint, layers (0402), foliage (0442), kinds' looks and layers' growth
-// (0476) are edited here too, and Save
-// writes them with the heights, the writer carrying them.
-// The Landscape panel's size and cells are written at once and re-read at the next
-// update; one re-read waits at a time, enough for a panel that writes at most
-// one a frame, and a second before the update would replace the first.
+// 4 and 6), heights, paint, layers (0402), foliage (0442), kinds' looks and
+// layers' growth (0476). _frame, inside the draw, writes dirty heights into
+// textures (0396 point 5); Save writes every edited one, New or Open reads it
+// again. The Landscape panel's size and cells are written at once and re-read
+// at the next update, one re-read waiting at a time.
 //
-// THE PROJECT'S MATERIALS AND PARTS (0399 point 7, 0420 point 1) are a
-// materials.h and a parts.h table held here, read on a different folder and
-// through _materials_read after an Assets command. Each update runs the
-// models' update, the watch, then game/models.h's materials call with both
-// tables, so a reloaded model wears its parts before it is drawn; _frame
-// writes edited records as it writes heights. A read has every held material
-// whose row is new or changed loaded again at the next update, so a rewritten
-// `.material` shows at once; an Inspector edit (_material_changed) sets
-// factors live, or waits so for a changed map. Any number may wait.
+// THE PROJECT'S MATERIALS AND PARTS (0399 point 7, 0420 point 1) are tables
+// held here, read on a different folder and by _materials_read. Each update
+// runs the models' update, the watch, then the materials call with both, so a
+// reloaded model wears its parts before it is drawn. A read reloads every held
+// material whose row is new or changed at the next update; an Inspector edit
+// (_material_changed) sets factors live, or waits so for a changed map.
+//
+// COMPRESSING BETWEEN FRAMES (0477 points 3 and 4): outside a wait a map with
+// no fresh copy is uploaded uncompressed at once and queued, and each update
+// after the materials compresses for at most 2 ms; the map draws uncompressed
+// until its copy is written, then every held material naming it loads again
+// from the copy at the next update. Not under the frame: the encoder runs on
+// the CPU, one thread (0456, 0386), and the store has no call that swaps a
+// texture in place. Under a splash maps are compressed inline as progress.
 #pragma once
 
 #include "materials.h"
@@ -85,7 +80,8 @@ void voe_editor_models_destroy(voe_editor_models *models,
 // Once a frame, between frames: empties the store on a different folder, then
 // reads the paths it lacks and, a second past the last look, re-reads changed
 // files. `scratch` holds one file at a time and is rewound; `now` is the frame
-// clock's, in seconds. `progress` is the splash wait's, NULL outside one.
+// clock's, in seconds. `progress` is the splash wait's, NULL outside one,
+// when a 2 ms step of the queue follows the materials.
 void voe_editor_models_update(voe_editor_models *models,
 			      voe_editor_session *session,
 			      voe_render_device *device,

@@ -76,6 +76,9 @@ by reading the offscreen colour image back.
 - `mips.c` — a SMOOTH texture's chain: a 4×4 checker up close reads hard texels, a 256×256 one 16
   pixels across and a low-angle plane's far half read a grey blend, and `given_levels_are_drawn`: that
   checker given solid red lower levels reads red far off. Headless.
+- `texture_blocks.c` — compressed textures: a BC7 chain of one colour drawn as its RGBA8 twin
+  within 2, a BC5 DATA chain made, and the SMOOTH memory reading rising with an RGBA8 and a BC7
+  texture, `compressed` with the BC7 one, and back again once both are destroyed. Headless.
 - `cutout_far.c` — a cut-out of one-texel alpha stripes, cutoff 0.5: filling the picture about half
   its pixels drawn, and seen 16 pixels across, at level 4, at least a third still drawn. Headless.
 - `dither.c` — an object record's `dither` on an unlit quad filling the picture: 0 every pixel, 0.5
@@ -101,7 +104,7 @@ by reading the offscreen colour image back.
 - `sky_light.c` — the sky lighting nothing: a cube's face the same with the sky or without, a
   non-metal quad unchanged, a metal one the sky along R times the light on it, none indoors or
   unlit, no brighter than the sky head-on, the same at sky strength 0 and 1. Headless.
-- `surface_maps.c` — that a flat normal map reads as none, a tilted one darker, and emission adds
+- `surface_maps.c` — that a flat normal map reads as none, blue 0 or not, a tilted one darker, and emission adds
   red to a black surface whether the sun faces it or not, a metal-roughness map replacing the
   factors, and a mirrored half's bump tilting mirrored along u and along v. Headless.
 - `vertex_colours.c` — a vertex's colour tinting its surface: an unlit white record on red vertices

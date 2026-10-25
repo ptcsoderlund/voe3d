@@ -165,10 +165,10 @@ carries it out.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
   calls, and the read of its × afterwards.
 - `frame_breakdown.h` — the Frame panel: each GPU pass by name with its milliseconds, the total,
-  triangles, draws and each picture's drawn and skipped with its shadows', copied four times a
-  second, under a title row with its ×, anchored at a point.
-- `frame_breakdown.c` — the quarter-second copy of the pictures' counts and the triangle and draw
-  counts, keeping the last times on no measurement, the panel's one frame of `ui` calls, and the
+  triangles, draws, the textures' MB and how many are compressed, and each picture's drawn and
+  skipped with its shadows', copied four times a second, under a title row with its ×.
+- `frame_breakdown.c` — the quarter-second copy of the pictures' counts, the textures' memory and
+  the triangle and draw counts, keeping the last times on no measurement, the panel's one frame of `ui` calls, and the
   read of its × afterwards.
 - `frame_hitches.h` — the editor's hitch watch: its own span's CPU stretches, the pace's wait, the
   shadows' and bounce's parts and foliage gathers timed, and an `editor: hitch:` line on stderr for
@@ -357,8 +357,8 @@ carries it out.
   gathered after the lights, kept out of the blockers, every place marked and blocker lined,
   stopping at the first refused pass, the shadows, their parts and gathers timed, counts recorded.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
-  or on asking, emptied on a different project, a broken file in the notice, where landscapes with
-  foliage, looks and growth and the project's materials are edited, and models given parts.
+  or on asking, emptied on a different project, a broken file in the notice, where landscapes and
+  the project's materials are edited, models given parts, and maps compressed 2 ms a frame.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
@@ -367,8 +367,13 @@ carries it out.
   named by its `.glb`, read when the materials are.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
-- `models.c` — the editor's one model store, filled and watched between frames, and its landscapes
-  with their foliage, kinds' looks, layers' growth and materials edited.
+- `models.c` — the editor's one model store, filled and watched between frames, its materials'
+  maps watched too, and its landscapes with their foliage, kinds' looks, layers' growth and
+  materials edited, its map queue stepped and the rows naming a written or changed map reloaded.
+- `map_watch.h` — the maps the project's materials name, each one's stamp at the last look, a
+  changed one reported once a second so its materials load again; the editor's, not `game`'s.
+- `map_watch.c` — the look's marks, one stamp a map under the folder, a new path noted, a change
+  reported while room is left, and the unnamed paths let go.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
   material open in the Inspector.

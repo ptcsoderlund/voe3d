@@ -371,7 +371,8 @@ static void a_material_carries_what_import_writes(voe_base_arena *arena)
 	size_t size;
 
 	VOE_TEST_CHECK(voe_assets_png_encode(
-		arena, (voe_assets_image){ 1, 1, pixel, 0 }, &png, &error));
+		arena, (voe_assets_image){ 1, 1, pixel, 0, VOE_ASSETS_IMAGE_RGBA8 },
+		&png, &error));
 
 	size = materials_glb(
 		file, sizeof(file), png, "", "\"name\":\"Bark\",",
@@ -442,7 +443,8 @@ static void a_texcoord_of_minus_one_is_no_texture(voe_base_arena *arena)
 	size_t size;
 
 	VOE_TEST_CHECK(voe_assets_png_encode(
-		arena, (voe_assets_image){ 1, 1, pixel, 0 }, &png, &error));
+		arena, (voe_assets_image){ 1, 1, pixel, 0, VOE_ASSETS_IMAGE_RGBA8 },
+		&png, &error));
 	size = materials_glb(
 		file, sizeof(file), png, "", "",
 		"{\"name\":\"Needles\",\"doubleSided\":true,"
@@ -503,7 +505,8 @@ static void a_refusal_names_what_it_is_about(voe_base_arena *arena)
 		       "KHR_draco_mesh_compression", "(glTF: ");
 
 	VOE_TEST_CHECK(voe_assets_png_encode(
-		arena, (voe_assets_image){ 1, 1, pixel, 0 }, &png, &error));
+		arena, (voe_assets_image){ 1, 1, pixel, 0, VOE_ASSETS_IMAGE_RGBA8 },
+		&png, &error));
 	size = materials_glb(file, sizeof(file), png, "", "",
 			     "{\"name\":\"leaf\",\"pbrMetallicRoughness\":"
 			     "{\"baseColorTexture\":{\"index\":0,"
@@ -653,7 +656,8 @@ static void a_picture_is_left_encoded_until_asked(voe_base_arena *arena)
 	// eight of chunk header and thirteen of IHDR in: the bytes after the
 	// signature broken, which only the decode looks at.
 	VOE_TEST_CHECK(voe_assets_png_encode(
-		arena, (voe_assets_image){ 1, 1, pixel, 0 }, &png, &error));
+		arena, (voe_assets_image){ 1, 1, pixel, 0, VOE_ASSETS_IMAGE_RGBA8 },
+		&png, &error));
 	size = materials_glb(file, sizeof(file), png, "", "\"name\":\"Bark\",",
 			     "{}");
 	VOE_TEST_CHECK(voe_assets_model_read_glb_encoded(file, size, arena,

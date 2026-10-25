@@ -6,10 +6,12 @@
 // records; the same maps decoded with voe_3d_model_picture_decode and put
 // with voe_3d_models_put_material giving a like entry; a colour map alone
 // leaving the ORM slots none; a 64 × 64 colour map carrying its levels put as
-// one part (put_material_takes_given_levels); a map that is no picture failing
-// MALFORMED as a failed entry; and a rename finding the material at its new path.
+// one part (put_material_takes_given_levels); a BC7 colour map and a BC5 normal
+// map put as blocks, two more compressed textures (put_material_takes_blocks);
+// a map that is no picture failing MALFORMED as a failed entry; and a rename
+// finding the material at its new path.
 //
-// THE DEVICE HOLDS FOUR MATERIALS' RECORDS, a record and a twin each, and no
+// THE DEVICE HOLDS FIVE MATERIALS' RECORDS, a record and a twin each, and no
 // geometry: a material's part draws nothing of its own.
 //
 // IT SKIPS WHEN THERE IS NO GRAPHICS CARD, because a load uploads.
@@ -34,7 +36,7 @@ static const voe_render_capacities CAPACITIES = {
 	.indices = 6,
 	.geometries = 1,
 	.objects = 1,
-	.shadings = 8,
+	.shadings = 10,
 	.passes = 1,
 };
 
@@ -199,6 +201,45 @@ static void put_material_takes_given_levels(voe_3d_models *models,
 	VOE_TEST_CHECK(entry != NULL && entry->part_count == 1);
 }
 
+// A 64 × 64 colour map compressed to BC7 and a normal map to BC5, each over its
+// full chain, put: the put is true, the entry a loaded material, and the card
+// holds two more compressed material textures.
+static void put_material_takes_blocks(voe_3d_models *models,
+				      voe_render_device *device,
+				      voe_base_arena *arena,
+				      const voe_assets_material_file *material)
+{
+	enum { MAP_SIDE = 64 };
+	voe_assets_image image = { .width = MAP_SIDE, .height = MAP_SIDE };
+	voe_3d_material_pictures pictures = { 0 };
+	voe_base_error error = VOE_BASE_OK;
+	const voe_3d_model_entry *entry;
+	voe_assets_image colour;
+	voe_assets_image normal;
+	uint32_t before;
+
+	image.pixels = voe_base_arena_push(arena, MAP_SIDE * MAP_SIDE * 4);
+	for (uint32_t i = 0; i < MAP_SIDE * MAP_SIDE * 4; i++)
+		image.pixels[i] = (uint8_t)(i * 7);
+	colour = voe_assets_image_mips(arena, &image, VOE_ASSETS_IMAGE_COLOUR);
+	normal = voe_assets_image_mips(arena, &image, VOE_ASSETS_IMAGE_NORMAL);
+	pictures.colour = voe_assets_image_compress(arena, &colour,
+						    VOE_ASSETS_IMAGE_COLOUR);
+	pictures.normal = voe_assets_image_compress(arena, &normal,
+						    VOE_ASSETS_IMAGE_NORMAL);
+	VOE_TEST_CHECK_INT(pictures.colour.format, VOE_ASSETS_IMAGE_BC7);
+	VOE_TEST_CHECK_INT(pictures.normal.format, VOE_ASSETS_IMAGE_BC5);
+
+	before = voe_render_texture_memory_smooth(device).compressed;
+	VOE_TEST_CHECK(voe_3d_models_put_material(models, device,
+						  "Assets/blocks.material", 1,
+						  material, pictures, &error));
+	entry = voe_3d_models_find(models, "Assets/blocks.material");
+	VOE_TEST_CHECK(entry != NULL && entry->loaded && entry->material);
+	VOE_TEST_CHECK_INT(voe_render_texture_memory_smooth(device).compressed,
+			   before + 2);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -258,6 +299,9 @@ int main(void)
 
 	// ---- a colour map carrying its levels goes up with them
 	put_material_takes_given_levels(models, device, arena, &material);
+
+	// ---- a BC7 colour map and a BC5 normal map go up as their blocks
+	put_material_takes_blocks(models, device, arena, &material);
 
 	// ---- a map that is no picture: MALFORMED, a failed entry
 	error = VOE_BASE_OK;

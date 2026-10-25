@@ -21,6 +21,7 @@
 // step that met it (0445), the material's path being the caller's subject.
 #include "model_picture.h"
 #include "models_store.h"
+#include "picture_upload.h"
 
 #include <3d/material_component.h>
 #include <3d/models.h>
@@ -113,8 +114,8 @@ static bool decode_map(voe_base_arena *scratch, const char *name,
 	return decoded;
 }
 
-// `image` uploaded as `kind` into `slot`, with the levels it carries, else
-// SMOOTH and mipped on the GPU; nothing for one of width 0.
+// `image` uploaded as `kind` into `slot`, in whichever shape it came
+// (picture_upload.h); nothing for one of width 0.
 static bool upload_map(voe_render_device *device, const voe_assets_image *image,
 		       voe_render_texture_kind kind, maps_made *made,
 		       voe_render_texture *slot, voe_base_error *error)
@@ -122,17 +123,7 @@ static bool upload_map(voe_render_device *device, const voe_assets_image *image,
 	if (image->width == 0)
 		return true;
 	VOE_BASE_ASSERT(image->pixels != NULL, "a map of pixels at no address");
-	const bool uploaded =
-		image->levels > 1 ?
-			voe_render_texture_create_levels(
-				device, kind, image->width, image->height,
-				image->levels, image->pixels, slot, error) :
-			voe_render_texture_create(device, kind,
-						  VOE_RENDER_SAMPLING_SMOOTH,
-						  image->width, image->height,
-						  image->pixels, slot, error);
-
-	if (!uploaded)
+	if (!voe_3d_picture_upload(device, image, kind, slot, error))
 		return false;
 	made->made[made->count++] = *slot;
 	return true;
