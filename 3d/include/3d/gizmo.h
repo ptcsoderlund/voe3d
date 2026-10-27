@@ -96,6 +96,15 @@ typedef enum {
 	VOE_3D_GIZMO_CENTRE
 } voe_3d_gizmo_handle;
 
+// Which gizmo a pass draws (ADR-0482): the move gizmo's arrows, the rotate
+// gizmo's rings (3d/gizmo_rings.h) or the scale gizmo's squares
+// (3d/gizmo_scales.h). Zeroed is the arrows; which mode is on is the caller's.
+typedef enum {
+	VOE_3D_GIZMO_ARROWS = 0,
+	VOE_3D_GIZMO_RINGS,
+	VOE_3D_GIZMO_SCALES
+} voe_3d_gizmo_kind;
+
 // The gizmo itself: where it stands, who is looking at it and how big it is.
 // Plain numbers, copied by value, owned by whoever made it.
 typedef struct {

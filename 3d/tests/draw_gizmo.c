@@ -9,8 +9,8 @@
 // stays the cube's. The colour is linear (1, 0, 1), which an sRGB target hands
 // back as exactly (255, 0, 255) — nought and one are the two values the curve
 // leaves alone — and no lit pixel of a dark cube can be that. The rings (0274)
-// are read the same way, at a pixel of the ring about Z inside a cube that fills
-// the view.
+// and the scales (0482) are read the same way, `kind` set, inside a cube that
+// fills the view: at a pixel of the ring about Z, and of the square at X's tip.
 //
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITHOUT ONE, for the reason
 // 3d/tests/import.c gives at length: a box with no Vulkan is the box and not
@@ -182,19 +182,22 @@ static bool the_arrow_covers_the_stretch(voe_render_picture picture)
 #define RING_X (GIZMO_SIDE / 2 + 43)
 #define RING_Y (GIZMO_SIDE / 2 - 42)
 
-// The rings (0274) show through too: `gizmo` with `rings` set, standing in a
-// cube scaled to fill the picture whose near face is a metre and a half in
-// front of the ring about Z. A pixel of that ring is the gizmo's colour, and
-// without the gizmo it is the cube's — neither the gizmo's nor `background`.
-static void the_rings_show_through(voe_ecs_world *world,
-				   voe_render_device *device,
-				   voe_base_arena *arena, voe_3d_shapes *shapes,
-				   voe_3d_gizmoed gizmo,
-				   const uint8_t *background)
+// WHICH PIXEL OF THE SCALE GIZMO'S SQUARE AT X'S TIP IS READ. The unturned
+// cube's X runs right, and its square is centred one shaft — GIZMO_PIXELS — from
+// the middle, VOE_3D_GIZMO_SCALE_TIP_HALF of a shaft, near five pixels, either
+// side: the pixel (60.5, 2.5) from the middle is on it, at the gizmo's depth
+// and far from the square at Z's tip, which points at the eye and stands in
+// front of the near face.
+#define SCALE_X (GIZMO_SIDE / 2 + 60)
+#define SCALE_Y (GIZMO_SIDE / 2 - 3)
+
+// A cube scaled to fill the picture whose near face is a metre and a half in
+// front of the gizmo's centre, so everything of the gizmo at its own depth is
+// behind that face.
+static void fill_the_view(voe_ecs_world *world, voe_3d_shapes *shapes)
 {
 	voe_scene_transform filling = at_depth(3.0f);
 	voe_ecs_entity big = { 0 };
-	const uint8_t *cube_pixel;
 
 	filling.scale = (voe_math_float3){ 3.0f, 3.0f, 3.0f };
 	VOE_TEST_CHECK(voe_ecs_entity_create(world, &big));
@@ -204,17 +207,39 @@ static void the_rings_show_through(voe_ecs_world *world,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
 				.colour = { 0.02f, 0.02f, 0.15f } }));
 	voe_3d_shape_system_run(world, shapes);
+}
 
-	gizmo.rings = true;
-	VOE_TEST_CHECK(is_the_gizmos_colour(pixel_at(
-		a_gizmo_frame(world, device, arena, gizmo), RING_X, RING_Y)));
+// The rings (0274) and the scales (0482) show through too: `gizmo` of `kind`,
+// standing in the cube fill_the_view added. The pixel (`x`, `y`) of it is the
+// gizmo's colour, and without the gizmo it is the cube's — neither the gizmo's
+// nor `background`.
+static void the_kind_shows_through(voe_ecs_world *world,
+				   voe_render_device *device,
+				   voe_base_arena *arena, voe_3d_gizmoed gizmo,
+				   voe_3d_gizmo_kind kind, uint32_t x,
+				   uint32_t y, const uint8_t *background)
+{
+	const uint8_t *cube_pixel;
+
+	gizmo.kind = kind;
+	VOE_TEST_CHECK(is_the_gizmos_colour(
+		pixel_at(a_gizmo_frame(world, device, arena, gizmo), x, y)));
 	cube_pixel = pixel_at(a_gizmo_frame(world, device, arena,
 					    (voe_3d_gizmoed){ 0 }),
-			      RING_X, RING_Y);
+			      x, y);
 	VOE_TEST_CHECK(!is_the_gizmos_colour(cube_pixel));
 	VOE_TEST_CHECK(cube_pixel[0] != background[0] ||
 		       cube_pixel[1] != background[1] ||
 		       cube_pixel[2] != background[2]);
+}
+
+// The largest of three geometry counts: the room the transient pool needs for
+// whichever gizmo a pass draws.
+static uint32_t largest(uint32_t a, uint32_t b, uint32_t c)
+{
+	uint32_t most = a > b ? a : b;
+
+	return most > c ? most : c;
 }
 
 // A gizmo stands in the middle of the cube it moves, and it is drawn after
@@ -226,7 +251,7 @@ static void a_gizmo_shows_through_what_it_stands_in(void)
 	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
 	voe_base_error error = VOE_BASE_OK;
 	// The shapes' own pools, one object for each of the two cubes and one
-	// for each of the gizmo's two draws, and the larger of the two gizmos'
+	// for each of the gizmo's two draws, and the largest of the three gizmos'
 	// geometry — what a program that draws one pays for (3d/draw_system.h).
 	voe_render_capacities capacities = {
 		.vertices = VOE_3D_SHAPES_VERTICES,
@@ -234,14 +259,12 @@ static void a_gizmo_shows_through_what_it_stands_in(void)
 		.geometries = VOE_3D_SHAPES_GEOMETRIES,
 		.objects = 4,
 		.shadings = VOE_3D_SHAPES_SHADINGS,
-		.transient_vertices =
-			VOE_3D_GIZMO_VERTICES > VOE_3D_GIZMO_RING_VERTICES ?
-				VOE_3D_GIZMO_VERTICES :
-				VOE_3D_GIZMO_RING_VERTICES,
-		.transient_indices =
-			VOE_3D_GIZMO_INDICES > VOE_3D_GIZMO_RING_INDICES ?
-				VOE_3D_GIZMO_INDICES :
-				VOE_3D_GIZMO_RING_INDICES,
+		.transient_vertices = largest(VOE_3D_GIZMO_VERTICES,
+					      VOE_3D_GIZMO_RING_VERTICES,
+					      VOE_3D_GIZMO_SCALE_VERTICES),
+		.transient_indices = largest(VOE_3D_GIZMO_INDICES,
+					     VOE_3D_GIZMO_RING_INDICES,
+					     VOE_3D_GIZMO_SCALE_INDICES),
 		.transient_geometries = 2,
 		.passes = 1,
 	};
@@ -320,8 +343,11 @@ static void a_gizmo_shows_through_what_it_stands_in(void)
 		       cube_pixel[1] != background[1] ||
 		       cube_pixel[2] != background[2]);
 
-	the_rings_show_through(world, device, arena, &shapes, gizmo,
-			       background);
+	fill_the_view(world, &shapes);
+	the_kind_shows_through(world, device, arena, gizmo, VOE_3D_GIZMO_RINGS,
+			       RING_X, RING_Y, background);
+	the_kind_shows_through(world, device, arena, gizmo, VOE_3D_GIZMO_SCALES,
+			       SCALE_X, SCALE_Y, background);
 
 	voe_render_device_destroy(device);
 	voe_base_arena_destroy(arena);

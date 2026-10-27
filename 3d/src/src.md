@@ -159,12 +159,13 @@ here is included from outside the folder — `include/3d/` is the whole public s
   height and why it casts no shadow; internal.
 - `draw_water.c` — the eye-relative matrix times the turned, scaled quad, the row's colour,
   waves at its clock and sky in the object record, and the quad's sphere tested.
-- `draw_marks.h` — the editor's marks over the world, bare places', the brush's and every
-  blocker's among them, and why each has its own depth; internal.
+- `draw_marks.h` — the editor's marks over the world, bare places', the brush's, every
+  blocker's and the gizmo's arrows, rings or scales among them, and why each has its own depth;
+  internal.
 - `draw_marks.c` — the camera's marker, every sun's, lamp's and bare place's, the brush's rings on
   its landscape, every blocker's lines,
-  the outline, a collider's and the selected blocker's lines, written once, and the gizmo's arrows
-  or rings, each as transient quads.
+  the outline, a collider's and the selected blocker's lines, written once, and the gizmo's arrows,
+  rings or scales by its kind, each as transient quads.
 - `model_upload.h` — a read model's pictures and materials uploaded in one call, every id
   listed, shared by the import and the model store; internal.
 - `model_upload.c` — each picture once per colour space wanted, a record per material and
