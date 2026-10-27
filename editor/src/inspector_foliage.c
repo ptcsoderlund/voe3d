@@ -8,8 +8,10 @@
 // The Density slider holds sculpt.h's own number. Kind slider i, under row i,
 // shows kind i's base size as a factor; its read asks for kind i's look as
 // drawn with the size in thousandths, which sculpt.c sets. Under it kind i's
-// Cast shadows button, drawn chosen while the look casts, and spread slider
-// i, s, spread s of kind i in the look's whole units, asked the same way.
+// Cast shadows button, drawn chosen while the look casts, its Blend with
+// ground button, chosen while it blends, and Blend height cm slider, and
+// spread slider i, s, spread s of kind i in the look's whole units, each
+// asked the same way.
 #include "inspector_foliage.h"
 
 #include "inspector_layers.h"
@@ -71,6 +73,16 @@ static uint8_t *spread_of(voe_assets_landscape_look *look, uint32_t s)
 	return s == 0 ? &look->size_vary : s == 1 ? &look->turn_vary : &look->tilt;
 }
 
+// The blend height `look` stands for in centimetres, its 0 the default.
+static unsigned blend_height_of(const voe_assets_landscape_look *look)
+{
+	VOE_BASE_ASSERT(look != NULL, "the blend height of no look");
+
+	return look->blend_height == 0 ?
+		       VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_DEFAULT :
+		       look->blend_height;
+}
+
 // Whether brush button `i` is the chosen kind.
 static bool button_chosen(const voe_editor_sculpt *sculpt, uint32_t i)
 {
@@ -93,6 +105,8 @@ void voe_editor_inspector_foliage_forget(voe_editor_sculpt *sculpt)
 	for (uint32_t i = 0; i < VOE_ASSETS_LANDSCAPE_KINDS; i++) {
 		sculpt->kind_sliders[i] = VOE_UI_NODE_NONE;
 		sculpt->kind_shadows[i] = VOE_UI_NODE_NONE;
+		sculpt->kind_blends[i] = VOE_UI_NODE_NONE;
+		sculpt->blend_sliders[i] = VOE_UI_NODE_NONE;
 		for (uint32_t s = 0; s < VOE_EDITOR_SCULPT_SPREADS; s++)
 			sculpt->spread_sliders[i][s] = VOE_UI_NODE_NONE;
 	}
@@ -126,8 +140,36 @@ static void kind_slider_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
 			"a kind slider not drawn");
 }
 
-// Kind `i`'s Cast shadows button, then its spreads, each a row of name,
-// slider and figure. Reads the look kind_slider_draw kept.
+// Kind `i`'s Blend with ground button, drawn chosen while the look blends,
+// then its Blend height cm row of name, slider and figure, drawn either way.
+static void kind_blend_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
+			    uint32_t i)
+{
+	const unsigned height = blend_height_of(&sculpt->kind_looks[i]);
+
+	VOE_BASE_ASSERT(i < VOE_ASSETS_LANDSCAPE_KINDS, "a blend for no kind");
+	sculpt->kind_blends[i] = voe_ui_choice_begin(
+		ui, "kind blend", i, sculpt->kind_looks[i].blends);
+	voe_ui_label(ui, "Blend with ground");
+	voe_ui_end(ui);
+	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
+						 .gap = ROW_GAP,
+						 .wrap = true });
+	voe_ui_label(ui, "Blend height cm");
+	sculpt->blend_sliders[i] = voe_ui_slider(
+		ui, "kind blend height", i, height,
+		VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN,
+		VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MAX, SLIDER_WIDE);
+	snprintf(sculpt->blend_figures[i], sizeof sculpt->blend_figures[i],
+		 "%u", height);
+	voe_ui_label(ui, sculpt->blend_figures[i]);
+	voe_ui_end(ui);
+	VOE_BASE_ASSERT(sculpt->blend_sliders[i] != VOE_UI_NODE_NONE,
+			"a Blend height slider not drawn");
+}
+
+// Kind `i`'s Cast shadows button, its blend, then its spreads, each a row of
+// name, slider and figure. Reads the look kind_slider_draw kept.
 static void kind_spreads_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
 			      uint32_t i)
 {
@@ -137,6 +179,7 @@ static void kind_spreads_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
 		ui, "kind shadows", i, !sculpt->kind_looks[i].shadowless);
 	voe_ui_label(ui, "Cast shadows");
 	voe_ui_end(ui);
+	kind_blend_draw(ui, sculpt, i);
 	for (uint32_t s = 0; s < VOE_EDITOR_SCULPT_SPREADS; s++) {
 		const uint8_t value = *spread_of(&sculpt->kind_looks[i], s);
 
@@ -269,9 +312,42 @@ static void kind_size_read(const voe_ui_context *ui, voe_editor_sculpt *sculpt,
 				   to);
 }
 
-// Kind `i`'s Cast shadows and spreads. A fired button asks the look with
-// `shadowless` flipped and never holds, so it is one step at once; a spread
-// slider is held and asked as the Base size slider is, in whole units.
+// Kind `i`'s Blend with ground and Blend height cm: a fired button asks the
+// look with `blends` flipped and never holds, one step at once; the slider is
+// held and asked as the Base size slider is, in whole centimetres.
+static void kind_blend_read(const voe_ui_context *ui, voe_editor_sculpt *sculpt,
+			    uint32_t i)
+{
+	voe_ui_slider_result height;
+	long to;
+
+	VOE_BASE_ASSERT(i < VOE_ASSETS_LANDSCAPE_KINDS, "reading no kind's blend");
+	if (sculpt->kind_blends[i] != VOE_UI_NODE_NONE &&
+	    voe_ui_button_action(ui, sculpt->kind_blends[i]).fired)
+		look_ask(sculpt, i)->blends = !sculpt->kind_looks[i].blends;
+
+	if (sculpt->blend_sliders[i] == VOE_UI_NODE_NONE)
+		return;
+	height = voe_ui_slider_action(ui, sculpt->blend_sliders[i],
+				      VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN,
+				      VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MAX);
+	sculpt->look_held = sculpt->look_held || height.held;
+	if (!height.changed)
+		return;
+	to = lround(height.value);
+	look_ask(sculpt, i)->blend_height =
+		(uint16_t)(to < VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN ?
+				   VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN :
+			   to > VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MAX ?
+				   VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MAX :
+				   to);
+	VOE_BASE_ASSERT(sculpt->look_asked && sculpt->look_kind == i,
+			"a changed blend height not asked");
+}
+
+// Kind `i`'s Cast shadows, blend and spreads. A fired button asks the look
+// with `shadowless` flipped and never holds, so it is one step at once; a
+// spread slider is held and asked as the Base size slider is, in whole units.
 static void kind_spreads_read(const voe_ui_context *ui,
 			      voe_editor_sculpt *sculpt, uint32_t i)
 {
@@ -279,6 +355,7 @@ static void kind_spreads_read(const voe_ui_context *ui,
 	    voe_ui_button_action(ui, sculpt->kind_shadows[i]).fired)
 		look_ask(sculpt, i)->shadowless =
 			!sculpt->kind_looks[i].shadowless;
+	kind_blend_read(ui, sculpt, i);
 
 	for (uint32_t s = 0; s < VOE_EDITOR_SCULPT_SPREADS; s++) {
 		voe_ui_slider_result spread;

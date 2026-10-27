@@ -18,6 +18,8 @@
 //     turn0=90
 //     tilt0=50
 //     shadow0=0
+//     blend0=1
+//     blendheight0=120
 //
 //     [Heights]
 //     row0=0 0 0 0 0
@@ -46,17 +48,16 @@
 // A RESAMPLE IS BILINEAR, layers 1-7 rounded and layer 0 given the rest.
 //
 // KINDS ARE QUOTED .glb PATHS, read as layers are. A KIND'S LOOK is `size<k>`
-// (thousandths), `vary<k>` (size ±%), `turn<k>` (±°), `tilt<k>` (% with slope)
-// and `shadow<k>=0` (casting none): a missing key is the default, and only a key
-// off the default is written. LAYER l GROWS KIND k at `grow<l>_<k>` tenths of
-// copies per 100 m², written only above 0. THE CHOICE IS THE LAYER ROW'S, so a
-// row given another material keeps it (0476 point 2). COPY i IS `c<i>=kind x z
-// turn scale lean` and has no height: it stands on the ground a sculpt moves.
-// [Copies] IS WALKED ONCE IN ORDER: 65536 lookups would be 2·10⁹ compares.
+// (thousandths), `vary<k>` (size ±%), `turn<k>` (±°), `tilt<k>` (% with slope),
+// `shadow<k>=0` (no shadow), `blend<k>=1` and `blendheight<k>` (cm, 0481 point
+// 4), each written only off the default, missing read as it. LAYER l GROWS
+// KIND k at `grow<l>_<k>` tenths of copies per 100 m², written only above 0,
+// THE LAYER ROW'S CHOICE: a row with another material keeps it (0476 point 2).
+// COPY i IS `c<i>=kind x z turn scale lean`, no height: it stands on the ground
+// a sculpt moves. [Copies] IS WALKED ONCE IN ORDER, not 65536 lookups.
 //
-// THE GAME NEVER READS THIS (0236): the editor does, and the cook turns it into
-// a table. Nothing here opens a file; `platform` owns files. The result and the
-// working memory go on the arena handed in, freed by rewinding or destroying it.
+// THE GAME NEVER READS THIS (0236): the editor does; the cook makes a table.
+// `platform` owns files. Result and working memory go on the arena handed in.
 #pragma once
 
 #include <assets/material.h>
@@ -89,6 +90,10 @@
 #define VOE_ASSETS_LANDSCAPE_SIZE_VARY_DEFAULT 20
 #define VOE_ASSETS_LANDSCAPE_TURN_VARY_DEFAULT 180
 #define VOE_ASSETS_LANDSCAPE_TILT_DEFAULT 0
+// How high a blending kind's copies blend with the ground, in centimetres.
+#define VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN 5
+#define VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MAX 1000
+#define VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_DEFAULT 50
 // The most tenths of copies per 100 m² a layer grows of a kind: 50 copies.
 #define VOE_ASSETS_LANDSCAPE_GROW_MAX 500
 
@@ -105,6 +110,11 @@ typedef struct {
 	uint8_t tilt;
 	// Casts no shadow.
 	bool shadowless;
+	// Its copies blend with the ground they stand on (0481 point 4).
+	bool blends;
+	// How high they blend in centimetres, BLEND_HEIGHT_MIN to
+	// BLEND_HEIGHT_MAX, 0 meaning BLEND_HEIGHT_DEFAULT.
+	uint16_t blend_height;
 } voe_assets_landscape_look;
 
 // One foliage copy, in the order a cooked `{x, z, turn, scale, kind, lean}`
@@ -163,7 +173,7 @@ voe_assets_landscape voe_assets_landscape_flat(float size, uint32_t cells,
 					       voe_base_arena *arena);
 
 // The look a missing key reads as: size 0 (1×), size ±20 %, turn ±180°, tilt
-// 0 %, casting shadows.
+// 0 %, casting shadows, not blending, blend height 0 (50 cm).
 voe_assets_landscape_look voe_assets_landscape_look_default(void);
 
 // Kind `kind`'s base size as a factor on its copies' scale: looks[kind].size
@@ -188,7 +198,9 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 // layers 1-7 pass 255. MALFORMED too for a kind path not quoted or of
 // VOE_ASSETS_LANDSCAPE_KIND_PATH bytes or more, a kind's size not a whole
 // number from KIND_SIZE_MIN to KIND_SIZE_MAX, a spread not a whole number up to
-// its maximum, a `shadow<k>` other than 0 or 1, a `grow` key not `grow<l>_<k>`
+// its maximum, a `shadow<k>` or `blend<k>` other than 0 or 1, a
+// `blendheight<k>` not a whole number from BLEND_HEIGHT_MIN to
+// BLEND_HEIGHT_MAX, a `grow` key not `grow<l>_<k>`
 // with l below layer_count and k below kind_count or its density not 1 to
 // GROW_MAX, and a copy key out of order or misnamed, of other than six whole
 // numbers, with a kind not below kind_count, or a turn, scale or lean out of
@@ -208,7 +220,8 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 // below kind_count after the paths when above 0; [Paint] only when paint is
 // not NULL and there are two layers or more, runs of 3 or more as `v*n`;
 // [Foliage] only when there are kinds, a look key only off the default (size
-// neither 0 nor 1000, `shadow<k>=0` only when shadowless), and [Copies] only
+// neither 0 nor 1000, `shadow<k>=0` only when shadowless, `blend<k>=1` only
+// when blending, `blendheight<k>` neither 0 nor 50), and [Copies] only
 // when there are copies, one line a copy. Cannot fail; asserts each layer and
 // kind path is NUL-terminated with no line break, each look and grow in range.
 voe_assets_landscape_text

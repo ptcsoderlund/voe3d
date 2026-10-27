@@ -282,6 +282,9 @@ typedef enum {
 	VOE_3D_FOLIAGE_UNSEEN,
 } voe_3d_foliage_tier;
 
+// A painted landscape row a draw blends with (0481); internal to 3d.
+struct voe_3d_ground;
+
 // One group of foliage copies (0442 point 5): every copy of one kind at one
 // level, wearing one part, of one tier, drawn by one instanced draw.
 typedef struct {
@@ -298,6 +301,10 @@ typedef struct {
 	// Its kind casts: false for a shadowless look, drawn by the camera only
 	// (0476 point 6).
 	bool casts;
+	// The ground its blending kind's copies stand on and how high they blend
+	// with it, metres (0481 points 3 and 4); NULL and 0 draw as ever.
+	const struct voe_3d_ground *ground;
+	float ground_reach;
 } voe_3d_foliage_group;
 
 // Seconds the shadows call spent on each of its parts, summed over the calls
@@ -707,9 +714,11 @@ voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world);
 // about the eye, dithered as a dissolving model row is. Under a whole share it
 // is also one instance of each such part of the level before, with the other
 // dither, in a `rest` group. A group is one (kind, level, part, rest, tier,
-// casts), shared by every row naming that file. Each row's grown copies
-// (voe_3d_models_landscape_grown, models_foliage.h) are gathered after its own,
-// the same way (0476 point 5).
+// casts, ground, reach), shared by every row naming that file; a kind whose
+// look `blends` names its row's painted ground and the look's blend height in
+// metres (0481 point 3), a row with no painted ground none. Each row's grown
+// copies (voe_3d_models_landscape_grown, models_foliage.h) are gathered after
+// its own, the same way (0476 point 5).
 //
 // A SHADOWLESS KIND'S COPY (0476 point 6), its look `shadowless`, is seen or
 // left out, never cast or unseen, and counted as such: `drawn` when seen,
@@ -880,7 +889,10 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // its heights, chosen by the eye's distance, its solid ones inside the pass's
 // `terrain` span, so its cost is listed as `<pass>: terrain` (0388); a fading
 // one is held blended as a model's parts are. Past VOE_3D_LANDSCAPES_DRAWN
-// landscape rows a frame, the rest are not drawn, said once on stderr. The
+// landscape rows a frame, the rest are not drawn, said once on stderr. A MODEL
+// ROW BLENDING WITH THE GROUND (0481) draws its solid parts in the pass's
+// `ground blend` span, after every other model row's, so their cost is listed
+// as `<pass>: ground blend`. The
 // device needs room for that many objects per landscape row per world pass.
 // THE ONE EXCEPTION IS THE FRAME'S `hidden`: the entity it
 // names is not drawn however complete it is, mesh, panel, model or particle,

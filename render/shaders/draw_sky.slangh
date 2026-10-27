@@ -1,0 +1,66 @@
+// The sky's two full-screen entry points (ADR-0405 point 4): one triangle over
+// the whole target, drawn first, each pixel the sky's radiance along its view
+// or the clear colour, veiled by the haze it is seen through and exposed and
+// tone mapped as every mesh exit is. Opaque: everything later draws over it.
+//
+// A PART (ADR-0308): included by draw.slang at its end, after everything it calls
+// — voe_render_premultiplied, tone.slangh's haze and exposure, and sky.slangh's
+// radiance through lighting.slangh — and never compiled alone. Its entry points
+// are in draw.spv under the names spelled here.
+
+// What the sky's vertex stage hands on (ADR-0405 point 4): the clip position
+// and the world direction through it, not normalized.
+struct voe_render_sky_out {
+	float4 position : SV_Position;
+	float3 direction : TEXCOORD;
+};
+
+// THE SKY'S VERTEX STAGE: one triangle over the whole target from the vertex
+// index, at the far plane. The view direction through a corner is the clip
+// position over the projection's scale terms, looking along −Z, turned into the
+// world by the view's rotation transposed; an orthographic projection (its
+// [3][3] not nought) looks along the view's −Z everywhere.
+[shader("vertex")]
+voe_render_sky_out voe_render_sky_vertex(uint index : SV_VertexID)
+{
+	voe_render_sky_out out;
+	float2 corner = float2((index << 1) & 2, index & 2) * 2.0 - 1.0;
+	float4x4 projection = voe_render_frame.camera.projection;
+	float4x4 view = voe_render_frame.camera.view;
+	float3 eye = float3(0.0, 0.0, -1.0);
+
+	if (projection[3][3] == 0.0)
+		eye = float3(corner.x / projection[0][0],
+			     corner.y / projection[1][1], -1.0);
+	out.position = float4(corner, 0.0, 1.0);
+	out.direction = eye.x * view[0].xyz + eye.y * view[1].xyz +
+			eye.z * view[2].xyz;
+	return out;
+}
+
+// THE SKY'S FRAGMENT, veiled by the haze it is seen through (ADR-0419 point
+// 4), f tone.slangh's voe_render_haze_veil along the direction. With `drawn`:
+// the radiance, the backdrop with the pass's shown lights' glows and discs,
+// mixed towards the haze's colour by f, then exposed and tone mapped as every
+// mesh exit is. Without (the stage runs then only with haze): the clear colour
+// mixed towards the exposed and toned haze colour by f, so f 0 is the clear
+// colour byte for byte. Opaque: everything later draws over it.
+[shader("fragment")]
+float4 voe_render_sky_fragment(voe_render_sky_out vertex) : SV_Target
+{
+	float3 view = vertex.direction;
+
+	if (dot(view, view) < VOE_LEAST)
+		view = float3(0.0, 1.0, 0.0);
+	view = normalize(view);
+	float f = voe_render_haze_veil(view);
+	if (voe_render_frame.sky.drawn == 0)
+		return voe_render_premultiplied(
+			lerp(VOE_RENDER_CLEAR,
+			     voe_render_expose(voe_render_haze_colour()), f),
+			1.0);
+	float3 radiance = voe_render_sky_radiance(view);
+	return voe_render_premultiplied(
+		voe_render_expose(lerp(radiance, voe_render_haze_colour(), f)),
+		1.0);
+}

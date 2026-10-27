@@ -3,8 +3,9 @@
 // with the chosen one drawn chosen, one row per kind of the landscape's grid
 // by its model's file name, the picked ones drawn chosen, each followed by its
 // Base size slider, a Cast shadows button drawn chosen while the kind casts,
-// and its Size ±%, Turn ±° and Tilt with slope % sliders, then "Drop a model
-// to add a kind" while it holds fewer than sixteen, and the brush's one
+// a Blend with ground button drawn chosen while it blends, its Blend height cm
+// slider, and its Size ±%, Turn ±° and Tilt with slope % sliders, then "Drop a
+// model to add a kind" while it holds fewer than sixteen, and the brush's one
 // slider, Density (0476 point 1). Radius and Softness are the Brush section's
 // (inspector_brush.h), shared by every brush.
 //
@@ -12,6 +13,10 @@
 // size is, each change one undo step: a spread slider's when it lets go, Cast
 // shadows' at the press. Cast shadows off stops the kind's copies casting, but
 // they are still shadowed.
+//
+// THE BLEND IS THE KIND'S LOOK TOO (0481 point 4), off by default, each change
+// one undo step: Blend with ground's at the press, Blend height's when it lets
+// go. Its cost shows as `foliage blend` in the frame breakdown.
 //
 // A KIND'S BASE SIZE (0469), 0.10× to 10.00×, is part of its look: it resizes
 // that kind's copies already painted as well as later ones, live while
@@ -64,6 +69,7 @@ void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
 // value taken inside sculpt.h's range; a changed kind slider asks for its
 // kind's look with that size in thousandths, a spread slider with that spread,
 // and a held one is recorded; a fired Cast shadows asks it with `shadowless`
-// flipped; each row's rectangle kept.
+// flipped, a fired Blend with ground with `blends` flipped, a Blend height
+// slider with that height; each row's rectangle kept.
 void voe_editor_inspector_foliage_read(const voe_ui_context *ui,
 				       voe_editor_sculpt *sculpt);

@@ -257,8 +257,9 @@ Sampler2D voe_render_textures[1024];
 // twenty-eight bytes, the four uints after them fill to a hundred and
 // forty-four, the colour to a hundred and sixty, the water's two float4s to a
 // hundred and ninety-two, the terrain's two to two hundred and twenty-four and
-// the layers' two uint4s to two hundred and fifty-six, and the dither and its
-// three reserved words end it at two hundred and seventy-two, so every layout rule
+// the layers' two uint4s to two hundred and fifty-six, the dither and the three
+// words after it to two hundred and seventy-two, and the ground's three rows end
+// it at three hundred and twenty, so every layout rule
 // a structured buffer might be given puts every member in the same place. The
 // colour is linear and multiplies the shading record's base colour factor,
 // alpha included.
@@ -303,8 +304,13 @@ struct voe_render_object {
 	// An instanced draw's first instance record plus one, nought none
 	// (ADR-0442 point 6); instances.slangh reads it.
 	uint instances;
-	uint reserved1;
-	uint reserved2;
+	// A ground record's landscape heights texture index plus one, nought
+	// none, the metres its blend reaches up, and the top three rows of the
+	// map from camera-relative space to the landscape's own metres (ADR-0481
+	// point 2); see voe_render_object in render/device.h.
+	uint ground;
+	float ground_reach;
+	float4 ground_rows[3];
 };
 
 // Set 0, binding 2: this frame's records, one per draw. Read by both stages —

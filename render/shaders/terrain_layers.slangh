@@ -4,7 +4,8 @@
 // voe_render_repeated_uv, never compiled alone. Both fragment entries call
 // voe_render_layer_surface_at when the object's `heights` and `paint_a` are not
 // nought, and take its colour (and, the draw, its normal and ORM) in place of
-// the object's record; alpha and lit stay the record's.
+// the object's record; alpha and lit stay the record's. A ground record's
+// blend reads the same surface (ground_blend.slangh).
 //
 // THE PAINT. `paint_a` and `paint_b` are two RGBA8 FIELD textures' indices plus
 // one, layers 0–3 then 4–7, `paint_b` nought reading all nought. A texel is a
@@ -27,6 +28,12 @@
 // an offset's jump makes no mip seam, and so it is legal in the per-layer
 // branches below. No rotation: a normal map's tangent frame stays the
 // landscape's and needs no turning.
+//
+// NO IMPLICIT DERIVATIVE PAST THE GRADIENTS. voe_render_layer_surface_grad
+// takes the uv's gradients as arguments; the paint is read by level and every
+// map by SampleGrad, so it may sit in a per-pixel branch (ground_blend.slangh's
+// `t > 0`). voe_render_layer_surface_at takes them itself and is called in
+// uniform flow. A read added here keeps that rule.
 //
 // COST. Three taps a map, per layer present at the pixel: a layer under 1/255
 // is not read, one whose blend is nought only for its height. A layer's first
@@ -116,19 +123,21 @@ voe_render_shading voe_render_layer_record(voe_render_object object, uint i)
 					   object.layers_high[i - 4]];
 }
 
-// The surface of `object`'s layers at landscape `uv`. `colour_only` reads no
-// normal or ORM past the heights, for the capture pass. Called in uniform
-// control flow: it takes the derivatives before any branch.
-voe_render_layer_surface voe_render_layer_surface_at(voe_render_object object,
-						     float2 uv, bool colour_only)
+// The surface of `object`'s layers at landscape `uv`, `dx` and `dy` the uv's
+// screen gradients. `colour_only` reads no normal or ORM past the heights, for
+// the capture pass. Takes no implicit derivative, so it may sit in a per-pixel
+// branch.
+voe_render_layer_surface voe_render_layer_surface_grad(voe_render_object object,
+						       float2 uv, float2 dx,
+						       float2 dy, bool colour_only)
 {
 	float4 low = voe_render_paint_read(object.paint_a, uv);
 	float4 high = voe_render_paint_read(object.paint_b, uv);
 	float weights[8] = { low.x, low.y, low.z, low.w,
 			     high.x, high.y, high.z, high.w };
 	float2 metres = uv * object.terrain.w;
-	float2 metres_dx = ddx(metres);
-	float2 metres_dy = ddy(metres);
+	float2 metres_dx = dx * object.terrain.w;
+	float2 metres_dy = dy * object.terrain.w;
 	float4 first[8];
 	float scores[8];
 	float top = -1.0;
@@ -201,4 +210,13 @@ voe_render_layer_surface voe_render_layer_surface_at(voe_render_object object,
 		surface.metallic += metallic * b;
 	}
 	return surface;
+}
+
+// voe_render_layer_surface_grad with `uv`'s own gradients. Called in uniform
+// control flow: it takes the derivatives before any branch.
+voe_render_layer_surface voe_render_layer_surface_at(voe_render_object object,
+						     float2 uv, bool colour_only)
+{
+	return voe_render_layer_surface_grad(object, uv, ddx(uv), ddy(uv),
+					     colour_only);
 }

@@ -14,11 +14,12 @@
 // {x, z, turn, scale, kind, lean} in memory, the order a cooked initializer
 // fills; each number is range-checked against its field before it is narrowed.
 //
-// A KIND'S LOOK FOLLOWS `kind<k>` (0460 point 1, 0476 point 1): `size<k>`,
-// `vary<k>`, `turn<k>`, `tilt<k>` and `shadow<k>`, each a whole number in its
-// range, one table for the read and the print. A key is printed only off the
-// default, and 1000 is a size's default too: a 1× kind's lines are as they were
-// before sizes, and 0 in memory means 1× (0460 point 2).
+// A KIND'S LOOK FOLLOWS `kind<k>` (0460 point 1, 0476 point 1, 0481 point 4):
+// `size<k>`, `vary<k>`, `turn<k>`, `tilt<k>`, `shadow<k>`, `blend<k>` and
+// `blendheight<k>`, each a whole number in its range, one table for the read
+// and the print. A key is printed only off the default, and 1000 is a size's
+// default too: a 1× kind's lines are as they were before sizes, and 0 in memory
+// means 1× (0460 point 2). So is 50 a blend height's, 0 in memory meaning 50.
 //
 // [Layers] IS WALKED ONCE FOR `grow<l>_<k>` (0476 point 2): any key starting
 // `grow`, so one naming a layer or kind not in the file is refused, not
@@ -52,7 +53,16 @@ static bool refuse(voe_base_error *error, voe_base_error code, const char *key,
 }
 
 // A look's keys, in the order a kind's lines print them.
-enum { LOOK_SIZE, LOOK_VARY, LOOK_TURN, LOOK_TILT, LOOK_SHADOW, LOOK_KEYS };
+enum {
+	LOOK_SIZE,
+	LOOK_VARY,
+	LOOK_TURN,
+	LOOK_TILT,
+	LOOK_SHADOW,
+	LOOK_BLEND,
+	LOOK_BLEND_HEIGHT,
+	LOOK_KEYS
+};
 
 static const struct {
 	const char *key;
@@ -69,6 +79,10 @@ static const struct {
 	{ "tilt", 0, VOE_ASSETS_LANDSCAPE_TILT_MAX,
 	  "a tilt not a whole number from 0 to 100" },
 	{ "shadow", 0, 1, "a shadow not 0 or 1" },
+	{ "blend", 0, 1, "a blend not 0 or 1" },
+	{ "blendheight", VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN,
+	  VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MAX,
+	  "a blend height not a whole number from 5 to 1000" },
 };
 
 // `value` as a whole number from `lowest` to `highest` with nothing after it.
@@ -87,7 +101,8 @@ static bool whole_in_range(const char *value, long long lowest,
 	return true;
 }
 
-// `look` as its keys' values, LOOK_KEYS of them, shadow 1 for casting.
+// `look` as its keys' values, LOOK_KEYS of them, shadow 1 for casting and
+// blend 1 for blending.
 static void look_values(voe_assets_landscape_look look, long long *values)
 {
 	values[LOOK_SIZE] = look.size;
@@ -95,6 +110,8 @@ static void look_values(voe_assets_landscape_look look, long long *values)
 	values[LOOK_TURN] = look.turn_vary;
 	values[LOOK_TILT] = look.tilt;
 	values[LOOK_SHADOW] = look.shadowless ? 0 : 1;
+	values[LOOK_BLEND] = look.blends ? 1 : 0;
+	values[LOOK_BLEND_HEIGHT] = look.blend_height;
 }
 
 // Kind k's look keys into `into`, each missing one the default's.
@@ -123,6 +140,8 @@ static bool read_look(const voe_assets_sectioned *doc, uint32_t section,
 		.turn_vary = (uint8_t)values[LOOK_TURN],
 		.tilt = (uint8_t)values[LOOK_TILT],
 		.shadowless = values[LOOK_SHADOW] == 0,
+		.blends = values[LOOK_BLEND] == 1,
+		.blend_height = (uint16_t)values[LOOK_BLEND_HEIGHT],
 	};
 	return true;
 }
@@ -371,7 +390,9 @@ static void print_look(struct voe_assets_landscape_printer *printer,
 	for (uint32_t i = 0; i < LOOK_KEYS; i++) {
 		const bool is_default =
 			values[i] == defaults[i] ||
-			(i == LOOK_SIZE && values[i] == 1000);
+			(i == LOOK_SIZE && values[i] == 1000) ||
+			(i == LOOK_BLEND_HEIGHT &&
+			 values[i] == VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_DEFAULT);
 
 		VOE_BASE_ASSERT(is_default || (values[i] >= look_keys[i].lowest &&
 					       values[i] <= look_keys[i].highest),

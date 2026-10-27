@@ -5,14 +5,18 @@
 //
 //     world_blended = voe_3d_draw_group_new(arena,
 //             ... + voe_3d_draw_models_part_count(world, frame.models), true);
+//     grounds = voe_3d_draw_grounds(world, &frame, arena);
 //     (void)voe_3d_draw_models(world, device, &frame, &world_blended, &cull,
-//                              &counts);
+//                              &grounds, &counts);
 //
 // A landscape row is skipped here and drawn by draw_terrain.c's nodes. A row
-// the cull cannot see is skipped and counted (0464 points 2 and 5).
+// the cull cannot see is skipped and counted (0464 points 2 and 5). A row
+// blending with a ground under it (0481) has its parts filled with it and its
+// solid ones drawn last, in the `ground blend` span.
 #pragma once
 
 #include "cull.h"
+#include "draw_ground.h"
 #include "draw_group.h"
 
 #include <3d/draw_system.h>
@@ -43,8 +47,12 @@ uint32_t voe_3d_draw_models_part_count(const voe_ecs_world *world,
 // A row, not a landscape, whose entry's `centre` and `radius` under its world
 // matrix about the eye `cull` does not see draws and holds none of its parts;
 // NULL tests nothing. Each such row is one thing in `counts`, drawn or skipped.
+// A row with `blend_with_ground` over one of `grounds` has every part's record
+// filled with it at its `blend_height`, and its solid parts drawn after every
+// other row's inside one `ground blend` span, opened only when there is one.
 bool voe_3d_draw_models(voe_ecs_world *world, voe_render_device *device,
 			const voe_3d_frame *frame,
 			struct voe_3d_draw_group *world_blended,
 			const struct voe_3d_cull *cull,
+			const struct voe_3d_grounds *grounds,
 			voe_3d_view_counts *counts);

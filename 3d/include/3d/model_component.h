@@ -31,6 +31,12 @@
 // 0 by default, in a file without it and in a literal, so nothing written
 // before it changes; game code fades a thing through the intent.
 //
+// BLEND WITH GROUND TAKES ON THE PAINTED GROUND NEAR WHERE THE MODEL MEETS IT,
+// fading into its own material `blend_height` metres up (0481 points 1, 3).
+// Off by default, in a file without it and in a literal. The height is 0.5 in
+// the default row and a file without it; a literal's 0 blends nothing. The draw
+// clamps it to 0.05-10 m.
+//
 // A PART'S MATERIAL IS THE MODEL'S, NEVER THE ROW'S (0404): the store gives
 // each part the `.material` its model's parts file names (3d/models.h), so
 // every placed copy of a model wears the same.
@@ -61,7 +67,9 @@
 #define VOE_3D_MODEL_FIELDS(F, F_READ_ONLY)        \
 	F(char, path, CHAR, VOE_3D_MODEL_PATH) \
 	F(bool, cast_shadows, BOOL)            \
-	F(float, fade, FLOAT32)
+	F(float, fade, FLOAT32)                \
+	F(bool, blend_with_ground, BOOL)       \
+	F(float, blend_height, FLOAT32)
 
 VOE_BASE_DESCRIBE_STRUCT(voe_3d_model, VOE_3D_MODEL_FIELDS)
 
@@ -74,8 +82,8 @@ typedef struct {
 	voe_3d_model model;
 } voe_3d_model_intent;
 
-// Registers the table, its default row (the empty path, casting), that a model needs a
-// transform, its menu path, and the intent as its replace with room for
+// Registers the table, its default row (the empty path, casting, not blending
+// with ground, a blend height of 0.5 m), that a model needs a transform, its menu path, and the intent as its replace with room for
 // `capacity` intents. Once per world, after transforms are registered.
 void voe_3d_model_register(voe_ecs_world *world, uint32_t capacity);
 

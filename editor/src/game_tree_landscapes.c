@@ -15,7 +15,7 @@
 //             "Assets/Pine.glb",
 //     };
 //     static const voe_assets_landscape_look landscape_0_looks[] = {
-//             {2000, 20, 180, 0, false},
+//             {2000, 20, 180, 0, false, true, 80},
 //     };
 //     static const uint16_t landscape_0_grows[] = {
 //             0,
@@ -66,13 +66,13 @@
 // The scratch one landscape is read and cooked in, from a Created landscape's
 // points at 64 bytes each: its text, heights, 8 bytes of paint and both cooked,
 // and the most copies at 40 bytes each: their line in the file and cooked,
-// the most kinds' looks at 128 bytes each: their keys and their cooked line,
+// the most kinds' looks at 160 bytes each: their keys and their cooked line,
 // and every grow at 24 bytes: its key and its cooked number.
 // A block size, not a limit: a larger landscape chains blocks.
 #define LANDSCAPE_SCRATCH                                                        \
 	((size_t)(VOE_ASSETS_LANDSCAPE_CELLS + 1u) * (VOE_ASSETS_LANDSCAPE_CELLS + 1u) * 64u + \
 	 (size_t)VOE_ASSETS_LANDSCAPE_COPIES * 40u +                             \
-	 (size_t)VOE_ASSETS_LANDSCAPE_KINDS * 128u +                             \
+	 (size_t)VOE_ASSETS_LANDSCAPE_KINDS * 160u +                             \
 	 (size_t)VOE_ASSETS_LANDSCAPE_LAYERS * VOE_ASSETS_LANDSCAPE_KINDS * 24u)
 
 // One landscape cooked: its arrays' text and what its table entry names.
@@ -186,9 +186,11 @@ static const char *landscape_foliage_text(const voe_assets_landscape *landscape,
 			scratch, "%s\t\"%s\",\n", kinds,
 			voe_editor_game_tree_c_string(scratch, landscape->kinds[k]));
 		looks = voe_editor_game_tree_format(
-			scratch, "%s\t{%u, %u, %u, %u, %s},\n", looks, (unsigned)look->size,
-			(unsigned)look->size_vary, (unsigned)look->turn_vary,
-			(unsigned)look->tilt, look->shadowless ? "true" : "false");
+			scratch, "%s\t{%u, %u, %u, %u, %s, %s, %u},\n", looks,
+			(unsigned)look->size, (unsigned)look->size_vary,
+			(unsigned)look->turn_vary, (unsigned)look->tilt,
+			look->shadowless ? "true" : "false", look->blends ? "true" : "false",
+			(unsigned)look->blend_height);
 	}
 	if (landscape->copy_count > 0) {
 		copies = voe_authoring_landscape_cook_copies(

@@ -19,10 +19,18 @@
 // groups, sized for one entry a part, keep their size, and two blended
 // levels would need a sort between them that dither does without.
 //
+// A ROW BLENDING WITH THE GROUND (0481 points 2, 3 and 5): one with
+// `blend_with_ground` and a ground (draw_ground.h) under its world origin about
+// the eye has every part's record filled with that ground at its
+// `blend_height`. Its held parts are held as ever, filled; its solid ones are
+// drawn after every other row's, inside one `ground blend` span, opened only
+// when there is one, so their cost is read apart.
+//
 // It holds nothing between frames: every row's entry is looked up in the
 // store each frame, and a held part is the group's, given back by _run's
 // rewind. The walk is linear in the model table, as every walk in
-// draw_system.c is.
+// draw_system.c is; with a blending row it walks the table twice, the second
+// time looking again only at the blending rows.
 #include "draw_models.h"
 #include "models_store.h"
 
@@ -112,22 +120,37 @@ static struct voe_3d_deferred model_part_entry(const voe_3d_model_part *piece,
 	return entry;
 }
 
-// Part `part` of `model` at `level` drawn now, solid, keeping `dither`'s share
-// of its pixels (render/device.h); true and nothing drawn where the level lacks
-// the part.
+// What one row draws this frame: its entry, place, level and fade, and the
+// ground it blends with at `reach`, NULL when it blends with none.
+struct row_draw {
+	const voe_3d_model_entry *model;
+	voe_scene_transform drawn;
+	voe_3d_model_level_choice choice;
+	const struct voe_3d_ground *ground;
+	float reach;
+	float fade;
+	bool fading;
+};
+
+// Part `part` of `row`'s model at `level` drawn now, solid, keeping `dither`'s
+// share of its pixels (render/device.h) and filled with its ground; true and
+// nothing drawn where the level lacks the part.
 static bool draw_part_now(voe_render_device *device, const voe_3d_frame *frame,
-			  const voe_3d_model_entry *model, uint32_t part,
-			  uint32_t level, const voe_scene_transform *drawn,
-			  float dither)
+			  const struct row_draw *row, uint32_t part,
+			  uint32_t level, float dither)
 {
-	voe_3d_model_part piece = voe_3d_draw_group_part_worn(frame->models,
-							      model, part, level);
+	voe_3d_model_part piece = voe_3d_draw_group_part_worn(
+		frame->models, row->model, part, level);
 	struct voe_3d_deferred entry;
 
+	VOE_BASE_ASSERT(!row->fading, "a fading part drawn now");
 	if (piece.geometry.generation == 0)
 		return true;
-	entry = model_part_entry(&piece, drawn, false, 0.0f, frame->eye);
+	entry = model_part_entry(&piece, &row->drawn, false, 0.0f, frame->eye);
 	entry.mesh.object.dither = dither;
+	if (row->ground != NULL)
+		voe_3d_draw_ground_fill(row->ground, row->reach,
+					&entry.mesh.object);
 	return voe_3d_draw_group_mesh_draw(device, &entry, false);
 }
 
@@ -149,79 +172,151 @@ static bool row_seen(const struct voe_3d_cull *cull,
 		voe_3d_cull_radius(place, model->radius));
 }
 
-// A row's fade is read once: at or above 1 nothing is drawn, between 0 and 1
-// every part is held blended, at or below 0 or not a number as a solid row
-// (0336 point 3).
+// Row `row`'s draw into `out`; false when it draws nothing: gone, left out, no
+// entry, a landscape, or a sphere `cull` cannot see, the last counted skipped
+// in `counts` and a drawn row counted drawn. NULL `counts` counts nothing, for
+// the ground walk's second look. A fade is read once: at or above 1 nothing
+// is drawn, between 0 and 1 every part is held blended, at or below 0 or not a
+// number as a solid row (0336 point 3).
+static bool row_of(const voe_ecs_world *world, const voe_3d_frame *frame,
+		   const struct voe_3d_cull *cull,
+		   const struct voe_3d_grounds *grounds, uint32_t row,
+		   voe_3d_view_counts *counts, struct row_draw *out)
+{
+	const voe_3d_model *placed = &voe_3d_model_rows(world)[row];
+	const voe_ecs_entity owner = voe_3d_model_entities(world)[row];
+
+	VOE_BASE_ASSERT(grounds != NULL && out != NULL,
+			"a row drawn with no grounds or into nothing");
+	out->fade = placed->fade;
+	// False for a NaN as for nought, so either draws as ever.
+	out->fading = out->fade > 0.0f && out->fade < 1.0f;
+	if (out->fade >= 1.0f ||
+	    voe_3d_draw_group_left_out(world, owner, frame->hidden))
+		return false;
+	out->model = voe_3d_draw_models_entry(world, frame->models, row);
+	if (out->model == NULL ||
+	    voe_3d_draw_models_is_landscape(frame->models, out->model))
+		return false;
+	out->drawn = voe_scene_transform_between(world, owner, frame->lag);
+	if (!row_seen(cull, out->model, &out->drawn, frame->eye)) {
+		if (counts != NULL)
+			counts->skipped++;
+		return false;
+	}
+	if (counts != NULL)
+		counts->drawn++;
+	out->choice = voe_3d_model_level_choose(out->model, &out->drawn,
+						frame->eye, &frame->view);
+	// The ground under its world origin about the eye (0481 point 3).
+	out->ground = placed->blend_with_ground ?
+			      voe_3d_draw_ground_under(
+				      grounds,
+				      voe_math_float4x4_transform_point(
+					      voe_scene_transform_matrix(
+						      out->drawn, frame->eye),
+					      (voe_math_float3){ 0 })) :
+			      NULL;
+	out->reach = placed->blend_height;
+	VOE_BASE_ASSERT(out->fading || out->choice.shown >= 1.0f ||
+				out->choice.level >= 1,
+			"level 0 dissolving into no level before it");
+	return true;
+}
+
+// `row`'s parts: with `ground_walk` false, its blended or fading ones held in
+// `world_blended`, filled, and its solid ones drawn now unless it has a ground,
+// `waiting` then set; with `ground_walk` true only those solid ones. False
+// when a draw is refused.
+static bool draw_row(voe_render_device *device, const voe_3d_frame *frame,
+		     struct voe_3d_draw_group *world_blended,
+		     const struct row_draw *row, bool ground_walk, bool *waiting)
+{
+	const bool dissolving = !row->fading && row->choice.shown < 1.0f;
+	const float shown = dissolving ? row->choice.shown : 0.0f;
+
+	VOE_BASE_ASSERT(row->model != NULL && waiting != NULL,
+			"drawing no row or waiting on nothing");
+	VOE_BASE_ASSERT(!ground_walk || row->ground != NULL,
+			"a row with no ground in the ground walk");
+	for (uint32_t part = 0; part < row->model->part_count; part++) {
+		// Its own record, or the one its parts file names; the material
+		// is the same at every level.
+		voe_3d_model_part piece = voe_3d_draw_group_part_worn(
+			frame->models, row->model, part, row->choice.level);
+
+		if (row->fading ||
+		    piece.material.alpha_mode == VOE_RENDER_ALPHA_BLENDED) {
+			struct voe_3d_deferred entry;
+
+			if (ground_walk || piece.geometry.generation == 0)
+				continue;
+			entry = model_part_entry(&piece, &row->drawn,
+						 row->fading, row->fade,
+						 frame->eye);
+			if (row->ground != NULL)
+				voe_3d_draw_ground_fill(row->ground, row->reach,
+							&entry.mesh.object);
+			voe_3d_draw_group_hold(world_blended, entry,
+					       entry.mesh.object.world,
+					       frame->view.view);
+			continue;
+		}
+		if (!ground_walk && row->ground != NULL) {
+			*waiting = true;
+			continue;
+		}
+		if (!draw_part_now(device, frame, row, part, row->choice.level,
+				   shown))
+			return false;
+		if (dissolving &&
+		    !draw_part_now(device, frame, row, part,
+				   row->choice.level - 1, -shown))
+			return false;
+	}
+	return true;
+}
+
+// Two walks: every row as ever, a blending row's solid parts left waiting,
+// then those inside the one `ground blend` span when any waits (0481 point 5).
 bool voe_3d_draw_models(voe_ecs_world *world, voe_render_device *device,
 			const voe_3d_frame *frame,
 			struct voe_3d_draw_group *world_blended,
 			const struct voe_3d_cull *cull,
+			const struct voe_3d_grounds *grounds,
 			voe_3d_view_counts *counts)
 {
-	const voe_ecs_entity *owners;
 	const voe_3d_model *rows;
+	bool waiting = false;
+	bool drawn = true;
 
 	VOE_BASE_ASSERT(world != NULL && frame != NULL && world_blended != NULL,
 			"drawing models with no world, frame or group");
-	VOE_BASE_ASSERT(counts != NULL, "drawing models with nothing to count in");
+	VOE_BASE_ASSERT(counts != NULL && grounds != NULL,
+			"drawing models with nothing to count in or no grounds");
 	if (frame->models == NULL)
 		return true;
-	owners = voe_3d_model_entities(world);
 	rows = voe_3d_model_rows(world);
 	for (uint32_t row = 0; row < voe_3d_model_count(world); row++) {
-		const voe_3d_model_entry *model;
-		voe_scene_transform drawn;
-		voe_3d_model_level_choice choice;
-		bool dissolving;
-		float fade = rows[row].fade;
-		// False for a NaN as for nought, so either draws as ever.
-		bool fading = fade > 0.0f && fade < 1.0f;
+		struct row_draw draw;
 
-		if (fade >= 1.0f ||
-		    voe_3d_draw_group_left_out(world, owners[row], frame->hidden))
-			continue;
-		model = voe_3d_draw_models_entry(world, frame->models, row);
-		if (model == NULL ||
-		    voe_3d_draw_models_is_landscape(frame->models, model))
-			continue;
-		drawn = voe_scene_transform_between(world, owners[row], frame->lag);
-		if (!row_seen(cull, model, &drawn, frame->eye)) {
-			counts->skipped++;
-			continue;
-		}
-		counts->drawn++;
-		choice = voe_3d_model_level_choose(model, &drawn, frame->eye,
-						   &frame->view);
-		dissolving = !fading && choice.shown < 1.0f;
-		VOE_BASE_ASSERT(!dissolving || choice.level >= 1,
-				"level 0 dissolving into no level before it");
-		for (uint32_t part = 0; part < model->part_count; part++) {
-			// Its own record, or the one its parts file names; the
-			// material is the same at every level.
-			voe_3d_model_part piece = voe_3d_draw_group_part_worn(
-				frame->models, model, part, choice.level);
-
-			if (fading ||
-			    piece.material.alpha_mode == VOE_RENDER_ALPHA_BLENDED) {
-				struct voe_3d_deferred entry = model_part_entry(
-					&piece, &drawn, fading, fade, frame->eye);
-
-				if (piece.geometry.generation != 0)
-					voe_3d_draw_group_hold(
-						world_blended, entry,
-						entry.mesh.object.world,
-						frame->view.view);
-				continue;
-			}
-			if (!draw_part_now(device, frame, model, part,
-					   choice.level, &drawn,
-					   dissolving ? choice.shown : 0.0f))
-				return false;
-			if (dissolving &&
-			    !draw_part_now(device, frame, model, part,
-					   choice.level - 1, &drawn, -choice.shown))
-				return false;
-		}
+		if (row_of(world, frame, cull, grounds, row, counts, &draw) &&
+		    !draw_row(device, frame, world_blended, &draw, false,
+			      &waiting))
+			return false;
 	}
-	return true;
+	if (!waiting)
+		return true;
+	voe_render_frame_span_begin(device, "ground blend");
+	for (uint32_t row = 0; drawn && row < voe_3d_model_count(world); row++) {
+		struct row_draw draw;
+
+		if (rows[row].blend_with_ground &&
+		    row_of(world, frame, cull, grounds, row, NULL, &draw) &&
+		    draw.ground != NULL && !draw.fading)
+			drawn = draw_row(device, frame, world_blended, &draw,
+					 true, &waiting);
+	}
+	voe_render_frame_span_end(device);
+	return drawn;
 }

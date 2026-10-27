@@ -435,14 +435,13 @@ static void end(voe_editor_sculpt *sculpt, const voe_editor_models *models,
 	VOE_BASE_ASSERT(sculpt->before == NULL, "a stroke's copy kept");
 }
 
-// A look's six bytes are its fields with no padding, so its bytes compare.
-static_assert(sizeof(voe_assets_landscape_look) == 6,
-	      "a look with padding or a field past its six bytes");
-
-// Whether two looks are the same.
+// Whether two looks are the same, field by field: a look has padding.
 static bool look_same(voe_assets_landscape_look a, voe_assets_landscape_look b)
 {
-	return memcmp(&a, &b, sizeof a) == 0;
+	return a.size == b.size && a.size_vary == b.size_vary &&
+	       a.turn_vary == b.turn_vary && a.tilt == b.tilt &&
+	       a.shadowless == b.shadowless && a.blends == b.blends &&
+	       a.blend_height == b.blend_height;
 }
 
 // The open look edit closed: when its kind's look changed, a look stroke

@@ -161,7 +161,12 @@ void voe_3d_models_landscape_look_set(voe_3d_models *models, const char *path,
 					VOE_ASSETS_LANDSCAPE_SIZE_VARY_MAX &&
 				look.turn_vary <=
 					VOE_ASSETS_LANDSCAPE_TURN_VARY_MAX &&
-				look.tilt <= VOE_ASSETS_LANDSCAPE_TILT_MAX,
+				look.tilt <= VOE_ASSETS_LANDSCAPE_TILT_MAX &&
+				(look.blend_height == 0 ||
+				 (look.blend_height >=
+					  VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN &&
+				  look.blend_height <=
+					  VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MAX)),
 			"a look the file can hold");
 	const uint32_t at = voe_3d_models_landscape_index(models, path);
 
@@ -177,7 +182,8 @@ void voe_3d_models_landscape_look_set(voe_3d_models *models, const char *path,
 			    was.turn_vary != look.turn_vary ||
 			    was.tilt != look.tilt;
 
-	if (!sized && !spread && was.shadowless == look.shadowless)
+	if (!sized && !spread && was.shadowless == look.shadowless &&
+	    was.blends == look.blends && was.blend_height == look.blend_height)
 		return;
 	land->looks[kind] = look;
 	for (uint32_t i = 0; sized && i < land->copy_count; i++)

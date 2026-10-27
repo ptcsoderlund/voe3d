@@ -1,0 +1,108 @@
+// A model blending into the painted ground under it (ADR-0481 point 1). A part
+// (ADR-0308): included by draw.slang after terrain_layers.slangh, never
+// compiled alone. The draw's main fragment entry calls voe_render_ground_blend
+// when the object's `ground` and `paint_a` are not nought, after the model's
+// surface is known and before alpha and lighting; the capture and point-shadow
+// entries do not.
+//
+// THE CLAIM. Near the ground the model wears the ground beside it: the painted
+// layers' colour, and when lit their ORM and the ground's normal, by weight t.
+// Alpha, cut-out and dither stay the model's.
+//
+// THE FORMULA. p = `ground_rows` × (position, 1), the pixel in the landscape's
+// own metres; h the ground's height at p.xz from the heights texture `ground`
+// − 1 over side `terrain.w`; above = p.y − h; t = 1 below the ground, else
+// smoothstep(0, 1, 1 − above / `ground_reach`). A pixel past the landscape's
+// square (|x| or |z| over side / 2), or a reach not above nought, has t nought.
+// The layers are read at uv = p.xz / side + 0.5. Base colour lerps to theirs
+// by t; when lit the ORM likewise, and the normal toward the ground's world
+// normal: a central difference one texel step (side / (w − 1)) apart, the
+// layers' normal texel applied as the landscape's own fragment path applies
+// it, turned to world by the transpose of `ground_rows`' 3 × 3.
+//
+// CONTROL FLOW. The layers are read in a per-pixel `t > 0` branch, so nothing
+// in it takes an implicit derivative: the heights are Loads, the paint read by
+// level and every layer map by SampleGrad with the uv's gradients, which come
+// from the caller's world-position derivatives through the rows' 3 × 3 (uv is
+// linear in position), taken in uniform flow before any branch.
+//
+// COST. Per pixel inside the square: one bilinear height read (four Loads).
+// Under the reach the layers' reads (terrain_layers.slangh) and, when lit, four
+// more height reads for the central difference.
+
+// The model's surface as the fragment stage knows it before the lights read
+// it: base colour, occlusion, roughness, metal and the shading normal (world).
+struct voe_render_ground_surface {
+	float3 base_colour;
+	float occlusion;
+	float roughness;
+	float metallic;
+	float3 normal;
+};
+
+// `surface` at camera-relative `position` blended into `object`'s ground;
+// `world_dx`, `world_dy` the position's screen derivatives. `lit` false blends
+// the colour alone.
+voe_render_ground_surface voe_render_ground_blend(voe_render_object object,
+						  float3 position,
+						  float3 world_dx,
+						  float3 world_dy,
+						  voe_render_ground_surface surface,
+						  bool lit)
+{
+	uint texture = object.ground - 1;
+	float side = object.terrain.w;
+	float reach = object.ground_reach;
+	float3 p = float3(dot(object.ground_rows[0], float4(position, 1.0)),
+			  dot(object.ground_rows[1], float4(position, 1.0)),
+			  dot(object.ground_rows[2], float4(position, 1.0)));
+	float3 p_dx = float3(dot(object.ground_rows[0].xyz, world_dx),
+			     dot(object.ground_rows[1].xyz, world_dx),
+			     dot(object.ground_rows[2].xyz, world_dx));
+	float3 p_dy = float3(dot(object.ground_rows[0].xyz, world_dy),
+			     dot(object.ground_rows[1].xyz, world_dy),
+			     dot(object.ground_rows[2].xyz, world_dy));
+	float2 uv = p.xz / side + 0.5;
+	float2 uv_dx = p_dx.xz / side;
+	float2 uv_dy = p_dy.xz / side;
+
+	if (reach <= 0.0 || abs(p.x) > side * 0.5 || abs(p.z) > side * 0.5)
+		return surface;
+	float above = p.y - voe_render_terrain_height(texture, side, p.xz);
+	float t = above <= 0.0 ? 1.0 : smoothstep(0.0, 1.0, 1.0 - above / reach);
+
+	if (t > 0.0) {
+		voe_render_layer_surface ground = voe_render_layer_surface_grad(
+			object, uv, uv_dx, uv_dy, !lit);
+
+		surface.base_colour = lerp(surface.base_colour, ground.base_colour, t);
+		if (!lit)
+			return surface;
+		surface.occlusion = lerp(surface.occlusion, ground.occlusion, t);
+		surface.roughness = lerp(surface.roughness, saturate(ground.roughness), t);
+		surface.metallic = lerp(surface.metallic, saturate(ground.metallic), t);
+
+		uint width;
+		uint height;
+		voe_render_textures[texture].GetDimensions(width, height);
+		float step = side / max(float(width) - 1.0, 1.0);
+		float dx = voe_render_terrain_height(texture, side, p.xz + float2(step, 0.0)) -
+			   voe_render_terrain_height(texture, side, p.xz - float2(step, 0.0));
+		float dz = voe_render_terrain_height(texture, side, p.xz + float2(0.0, step)) -
+			   voe_render_terrain_height(texture, side, p.xz - float2(0.0, step));
+		float3 own = normalize(float3(-dx, 2.0 * step, -dz));
+		float3 normal = own.x * object.ground_rows[0].xyz +
+				own.y * object.ground_rows[1].xyz +
+				own.z * object.ground_rows[2].xyz;
+		if (dot(normal, normal) < VOE_LEAST)
+			return surface;
+		normal = normalize(normal);
+		if (ground.has_normal)
+			normal = voe_render_mapped_normal(normal, ground.normal_texel,
+							  world_dx, world_dy, uv_dx, uv_dy);
+		float3 blended = lerp(surface.normal, normal, t);
+		if (dot(blended, blended) >= VOE_LEAST)
+			surface.normal = normalize(blended);
+	}
+	return surface;
+}

@@ -28,6 +28,8 @@ by reading the offscreen colour image back.
 - `terrain_layers.c` — a painted landscape seen from above: its left quarter the red layer, its
   right the green, `paint_a` nought the object record's white, and a layer at weight 0 nowhere.
   Headless.
+- `ground_blend.c` — a white square over a red-painted ground: 0.1 m above it red, 2 m above
+  white, `ground` nought white, 0.5 m between. Headless.
 - `worker_guard.c` — a thread creating and destroying 100 textures and 100 geometries while the
   main thread runs 100 element-only frames, every call true and the thread joined. Headless.
 - `elements.c` — rectangles from records: the colours, the clip rectangle, paint order both ways

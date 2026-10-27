@@ -788,8 +788,16 @@ typedef struct {
 // cover each pixel exactly once. The threshold is a 4 × 4 ordered pattern on the
 // screen. Read by the mesh fragment stage in every pipeline, not by the shadow,
 // point-shadow or capture passes. It is how a model's two levels dissolve into
-// each other across a band, with no blend and no state. It and its three
-// reserved words grew the record from 256 to 272 bytes.
+// each other across a band, with no blend and no state. It and the three
+// words after it grew the record from 256 to 272 bytes.
+//
+// A GROUND RECORD (ADR-0481 point 2) HAS `ground` NOT NOUGHT AND `heights`
+// NOUGHT: a model drawn blending into the landscape under it. It names that
+// landscape's `paint` and `layers` and its side in `terrain.w`, read only when
+// `ground` and `paint[0]` are not nought. The mesh fragment stage blends toward
+// the painted layers near the ground (0481 point 1); the shadow, point-shadow
+// and capture passes do not. `ground`, `ground_reach` and `ground_rows` grew
+// the record from 272 to 320 bytes.
 typedef struct {
 	voe_math_float4x4 world;
 	voe_math_float4x4 normal;
@@ -812,7 +820,8 @@ typedef struct {
 	// x and z in the landscape's own metres (its grid centred on the origin,
 	// 0379 point 1), the node's side and the landscape's side. `morph` is the
 	// morph's start and end in metres from the eye, the node box's bottom y
-	// and its height, above nought.
+	// and its height, above nought. A ground record reads `terrain.w` alone,
+	// the landscape's side.
 	voe_math_float4 terrain;
 	voe_math_float4 morph;
 	uint32_t layers[8];
@@ -821,8 +830,14 @@ typedef struct {
 	// none (ADR-0442 point 6): render's, set by
 	// voe_render_frame_draw_instanced; a caller leaves it nought.
 	uint32_t instances;
-	uint32_t reserved1;
-	uint32_t reserved2;
+	// A landscape's heights texture index plus one, nought none: the ground a
+	// ground record blends into.
+	uint32_t ground;
+	// Metres above the ground the blend reaches up.
+	float ground_reach;
+	// The top three rows of the affine map from camera-relative space to the
+	// landscape's own metres (its grid centred on the origin).
+	voe_math_float4 ground_rows[3];
 } voe_render_object;
 
 // One copy of a mesh in an instanced draw (ADR-0442 point 6): the top three

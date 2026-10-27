@@ -1,7 +1,9 @@
 // The model component and its drain: that the description is one CHAR field
-// `path` of 128 bytes, a BOOL `cast_shadows` and a FLOAT32 `fade`, that the
-// default row casts unfaded, an intent with cast_shadows false lands and one
-// with fade 0.5 reads back after a run, that a row added and then given a new
+// `path` of 128 bytes, a BOOL `cast_shadows`, a FLOAT32 `fade`, a BOOL
+// `blend_with_ground` and a FLOAT32 `blend_height`, that the default row casts
+// unfaded, not blending, at a blend height of 0.5, an intent with cast_shadows
+// false lands and ones with fade 0.5 or blending at 2 read back after a run,
+// that a row added and then given a new
 // path by an intent reads that path back after a run, that a dead entity's
 // intent is dropped, and that a path with no end is cut to 127 bytes. Needs no
 // graphics card.
@@ -59,14 +61,14 @@ static voe_ecs_entity modelled(voe_ecs_world *world, const char *path)
 	return entity;
 }
 
-static void the_description_is_a_path_cast_shadows_and_fade(void)
+static void the_description_is_a_path_cast_shadows_fade_and_blend(void)
 {
 	const voe_base_struct_description *description =
 		voe_3d_model_description();
 
 	VOE_TEST_CHECK(strcmp(description->name, "voe_3d_model") == 0);
-	VOE_TEST_CHECK_INT(description->field_count, 3);
-	if (description->field_count != 3)
+	VOE_TEST_CHECK_INT(description->field_count, 5);
+	if (description->field_count != 5)
 		return;
 	VOE_TEST_CHECK(strcmp(description->fields[0].name, "path") == 0);
 	VOE_TEST_CHECK_INT(description->fields[0].kind, VOE_BASE_FIELD_CHAR);
@@ -82,10 +84,20 @@ static void the_description_is_a_path_cast_shadows_and_fade(void)
 	VOE_TEST_CHECK_INT(description->fields[2].kind, VOE_BASE_FIELD_FLOAT32);
 	VOE_TEST_CHECK_INT((long long)description->fields[2].offset,
 			   (long long)offsetof(voe_3d_model, fade));
+	VOE_TEST_CHECK(strcmp(description->fields[3].name,
+			      "blend_with_ground") == 0);
+	VOE_TEST_CHECK_INT(description->fields[3].kind, VOE_BASE_FIELD_BOOL);
+	VOE_TEST_CHECK_INT((long long)description->fields[3].offset,
+			   (long long)offsetof(voe_3d_model, blend_with_ground));
+	VOE_TEST_CHECK(strcmp(description->fields[4].name, "blend_height") ==
+		       0);
+	VOE_TEST_CHECK_INT(description->fields[4].kind, VOE_BASE_FIELD_FLOAT32);
+	VOE_TEST_CHECK_INT((long long)description->fields[4].offset,
+			   (long long)offsetof(voe_3d_model, blend_height));
 }
 
-// The default row is the empty path, casting, unfaded; an intent with
-// cast_shadows false lands as it is.
+// The default row is the empty path, casting, unfaded, not blending, at a
+// blend height of 0.5; an intent with cast_shadows false lands as it is.
 static void the_default_casts_and_an_intent_turns_it_off(voe_base_arena *arena)
 {
 	voe_ecs_world *world = a_world(arena);
@@ -98,6 +110,8 @@ static void the_default_casts_and_an_intent_turns_it_off(voe_base_arena *arena)
 
 	VOE_TEST_CHECK(row != NULL && row->path[0] == '\0' && row->cast_shadows);
 	VOE_TEST_CHECK(row != NULL && row->fade == 0.0f);
+	VOE_TEST_CHECK(row != NULL && !row->blend_with_ground);
+	VOE_TEST_CHECK(row != NULL && row->blend_height == 0.5f);
 	VOE_TEST_CHECK(voe_3d_model_submit(world, intent));
 	voe_3d_model_system_run(world);
 	VOE_TEST_CHECK(!voe_3d_model_get(world, entity)->cast_shadows);
@@ -118,6 +132,24 @@ static void a_submitted_fade_reads_back(voe_base_arena *arena)
 	VOE_TEST_CHECK(voe_3d_model_submit(world, intent));
 	voe_3d_model_system_run(world);
 	VOE_TEST_CHECK_FLOAT(voe_3d_model_get(world, entity)->fade, 0.5f, 0.0f);
+	voe_base_arena_clear(arena);
+}
+
+static void a_submitted_blend_reads_back(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena);
+	voe_ecs_entity entity = modelled(world, "Assets/hull.glb");
+	voe_3d_model_intent intent = { .entity = entity,
+				       .model = { .path = "Assets/hull.glb",
+						  .cast_shadows = true,
+						  .blend_with_ground = true,
+						  .blend_height = 2.0f } };
+
+	VOE_TEST_CHECK(voe_3d_model_submit(world, intent));
+	voe_3d_model_system_run(world);
+	VOE_TEST_CHECK(voe_3d_model_get(world, entity)->blend_with_ground);
+	VOE_TEST_CHECK_FLOAT(voe_3d_model_get(world, entity)->blend_height,
+			     2.0f, 0.0f);
 	voe_base_arena_clear(arena);
 }
 
@@ -178,9 +210,10 @@ int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 
-	the_description_is_a_path_cast_shadows_and_fade();
+	the_description_is_a_path_cast_shadows_fade_and_blend();
 	the_default_casts_and_an_intent_turns_it_off(arena);
 	a_submitted_fade_reads_back(arena);
+	a_submitted_blend_reads_back(arena);
 	a_submitted_path_reads_back(arena);
 	a_dead_entitys_intent_is_dropped(arena);
 	a_path_with_no_end_is_cut(arena);

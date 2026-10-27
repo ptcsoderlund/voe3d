@@ -38,6 +38,12 @@
 //     the copies counted drawn are those gathered, and drawn and skipped
 //     together are every copy.
 //
+// A blending kind blends with the landscape it stands on (0481 point 3): the
+// same landscape, painted by its layer.
+//
+// 12. The kind's look set blending at 120 cm, every group has a ground and
+//     reach 1.2; set back to the default look, every group's ground is NULL.
+//
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_model_fade.c does.
 #include <3d/draw_system.h>
@@ -480,6 +486,48 @@ static void grown_copies_gather(voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
+// The groups gathered with kind 0's look set to `look`: true when every one
+// has a ground and reach `reach`, or, with `reach` 0, none has a ground.
+static bool groups_blend(voe_render_device *device, voe_base_arena *arena,
+			 voe_3d_models *models, voe_assets_landscape_look look,
+			 float reach)
+{
+	voe_ecs_entity land = { 0 };
+	voe_ecs_world *world = a_world(arena, &land);
+	voe_3d_frame frame;
+	bool all = true;
+
+	voe_3d_models_landscape_look_set(models, FOREST, 0, look);
+	VOE_TEST_CHECK(gather(world, device, arena, models, &frame));
+	VOE_TEST_CHECK(frame.foliage_count > 0);
+	for (uint32_t i = 0; i < frame.foliage_count; i++) {
+		const voe_3d_foliage_group group = frame.foliage[i];
+
+		printf("group %u: ground %d, reach %.3f\n", i,
+		       group.ground != NULL, group.ground_reach);
+		all = all && (group.ground != NULL) == (reach > 0.0f) &&
+		      group.ground_reach == reach;
+	}
+	return all;
+}
+
+// 12, from the camera of 5.
+static void blending_kind_names_its_ground(voe_render_device *device,
+					   voe_base_arena *arena)
+{
+	voe_3d_models *models =
+		a_store_growing(device, arena, true, COPIES, true, false);
+	voe_assets_landscape_look look = voe_assets_landscape_look_default();
+
+	look.blends = true;
+	look.blend_height = 120;
+	VOE_TEST_CHECK(groups_blend(device, arena, models, look, 1.2f));
+	VOE_TEST_CHECK(groups_blend(device, arena, models,
+				    voe_assets_landscape_look_default(), 0.0f));
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 // 4.
 static void no_room_gathers_none(voe_base_arena *arena)
 {
@@ -531,6 +579,7 @@ int main(void)
 	copies_behind_still_shadow(device, arena);
 	grown_copies_gather(device, arena, false);
 	grown_copies_gather(device, arena, true);
+	blending_kind_names_its_ground(device, arena);
 	voe_render_device_destroy(device);
 	no_room_gathers_none(arena);
 	voe_base_arena_destroy(arena);

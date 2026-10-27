@@ -1,8 +1,14 @@
 // The foliage's gathering (0442 point 5): voe_3d_draw_system_foliage, which
 // 3d/draw_system.h states, walks every copy of every landscape row _run draws
-// solid and writes each as a render instance into its group of (kind, level,
-// part, rest, tier), draw_foliage.h's key. Internal to 3d; called once a frame
-// per view, inside the frame and before its passes.
+// solid and writes each as a render instance into its group, draw_foliage.h's
+// key. Internal to 3d; called once a frame per view, inside the frame and
+// before its passes.
+//
+// A BLENDING KIND'S GROUPS NAME THEIR ROW'S GROUND (0481 point 3): the grounds
+// are built once a call on the caller's arena (draw_ground.h) and kept there
+// with the groups, a row's ground being the one whose `row` is that row; _solid
+// fills each such group's record with it. The cast and the bounce draw as
+// ever.
 //
 // A COPY'S TIER (0464 point 4) is found from the planes made once a call: the
 // camera's six, then each casting sun's four cascades, fitted with
@@ -20,10 +26,10 @@
 // left out past VOE_3D_FOLIAGE_GROUPS the second leaves out too.
 //
 // A ROW'S KINDS ARE FOUND ONCE: each kind's loaded `.glb`, each of its parts as
-// worn, a blended one left out (0442 point 5), and whether its look is
-// shadowless (0476 point 6). A copy's (kind, level, part,
-// rest) is looked up in a per-row table and only its first sight walks the
-// groups' keys, so a row's copies cost no search.
+// worn, a blended one left out (0442 point 5), whether its look is
+// shadowless (0476 point 6) and its blend height when it blends. A copy's
+// (kind, level, part, rest) is looked up in a per-row table and only its first
+// sight walks the groups' keys, so a row's copies cost no search.
 //
 // Constraints: every copy's level is chosen and its matrix and tier made each
 // frame and view, twice, one per walk, each copy tested against up to 22
@@ -32,6 +38,7 @@
 #include "draw_foliage.h"
 #include "cull.h"
 #include "draw_bounce.h"
+#include "draw_ground.h"
 #include "draw_group.h"
 #include "draw_material.h"
 #include "draw_models.h"
@@ -83,6 +90,11 @@ struct gathering {
 				     [VOE_3D_MODEL_PARTS];
 	// This row's look of each kind is shadowless.
 	bool shadowless[VOE_ASSETS_LANDSCAPE_KINDS];
+	// The frame's painted grounds, and this row's among them, NULL for none.
+	struct voe_3d_grounds grounds;
+	const struct voe_3d_ground *ground;
+	// This row's look of each kind blends this high, metres; 0 it does not.
+	float reach[VOE_ASSETS_LANDSCAPE_KINDS];
 	// This row's group of each (kind, level, part, rest, tier): index plus
 	// one, SLOT_UNSEEN or SLOT_LEFT_OUT.
 	uint16_t slots[VOE_ASSETS_LANDSCAPE_KINDS][VOE_3D_MODEL_LEVELS]
@@ -92,7 +104,8 @@ struct gathering {
 static bool same_key(struct voe_3d_foliage_key a, struct voe_3d_foliage_key b)
 {
 	return a.kind == b.kind && a.level == b.level && a.part == b.part &&
-	       a.rest == b.rest && a.tier == b.tier && a.casts == b.casts;
+	       a.rest == b.rest && a.tier == b.tier && a.casts == b.casts &&
+	       a.ground == b.ground && a.reach == b.reach;
 }
 
 // The camera's planes and, for each casting sun of `frame` (as draw_shadows.c
@@ -159,8 +172,9 @@ static voe_render_instance instance_of(voe_math_float4x4 matrix)
 }
 
 // Each kind of `grid` found once in `models`: a loaded `.glb`, each of its
-// parts as it wears it, its record's alpha mode the same at every level, and
-// whether `grid`'s look of it is shadowless.
+// parts as it wears it, its record's alpha mode the same at every level,
+// whether `grid`'s look of it is shadowless, and how high it blends, a height
+// of 0 read as the default (0481 point 4).
 static void find_kinds(const voe_3d_models *models,
 		       const voe_assets_landscape *grid, struct gathering *g)
 {
@@ -171,8 +185,14 @@ static void find_kinds(const voe_3d_models *models,
 	for (uint32_t k = 0; k < grid->kind_count; k++) {
 		const voe_3d_model_entry *kind =
 			voe_3d_models_find(models, grid->kinds[k]);
+		const voe_assets_landscape_look look = grid->looks[k];
+		const uint32_t height =
+			look.blend_height != 0 ?
+				look.blend_height :
+				VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_DEFAULT;
 
-		g->shadowless[k] = grid->looks[k].shadowless;
+		g->shadowless[k] = look.shadowless;
+		g->reach[k] = look.blends ? (float)height / 100.0f : 0.0f;
 		if (kind == NULL || !kind->loaded || kind->picture ||
 		    kind->material || kind->landscape != NULL)
 			continue;
@@ -192,17 +212,23 @@ static void find_kinds(const voe_3d_models *models,
 }
 
 // The group of `kind`'s part `part` at `level` in `tier`, made when first
-// seen; nought past VOE_3D_FOLIAGE_GROUPS, else its index plus one.
+// seen; nought past VOE_3D_FOLIAGE_GROUPS, else its index plus one. A blending
+// kind on a row with a ground names it.
 static uint32_t group_of(struct gathering *g, uint32_t kind, uint32_t level,
 			 uint32_t part, bool rest, voe_3d_foliage_tier tier)
 {
 	uint16_t *slot = &g->slots[kind][level][part][rest ? 1 : 0][tier];
-	const struct voe_3d_foliage_key key = { .kind = g->kinds[kind],
-						.level = level,
-						.part = part,
-						.rest = rest,
-						.tier = tier,
-						.casts = !g->shadowless[kind] };
+	const bool blends = g->reach[kind] > 0.0f && g->ground != NULL;
+	const struct voe_3d_foliage_key key = {
+		.kind = g->kinds[kind],
+		.level = level,
+		.part = part,
+		.rest = rest,
+		.tier = tier,
+		.casts = !g->shadowless[kind],
+		.ground = blends ? g->ground : NULL,
+		.reach = blends ? g->reach[kind] : 0.0f,
+	};
 	uint32_t at = 0;
 
 	if (*slot == SLOT_LEFT_OUT)
@@ -225,6 +251,8 @@ static uint32_t group_of(struct gathering *g, uint32_t kind, uint32_t level,
 			.rest = rest,
 			.tier = tier,
 			.casts = key.casts,
+			.ground = key.ground,
+			.ground_reach = key.reach,
 		};
 		g->count++;
 	}
@@ -310,9 +338,9 @@ static void gather_copies(const voe_3d_frame *frame, voe_scene_transform where,
 	}
 }
 
-// Every copy of `land`, a loaded landscape whose row stands at `where`: its
-// own, then its grown.
-static void gather_row(const voe_3d_frame *frame,
+// Every copy of `land`, a loaded landscape whose row `row` stands at `where`:
+// its own, then its grown.
+static void gather_row(const voe_3d_frame *frame, uint32_t row,
 		       const voe_3d_model_entry *land, voe_scene_transform where,
 		       struct gathering *g)
 {
@@ -321,6 +349,10 @@ static void gather_row(const voe_3d_frame *frame,
 		voe_3d_models_landscape_grown(frame->models, land);
 
 	VOE_BASE_ASSERT(grid != NULL, "a landscape row with no grid");
+	g->ground = NULL;
+	for (uint32_t i = 0; i < g->grounds.count && g->ground == NULL; i++)
+		if (g->grounds.grounds[i].row == row)
+			g->ground = &g->grounds.grounds[i];
 	find_kinds(frame->models, grid, g);
 	memset(g->slots, 0, sizeof(g->slots));
 	gather_copies(frame, where, grid->copies,
@@ -354,7 +386,7 @@ static void walk(const voe_ecs_world *world, const voe_3d_frame *frame,
 			break;
 		if (fade > 0.0f)
 			continue;
-		gather_row(frame, land,
+		gather_row(frame, row, land,
 			   voe_scene_transform_between(world, owners[row],
 						       frame->lag),
 			   g);
@@ -384,6 +416,7 @@ bool voe_3d_draw_system_foliage(const voe_ecs_world *world,
 		return true;
 	memset(&g, 0, sizeof(g));
 	make_culls(world, frame, &g);
+	g.grounds = voe_3d_draw_grounds(world, frame, arena);
 	walk(world, frame, &g);
 	frame->counts.drawn += g.counts.drawn;
 	frame->counts.skipped += g.counts.skipped;
@@ -422,18 +455,22 @@ bool voe_3d_draw_system_foliage(const voe_ecs_world *world,
 }
 
 // One group's instanced draw: its worn record, white as a model part is
-// (draw_models.c), between two two-sided calls when that record is.
+// (draw_models.c) and filled with `ground` unless NULL, between two two-sided
+// calls when that record is.
 static bool draw_group(voe_render_device *device,
-		       const voe_3d_foliage_group *group)
+		       const voe_3d_foliage_group *group,
+		       const struct voe_3d_ground *ground)
 {
 	const voe_3d_material *material = &group->part->material;
-	const voe_render_object object = {
+	voe_render_object object = {
 		.shading = material->shading.index,
 		.colour = { 1.0f, 1.0f, 1.0f, 1.0f },
 	};
 	bool drawn;
 
 	VOE_BASE_ASSERT(group->count > 0, "a foliage group of no copies");
+	if (ground != NULL)
+		voe_3d_draw_ground_fill(ground, group->ground_reach, &object);
 	if (material->double_sided)
 		voe_render_frame_two_sided(device, true);
 	drawn = voe_render_frame_draw_instanced(device, group->geometry, object,
@@ -443,23 +480,39 @@ static bool draw_group(voe_render_device *device,
 	return drawn;
 }
 
+// The seen groups of `frame` with a ground when `grounded`, else those with
+// none, inside span `span`, opened at the first drawn.
+static bool draw_seen(voe_render_device *device, const voe_3d_frame *frame,
+		      bool grounded, const char *span)
+{
+	bool opened = false;
+	bool drawn = true;
+
+	for (uint32_t i = 0; i < frame->foliage_count && drawn; i++) {
+		const voe_3d_foliage_group *group = &frame->foliage[i];
+
+		if (group->tier != VOE_3D_FOLIAGE_SEEN ||
+		    (group->ground != NULL) != grounded)
+			continue;
+		if (!opened)
+			voe_render_frame_span_begin(device, span);
+		opened = true;
+		drawn = draw_group(device, group, group->ground);
+	}
+	if (opened)
+		voe_render_frame_span_end(device);
+	return drawn;
+}
+
 bool voe_3d_draw_foliage_solid(voe_render_device *device,
 			       const voe_3d_frame *frame)
 {
-	bool drawn = true;
-
 	VOE_BASE_ASSERT(device != NULL && frame != NULL,
 			"drawing foliage with no device or frame");
 	VOE_BASE_ASSERT(frame->foliage_count == 0 || frame->foliage != NULL,
 			"foliage groups counted and none held");
-	if (frame->foliage_count == 0)
-		return true;
-	voe_render_frame_span_begin(device, "foliage");
-	for (uint32_t i = 0; i < frame->foliage_count && drawn; i++)
-		if (frame->foliage[i].tier == VOE_3D_FOLIAGE_SEEN)
-			drawn = draw_group(device, &frame->foliage[i]);
-	voe_render_frame_span_end(device);
-	return drawn;
+	return draw_seen(device, frame, false, "foliage") &&
+	       draw_seen(device, frame, true, "foliage blend");
 }
 
 bool voe_3d_draw_foliage_cast(voe_render_device *device,
@@ -482,7 +535,7 @@ bool voe_3d_draw_foliage_cast(voe_render_device *device,
 			counts->cast += group->count;
 		else if (counts != NULL)
 			counts->cast_skipped += group->count;
-		if (drawn && !draw_group(device, group))
+		if (drawn && !draw_group(device, group, NULL))
 			return false;
 	}
 	return true;
