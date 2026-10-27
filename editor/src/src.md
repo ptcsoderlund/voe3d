@@ -377,8 +377,8 @@ carries it out.
 - `map_watch.c` — the look's marks, one stamp a map under the folder, a new path noted, a change
   reported while room is left, and the unnamed paths let go.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
-  them: rows, folds, drag, picker, the gizmo's mode of three, the reveal of a selection made elsewhere and the
-  material open in the Inspector.
+  them: rows, folds, drag, picker, the gizmo's mode of three, the reveal of a selection made
+  elsewhere and the material open in the Inspector.
 - `scene.c` — the selection and its targets, the open material's close, follow and refresh,
   Delete, Duplicate and the Inspector's switch, and the Scene panel's rows, asked after the frame
   has ended.
@@ -390,9 +390,9 @@ carries it out.
 - `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows, rings or
   scales: the handle under the pointer, a press that grabs one, and the drag that submits its new
   position, rotation or scale, the scales on the entity's own axes, snapped by Snap XOR Ctrl.
-- `gizmo.c` — the hover, the grab and the move, turn or scale drag, each against a gizmo built from the view's
-  own camera, measured from the press in world space, its world value snapped, and submitted as a
-  whole transform, a child's written back relative to its parent.
+- `gizmo.c` — the hover, the grab and the move, turn or scale drag, each against a gizmo built
+  from the view's own camera, measured from the press in world space, its world value snapped,
+  and submitted as a whole transform, a child's written back relative to its parent.
 - `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), a state
   carrying a sculpting stroke or material edit beside its text, with the level's line set aside
   while a prefab is open.

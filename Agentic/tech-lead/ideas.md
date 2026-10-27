@@ -31,7 +31,7 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
   After the coin game, whose GUI is written in code (0194). The editor then sets the file format, from what
   that game actually needed.
 - **A toggle for the move and rotate gizmos** to follow the entity's own axes rather than the world's (left
-  out of 015 and 035). The scale gizmo is 099's (0438, 0467).
+  out of 015 and 035). The scale gizmo already follows them (0482).
 - **A developer picks the graphics card from code**, and a finished game lets the player pick one in its
   settings — both later, once 0201's automatic choice is in and proven.
 - **A view recorder**: something in the game that films from its own place and renders to a texture, for a

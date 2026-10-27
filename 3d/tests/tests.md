@@ -36,9 +36,8 @@ again, or to find where a claim that has started failing is written down.
   counts. Skips without a graphics card.
 - `draw_material.c` — that a cube wears an unlit material's colour, a model's part wears what its
   parts set names, and a double-sided material draws both sides. Skips without a graphics card.
-- `draw_gizmo.c` — that a gizmo's arrows, and each other kind, rings and scales, show through the
-  cube it stands in. Skips
-  without a graphics card.
+- `draw_gizmo.c` — that a gizmo's arrows, rings and scales each show through the cube it stands
+  in. Skips without a graphics card.
 - `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
   and a zeroed marker none, and that a ray picks each sun. Skips without a graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
