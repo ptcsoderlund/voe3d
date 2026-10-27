@@ -33,6 +33,7 @@
 // the counts (0464).
 #include "cull.h"
 #include "draw_foliage.h"
+#include "draw_ground.h"
 #include "draw_group.h"
 #include "draw_marks.h"
 #include "draw_models.h"
@@ -527,6 +528,7 @@ voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
 	struct voe_3d_draw_group world_blended = { 0 };
 	struct voe_3d_draw_group overlay_solid = { 0 };
 	struct voe_3d_draw_group overlay_blended = { 0 };
+	struct voe_3d_grounds grounds;
 	voe_ecs_type shapes = { 0 };
 	bool has_shapes;
 	// Whether the depth buffer has been emptied yet, which the overlay does
@@ -641,10 +643,13 @@ voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
 			break;
 	}
 
-	// The model rows' parts, world layer only (0277 point 3); a refused
-	// draw stops this walk and not the frame.
+	// The painted grounds a model row may blend with (0481 point 3).
+	grounds = voe_3d_draw_grounds(world, &frame, arena);
+	// The model rows' parts, world layer only (0277 point 3), a blending
+	// row's solid ones last in the "ground blend" span (0481 point 5); a
+	// refused draw stops this walk and not the frame.
 	(void)voe_3d_draw_models(world, device, &frame, &world_blended, &cull,
-				 &counts);
+				 &grounds, &counts);
 	// The landscape rows' nodes, inside the "terrain" span (0396, 0388).
 	draw_landscapes(world, device, arena, &frame, &world_blended, &cull,
 			&counts);

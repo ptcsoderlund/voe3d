@@ -60,6 +60,9 @@ again, or to find where a claim that has started failing is written down.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up draws its far ridge and ground
   within the node budgets, every node skipped looking up from 1 km, looking down the unculled
   picture, both counts level, and a painted one draws its layers. Skips without a graphics card.
+- `draw_ground.c` — that a 200 m painted landscape row is one ground, under a point over it and
+  not one beside it, that it fills a record's ground, paint, side and rows, and that the reach is
+  clamped and nought fills nothing. Skips without a graphics card.
 - `terrain_shadow.c` — that a 512 m landscape's 40 m ridge, under a low sun behind it, darkens
   the ground behind it and not the ground in front, in one frame, its nodes drawn into each
   cascade. Skips without a graphics card.

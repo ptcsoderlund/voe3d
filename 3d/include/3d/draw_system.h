@@ -880,7 +880,10 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // its heights, chosen by the eye's distance, its solid ones inside the pass's
 // `terrain` span, so its cost is listed as `<pass>: terrain` (0388); a fading
 // one is held blended as a model's parts are. Past VOE_3D_LANDSCAPES_DRAWN
-// landscape rows a frame, the rest are not drawn, said once on stderr. The
+// landscape rows a frame, the rest are not drawn, said once on stderr. A MODEL
+// ROW BLENDING WITH THE GROUND (0481) draws its solid parts in the pass's
+// `ground blend` span, after every other model row's, so their cost is listed
+// as `<pass>: ground blend`. The
 // device needs room for that many objects per landscape row per world pass.
 // THE ONE EXCEPTION IS THE FRAME'S `hidden`: the entity it
 // names is not drawn however complete it is, mesh, panel, model or particle,

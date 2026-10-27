@@ -97,11 +97,16 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the frame's pass camera, and each drawable's draw into the frame the loop opened, foliage after
   the landscapes, a mesh, landscape node, particle or water the camera cannot see skipped and
   counted.
-- `draw_models.h` — the model rows' walk, its part count for the blended group's room and the
-  entry and landscape test the landscape walk shares; internal.
+- `draw_models.h` — the model rows' walk, taking the frame's grounds, its part count for the
+  blended group's room and the entry and landscape test the landscape walk shares; internal.
 - `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
-  the level before in its band, and blended or fading ones held, a faded-out row and a landscape
-  skipped, and a row the camera cannot see skipped and counted.
+  the level before, blended or fading ones held, unseen rows counted, and a row blending with the
+  ground filled with it, its solid parts last in the `ground blend` span.
+- `draw_ground.h` — a frame's painted grounds, the one under a point and a part's record filled
+  with one; internal.
+- `draw_ground.c` — the painted landscape rows the run draws solid as grounds, each with its paint,
+  layers and inverse place about the eye, the first whose square holds a point, and the fill with
+  its reach clamped.
 - `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part, rest, tier and
   casts, and the groups' solid and cast draws, why a copy is sorted once a view, why rest groups
   and a shadowless kind's do not cast, and why the bounce sun maps draw every tier; internal.
