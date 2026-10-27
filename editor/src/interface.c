@@ -297,7 +297,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				       voe_editor_session_play_label(session),
 				       voe_editor_refresh_label(&session->refresh),
 				       voe_editor_session_ship_label(session),
-				       scene->rings ? "Rotate" : "Move",
+				       scene->gizmo_kind == VOE_3D_GIZMO_RINGS ? "Rotate" :
+				       scene->gizmo_kind == VOE_3D_GIZMO_SCALES ? "Scale" :
+										  "Move",
 				       name != NULL ? name : "Untitled",
 				       session->project->unsaved,
 				       session->notice.text, prefab_open);

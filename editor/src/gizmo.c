@@ -90,7 +90,7 @@ static void gizmo_drag(voe_editor_gizmo *gizmo, voe_ecs_world *world,
 	};
 	voe_3d_ray ray = gizmo_in_view(view, point, pixels, gizmo->start, &at);
 
-	if (gizmo->turning) {
+	if (gizmo->kind == VOE_3D_GIZMO_RINGS) {
 		if (!gizmo_turn(gizmo, at, ray, &placed))
 			return;
 	} else {
@@ -147,7 +147,7 @@ void voe_editor_gizmo_read(voe_editor_gizmo *gizmo, voe_editor_scene *scene,
 					scene->world, scene->selected, NULL) ?
 			NULL :
 			voe_scene_transform_get(scene->world, scene->selected);
-	if (blocked || row == NULL || !down || gizmo->turning != scene->rings)
+	if (blocked || row == NULL || !down || gizmo->kind != scene->gizmo_kind)
 		gizmo->held = VOE_3D_GIZMO_NONE;
 	if (blocked || row == NULL)
 		return;
@@ -162,13 +162,15 @@ void voe_editor_gizmo_read(voe_editor_gizmo *gizmo, voe_editor_scene *scene,
 		return;
 	}
 
-	if (!voe_editor_views_under(views, pointer, &view, &point))
+	// The scales are drawn and, as yet, neither hovered nor grabbed.
+	if (scene->gizmo_kind == VOE_3D_GIZMO_SCALES ||
+	    !voe_editor_views_under(views, pointer, &view, &point))
 		return;
 
+	bool rings = scene->gizmo_kind == VOE_3D_GIZMO_RINGS;
 	voe_3d_ray ray = gizmo_in_view(&views->views[view], point, pixels,
 				       placed.position, &at);
-	voe_3d_gizmo_handle under = scene->rings ?
-					    voe_3d_gizmo_rings_hit(at, ray) :
+	voe_3d_gizmo_handle under = rings ? voe_3d_gizmo_rings_hit(at, ray) :
 					    voe_3d_gizmo_hit(at, ray);
 	if (under == VOE_3D_GIZMO_NONE)
 		return;
@@ -178,13 +180,12 @@ void voe_editor_gizmo_read(voe_editor_gizmo *gizmo, voe_editor_scene *scene,
 	// A refused grab captures nothing, and the press goes on to picking.
 	if (!pressed)
 		return;
-	if (scene->rings ?
-		    !voe_3d_gizmo_rings_angle(at, under, ray, &gizmo->grab_angle) :
+	if (rings ? !voe_3d_gizmo_rings_angle(at, under, ray, &gizmo->grab_angle) :
 		    !voe_3d_gizmo_grab(at, under, ray, &grab))
 		return;
 	gizmo->held = under;
 	gizmo->captured = view;
-	gizmo->turning = scene->rings;
+	gizmo->kind = scene->gizmo_kind;
 	gizmo->grab = grab;
 	gizmo->start = placed.position;
 	gizmo->kept = placed.rotation;

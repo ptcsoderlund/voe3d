@@ -3,7 +3,7 @@
 // straight after the keyboard and acts on the flags it gets back.
 //
 // WHICH KEY EDGE MEANS WHICH COMMAND IS ONE ANSWER GIVEN ONCE. Ctrl+N is New,
-// Delete is Delete, R switches the gizmo between moving and turning, F frames
+// Delete is Delete, R steps the gizmo through moving, turning and scaling, F frames
 // the selection, Ctrl+Shift+Z and Ctrl+Y are both Redo, and each is decided
 // here and nowhere else, so no two callers can disagree about what a person
 // pressed. keys.h answers whether a key went down; this file answers what that
@@ -59,7 +59,8 @@ typedef struct {
 	// `delete_entity`; F2 alone.
 	bool delete_asset;
 	bool rename;
-	// R alone: the gizmo's arrows become rings or back (scene.h).
+	// R alone: the gizmo's arrows become rings, rings scales, scales arrows
+	// (scene.h).
 	bool gizmo_switch;
 	// F alone: the view under the pointer frames the selection (view.h).
 	bool frame_selection;

@@ -5,8 +5,8 @@
 // seen from the view's own eye so the haze veils it from there
 // (voe_3d_draw_system_sky, 0405, 0418 point 2), its picture (voe_3d_draw_system_picture,
 // 0406) and those shadows: the world and its models (voe_3d_draw_system_run), the selection's outline,
-// a model's too (ADR-0203), its collider as lines (0253), its move gizmo
-// (ADR-0205), the scene camera's marker (0223), every sun's (0360) and every
+// a model's too (ADR-0203), its collider as lines (0253), its gizmo of the
+// mode (ADR-0205, 0274, 0482), the scene camera's marker (0223), every sun's (0360) and every
 // point light's (0320) and every meshless place's (0365), the brush's two
 // rings where the pointer meets the ground, the gizmo hidden while a brush is
 // chosen on a landscape (0379 point 3), and every light
@@ -67,6 +67,7 @@
 
 #include <3d/draw_system.h>
 #include <3d/emitter_component.h>
+#include <3d/gizmo_scales.h>
 #include <3d/models.h>
 #include <3d/place_marker.h>
 #include <3d/point_light_marker.h>
@@ -98,24 +99,32 @@
 // screen of any density — and what is hit is what is drawn (gizmo.h).
 #define VOE_EDITOR_GIZMO_MILLIMETRES 12.0f
 
-// The gizmo's share of the transient pool: the arrows or the rings, whichever
-// is larger, so switching modes needs no other capacity.
-#define VOE_EDITOR_GIZMO_VERTICES                                   \
-	(VOE_3D_GIZMO_VERTICES > VOE_3D_GIZMO_RING_VERTICES          \
-		 ? VOE_3D_GIZMO_VERTICES                               \
-		 : VOE_3D_GIZMO_RING_VERTICES)
-#define VOE_EDITOR_GIZMO_INDICES                                    \
-	(VOE_3D_GIZMO_INDICES > VOE_3D_GIZMO_RING_INDICES            \
-		 ? VOE_3D_GIZMO_INDICES                                \
-		 : VOE_3D_GIZMO_RING_INDICES)
+// The gizmo's share of the transient pool: the arrows, the rings or the scales,
+// whichever is largest, so switching modes needs no other capacity.
+#define VOE_EDITOR_GIZMO_VERTICES                                          \
+	(VOE_3D_GIZMO_VERTICES > VOE_3D_GIZMO_RING_VERTICES                 \
+		 ? (VOE_3D_GIZMO_VERTICES > VOE_3D_GIZMO_SCALE_VERTICES       \
+			    ? VOE_3D_GIZMO_VERTICES                             \
+			    : VOE_3D_GIZMO_SCALE_VERTICES)                      \
+		 : (VOE_3D_GIZMO_RING_VERTICES > VOE_3D_GIZMO_SCALE_VERTICES  \
+			    ? VOE_3D_GIZMO_RING_VERTICES                        \
+			    : VOE_3D_GIZMO_SCALE_VERTICES))
+#define VOE_EDITOR_GIZMO_INDICES                                           \
+	(VOE_3D_GIZMO_INDICES > VOE_3D_GIZMO_RING_INDICES                   \
+		 ? (VOE_3D_GIZMO_INDICES > VOE_3D_GIZMO_SCALE_INDICES         \
+			    ? VOE_3D_GIZMO_INDICES                              \
+			    : VOE_3D_GIZMO_SCALE_INDICES)                       \
+		 : (VOE_3D_GIZMO_RING_INDICES > VOE_3D_GIZMO_SCALE_INDICES    \
+			    ? VOE_3D_GIZMO_RING_INDICES                         \
+			    : VOE_3D_GIZMO_SCALE_INDICES))
 
 // How many directional lights a view's pool marks; more shows none (0360 point 2).
 #define VOE_EDITOR_SUN_MARKERS 16
 
 // What the device is opened with; the reasoning is at the top of this file.
 // The three transient numbers hold, per view's pass, the selection outline's
-// quads (ADR-0203, 3d/outline.h); the gizmo's, two ranges, the larger of the
-// arrows' and the rings' (ADR-0205, 0274); one range each for the camera
+// quads (ADR-0203, 3d/outline.h); the gizmo's, two ranges, the largest of the
+// arrows', the rings' and the scales' (ADR-0205, 0274, 0482); one range each for the camera
 // marker (0223), the collider and the selected blocker's box, the last two a
 // collider marker each (0253, 0347 point 5); the sun markers',
 // VOE_EDITOR_SUN_MARKERS lights in two ranges, the rest and the selected one

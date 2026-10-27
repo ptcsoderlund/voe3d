@@ -1,6 +1,6 @@
 // The bar across the top of the root surface: New, Open and Save, then Play,
 // then Refresh, then Ship, then Project, then Preferences, then Panels, then a label naming the gizmo's
-// mode (Move or Rotate, the caller's), then the project's name and
+// mode (Move, Rotate or Scale, the caller's), then the project's name and
 // whether it is unsaved, then whatever notice the session has to say. Play's
 // label is the caller's (the session's play state, play.h): Play, Building or
 // Stop; so are Refresh's (refresh.h), Refresh or Refreshing, and Ship's

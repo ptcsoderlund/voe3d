@@ -137,7 +137,7 @@ carries it out.
   cooking before they build, one build at a time and refused while a prefab is open, a prefab
   opened, a built library swapped in once a frame, and what a browser action does to the session.
 - `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
-  Project, Preferences, Panels and its list, the gizmo's mode, the name and unsaved mark, then the
+  Project, Preferences, Panels and its list, the gizmo's mode (Move, Rotate or Scale), the name and unsaved mark, then the
   notice, as tall as its content or as the person made it.
 - `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
   the read of its buttons, Back, Play, Refresh, Ship and Project among them, afterwards.
@@ -375,7 +375,7 @@ carries it out.
 - `map_watch.c` — the look's marks, one stamp a map under the folder, a new path noted, a change
   reported while room is left, and the unnamed paths let go.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
-  them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
+  them: rows, folds, drag, picker, the gizmo's mode of three, the reveal of a selection made elsewhere and the
   material open in the Inspector.
 - `scene.c` — the selection and its targets, the open material's close, follow and refresh,
   Delete, Duplicate and the Inspector's switch, and the Scene panel's rows, asked after the frame
@@ -385,9 +385,9 @@ carries it out.
   ray and what it meets are `3d`'s (ADR-0202, 0354).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
   view's picture, and the selection set from whatever it met.
-- `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows or rings: the
-  handle under the pointer, a press that grabs one, and the drag that submits its new position or
-  rotation; a part has none.
+- `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows, rings or
+  scales: the handle under the pointer, a press that grabs one, and the drag that submits its new
+  position or rotation; the scales take nothing yet, and a part has none.
 - `gizmo.c` — the hover, the grab and the move or turn, each against a gizmo built from the view's
   own camera, measured from the press in world space and submitted as a whole transform, a child's
   written back relative to its parent.

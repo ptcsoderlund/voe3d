@@ -1,9 +1,9 @@
 // What the primary button does to the selected entity's gizmo, arrows that move
-// it or, while scene.h's `rings` is set, rings that turn it: which handle the
+// it, rings that turn it or scales, by scene.h's `gizmo_kind`: which handle the
 // pointer is over, a press on one grabbing it, and a drag submitting the
-// entity's new position or rotation until the release. The gizmo, what a ray
-// meets and where it grabs are `3d`'s (3d/gizmo.h, 3d/gizmo_rings.h, ADR-0205,
-// ADR-0274); what is here is the pointer, the button and the entity. It is asked
+// entity's new position or rotation until the release; the scales take nothing
+// yet. The gizmo, what a ray meets and where it grabs are `3d`'s (3d/gizmo.h,
+// 3d/gizmo_rings.h, ADR-0205, 0274, 0482); what is here is the pointer, the button and the entity. It is asked
 // before pick.h each frame, so a press this file takes is one picking never sees
 // (voe_editor_gizmo_taking). A switch of mode while a handle is held ends the drag.
 // A prefab's part is never hovered or grabbed: it has no gizmo (0283 point 5).
@@ -71,7 +71,7 @@ typedef struct {
 	uint32_t hovered_view;
 	voe_math_double3 grab; // where on the handle the press landed
 	voe_math_double3 start; // the entity's world position then
-	bool turning; // the held handle is a ring; read only while held
+	voe_3d_gizmo_kind kind; // the mode the held drag began in; read only while held
 	float grab_angle; // where about the ring's axis the press landed
 	voe_math_quat kept; // the entity's world rotation then
 	uint32_t moved; // moves and turns submitted this frame; zeroed every read
