@@ -49,7 +49,7 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// ELEVEN PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// TWELVE PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
 // tone.slangh, after lighting.slangh, hazes, exposes and tone maps every exit;
 // lighting.slangh includes sky.slangh, the sky's radiance, twin of src/sky.c.
 // bindings.slangh first: the frame block, the records and the bindings both
@@ -61,8 +61,10 @@
 // it includes point_shadow.slangh, a cube face's pick and projection. terrain.slangh
 // after the vertex input: a landscape node's vertex (ADR-0396). water.slangh
 // after the vertex stage and voe_render_premultiplied, which it uses.
-// terrain_layers.slangh last, after voe_render_repeated_uv: a painted
+// terrain_layers.slangh after voe_render_repeated_uv: a painted
 // landscape's layers blended by height, hex-tiled (ADR-0402).
+// ground_blend.slangh after it: a ground record's model blending into the
+// painted ground under it, main fragment entry only (ADR-0481).
 // draw_capture.slangh and draw_sky.slangh at the end, after everything they
 // call: the capture pass's and the sky's entry points. A part is
 // never compiled alone, and cmake/voe.cmake rebuilds every shader when one
@@ -414,6 +416,7 @@ float2 voe_render_repeated_uv(voe_render_shading shading, float2 uv)
 }
 
 #include "terrain_layers.slangh"
+#include "ground_blend.slangh"
 
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
@@ -540,6 +543,34 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 		roughness = saturate(ground.roughness);
 		metallic = saturate(ground.metallic);
 	}
+
+	// The geometric normal, turned round on a back face (see the header),
+	// and the shading normal the normal map gives it: the blend below and the
+	// lit exit read them. A normal of nothing is caught at the lit exit.
+	float3 facing = front ? vertex.normal : -vertex.normal;
+	bool normalled = dot(facing, facing) >= VOE_LEAST;
+	float3 surface = normalled ? normalize(facing) : facing;
+	float3 n = surface;
+	if (normalled && tilted)
+		n = voe_render_mapped_normal(surface, tilt, world_dx, world_dy,
+					     uv_dx, uv_dy);
+
+	// A ground record blends into the painted ground under it (ADR-0481
+	// point 1): a branch uniform per draw. Alpha, cut-out and dither stay
+	// the model's; the normal only when there is one to blend.
+	if (object.ground != 0 && object.paint_a != 0) {
+		voe_render_ground_surface own = { base.rgb, occlusion, roughness,
+						  metallic, n };
+		bool lit = shading.unlit == 0 && sun.unshaded == 0;
+		voe_render_ground_surface blended = voe_render_ground_blend(
+			object, vertex.world, world_dx, world_dy, own,
+			lit && normalled);
+		base.rgb = blended.base_colour;
+		occlusion = blended.occlusion;
+		roughness = blended.roughness;
+		metallic = blended.metallic;
+		n = blended.normal;
+	}
 	float alpha = roughness * roughness;
 
 	// THE ALPHA MODE, RESOLVED HERE AND NOT AT THE RETURN, because there are
@@ -595,23 +626,12 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 	if (shading.water != 0)
 		return voe_render_water(object, vertex, base.rgb);
 
-	// A back face, reached only by a two-sided draw: its normal turned
-	// round, so it is lit from the side seen. See the header.
-	if (!front)
-		vertex.normal = -vertex.normal;
-
-	// A normal of nothing: unlit rather than NaN. See the header.
-	if (dot(vertex.normal, vertex.normal) < VOE_LEAST)
+	// A normal of nothing: unlit rather than NaN. See the header. The
+	// geometric normal, `surface`, places the shadow lookup; `n` shades.
+	if (!normalled)
 		return voe_render_premultiplied(
 			voe_render_expose(voe_render_haze(base.rgb, about)),
 			coverage);
-
-	// The geometric normal places the shadow lookup; the mapped one shades.
-	float3 surface = normalize(vertex.normal);
-	float3 n = surface;
-	if (tilted)
-		n = voe_render_mapped_normal(surface, tilt, world_dx, world_dy,
-					     uv_dx, uv_dy);
 	float3 v =normalize(voe_render_frame.camera.eye - vertex.world);
 
 	// A metal has no diffuse response and reflects its own colour; a

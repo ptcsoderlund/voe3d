@@ -12,7 +12,7 @@ shader and never compiled alone.
 - `instances.slangh` — where a mesh draw's copy stands: from the record and the instance index its
   world matrix, normal matrix and dither, the record's own when it names no instances.
 - `draw.slang` — the mesh pipelines' seven entry points: placing, maps at the record's repeat, the
-  vertex colour tinting the base, a painted landscape's layers, alpha with a far cut-out's coverage
+  vertex colour tinting the base, a painted landscape's layers, a ground record's blend, alpha with a far cut-out's coverage
   scaled by level, a draw's dither keeping a share of its pixels, the lit and unlit exits, hazed, exposed and tone mapped, the point-shadow vertex
   stage; the capture pass's two and the sky's two are in its parts below.
 - `draw_capture.slangh` — the part `draw.slang` includes at its end: the bounce capture pass's two
@@ -36,7 +36,9 @@ shader and never compiled alone.
 - `terrain.slangh` — a landscape node's vertex: the grid point morphed by distance, its height and
   normal from the height map.
 - `terrain_layers.slangh` — a painted landscape's surface: the paint's weights, up to eight layers
-  blended by height, every map read hex-tiled.
+  blended by height, every map read hex-tiled, by the uv's own gradients or given ones.
+- `ground_blend.slangh` — a ground record's model blending into the painted ground under it:
+  weight by height over the ground within the reach, colour, ORM and normal lerped to the ground's.
 - `water.slangh` — the water path, lit by directional light 0 alone: wave normals, fresnel and
   coverage from its depth.
 - `elements.slang` — the element pipeline: a rectangle per instance from its vertex index, clipped,
