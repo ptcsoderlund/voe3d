@@ -4,17 +4,14 @@ The engine's shaders and the only files `slangc` runs over: Slang compiled to ro
 build time and `#embed`ded, so nothing is read at run time. A `.slangh` is a part, included by a
 shader and never compiled alone.
 
-- `bindings.slangh` — the part `draw.slang` includes first: the frame block with its sky, exposure and harmonics, the
-  records, set 0's bindings and the push constant with its `plain` word, each matching its C struct;
-  the object record carries a landscape's paint and layers, a draw's dither and its first instance
-  and a ground;
-  the instance record at binding 12.
+- `bindings.slangh` — the part `draw.slang` includes first: the frame block, the object and instance
+  records, set 0's bindings and the push constant, each matching its C struct; the object record
+  carries a landscape's paint and layers, a draw's dither, its first instance and a ground.
 - `instances.slangh` — where a mesh draw's copy stands: from the record and the instance index its
   world matrix, normal matrix and dither, the record's own when it names no instances.
-- `draw.slang` — the mesh pipelines' seven entry points: placing, maps at the record's repeat, the
-  vertex colour tinting the base, a painted landscape's layers, a ground record's blend, alpha with a far cut-out's coverage
-  scaled by level, a draw's dither keeping a share of its pixels, the lit and unlit exits, hazed, exposed and tone mapped, the point-shadow vertex
-  stage; the capture pass's two and the sky's two are in its parts below.
+- `draw.slang` — the mesh pipelines' seven entry points, the capture's and the sky's in its parts
+  below: placing, maps, a painted landscape's layers, a ground record's blend, alpha and dither, the
+  lit and unlit exits hazed, exposed and tone mapped, and the point-shadow vertex stage.
 - `draw_capture.slangh` — the part `draw.slang` includes at its end: the bounce capture pass's two
   entry points, a mesh on a probe's faces as albedo and normal with distance.
 - `draw_sky.slangh` — the part `draw.slang` includes last: the sky's two full-screen entry points,
