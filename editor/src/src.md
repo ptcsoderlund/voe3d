@@ -138,10 +138,11 @@ carries it out.
   cooking before they build, one build at a time and refused while a prefab is open, a prefab
   opened, a built library swapped in once a frame, and what a browser action does to the session.
 - `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
-  Project, Preferences, Panels and its list, the gizmo's mode (Move, Rotate or Scale), the name and unsaved mark, then the
-  notice, as tall as its content or as the person made it.
-- `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its buttons, Back, Play, Refresh, Ship and Project among them, afterwards.
+  Project, Preferences, Panels and its list, the gizmo's mode (Move, Rotate or Scale), Snap and its
+  three steps, the name and unsaved mark, then the notice, as tall as its content or as made.
+- `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and the read of its
+  buttons, Back, Play, Refresh, Ship and Project among them, and of Snap and its step boxes clamped
+  to range, afterwards.
 - `panels_menu.h` — the list Panels opens: one row per closable panel, an open one ticked with √ in
   a column of its own, as an anchored panel below the button, closed by its caller.
 - `panels_menu.c` — the list's one frame of `ui` calls and the read of its rows, and whether the
@@ -259,7 +260,7 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed, and its one draw
   command per root.
 - `interface.c` — one `ui` frame per root: the dock walk, the draws over the dock, and the one read
-  of its clicks as calls, in order, into the two below.
+  of its clicks as calls, in order, into the two below, the bar's snap remembered when it changed.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
   row, Delete, levels and Import textures questions and a fired prefab, landscape or material
   opened.

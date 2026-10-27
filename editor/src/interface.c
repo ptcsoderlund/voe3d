@@ -57,6 +57,7 @@
 #include "topbar.h"
 
 #include <base/assert.h>
+#include <base/report.h>
 
 #include <platform/path.h>
 
@@ -300,6 +301,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 				       scene->gizmo_kind == VOE_3D_GIZMO_RINGS ? "Rotate" :
 				       scene->gizmo_kind == VOE_3D_GIZMO_SCALES ? "Scale" :
 										  "Move",
+				       &scene->snap,
 				       name != NULL ? name : "Untitled",
 				       session->project->unsaved,
 				       session->notice.text, prefab_open);
@@ -419,6 +421,15 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			over_assets, assets_menuing, asking, levels_asking,
 			textures_asking);
 		voe_editor_views_rects_read(views, ui);
+		// Snap and its steps, asked as the bar's buttons are: not while
+		// the browser showed (interface.h). Remembered at once, a
+		// failure said as a panel toggle's is.
+		if (!browsing && voe_editor_topbar_snap_read(ui, bar, &scene->snap)) {
+			voe_base_report_error_clear();
+			if (!voe_editor_settings_snap_write(&scene->snap))
+				voe_editor_notice_from_report(&session->notice,
+							      "editor_settings");
+		}
 		voe_editor_interface_commands_read(
 			ui, arena, root, &closes, scene, models, session, bar,
 			browser, preferences, project_panel, landscape_panel,

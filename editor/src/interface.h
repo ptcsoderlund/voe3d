@@ -421,8 +421,18 @@
 // NODES, the row and its two labels, and SIXTY-FOUR ELEMENTS: "Textures",
 // eight, and at most fifty-six characters. 2698 + 3 = 2701 nodes, 53794 + 64 =
 // 53858 elements. No scroll area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2701
-#define VOE_EDITOR_INTERFACE_ELEMENTS 53858
+//
+// THE BAR'S SNAP AND ITS THREE STEPS (topbar.h, ADR-0482) ADD EIGHT NODES:
+// Snap as a choice and its label, two; each step a number box and its figure,
+// six. 2701 + 8 = 2709 nodes. AND 324 ELEMENTS: the choice's border and fill,
+// two, and "Snap", four; each box's one fill (no border), three; each figure
+// a generous sixteen characters, forty-eight, `%g` printing at most ten and
+// its unit one; and, while one box is open for typing, a caret,
+// VOE_UI_FIELD_CAPACITY (256) typed characters and "not a number", ten, 267,
+// counted on top as Preferences' sliders are. 53858 + 324 = 54182 elements.
+// No scroll area: five stands.
+#define VOE_EDITOR_INTERFACE_NODES 2709
+#define VOE_EDITOR_INTERFACE_ELEMENTS 54182
 #define VOE_EDITOR_INTERFACE_SCROLLS 5
 
 // Makes the context the interface is built in, once, drawing in `theme` and
