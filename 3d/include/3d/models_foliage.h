@@ -77,7 +77,8 @@ void voe_3d_models_landscape_kind_set(voe_3d_models *models, const char *path,
 				      uint32_t index, const char *model);
 
 // Kind `kind`, below kind_count, of `path`'s grid takes `look`, its ranges
-// asserted as the file's. An equal look does nothing (0460 point 3); else a
+// asserted as the file's, a blend height 0 or 5-1000 cm (0481 point 4). An
+// equal look, its blend counted, does nothing (0460 point 3); else a
 // new size places that kind's copies again, a new size or spread remakes its
 // grown copies over the grid, and the entry is edited and `changes` raised.
 void voe_3d_models_landscape_look_set(voe_3d_models *models, const char *path,

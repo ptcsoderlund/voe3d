@@ -7,15 +7,18 @@
 //     struct voe_3d_foliage_key key = { .kind = entry, .level = 1, .part = 0,
 //                                       .rest = false,
 //                                       .tier = VOE_3D_FOLIAGE_SEEN,
-//                                       .casts = true };
+//                                       .casts = true,
+//                                       .ground = NULL, .reach = 0.0f };
 //     (void)voe_3d_draw_foliage_solid(device, &frame);
 //
-// A GROUP IS ONE (kind, level, part, rest, tier, casts): the kind's loaded
-// `.glb` entry, so two landscape rows naming one file share its groups; the
-// level its copies are drawn at; the level-0 part they wear; whether they are a
-// band's level-before copies, dithered the other way (0432 point 3); their
-// tier; and whether the row's look of the kind casts. Equal keys are one group,
-// whichever row and copy, hand-painted or grown, filled it.
+// A GROUP IS ONE (kind, level, part, rest, tier, casts, ground, reach): the
+// kind's loaded `.glb` entry, so two landscape rows naming one file share its
+// groups; the level its copies are drawn at; the level-0 part they wear;
+// whether they are a band's level-before copies, dithered the other way (0432
+// point 3); their tier; whether the row's look of the kind casts; and, for a
+// kind whose look blends, the painted ground of the row it stands on and the
+// look's blend height in metres (0481 point 3), else NULL and 0. Equal keys are
+// one group, whichever row and copy, hand-painted or grown, filled it.
 //
 // A SHADOWLESS KIND (0476 point 6) is gathered seen or not at all: its copies
 // are kept out of the cast and unseen tiers because nothing but the shadow
@@ -61,12 +64,16 @@ struct voe_3d_foliage_key {
 	bool rest;
 	voe_3d_foliage_tier tier;
 	bool casts;
+	const struct voe_3d_ground *ground;
+	float reach;
 };
 
 // Every seen group of `frame`, `rest` ones too, drawn solid into the open
-// camera pass inside one `foliage` span (0388), two-sided where its worn
-// material is (0421 point 2). Nothing with none. False when render refuses a
-// draw, which it has said on stderr and which stops the walk.
+// camera pass, two-sided where its worn material is (0421 point 2): those with
+// no ground inside one `foliage` span, then those with one, their records
+// filled with it, inside one `foliage blend` span (0388, 0481 point 5), each
+// span opened only when it draws. False when render refuses a draw, which it
+// has said on stderr and which stops the walk.
 [[nodiscard]] bool voe_3d_draw_foliage_solid(voe_render_device *device,
 					      const voe_3d_frame *frame);
 

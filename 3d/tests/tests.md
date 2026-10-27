@@ -51,10 +51,9 @@ again, or to find where a claim that has started failing is written down.
 - `draw_levels.c` — that a levelled sphere 400 m away draws under a quarter of the triangles it
   draws 3 m away, one loaded without levels draws whole, and in level 1's band it dissolves into
   level 0 unless fading. Skips without a graphics card.
-- `draw_foliage.c` — that a landscape's copies of a model gather into groups summing to three per
-  opaque part, none without the row, kind or room, that their shadow shows and three draw as
-  many draws as one, and that copies behind the camera count skipped but shadow. Skips
-  without a card.
+- `draw_foliage.c` — that a landscape's copies gather into groups, none without the row, kind or
+  room, that their shadow shows, that copies behind the camera count skipped but shadow, and
+  that a blending kind's groups name the painted ground. Skips without a card.
 - `draw_switched_off.c` — that a sphere on a child draws as no model row does when the child or
   its parent is off, and whole again when both are back on. Skips without a graphics card.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up draws its far ridge and ground

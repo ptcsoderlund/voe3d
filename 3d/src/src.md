@@ -107,12 +107,12 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_ground.c` — the painted landscape rows the run draws solid as grounds, each with its paint,
   layers and inverse place about the eye, the first whose square holds a point, and the fill with
   its reach clamped.
-- `draw_foliage.h` — the key a foliage copy's group is found by: kind, level, part, rest, tier and
-  casts, and the groups' solid and cast draws, why a copy is sorted once a view, why rest groups
-  and a shadowless kind's do not cast, and why the bounce sun maps draw every tier; internal.
+- `draw_foliage.h` — the key a foliage copy's group is found by, its ground among it, the groups'
+  solid draws, blending ones in a `foliage blend` span, and cast draws, and why rest groups and a
+  shadowless kind's do not cast; internal.
 - `draw_foliage.c` — the foliage gathering: each drawn landscape row's own then grown copies given
-  level and tier by the camera's and cascades' planes, a shadowless kind's seen or left out,
-  counted, filled and written as instances in one call; then each group's instanced draw.
+  level and tier, a blending kind's keyed by its row's ground, written as instances in one call;
+  then each group's instanced draw.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended unless outside the pass's planes, and why one eye chooses the same nodes in
   every pass and the cull comes after; internal.
@@ -195,8 +195,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   copies, each placed, its grown copies made, uploaded as heights, paint and a pyramid; brushes
   and puts growing its dirt, placing copies again and remaking the grown; renames following.
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
-  handed to foliage.c, a kind's look or a layer's growth set placing copies again and remaking
-  that kind's grown copies, the entry marked edited and the store's count raised on a change.
+  handed to foliage.c, a kind's look, its blend counted, or a layer's growth set remaking that
+  kind's copies, the entry marked edited and the store's count raised on a change.
 - `models_material.c` — a `.material`'s four maps, decoded by the load under each map's name as
   the subject or already by the caller, put mipped with its record, cutout, emission and sides
   and its twin as one part with no geometry; the set marking it and the frame rewriting both records.
