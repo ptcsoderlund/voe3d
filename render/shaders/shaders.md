@@ -6,7 +6,8 @@ shader and never compiled alone.
 
 - `bindings.slangh` — the part `draw.slang` includes first: the frame block with its sky, exposure and harmonics, the
   records, set 0's bindings and the push constant with its `plain` word, each matching its C struct;
-  the object record carries a landscape's paint and layers, a draw's dither and its first instance;
+  the object record carries a landscape's paint and layers, a draw's dither and its first instance
+  and a ground;
   the instance record at binding 12.
 - `instances.slangh` — where a mesh draw's copy stands: from the record and the instance index its
   world matrix, normal matrix and dither, the record's own when it names no instances.
