@@ -52,12 +52,12 @@
 // frames too: the colour picker's and the open dropdown's targets, and the Scene
 // list's drag in the `list_` fields: its threshold, drop target and cancel.
 //
-// THE GIZMO'S MODE, `rings`, IS THE PERSON'S AND NOT THE PROJECT'S (ADR-0274):
-// never saved, never undone, and kept by a new project. `assets`, the Assets
-// panel's state, is here so the dock reaches it (assets_panel.h). AN OPEN
-// MATERIAL (0399 point 8) is `material_open` and its shown copy `material`:
-// a live selection closes it, a move follows it and a trash closes it; a
-// materials read again (an import, an Assets command) refreshes it from its row.
+// THE GIZMO'S MODE, `gizmo_kind`, AND `snap` ARE THE PERSON'S, NOT THE PROJECT'S
+// (ADR-0274, 0482): R cycles Move, Rotate, Scale, never saved; `snap` is kept in
+// editor_settings (settings.h). Neither is undone and a new project keeps both.
+// `assets`, the Assets panel's state, is here so the dock reaches it (assets_panel.h).
+// AN OPEN MATERIAL (0399 point 8) is `material_open`, its shown copy `material`: a live
+// selection or a trash closes it, a move follows it, a materials re-read refreshes it.
 #pragma once
 
 #include "assets_panel.h"
@@ -65,7 +65,9 @@
 #include "inspector_material.h"
 #include "materials.h"
 #include "sculpt.h"
+#include "settings.h"
 
+#include <3d/gizmo.h>
 #include <ecs/world.h>
 #include <game/world.h>
 #include <math/float2.h>
@@ -215,10 +217,13 @@ typedef struct voe_editor_scene {
 	//
 	// The open dropdown's target, kept across frames.
 	voe_editor_dropdown dropdown;
-	// Whether the selection's gizmo is rings that turn it, or arrows that
-	// move it when false, so zeroed is move. See the header.
-	bool rings;
-	// The sculpting brush, the person's as `rings` is (sculpt.h); started
+	// The selection's gizmo: arrows that move it, rings that turn it or
+	// squares that scale it; zeroed is move. See the header.
+	voe_3d_gizmo_kind gizmo_kind;
+	// Whether a drag snaps and its steps, the person's as `gizmo_kind` is;
+	// read at start by main.c from editor_settings (settings.h).
+	voe_editor_snap snap;
+	// The sculpting brush, the person's as `gizmo_kind` is (sculpt.h); started
 	// by main.c beside `world`, drawn and read by the Inspector.
 	voe_editor_sculpt sculpt;
 	// The `.material` the Inspector shows in place of the entity,
@@ -335,7 +340,8 @@ void voe_editor_scene_duplicate(voe_editor_scene *scene);
 // prefab's part (0283 point 5); the camera's entity is switched (0441).
 void voe_editor_scene_switch(voe_editor_scene *scene);
 
-// Flips `rings`: move becomes turn and turn becomes move, whatever is selected.
+// Steps `gizmo_kind` Move → Rotate → Scale → Move, whatever is selected; the
+// person's, never saved or undone.
 void voe_editor_scene_gizmo_switch(voe_editor_scene *scene);
 
 // Opens the picker on `picking`, replacing whatever it was open on, and closes

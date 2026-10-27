@@ -2,7 +2,7 @@
 // every sun's circle and arrow, every point light's three circles, every bare
 // place's diamond, the brush's two rings, every light blocker's box, one entity's
 // silhouette, a collider's and the selected blocker's lines and the gizmo's two
-// meshes, arrows or rings,
+// meshes, arrows, rings or scales,
 // each as this frame's transient geometry and one or two draws, at the entity's
 // world place. An off entity is not met (0428, 0441): its camera, sun, lamp,
 // place and blocker marks are left out, its outline, lines and gizmo kept. See
@@ -17,6 +17,7 @@
 #include <3d/collider_marker.h>
 #include <3d/gizmo.h>
 #include <3d/gizmo_rings.h>
+#include <3d/gizmo_scales.h>
 #include <3d/light_blocker.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
@@ -558,9 +559,14 @@ void voe_3d_draw_marks_gizmo(const voe_ecs_world *world,
 	voe_3d_gizmo gizmo;
 	voe_3d_gizmo_mesh plain;
 	voe_3d_gizmo_mesh marked;
+	bool built;
 
 	VOE_BASE_ASSERT(device != NULL, "drawing a gizmo to no device");
 	VOE_BASE_ASSERT(arena != NULL, "a gizmo with no arena");
+	VOE_BASE_ASSERT(frame.gizmo.kind == VOE_3D_GIZMO_ARROWS ||
+				frame.gizmo.kind == VOE_3D_GIZMO_RINGS ||
+				frame.gizmo.kind == VOE_3D_GIZMO_SCALES,
+			"a gizmo of no kind");
 
 	if (!voe_ecs_entity_alive(world, frame.gizmo.entity))
 		return;
@@ -574,12 +580,25 @@ void voe_3d_draw_marks_gizmo(const voe_ecs_world *world,
 	voe_render_frame_clear_depth(device);
 	gizmo = voe_3d_gizmo_at(transform.position, frame.view, frame.eye,
 				frame.gizmo.size, frame.gizmo.pixels);
-	// Arrows or rings (0274): the same gizmo, the same two draws.
-	if (frame.gizmo.rings ?
-		    !voe_3d_gizmo_rings_quads(gizmo, frame.gizmo.marked, arena,
-					      &plain, &marked) :
-		    !voe_3d_gizmo_quads(gizmo, frame.gizmo.marked, arena, &plain,
-					&marked))
+	// Arrows, rings (0274) or scales on the entity's own axes (0482): the
+	// same gizmo, the same two draws.
+	switch (frame.gizmo.kind) {
+	case VOE_3D_GIZMO_RINGS:
+		built = voe_3d_gizmo_rings_quads(gizmo, frame.gizmo.marked, arena,
+						 &plain, &marked);
+		break;
+	case VOE_3D_GIZMO_SCALES:
+		built = voe_3d_gizmo_scales_quads(gizmo, transform.rotation,
+						  frame.gizmo.marked, arena,
+						  &plain, &marked);
+		break;
+	case VOE_3D_GIZMO_ARROWS:
+	default:
+		built = voe_3d_gizmo_quads(gizmo, frame.gizmo.marked, arena,
+					   &plain, &marked);
+		break;
+	}
+	if (!built)
 		return;
 	draw_gizmo_mesh(device, plain, frame.gizmo.material, frame.gizmo.colour);
 	draw_gizmo_mesh(device, marked, frame.gizmo.material,

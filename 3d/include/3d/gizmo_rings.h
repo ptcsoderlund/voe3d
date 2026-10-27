@@ -58,7 +58,7 @@ voe_3d_gizmo_handle voe_3d_gizmo_rings_hit(voe_3d_gizmo gizmo, voe_3d_ray ray);
 
 // The angle about `handle`'s axis, in radians in (-pi, pi], of where `ray`
 // crosses that ring's plane, measured about the gizmo's origin. False with
-// `*out` untouched for VOE_3D_GIZMO_NONE, a plane handle, or a ray too nearly in
+// `*out` untouched for VOE_3D_GIZMO_NONE, a plane handle, the centre, or a ray too nearly in
 // the plane to cross it anywhere in particular — an ordinary frame the caller
 // answers by keeping the rotation it had.
 [[nodiscard]] bool voe_3d_gizmo_rings_angle(voe_3d_gizmo gizmo,
@@ -68,7 +68,7 @@ voe_3d_gizmo_handle voe_3d_gizmo_rings_hit(voe_3d_gizmo gizmo, voe_3d_ray ray);
 // This frame's triangles in `arena`, in metres about `gizmo.eye`, as
 // voe_3d_gizmo_quads builds its own: every ring but `marked` into `plain`, and
 // `marked`'s ring into `marked_out` at VOE_3D_GIZMO_MARKED_STEP times the
-// width; NONE or a plane handle leaves `marked_out` empty. Every normal points
+// width; NONE, a plane handle or the centre leaves `marked_out` empty. Every normal points
 // at the eye and every triangle is wound to face it. False, with both
 // untouched, for a gizmo of no shaft.
 [[nodiscard]] bool voe_3d_gizmo_rings_quads(voe_3d_gizmo gizmo,

@@ -65,6 +65,7 @@
 #include <3d/collider_marker.h>
 #include <3d/gizmo.h>
 #include <3d/gizmo_rings.h>
+#include <3d/gizmo_scales.h>
 #include <3d/models.h>
 #include <3d/outline.h>
 #include <3d/place_marker.h>
@@ -97,12 +98,13 @@
 // draws the handles at rest in `colour` and the marked one in `marked_colour`,
 // and knows nothing else about either.
 //
-// THE QUADS COME FROM voe_3d_gizmo_quads, OR voe_3d_gizmo_rings_quads WHEN
-// `rings` IS SET (0274), AND GO INTO THIS FRAME'S TRANSIENT POOL. A program that
-// draws a gizmo sizes its voe_render_capacities' transient vertices and indices
-// from the larger of VOE_3D_GIZMO_VERTICES and VOE_3D_GIZMO_RING_VERTICES, and
-// of the two _INDICES, and counts two more transient ranges and two more
-// objects per pass whichever is drawn — the handles
+// THE QUADS COME FROM voe_3d_gizmo_quads, voe_3d_gizmo_rings_quads (0274) OR
+// voe_3d_gizmo_scales_quads (0482) BY `kind`, AND GO INTO THIS FRAME'S
+// TRANSIENT POOL. A program that draws a gizmo sizes its voe_render_capacities'
+// transient vertices and indices from the largest of VOE_3D_GIZMO_VERTICES,
+// VOE_3D_GIZMO_RING_VERTICES and VOE_3D_GIZMO_SCALE_VERTICES, and of the three
+// _INDICES, and counts two more transient ranges and two more objects per pass
+// whichever is drawn — the handles
 // at rest and the marked one are two draws, because a drawn object's colour is
 // one record per draw (ADR-0191). A refused transient range draws no gizmo and
 // leaves the rest of the frame alone, as the outline's does.
@@ -122,12 +124,15 @@ typedef struct {
 	// a drawn object's colour is one record per draw (ADR-0191).
 	voe_math_float3 marked_colour;
 	// Which handle that is, VOE_3D_GIZMO_NONE for none. The editor's
-	// question, answered with voe_3d_gizmo_hit — or, with `rings`, the ring
-	// voe_3d_gizmo_rings_hit answers.
+	// question, answered with voe_3d_gizmo_hit — or, by `kind`, the ring
+	// voe_3d_gizmo_rings_hit answers or the handle voe_3d_gizmo_scales_hit
+	// answers.
 	voe_3d_gizmo_handle marked;
-	// False draws the move gizmo's arrows; true the rotate gizmo's three
-	// rings (0274), in the same two draws at the same place in the order.
-	bool rings;
+	// Which gizmo is drawn (0482 point 3): the move gizmo's arrows, zeroed;
+	// the rotate gizmo's three rings (0274); or the scale gizmo on the
+	// entity's own axes, turned by its world rotation. The same two draws
+	// at the same place in the order.
+	voe_3d_gizmo_kind kind;
 	// How many pixels one arrow's shaft covers, at any distance.
 	float pixels;
 	// The size of that picture, in pixels — the height is what the size is
@@ -851,7 +856,7 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // names a live entity, is the one thing left out, of either table and either
 // layer, and `frame.outlined`, when it names one, is outlined after everything
 // else is drawn — and `frame.gizmo`, when it names one with a transform, is the
-// gizmo drawn after that, its arrows or its rings; `frame.marker`, when it names
+// gizmo drawn after that, its arrows, rings or scales; `frame.marker`, when it names
 // a live camera with a transform, and `frame.sun`, when `shown`, every light
 // with a transform, are drawn with the world, `frame.places`, when `shown`,
 // with the world after the point lights, `frame.brush`, when it names a loaded

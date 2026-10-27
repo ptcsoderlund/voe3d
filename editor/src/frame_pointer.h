@@ -22,7 +22,8 @@
 // 4. The middle drag (view.h), the views' and never the interface's.
 // 5. The brush (sculpt.h): a press on the selection's ground sculpts, and
 //    while it takes the press or a stroke is held, 6 to 8 are blocked.
-// 6. The gizmo (gizmo.h), so a press on an arrow selects nothing.
+// 6. The gizmo (gizmo.h), so a press on an arrow selects nothing; it reads
+//    Ctrl as snap's flip.
 // 7. The Assets drag (assets_drag.h), blocked while the gizmo takes the press.
 // 8. The pick (pick.h), last: a press the gizmo or a drag took selects nothing.
 //

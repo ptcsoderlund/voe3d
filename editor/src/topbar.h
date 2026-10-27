@@ -1,6 +1,7 @@
 // The bar across the top of the root surface: New, Open and Save, then Play,
 // then Refresh, then Ship, then Project, then Preferences, then Panels, then a label naming the gizmo's
-// mode (Move or Rotate, the caller's), then the project's name and
+// mode (Move, Rotate or Scale, the caller's), then Snap and its move, rotate
+// and scale steps (0482 point 7), then the project's name and
 // whether it is unsaved, then whatever notice the session has to say. Play's
 // label is the caller's (the session's play state, play.h): Play, Building or
 // Stop; so are Refresh's (refresh.h), Refresh or Refreshing, and Ship's
@@ -36,10 +37,15 @@
 // voe_editor_topbar_panels_read; the bar holds that list, so it lives across
 // frames, and the button's rectangle, kept by voe_editor_topbar_measure for
 // the list to hang below next frame.
+//
+// SNAP AND ITS STEPS ARE THE GIZMO'S ALONE (ADR-0438): they change how a
+// gizmo drag lands, never a value typed into the Inspector. Read by
+// voe_editor_topbar_snap_read, which says when the caller should remember them.
 #pragma once
 
 #include "panels_menu.h"
 #include "session.h"
+#include "settings.h"
 
 #include <base/arena.h>
 
@@ -49,10 +55,11 @@
 // the surface's own millimetres.
 #define VOE_EDITOR_TOPBAR_HIGH 10.0f
 
-// The bar's panel and ten buttons, recorded as they are drawn, the height it
-// is laid out at, Panels' rectangle last frame and its list. Zeroed is a bar
-// that has drawn nothing yet; `high` nought means VOE_EDITOR_TOPBAR_HIGH,
-// `wanted` nought means fit the content.
+// The bar's panel and ten buttons, Snap and the move, rotate and scale step
+// boxes, recorded as they are drawn, which boxes were held last frame, the
+// height it is laid out at, Panels' rectangle last frame and its list. Zeroed
+// is a bar that has drawn nothing yet; `high` nought means
+// VOE_EDITOR_TOPBAR_HIGH, `wanted` nought means fit the content.
 typedef struct {
 	voe_ui_node panel;
 	voe_ui_node back_button;
@@ -65,6 +72,9 @@ typedef struct {
 	voe_ui_node project_button;
 	voe_ui_node preferences_button;
 	voe_ui_node panels_button;
+	voe_ui_node snap_button;
+	voe_ui_node step_boxes[3];
+	bool step_held[3];
 	float high;
 	float wanted;
 	voe_ui_rect panels_under;
@@ -89,18 +99,20 @@ void voe_editor_topbar_measure(const voe_ui_context *ui,
 
 // Draws the bar as one row: Back when `back`, New, Open, Save, `play` as Play's label,
 // `refresh` as Refresh's, `ship` as Ship's, Project, Preferences, Panels, `gizmo` as a label,
-// then `name` with " (unsaved)"
+// then Snap selected while `snap` is on and its three steps as number boxes
+// ("0.5 m", "15°", "0.1", the fewest digits that show each), dragged at 0.05 m,
+// 1° and 0.01 per millimetre, then `name` with " (unsaved)"
 // appended when `unsaved` is true, then `notice` when it is not empty. `arena`
-// is where " (unsaved)" is composed onto `name` — the frame's own, valid for
-// exactly as long as the row's labels are (ui/widgets.h). Records the
-// panel and the buttons into `bar`, Back as none when not drawn, laid out at
-// voe_editor_topbar_high(bar, surface_high).
+// is where " (unsaved)" and the steps' figures are composed — the frame's own,
+// valid for exactly as long as the row's labels are (ui/widgets.h). Records the
+// panel, the buttons and the boxes into `bar`, Back as none when not drawn,
+// laid out at voe_editor_topbar_high(bar, surface_high).
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, float surface_high,
 			   const char *play, const char *refresh,
 			   const char *ship, const char *gizmo,
-			   const char *name, bool unsaved, const char *notice,
-			   bool back);
+			   const voe_editor_snap *snap, const char *name,
+			   bool unsaved, const char *notice, bool back);
 
 // Which button fired this frame, or VOE_EDITOR_COMMAND_NONE when none did.
 // Called after voe_ui_frame_end and before the frame's arena is rewound — the
@@ -122,3 +134,10 @@ bool voe_editor_topbar_preferences_read(const voe_ui_context *ui,
 // voe_editor_topbar_clicks_read.
 bool voe_editor_topbar_panels_read(const voe_ui_context *ui,
 				   const voe_editor_topbar *bar);
+
+// In the same window as voe_editor_topbar_clicks_read: a fired Snap flips
+// `snap->on`; a box that changed writes its step clamped to settings.h's
+// range. Keeps which boxes are held for next frame. True when the result
+// should be remembered: a flip, a typed commit, or the frame a box's drag ends.
+bool voe_editor_topbar_snap_read(const voe_ui_context *ui,
+				 voe_editor_topbar *bar, voe_editor_snap *snap);

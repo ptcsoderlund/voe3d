@@ -80,9 +80,11 @@
 #define VOE_3D_GIZMO_INDICES \
 	(3 * 6 + 3 * 3 + 3 * 6 + VOE_3D_GIZMO_LABEL_STROKES * 6)
 
-// Which handle: nothing, one of the three axes, or one of the three plane
-// squares. The squares are named for the two axes they lie in, in the order the
-// axes roll round, so XY, YZ and ZX.
+// Which handle: nothing, one of the three axes, one of the three plane
+// squares, or the centre. The squares are named for the two axes they lie in,
+// in the order the axes roll round, so XY, YZ and ZX. Only the scale gizmo
+// (3d/gizmo_scales.h) has a centre; the arrows and the rings answer it as a
+// handle they do not have, as they answer NONE.
 typedef enum {
 	VOE_3D_GIZMO_NONE = 0,
 	VOE_3D_GIZMO_X,
@@ -90,8 +92,18 @@ typedef enum {
 	VOE_3D_GIZMO_Z,
 	VOE_3D_GIZMO_XY,
 	VOE_3D_GIZMO_YZ,
-	VOE_3D_GIZMO_ZX
+	VOE_3D_GIZMO_ZX,
+	VOE_3D_GIZMO_CENTRE
 } voe_3d_gizmo_handle;
+
+// Which gizmo a pass draws (ADR-0482): the move gizmo's arrows, the rotate
+// gizmo's rings (3d/gizmo_rings.h) or the scale gizmo's squares
+// (3d/gizmo_scales.h). Zeroed is the arrows; which mode is on is the caller's.
+typedef enum {
+	VOE_3D_GIZMO_ARROWS = 0,
+	VOE_3D_GIZMO_RINGS,
+	VOE_3D_GIZMO_SCALES
+} voe_3d_gizmo_kind;
 
 // The gizmo itself: where it stands, who is looking at it and how big it is.
 // Plain numbers, copied by value, owned by whoever made it.
@@ -147,7 +159,7 @@ voe_3d_gizmo_handle voe_3d_gizmo_hit(voe_3d_gizmo gizmo, voe_3d_ray ray);
 // through the origin. A drag is this point now against this point when the
 // handle was pressed.
 //
-// False, with `*out` untouched, for VOE_3D_GIZMO_NONE and for a ray too nearly
+// False, with `*out` untouched, for VOE_3D_GIZMO_NONE or CENTRE and for a ray too nearly
 // along the axis or in the plane to name one point — an ordinary frame the
 // caller answers by keeping the position it had.
 //
@@ -171,7 +183,7 @@ typedef struct {
 // Builds this frame's triangles into `arena`, in metres about `gizmo.eye`:
 // every handle but `marked` into `plain`, and `marked`'s own handle into
 // `marked_out` at the marked step's widths. The three labels are always in `plain`, whatever is marked, and
-// VOE_3D_GIZMO_NONE leaves `marked_out` an empty mesh — a mesh the caller draws
+// VOE_3D_GIZMO_NONE or CENTRE leaves `marked_out` an empty mesh — a mesh the caller draws
 // nothing from.
 //
 // Every vertex's normal is the direction from it to the eye and every triangle

@@ -87,8 +87,13 @@ here is included from outside the folder — `include/3d/` is the whole public s
   all drawn as.
 - `gizmo_rings.c` — each ring's plane crossed by the ray, its distance against the radius and its
   angle about the axis, and a camera-facing quad per segment.
-- `gizmo_quads.h` — the camera-facing quads both gizmos are built from, a build that knows its
-  room; internal.
+- `gizmo_scales.c` — the centre square crossed first, then each own axis's segment within the grip,
+  the grab on a line or the plane facing the eye, the factor with its floor, and a quad per shaft
+  and square.
+- `gizmo_snap.c` — the handle's named axes, each rounded in double, a position kept double, an
+  angle wrapped by remainder first and a scale's size floored at a step with its sign kept.
+- `gizmo_quads.h` — the camera-facing quads all three gizmos are built from, a build that knows
+  its room; internal.
 - `gizmo_quads.c` — a build's arrays in the arena, each normal towards the eye, each triangle wound
   to face it, and a quad as two of them.
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
@@ -154,12 +159,13 @@ here is included from outside the folder — `include/3d/` is the whole public s
   height and why it casts no shadow; internal.
 - `draw_water.c` — the eye-relative matrix times the turned, scaled quad, the row's colour,
   waves at its clock and sky in the object record, and the quad's sphere tested.
-- `draw_marks.h` — the editor's marks over the world, bare places', the brush's and every
-  blocker's among them, and why each has its own depth; internal.
+- `draw_marks.h` — the editor's marks over the world, bare places', the brush's, every
+  blocker's and the gizmo's arrows, rings or scales among them, and why each has its own depth;
+  internal.
 - `draw_marks.c` — the camera's marker, every sun's, lamp's and bare place's, the brush's rings on
   its landscape, every blocker's lines,
-  the outline, a collider's and the selected blocker's lines, written once, and the gizmo's arrows
-  or rings, each as transient quads.
+  the outline, a collider's and the selected blocker's lines, written once, and the gizmo's arrows,
+  rings or scales by its kind, each as transient quads.
 - `model_upload.h` — a read model's pictures and materials uploaded in one call, every id
   listed, shared by the import and the model store; internal.
 - `model_upload.c` — each picture once per colour space wanted, a record per material and

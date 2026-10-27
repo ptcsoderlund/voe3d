@@ -1,5 +1,5 @@
 // The bar's one frame of `ui` calls, and the read of its buttons, Back among
-// them while a prefab is open, afterwards. See the header for why the command it hands back is not carried
+// them while a prefab is open, and of Snap and its step boxes, afterwards. See the header for why the command it hands back is not carried
 // out here.
 //
 // A PANEL FOR THE BACKGROUND, A ROW FOR THE FLOW. voe_ui_panel_begin is a
@@ -28,6 +28,20 @@
 #define BAR_PAD (2.0f * VOE_EDITOR_SPACING)
 #define BAR_GAP (3.0f * VOE_EDITOR_SPACING)
 
+// The three step boxes in order, move, rotate and scale: each one's key, the
+// unit after its figure, what a millimetre of drag is worth, and settings.h's
+// range a changed step is clamped to.
+static const char *const STEP_NAMES[3] = { "snap move", "snap rotate",
+					   "snap scale" };
+static const char *const STEP_UNITS[3] = { " m", "°", "" };
+static const double STEP_PER_MILLIMETRE[3] = { 0.05, 1.0, 0.01 };
+static const double STEP_LEAST[3] = { VOE_EDITOR_SNAP_MOVE_LEAST,
+				      VOE_EDITOR_SNAP_ROTATE_LEAST,
+				      VOE_EDITOR_SNAP_SCALE_LEAST };
+static const double STEP_MOST[3] = { VOE_EDITOR_SNAP_MOVE_MOST,
+				     VOE_EDITOR_SNAP_ROTATE_MOST,
+				     VOE_EDITOR_SNAP_SCALE_MOST };
+
 // "<name> (unsaved)", formatted into arena. Measured first and written
 // second, exactly as inspector.c's own text() does: the length of a project's
 // name is not something to guess at with a fixed buffer, and arena is what
@@ -46,12 +60,46 @@ static const char *unsaved_name(voe_base_arena *arena, const char *name)
 	return out;
 }
 
+// A step's figure and unit, "0.5 m", formatted into arena the same way:
+// `%g` is the fewest digits that show a step in settings.h's range.
+static const char *step_figure(voe_base_arena *arena, double value,
+			       const char *unit)
+{
+	int length = snprintf(NULL, 0, "%g%s", value, unit);
+	char *out;
+
+	VOE_BASE_ASSERT(length >= 0, "a snap step this bar could not format");
+
+	out = voe_base_arena_push(arena, (size_t)length + 1);
+	(void)snprintf(out, (size_t)length + 1, "%g%s", value, unit);
+
+	return out;
+}
+
+// Snap, selected while on, then the three step boxes, recorded into `bar`.
+static void snap_draw(voe_ui_context *ui, voe_editor_topbar *bar,
+		      voe_base_arena *arena, const voe_editor_snap *snap)
+{
+	const double steps[3] = { snap->move, snap->rotate, snap->scale };
+
+	bar->snap_button = voe_ui_choice_begin(ui, "snap", 0, snap->on);
+	voe_ui_label(ui, "Snap");
+	voe_ui_end(ui);
+
+	for (uint32_t s = 0; s < 3; s++) {
+		bar->step_boxes[s] = voe_ui_number_begin(
+			ui, STEP_NAMES[s], 0, steps[s], STEP_PER_MILLIMETRE[s]);
+		voe_ui_label(ui, step_figure(arena, steps[s], STEP_UNITS[s]));
+		voe_ui_end(ui);
+	}
+}
+
 void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			   voe_base_arena *arena, float surface_high,
 			   const char *play, const char *refresh,
 			   const char *ship, const char *gizmo,
-			   const char *name, bool unsaved, const char *notice,
-			   bool back)
+			   const voe_editor_snap *snap, const char *name,
+			   bool unsaved, const char *notice, bool back)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing no top bar into no interface");
 	VOE_BASE_ASSERT(bar != NULL,
@@ -62,6 +110,7 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 			"drawing a top bar with no Refresh label");
 	VOE_BASE_ASSERT(ship != NULL, "drawing a top bar with no Ship label");
 	VOE_BASE_ASSERT(gizmo != NULL, "drawing a top bar with no gizmo mode");
+	VOE_BASE_ASSERT(snap != NULL, "drawing a top bar with no snap");
 	VOE_BASE_ASSERT(name != NULL, "drawing a top bar with no name to show");
 	VOE_BASE_ASSERT(notice != NULL,
 			"drawing a top bar with no notice to show");
@@ -123,6 +172,7 @@ void voe_editor_topbar_draw(voe_ui_context *ui, voe_editor_topbar *bar,
 	voe_ui_end(ui);
 
 	voe_ui_label(ui, gizmo);
+	snap_draw(ui, bar, arena, snap);
 	voe_ui_label(ui, unsaved ? unsaved_name(arena, name) : name);
 
 	if (notice[0] != '\0')
@@ -237,4 +287,50 @@ bool voe_editor_topbar_panels_read(const voe_ui_context *ui,
 
 	return bar->panels_button != VOE_UI_NODE_NONE &&
 	       voe_ui_button_action(ui, bar->panels_button).fired;
+}
+
+// A typed commit changes a box that is not held; a drag's last frame is the
+// first one not held after a held one. A box past the node budget is not
+// asked, and counts as let go.
+bool voe_editor_topbar_snap_read(const voe_ui_context *ui,
+				 voe_editor_topbar *bar, voe_editor_snap *snap)
+{
+	float *steps[3];
+	bool remember = false;
+
+	VOE_BASE_ASSERT(ui != NULL, "reading the snap of no interface");
+	VOE_BASE_ASSERT(bar != NULL && snap != NULL,
+			"reading the snap of no top bar or into no snap");
+
+	steps[0] = &snap->move;
+	steps[1] = &snap->rotate;
+	steps[2] = &snap->scale;
+
+	if (bar->snap_button != VOE_UI_NODE_NONE &&
+	    voe_ui_button_action(ui, bar->snap_button).fired) {
+		snap->on = !snap->on;
+		remember = true;
+	}
+
+	for (uint32_t s = 0; s < 3; s++) {
+		voe_ui_number_result result = { 0 };
+
+		if (bar->step_boxes[s] != VOE_UI_NODE_NONE)
+			result = voe_ui_number_action(ui, bar->step_boxes[s]);
+		if (result.changed) {
+			double value = result.value;
+
+			if (value < STEP_LEAST[s])
+				value = STEP_LEAST[s];
+			if (value > STEP_MOST[s])
+				value = STEP_MOST[s];
+			*steps[s] = (float)value;
+		}
+		if ((result.changed && !result.held) ||
+		    (bar->step_held[s] && !result.held))
+			remember = true;
+		bar->step_held[s] = result.held;
+	}
+
+	return remember;
 }

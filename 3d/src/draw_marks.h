@@ -1,7 +1,7 @@
 // What a pass draws on top of the world for an editor: a scene camera's marker,
 // every sun's, every point light's, every bare place's, the brush's rings,
 // every light blocker's lines, the outline of one entity, a collider's and the selected blocker's
-// lines and the gizmo, arrows or rings. Internal to 3d:
+// lines and the gizmo, arrows, rings or scales. Internal to 3d:
 // voe_3d_draw_system_run calls each once, in this order, after the world.
 //
 //     voe_3d_draw_marks_camera(world, device, arena, frame);

@@ -358,7 +358,10 @@ void voe_editor_scene_gizmo_switch(voe_editor_scene *scene)
 {
 	VOE_BASE_ASSERT(scene != NULL, "switching the gizmo of no scene");
 
-	scene->rings = !scene->rings;
+	scene->gizmo_kind =
+		scene->gizmo_kind == VOE_3D_GIZMO_ARROWS ? VOE_3D_GIZMO_RINGS :
+		scene->gizmo_kind == VOE_3D_GIZMO_RINGS	 ? VOE_3D_GIZMO_SCALES :
+							   VOE_3D_GIZMO_ARROWS;
 }
 
 void voe_editor_scene_picker_open(voe_editor_scene *scene,

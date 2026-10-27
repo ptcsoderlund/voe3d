@@ -78,11 +78,12 @@ carries it out.
   failure worth reporting.
 - `last_project.c` — reading that file as its one line and writing it by making
   the two folders above it as needed.
-- `settings.h` — the Scene list's and the Inspector's widths, the Assets panel's and the top bar's
-  heights, the views' share and the four dock panels' open flags a person left, remembered at
-  `<settings>/voe3d/editor_settings`, one `<key> <value>` line each (ADR-0226, 0363).
-- `settings.c` — that file read line by line as a key and a number in range, and written back with
-  every other key's line kept, by making the two folders above it as needed.
+- `settings.h` — the panel sizes, the views' share, the dock panels' open flags and the snap keys
+  `snap`, `snap_move`, `snap_rotate`, `snap_scale` a person left, remembered at
+  `<settings>/voe3d/editor_settings`, one `<key> <value>` line each (ADR-0226, 0363, 0482).
+- `settings.c` — that file read line by line as a key and a number in range, the panel and snap
+  keys alike, and written back with every other key's line kept, by making the two folders above
+  it as needed.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file, the chosen one
   remembered and re-read once a second, each derived at the editor's base text size and spacing.
 - `themes.c` — the folder listed and made, each file read and derived with the one font, the
@@ -137,10 +138,11 @@ carries it out.
   cooking before they build, one build at a time and refused while a prefab is open, a prefab
   opened, a built library swapped in once a frame, and what a browser action does to the session.
 - `topbar.h` — the bar across the top: Back while a prefab is open, the project's commands,
-  Project, Preferences, Panels and its list, the gizmo's mode, the name and unsaved mark, then the
-  notice, as tall as its content or as the person made it.
-- `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and
-  the read of its buttons, Back, Play, Refresh, Ship and Project among them, afterwards.
+  Project, Preferences, Panels and its list, the gizmo's mode (Move, Rotate or Scale), Snap and its
+  three steps, the name and unsaved mark, then the notice, as tall as its content or as made.
+- `topbar.c` — the bar's one frame of `ui` calls, a panel holding one row, and the read of its
+  buttons, Back, Play, Refresh, Ship and Project among them, and of Snap and its step boxes clamped
+  to range, afterwards.
 - `panels_menu.h` — the list Panels opens: one row per closable panel, an open one ticked with √ in
   a column of its own, as an anchored panel below the button, closed by its caller.
 - `panels_menu.c` — the list's one frame of `ui` calls and the read of its rows, and whether the
@@ -258,7 +260,7 @@ carries it out.
 - `interface.h` — the screen-filling surface, made in the theme it is handed, and its one draw
   command per root.
 - `interface.c` — one `ui` frame per root: the dock walk, the draws over the dock, and the one read
-  of its clicks as calls, in order, into the two below.
+  of its clicks as calls, in order, into the two below, the bar's snap remembered when it changed.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
   row, Delete, levels and Import textures questions and a fired prefab, landscape or material
   opened.
@@ -375,7 +377,7 @@ carries it out.
 - `map_watch.c` — the look's marks, one stamp a map under the folder, a new path noted, a change
   reported while room is left, and the unnamed paths let go.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
-  them: rows, folds, drag, picker, gizmo mode, the reveal of a selection made elsewhere and the
+  them: rows, folds, drag, picker, the gizmo's mode of three, the reveal of a selection made elsewhere and the
   material open in the Inspector.
 - `scene.c` — the selection and its targets, the open material's close, follow and refresh,
   Delete, Duplicate and the Inspector's switch, and the Scene panel's rows, asked after the frame
@@ -385,12 +387,12 @@ carries it out.
   ray and what it meets are `3d`'s (ADR-0202, 0354).
 - `pick.c` — the press edge, the view the pointer is over, the ray through that
   view's picture, and the selection set from whatever it met.
-- `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows or rings: the
-  handle under the pointer, a press that grabs one, and the drag that submits its new position or
-  rotation; a part has none.
-- `gizmo.c` — the hover, the grab and the move or turn, each against a gizmo built from the view's
-  own camera, measured from the press in world space and submitted as a whole transform, a child's
-  written back relative to its parent.
+- `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows, rings or
+  scales: the handle under the pointer, a press that grabs one, and the drag that submits its new
+  position, rotation or scale, the scales on the entity's own axes, snapped by Snap XOR Ctrl.
+- `gizmo.c` — the hover, the grab and the move, turn or scale drag, each against a gizmo built from the view's
+  own camera, measured from the press in world space, its world value snapped, and submitted as a
+  whole transform, a child's written back relative to its parent.
 - `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), a state
   carrying a sculpting stroke or material edit beside its text, with the level's line set aside
   while a prefab is open.

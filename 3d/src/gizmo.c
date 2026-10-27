@@ -310,8 +310,8 @@ bool voe_3d_gizmo_grab(voe_3d_gizmo placed, voe_3d_gizmo_handle handle,
 	float at;
 
 	VOE_BASE_ASSERT(out != NULL, "a grab written nowhere");
-	VOE_BASE_ASSERT(handle <= VOE_3D_GIZMO_ZX, "a handle of no gizmo");
-	if (handle == VOE_3D_GIZMO_NONE)
+	VOE_BASE_ASSERT(handle <= VOE_3D_GIZMO_CENTRE, "a handle of no gizmo");
+	if (handle == VOE_3D_GIZMO_NONE || handle == VOE_3D_GIZMO_CENTRE)
 		return false;
 	if (handle <= VOE_3D_GIZMO_Z) {
 		voe_math_float3 axis = AXES[handle - VOE_3D_GIZMO_X];
@@ -480,7 +480,7 @@ bool voe_3d_gizmo_quads(voe_3d_gizmo placed, voe_3d_gizmo_handle marked,
 	VOE_BASE_ASSERT(arena != NULL, "a gizmo built with no arena");
 	VOE_BASE_ASSERT(plain != NULL && marked_out != NULL,
 			"a gizmo built into nothing");
-	VOE_BASE_ASSERT(marked <= VOE_3D_GIZMO_ZX, "a handle of no gizmo");
+	VOE_BASE_ASSERT(marked <= VOE_3D_GIZMO_CENTRE, "a handle of no gizmo");
 	VOE_BASE_ASSERT(gizmo.shaft >= 0.0f, "a gizmo of negative size");
 	if (gizmo.shaft <= 0.0f)
 		return false;

@@ -36,7 +36,8 @@ again, or to find where a claim that has started failing is written down.
   counts. Skips without a graphics card.
 - `draw_material.c` — that a cube wears an unlit material's colour, a model's part wears what its
   parts set names, and a double-sided material draws both sides. Skips without a graphics card.
-- `draw_gizmo.c` — that a gizmo's arrows and rings show through the cube it stands in. Skips
+- `draw_gizmo.c` — that a gizmo's arrows, and each other kind, rings and scales, show through the
+  cube it stands in. Skips
   without a graphics card.
 - `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
   and a zeroed marker none, and that a ray picks each sun. Skips without a graphics card.
@@ -147,6 +148,12 @@ again, or to find where a claim that has started failing is written down.
 - `gizmo_rings.c` — a ray on each rim, through the centre and across two rings, a quarter turn
   about Y reading π/2, a ray in the plane refused, 100 km out the same, and the meshes' counts,
   winding and marked ring. Needs no graphics card.
+- `gizmo_scales.c` — a ray onto each tip and the centre and beside them, a quarter turn about Y
+  moving X's tip to −Z, an axis dragged to twice reading 2, the centre up, down and at the floor,
+  the meshes' counts, winding and marking, and no shaft. Needs no graphics card.
+- `gizmo_snap.c` — 0.37 on X at 0.5 landing 0.5 with Y and Z kept, XY rounding two, a millimetre
+  exact 100 km out, 22° to 15° and 200° to −165°, 0.04 scaled to 0.1, 1.26 on X to 1.3, CENTRE all
+  three, a mirror kept. Needs no graphics card.
 - `far.c` — that everything moved 100 km out picks the same cube at the same distance, grabs a
   millimetre as a millimetre, and frames about the camera's double position. Needs no graphics
   card.
