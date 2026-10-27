@@ -103,7 +103,7 @@ bool voe_3d_gizmo_rings_angle(voe_3d_gizmo gizmo, voe_3d_gizmo_handle handle,
 	int axis;
 
 	VOE_BASE_ASSERT(out != NULL, "an angle written nowhere");
-	VOE_BASE_ASSERT(handle <= VOE_3D_GIZMO_ZX, "a handle of no gizmo");
+	VOE_BASE_ASSERT(handle <= VOE_3D_GIZMO_CENTRE, "a handle of no gizmo");
 	if (handle == VOE_3D_GIZMO_NONE || handle > VOE_3D_GIZMO_Z)
 		return false;
 	axis = handle - VOE_3D_GIZMO_X;
@@ -172,7 +172,7 @@ bool voe_3d_gizmo_rings_quads(voe_3d_gizmo gizmo, voe_3d_gizmo_handle marked,
 	VOE_BASE_ASSERT(arena != NULL, "rings built with no arena");
 	VOE_BASE_ASSERT(plain != NULL && marked_out != NULL,
 			"rings built into nothing");
-	VOE_BASE_ASSERT(marked <= VOE_3D_GIZMO_ZX, "a handle of no gizmo");
+	VOE_BASE_ASSERT(marked <= VOE_3D_GIZMO_CENTRE, "a handle of no gizmo");
 	if (gizmo.shaft <= 0.0f)
 		return false;
 

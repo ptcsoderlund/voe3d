@@ -87,8 +87,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
   all drawn as.
 - `gizmo_rings.c` — each ring's plane crossed by the ray, its distance against the radius and its
   angle about the axis, and a camera-facing quad per segment.
-- `gizmo_quads.h` — the camera-facing quads both gizmos are built from, a build that knows its
-  room; internal.
+- `gizmo_scales.c` — the centre square crossed first, then each own axis's segment within the grip,
+  the grab on a line or the plane facing the eye, the factor with its floor, and a quad per shaft
+  and square.
+- `gizmo_quads.h` — the camera-facing quads all three gizmos are built from, a build that knows
+  its room; internal.
 - `gizmo_quads.c` — a build's arrays in the arena, each normal towards the eye, each triangle wound
   to face it, and a quad as two of them.
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign

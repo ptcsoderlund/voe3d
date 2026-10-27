@@ -1,7 +1,8 @@
-// The camera-facing quads the move gizmo and the rotate rings are both drawn
-// as: one mesh under construction in the caller's arena, a corner whose normal
+// The camera-facing quads the move, rotate and scale gizmos are all drawn as:
+// one mesh under construction in the caller's arena, a corner whose normal
 // points at the eye, a triangle wound to face it and a quad widened along a
-// given direction. Internal to 3d: gizmo.c and gizmo_rings.c build with these.
+// given direction. Internal to 3d: gizmo.c, gizmo_rings.c and gizmo_scales.c
+// build with these.
 //
 //     struct voe_3d_gizmo_build mesh =
 //             voe_3d_gizmo_build_in(arena, vertices, indices);

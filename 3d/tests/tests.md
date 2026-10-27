@@ -147,6 +147,9 @@ again, or to find where a claim that has started failing is written down.
 - `gizmo_rings.c` — a ray on each rim, through the centre and across two rings, a quarter turn
   about Y reading π/2, a ray in the plane refused, 100 km out the same, and the meshes' counts,
   winding and marked ring. Needs no graphics card.
+- `gizmo_scales.c` — a ray onto each tip and the centre and beside them, a quarter turn about Y
+  moving X's tip to −Z, an axis dragged to twice reading 2, the centre up, down and at the floor,
+  the meshes' counts, winding and marking, and no shaft. Needs no graphics card.
 - `far.c` — that everything moved 100 km out picks the same cube at the same distance, grabs a
   millimetre as a millimetre, and frames about the camera's double position. Needs no graphics
   card.
