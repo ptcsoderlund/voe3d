@@ -1,0 +1,101 @@
+// The bounce capture pass's two entry points (ADR-0326 point 3): every mesh drawn
+// onto the six faces of each of the pass's probes, out to the probe volume's
+// reach, as linear albedo and the world normal with the distance from the probe.
+// The relight (bounce_relight.slang) lights that picture; nothing here lights it.
+//
+// A PART (ADR-0308): included by draw.slang at its end, after everything it calls
+// — the vertex input, voe_render_terrain, voe_render_point_shadow_layer and
+// _clip, voe_render_repeated_uv and voe_render_layer_surface_at — and never
+// compiled alone. Its entry points are in draw.spv under the names spelled here.
+
+// How far a probe's picture reaches, in its volume's cells: the bounce
+// record's spacing times this is the volume's reach (0332 point 4), as
+// VOE_RENDER_BOUNCE_REACH / VOE_RENDER_BOUNCE_SPACING in render/device.h.
+static const float VOE_RENDER_BOUNCE_REACH_CELLS = 12.0;
+
+// What the capture vertex stage hands on (ADR-0326 point 3): the clip position
+// on one probe's face, the world normal, the position about the probe, the uv,
+// the vertex's colour, and the layer last, so the fragment's input below
+// matches the rest in order.
+struct voe_render_capture_out {
+	float4 position : SV_Position;
+	float3 normal : NORMAL;
+	float3 about : POSITION;
+	float2 uv : TEXCOORD;
+	float4 colour : COLOR;
+	uint layer : SV_RenderTargetArrayIndex;
+};
+
+// The same as the fragment stage reads it, without the layer.
+struct voe_render_capture_in {
+	float4 position : SV_Position;
+	float3 normal : NORMAL;
+	float3 about : POSITION;
+	float2 uv : TEXCOORD;
+	float4 colour : COLOR;
+};
+
+// The capture scratch's two targets, in the pipeline's order.
+struct voe_render_capture_targets {
+	float4 albedo : SV_Target0;
+	float4 normal : SV_Target1;
+};
+
+// THE CAPTURE PASS'S VERTEX STAGE: the point-shadow one with the pass's probes
+// as its lights, slot layer / 6 + 1 read at index layer / 6 of this pass's
+// region, its face layer % 6, out to the volume's reach.
+[shader("vertex")]
+voe_render_capture_out
+voe_render_capture_vertex(voe_render_draw_vertex_in vertex,
+			  uint instance : SV_InstanceID)
+{
+	voe_render_capture_out out;
+	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
+	uint layer = voe_render_point_shadow_layer(instance);
+	voe_render_point_light probe = voe_render_point_lights[
+		voe_render_frame.region * VOE_RENDER_POINT_LIGHTS + layer / 6];
+
+	if (object.heights != 0)
+		vertex = voe_render_terrain(object, vertex);
+	float4 world = mul(object.world, float4(vertex.position, 1.0));
+
+	out.about = world.xyz - probe.position;
+	out.position = voe_render_point_shadow_clip(
+		out.about, layer % 6,
+		VOE_RENDER_BOUNCE_REACH_CELLS * voe_render_frame.bounce[0].spacing);
+	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
+	out.uv = vertex.uv;
+	out.colour = 1.0 - vertex.colour_complement;
+	out.layer = layer;
+	return out;
+}
+
+// THE CAPTURE PASS'S FRAGMENT: linear albedo, the base factor × texture × object
+// colour × vertex colour (a painted landscape's layers' colour × object colour), alpha one; and the world normal,
+// nought for a normal of nothing, with the distance from the probe in w.
+[shader("fragment")]
+voe_render_capture_targets voe_render_capture_fragment(voe_render_capture_in vertex)
+{
+	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
+	voe_render_shading shading = voe_render_shadings[object.shading];
+	float4 factor = shading.base_colour * object.colour;
+	float2 base_uv = voe_render_repeated_uv(shading, vertex.uv) *
+				 shading.base_colour_uv_rect.zw +
+			 shading.base_colour_uv_rect.xy;
+	float4 sheet =
+		voe_render_textures[shading.base_colour_texture].Sample(base_uv);
+	float3 n = dot(vertex.normal, vertex.normal) < VOE_LEAST ?
+			   float3(0.0, 0.0, 0.0) :
+			   normalize(vertex.normal);
+	voe_render_capture_targets result;
+
+	result.albedo = float4((factor * sheet * vertex.colour).rgb, 1.0);
+	// A painted landscape's albedo is its layers' blended colour (ADR-0402).
+	if (object.heights != 0 && object.paint_a != 0)
+		result.albedo.rgb = voe_render_layer_surface_at(object, vertex.uv,
+								true)
+					    .base_colour *
+				    object.colour.rgb;
+	result.normal = float4(n, length(vertex.about));
+	return result;
+}

@@ -13,8 +13,11 @@ shader and never compiled alone.
 - `draw.slang` — the mesh pipelines' seven entry points: placing, maps at the record's repeat, the
   vertex colour tinting the base, a painted landscape's layers, alpha with a far cut-out's coverage
   scaled by level, a draw's dither keeping a share of its pixels, the lit and unlit exits, hazed, exposed and tone mapped, the point-shadow vertex
-  stage, the capture pass's two and the sky's full-screen two, the sky or the clear colour veiled by
-  the haze.
+  stage; the capture pass's two and the sky's two are in its parts below.
+- `draw_capture.slangh` — the part `draw.slang` includes at its end: the bounce capture pass's two
+  entry points, a mesh on a probe's faces as albedo and normal with distance.
+- `draw_sky.slangh` — the part `draw.slang` includes last: the sky's two full-screen entry points,
+  the sky or the clear colour veiled by the haze.
 - `tone.slangh` — haze, exposure and tone at every mesh exit: mixed by distance past the haze start
   towards the drawn sky's horizon hue at the lights' brightness, or else their colour, × 2^exposure,
   Clip or Soft; a `plain` draw as authored; the sky's veil along a view below the haze's top.

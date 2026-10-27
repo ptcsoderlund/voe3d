@@ -24,7 +24,7 @@
 //
 // ONE FILE, SEVEN ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
 // to draw.spv with all of them in it (the point-shadow pass's vertex stage, which writes the layer, the capture
-// pass's two and the sky's two), and pipeline.c names them by the names
+// pass's two in draw_capture.slangh and the sky's two in draw_sky.slangh), and pipeline.c names them by the names
 // spelled here — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
 // keeps those strings true.
 //
@@ -49,7 +49,7 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// NINE PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// ELEVEN PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
 // tone.slangh, after lighting.slangh, hazes, exposes and tone maps every exit;
 // lighting.slangh includes sky.slangh, the sky's radiance, twin of src/sky.c.
 // bindings.slangh first: the frame block, the records and the bindings both
@@ -62,7 +62,9 @@
 // after the vertex input: a landscape node's vertex (ADR-0396). water.slangh
 // after the vertex stage and voe_render_premultiplied, which it uses.
 // terrain_layers.slangh last, after voe_render_repeated_uv: a painted
-// landscape's layers blended by height, hex-tiled (ADR-0402). A part is
+// landscape's layers blended by height, hex-tiled (ADR-0402).
+// draw_capture.slangh and draw_sky.slangh at the end, after everything they
+// call: the capture pass's and the sky's entry points. A part is
 // never compiled alone, and cmake/voe.cmake rebuilds every shader when one
 // changes.
 //
@@ -654,151 +656,5 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 		voe_render_expose(voe_render_haze(lit, about)), coverage);
 }
 
-// How far a probe's picture reaches, in its volume's cells: the bounce
-// record's spacing times this is the volume's reach (0332 point 4), as
-// VOE_RENDER_BOUNCE_REACH / VOE_RENDER_BOUNCE_SPACING in render/device.h.
-static const float VOE_RENDER_BOUNCE_REACH_CELLS = 12.0;
-
-// What the capture vertex stage hands on (ADR-0326 point 3): the clip position
-// on one probe's face, the world normal, the position about the probe, the uv,
-// the vertex's colour, and the layer last, so the fragment's input below
-// matches the rest in order.
-struct voe_render_capture_out {
-	float4 position : SV_Position;
-	float3 normal : NORMAL;
-	float3 about : POSITION;
-	float2 uv : TEXCOORD;
-	float4 colour : COLOR;
-	uint layer : SV_RenderTargetArrayIndex;
-};
-
-// The same as the fragment stage reads it, without the layer.
-struct voe_render_capture_in {
-	float4 position : SV_Position;
-	float3 normal : NORMAL;
-	float3 about : POSITION;
-	float2 uv : TEXCOORD;
-	float4 colour : COLOR;
-};
-
-// The capture scratch's two targets, in the pipeline's order.
-struct voe_render_capture_targets {
-	float4 albedo : SV_Target0;
-	float4 normal : SV_Target1;
-};
-
-// THE CAPTURE PASS'S VERTEX STAGE: the point-shadow one with the pass's probes
-// as its lights, slot layer / 6 + 1 read at index layer / 6 of this pass's
-// region, its face layer % 6, out to the volume's reach.
-[shader("vertex")]
-voe_render_capture_out
-voe_render_capture_vertex(voe_render_draw_vertex_in vertex,
-			  uint instance : SV_InstanceID)
-{
-	voe_render_capture_out out;
-	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
-	uint layer = voe_render_point_shadow_layer(instance);
-	voe_render_point_light probe = voe_render_point_lights[
-		voe_render_frame.region * VOE_RENDER_POINT_LIGHTS + layer / 6];
-
-	if (object.heights != 0)
-		vertex = voe_render_terrain(object, vertex);
-	float4 world = mul(object.world, float4(vertex.position, 1.0));
-
-	out.about = world.xyz - probe.position;
-	out.position = voe_render_point_shadow_clip(
-		out.about, layer % 6,
-		VOE_RENDER_BOUNCE_REACH_CELLS * voe_render_frame.bounce[0].spacing);
-	out.normal = mul(object.normal, float4(vertex.normal, 0.0)).xyz;
-	out.uv = vertex.uv;
-	out.colour = 1.0 - vertex.colour_complement;
-	out.layer = layer;
-	return out;
-}
-
-// THE CAPTURE PASS'S FRAGMENT: linear albedo, the base factor × texture × object
-// colour × vertex colour (a painted landscape's layers' colour × object colour), alpha one; and the world normal,
-// nought for a normal of nothing, with the distance from the probe in w.
-[shader("fragment")]
-voe_render_capture_targets voe_render_capture_fragment(voe_render_capture_in vertex)
-{
-	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
-	voe_render_shading shading = voe_render_shadings[object.shading];
-	float4 factor = shading.base_colour * object.colour;
-	float2 base_uv = voe_render_repeated_uv(shading, vertex.uv) *
-				 shading.base_colour_uv_rect.zw +
-			 shading.base_colour_uv_rect.xy;
-	float4 sheet =
-		voe_render_textures[shading.base_colour_texture].Sample(base_uv);
-	float3 n = dot(vertex.normal, vertex.normal) < VOE_LEAST ?
-			   float3(0.0, 0.0, 0.0) :
-			   normalize(vertex.normal);
-	voe_render_capture_targets result;
-
-	result.albedo = float4((factor * sheet * vertex.colour).rgb, 1.0);
-	// A painted landscape's albedo is its layers' blended colour (ADR-0402).
-	if (object.heights != 0 && object.paint_a != 0)
-		result.albedo.rgb = voe_render_layer_surface_at(object, vertex.uv,
-								true)
-					    .base_colour *
-				    object.colour.rgb;
-	result.normal = float4(n, length(vertex.about));
-	return result;
-}
-
-// What the sky's vertex stage hands on (ADR-0405 point 4): the clip position
-// and the world direction through it, not normalized.
-struct voe_render_sky_out {
-	float4 position : SV_Position;
-	float3 direction : TEXCOORD;
-};
-
-// THE SKY'S VERTEX STAGE: one triangle over the whole target from the vertex
-// index, at the far plane. The view direction through a corner is the clip
-// position over the projection's scale terms, looking along −Z, turned into the
-// world by the view's rotation transposed; an orthographic projection (its
-// [3][3] not nought) looks along the view's −Z everywhere.
-[shader("vertex")]
-voe_render_sky_out voe_render_sky_vertex(uint index : SV_VertexID)
-{
-	voe_render_sky_out out;
-	float2 corner = float2((index << 1) & 2, index & 2) * 2.0 - 1.0;
-	float4x4 projection = voe_render_frame.camera.projection;
-	float4x4 view = voe_render_frame.camera.view;
-	float3 eye = float3(0.0, 0.0, -1.0);
-
-	if (projection[3][3] == 0.0)
-		eye = float3(corner.x / projection[0][0],
-			     corner.y / projection[1][1], -1.0);
-	out.position = float4(corner, 0.0, 1.0);
-	out.direction = eye.x * view[0].xyz + eye.y * view[1].xyz +
-			eye.z * view[2].xyz;
-	return out;
-}
-
-// THE SKY'S FRAGMENT, veiled by the haze it is seen through (ADR-0419 point
-// 4), f tone.slangh's voe_render_haze_veil along the direction. With `drawn`:
-// the radiance, the backdrop with the pass's shown lights' glows and discs,
-// mixed towards the haze's colour by f, then exposed and tone mapped as every
-// mesh exit is. Without (the stage runs then only with haze): the clear colour
-// mixed towards the exposed and toned haze colour by f, so f 0 is the clear
-// colour byte for byte. Opaque: everything later draws over it.
-[shader("fragment")]
-float4 voe_render_sky_fragment(voe_render_sky_out vertex) : SV_Target
-{
-	float3 view = vertex.direction;
-
-	if (dot(view, view) < VOE_LEAST)
-		view = float3(0.0, 1.0, 0.0);
-	view = normalize(view);
-	float f = voe_render_haze_veil(view);
-	if (voe_render_frame.sky.drawn == 0)
-		return voe_render_premultiplied(
-			lerp(VOE_RENDER_CLEAR,
-			     voe_render_expose(voe_render_haze_colour()), f),
-			1.0);
-	float3 radiance = voe_render_sky_radiance(view);
-	return voe_render_premultiplied(
-		voe_render_expose(lerp(radiance, voe_render_haze_colour(), f)),
-		1.0);
-}
+#include "draw_capture.slangh"
+#include "draw_sky.slangh"
