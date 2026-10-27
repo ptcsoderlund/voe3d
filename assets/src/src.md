@@ -59,10 +59,11 @@ of them is internal to this folder rather than reachable from outside it.
 - `landscape_paint.c` — `[Paint]`'s rows and `v*n` runs into two RGBA8 planes,
   back out, and resampled per weight.
 - `landscape_foliage.h` — the foliage's and the layers' grows' read and print,
-  internal to this folder, with the quote helpers `landscape.c` shares with it.
-- `landscape_foliage.c` — `[Foliage]`'s quoted kind paths and looks, `[Layers]`'
-  `grow<l>_<k>` densities and `[Copies]`' six numbers a copy, walked once in
-  order, and back out.
+  internal to this folder, with the quote helpers `landscape.c` shares with it;
+  a look's keys run `size` to `shadow`, `blend` and `blendheight`.
+- `landscape_foliage.c` — `[Foliage]`'s quoted kind paths and looks, `blend<k>`
+  and `blendheight<k>` among them, `[Layers]`' `grow<l>_<k>` densities and
+  `[Copies]`' six numbers a copy, walked once in order, and back out.
 - `material.c` — the material file over the sectioned reader, with a scratch
   arena of its own, and a writer that quotes every path.
 - `parts.c` — the parts file over the sectioned reader: each `material<N>` key

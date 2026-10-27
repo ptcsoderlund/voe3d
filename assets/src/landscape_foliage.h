@@ -46,7 +46,8 @@ void voe_assets_landscape_grows_print(
 	const voe_assets_landscape *landscape);
 
 // `[Foliage]` and a blank line after it when there are kinds, a kind's look
-// keys after its path, each only off the default; nothing otherwise.
+// keys after its path (`size`, `vary`, `turn`, `tilt`, `shadow`, `blend`,
+// `blendheight`), each only off the default; nothing otherwise.
 void voe_assets_landscape_kinds_print(
 	struct voe_assets_landscape_printer *printer,
 	const voe_assets_landscape *landscape);

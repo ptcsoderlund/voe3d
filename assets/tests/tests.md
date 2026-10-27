@@ -38,6 +38,8 @@ belongs to.
   per decision the format left open, and every shape of broken line.
 - `landscape.c` — grids, heights, layers, paint, foliage and kinds' base sizes
   round-tripped and resampled, and each refusal with its category.
+- `landscape_blend.c` — a kind's `blend<k>` and `blendheight<k>` read, written
+  only off the default and read back, and each out-of-range value refused.
 - `material.c` — an empty section read as the defaults, a full file
   round-tripped field for field and written again byte for byte, and each bad
   value refused MALFORMED.
