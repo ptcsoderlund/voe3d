@@ -141,11 +141,11 @@ static void presses(voe_editor_frame_pointer *frame,
 		panel = true;
 	// The left half of the same division: a press on an arrow of the
 	// selected entity's gizmo drags it (gizmo.h), unless a panel over the
-	// views has the press instead.
+	// views has the press instead. Ctrl held flips snap for that frame.
 	voe_editor_gizmo_read(frame->gizmo, frame->scene, frame->views,
 			      VOE_EDITOR_GIZMO_MILLIMETRES *
 				      input->pixels_per_millimetre,
-			      at, down, panel);
+			      at, down, panel, input->control);
 
 	// A held Assets row, released over a view, the Inspector, a folder
 	// row or Up (assets_drag.h), under the pick's own `blocked`.

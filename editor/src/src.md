@@ -389,10 +389,10 @@ carries it out.
   view's picture, and the selection set from whatever it met.
 - `gizmo.h` — what the primary button does to the selected entity's gizmo, arrows, rings or
   scales: the handle under the pointer, a press that grabs one, and the drag that submits its new
-  position, rotation or scale, the scales on the entity's own axes; a part has none.
+  position, rotation or scale, the scales on the entity's own axes, snapped by Snap XOR Ctrl.
 - `gizmo.c` — the hover, the grab and the move, turn or scale drag, each against a gizmo built from the view's
-  own camera, measured from the press in world space and submitted as a whole transform, a child's
-  written back relative to its parent.
+  own camera, measured from the press in world space, its world value snapped, and submitted as a
+  whole transform, a child's written back relative to its parent.
 - `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), a state
   carrying a sculpting stroke or material edit beside its text, with the level's line set aside
   while a prefab is open.

@@ -1,12 +1,13 @@
 // The hover, the press that grabs a handle, a ring or a scale handle and the
 // move, turn or scale that follows it, each against a gizmo built from the
 // view's own camera and picture size. See the header for why the middle button
-// is not read here, why the drag is measured from the press, and why a whole
-// transform, relative to the parent, is submitted.
+// is not read here, why the drag is measured from the press, why a whole
+// transform, relative to the parent, is submitted, and what snap rounds.
 #include "gizmo.h"
 
 #include <3d/gizmo_rings.h>
 #include <3d/gizmo_scales.h>
+#include <3d/gizmo_snap.h>
 #include <3d/pick.h>
 
 #include <base/assert.h>
@@ -14,6 +15,10 @@
 
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
+
+// One degree in radians, the rotate step's unit. Written out because M_PI is
+// not standard C, as inspector_value.c's quarter turn is.
+#define DEGREE (3.14159265358979f / 180.0f)
 
 // The ray through `point` of `view`'s picture and the gizmo standing at
 // `origin` in it, the camera built exactly as the view's pass is. The light is
@@ -42,19 +47,24 @@ static voe_math_float3 gizmo_ring_axis(voe_3d_gizmo_handle handle)
 // `placed`'s rotation replaced by the kept one turned about the held ring's world
 // axis by the angle swept since the press (0274), pre-multiplied so the turn is
 // the world's and not the entity's own, and normalized so a long drag hands the
-// drain a unit rotation. False, `placed` untouched, for a refused angle (the last
-// submitted stands) or a rotation that has not changed.
+// drain a unit rotation; while `snap->on`, the swept angle in whole steps.
+// False, `placed` untouched, for a refused angle (the last submitted stands) or
+// a rotation that has not changed.
 static bool gizmo_turn(const voe_editor_gizmo *gizmo, voe_3d_gizmo at,
-		       voe_3d_ray ray, voe_scene_transform *placed)
+		       voe_3d_ray ray, const voe_editor_snap *snap,
+		       voe_scene_transform *placed)
 {
 	float angle;
 
 	if (!voe_3d_gizmo_rings_angle(at, gizmo->held, ray, &angle))
 		return false;
 
+	float swept = angle - gizmo->grab_angle;
+	if (snap->on)
+		swept = voe_3d_gizmo_snap_angle(swept, snap->rotate * DEGREE);
 	voe_math_quat rotation = voe_math_quat_normalize(voe_math_quat_mul(
 		voe_math_quat_from_axis_angle(gizmo_ring_axis(gizmo->held),
-					      angle - gizmo->grab_angle),
+					      swept),
 		gizmo->kept));
 	if (rotation.x == placed->rotation.x &&
 	    rotation.y == placed->rotation.y &&
@@ -68,10 +78,12 @@ static bool gizmo_turn(const voe_editor_gizmo *gizmo, voe_3d_gizmo at,
 // `placed`'s scale replaced by the world scale at the press times the factor
 // the drag has come to (0482 point 2), on the held axis, the entity's own, or on
 // all three for the centre; the gizmo turned by `kept`, as it stood at the
-// press. False, `placed` untouched, for a refused grab (the last submitted
-// stands) or a scale that has not changed.
+// press; while `snap->on`, on multiples of the step. False, `placed`
+// untouched, for a refused grab (the last submitted stands) or a scale that has
+// not changed.
 static bool gizmo_scale(const voe_editor_gizmo *gizmo, voe_3d_gizmo at,
-			voe_3d_ray ray, voe_scene_transform *placed)
+			voe_3d_ray ray, const voe_editor_snap *snap,
+			voe_scene_transform *placed)
 {
 	voe_math_double3 now;
 
@@ -90,6 +102,8 @@ static bool gizmo_scale(const voe_editor_gizmo *gizmo, voe_3d_gizmo at,
 			all || gizmo->held == VOE_3D_GIZMO_X ? factor : 1.0f,
 			all || gizmo->held == VOE_3D_GIZMO_Y ? factor : 1.0f,
 			all || gizmo->held == VOE_3D_GIZMO_Z ? factor : 1.0f });
+	if (snap->on)
+		scale = voe_3d_gizmo_snap_scale(scale, gizmo->held, snap->scale);
 	if (scale.x == placed->scale.x && scale.y == placed->scale.y &&
 	    scale.z == placed->scale.z)
 		return false;
@@ -101,11 +115,11 @@ static bool gizmo_scale(const voe_editor_gizmo *gizmo, voe_3d_gizmo at,
 // now. The point is worked out as voe_editor_views_under does, but for this view
 // even once the pointer has left it, as the views' own drag goes on. `placed`
 // is the entity's world transform; the row submitted is it made relative to the
-// entity's parent.
+// entity's parent. `snap->on` is this frame's: Snap XOR Ctrl.
 static void gizmo_drag(voe_editor_gizmo *gizmo, voe_ecs_world *world,
 		       voe_ecs_entity entity, voe_scene_transform placed,
 		       const voe_editor_view *view, float pixels,
-		       voe_math_float2 pointer)
+		       voe_math_float2 pointer, const voe_editor_snap *snap)
 {
 	voe_3d_gizmo at;
 	voe_math_double3 now;
@@ -124,10 +138,10 @@ static void gizmo_drag(voe_editor_gizmo *gizmo, voe_ecs_world *world,
 	voe_3d_ray ray = gizmo_in_view(view, point, pixels, gizmo->start, &at);
 
 	if (gizmo->kind == VOE_3D_GIZMO_RINGS) {
-		if (!gizmo_turn(gizmo, at, ray, &placed))
+		if (!gizmo_turn(gizmo, at, ray, snap, &placed))
 			return;
 	} else if (gizmo->kind == VOE_3D_GIZMO_SCALES) {
-		if (!gizmo_scale(gizmo, at, ray, &placed))
+		if (!gizmo_scale(gizmo, at, ray, snap, &placed))
 			return;
 	} else {
 		// A refused grab is a glancing ray this frame (3d/gizmo.h): the
@@ -137,6 +151,9 @@ static void gizmo_drag(voe_editor_gizmo *gizmo, voe_ecs_world *world,
 
 		voe_math_double3 position = voe_math_double3_add(
 			gizmo->start, voe_math_double3_sub(now, gizmo->grab));
+		if (snap->on)
+			position = voe_3d_gizmo_snap_position(
+				position, gizmo->held, (double)snap->move);
 		if (position.x == placed.position.x &&
 		    position.y == placed.position.y &&
 		    position.z == placed.position.z)
@@ -158,7 +175,8 @@ static void gizmo_drag(voe_editor_gizmo *gizmo, voe_ecs_world *world,
 
 void voe_editor_gizmo_read(voe_editor_gizmo *gizmo, voe_editor_scene *scene,
 			   const voe_editor_views *views, float pixels,
-			   voe_math_float2 pointer, bool down, bool blocked)
+			   voe_math_float2 pointer, bool down, bool blocked,
+			   bool flip)
 {
 	uint32_t view;
 	voe_math_float2 point;
@@ -193,8 +211,11 @@ void voe_editor_gizmo_read(voe_editor_gizmo *gizmo, voe_editor_scene *scene,
 	if (gizmo->held != VOE_3D_GIZMO_NONE) {
 		VOE_BASE_ASSERT(gizmo->captured < views->count,
 				"a drag captured in no view");
+		voe_editor_snap snap = scene->snap;
+		snap.on = scene->snap.on != flip;
 		gizmo_drag(gizmo, scene->world, scene->selected, placed,
-			   &views->views[gizmo->captured], pixels, pointer);
+			   &views->views[gizmo->captured], pixels, pointer,
+			   &snap);
 		return;
 	}
 
