@@ -90,6 +90,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `gizmo_scales.c` — the centre square crossed first, then each own axis's segment within the grip,
   the grab on a line or the plane facing the eye, the factor with its floor, and a quad per shaft
   and square.
+- `gizmo_snap.c` — the handle's named axes, each rounded in double, a position kept double, an
+  angle wrapped by remainder first and a scale's size floored at a step with its sign kept.
 - `gizmo_quads.h` — the camera-facing quads all three gizmos are built from, a build that knows
   its room; internal.
 - `gizmo_quads.c` — a build's arrays in the arena, each normal towards the eye, each triangle wound
