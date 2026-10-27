@@ -57,7 +57,9 @@ void voe_3d_model_register(voe_ecs_world *world, uint32_t capacity)
 	voe_ecs_component_replace_set(world, type, intent,
 				      offsetof(voe_3d_model_intent, model));
 	voe_ecs_component_default_set(world, type,
-				      &(voe_3d_model){ .cast_shadows = true });
+				      &(voe_3d_model){ .cast_shadows = true,
+						       .blend_with_ground = false,
+						       .blend_height = 0.5f });
 	voe_ecs_component_needs_set(
 		world, type,
 		voe_ecs_component_type(world, &voe_scene_transform_key));

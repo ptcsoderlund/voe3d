@@ -28,8 +28,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `shape_component.c` — the shape table: its key, its registration as described
   with its default row, its need of a transform and its intent, its creation
   call, the reads and the collider that fits each kind.
-- `model_component.c` — the model table: its key, its registration, the reads, the
-  intent's submit and the drain that cuts a path with no end.
+- `model_component.c` — the model table: its key, its registration with a default row not
+  blending with ground over 0.5 m, the reads, the intent's submit and the drain that cuts a path
+  with no end.
 - `emitter_component.c` — the emitter and particles tables: their keys, the registration with
   0298's defaults, the reads and the two submits.
 - `emitter_system.c` — the two drains, the particles rows added and dropped, the births in a
