@@ -281,8 +281,8 @@ carries it out.
 - `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, and a
   rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
 - `sculpt.h` — the brush a person holds with its ranges, never saved or undone, its sections'
-  nodes, whether a thing wears a landscape, the held drag that sculpts, paints, scatters or erases
-  as one undo step, a kind's look edit and a layer's grow edit with its default and range.
+  nodes with a kind's blend controls, whether a thing wears a landscape, the held drag that
+  sculpts, paints, scatters or erases as one undo step, a kind's look edit and a layer's grow edit.
 - `sculpt.c` — the defaults, the brush put down, the `.landscape` ending matched, the look and
   grow edits set live and closed as strokes, the ground under the pointer, the press's copy, the stamps
   along the drag, and the release's heights, paint or foliage stroke.
@@ -302,11 +302,11 @@ carries it out.
   read: a tick or Density asks the layer's growth, a fired row chooses PAINT with its layer or
   none, each row's rectangle kept.
 - `inspector_foliage.h` — the Inspector's Foliage section under Layers: Scatter and Erase, a row per
-  kind toggling it picked with its Base size slider, Cast shadows button and Size ±%, Turn ±° and
-  Tilt with slope % sliders, the add row a dropped `.glb` lands on, and the brush's Density slider.
+  kind toggling it picked with its Base size, Cast shadows, Blend with ground, Blend height and
+  spread controls, the add row a dropped `.glb` lands on, and the brush's Density slider.
 - `inspector_foliage.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: a fired button chooses its kind or none, a fired row flips its pick, Density clamped,
-  a kind's slider or Cast shadows asks its look with that field changed.
+  a kind's slider, Cast shadows or Blend with ground asks its look with that field changed.
 - `inspector_level.h` — the Inspector's LOD section after Brush or Foliage: per view in use, the LOD it
   draws of a loaded model, of how many, made or own, asked with the draws' own function.
 - `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,

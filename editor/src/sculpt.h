@@ -155,11 +155,17 @@ typedef struct {
 	voe_ui_rect kinds_seen[VOE_EDITOR_SCULPT_KIND_ROWS];
 	uint32_t kinds_drawn;
 	// Each kind row's Base size slider and its figure, slider i kind i, its
-	// Cast shadows button, its spread sliders and their figures, and each
-	// drawn kind's look, which the read asks with one field changed.
+	// Cast shadows and Blend with ground buttons, its Blend height cm slider
+	// and figure (0481 point 4: whole centimetres, BLEND_HEIGHT_MIN to _MAX
+	// of assets/landscape.h, a look's 0 shown as _DEFAULT), its spread
+	// sliders and their figures, and each drawn kind's look, which the read
+	// asks with one field changed.
 	voe_ui_node kind_sliders[VOE_ASSETS_LANDSCAPE_KINDS];
 	char kind_figures[VOE_ASSETS_LANDSCAPE_KINDS][VOE_EDITOR_SCULPT_FIGURE];
 	voe_ui_node kind_shadows[VOE_ASSETS_LANDSCAPE_KINDS];
+	voe_ui_node kind_blends[VOE_ASSETS_LANDSCAPE_KINDS];
+	voe_ui_node blend_sliders[VOE_ASSETS_LANDSCAPE_KINDS];
+	char blend_figures[VOE_ASSETS_LANDSCAPE_KINDS][VOE_EDITOR_SCULPT_FIGURE];
 	voe_ui_node spread_sliders[VOE_ASSETS_LANDSCAPE_KINDS]
 				  [VOE_EDITOR_SCULPT_SPREADS];
 	char spread_figures[VOE_ASSETS_LANDSCAPE_KINDS][VOE_EDITOR_SCULPT_SPREADS]
