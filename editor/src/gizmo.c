@@ -1,11 +1,12 @@
-// The hover, the press that grabs a handle or a ring and the move or turn that follows it, each
-// against a gizmo built from the view's own camera and picture size. See the
-// header for why the middle button is not read here, why the drag is measured
-// from the press, and why a whole transform, relative to the parent, is
-// submitted.
+// The hover, the press that grabs a handle, a ring or a scale handle and the
+// move, turn or scale that follows it, each against a gizmo built from the
+// view's own camera and picture size. See the header for why the middle button
+// is not read here, why the drag is measured from the press, and why a whole
+// transform, relative to the parent, is submitted.
 #include "gizmo.h"
 
 #include <3d/gizmo_rings.h>
+#include <3d/gizmo_scales.h>
 #include <3d/pick.h>
 
 #include <base/assert.h>
@@ -64,6 +65,38 @@ static bool gizmo_turn(const voe_editor_gizmo *gizmo, voe_3d_gizmo at,
 	return true;
 }
 
+// `placed`'s scale replaced by the world scale at the press times the factor
+// the drag has come to (0482 point 2), on the held axis, the entity's own, or on
+// all three for the centre; the gizmo turned by `kept`, as it stood at the
+// press. False, `placed` untouched, for a refused grab (the last submitted
+// stands) or a scale that has not changed.
+static bool gizmo_scale(const voe_editor_gizmo *gizmo, voe_3d_gizmo at,
+			voe_3d_ray ray, voe_scene_transform *placed)
+{
+	voe_math_double3 now;
+
+	VOE_BASE_ASSERT(placed != NULL, "scaling no transform");
+	VOE_BASE_ASSERT(gizmo->held != VOE_3D_GIZMO_NONE, "scaling by no handle");
+
+	if (!voe_3d_gizmo_scales_grab(at, gizmo->kept, gizmo->held, ray, &now))
+		return false;
+
+	float factor = voe_3d_gizmo_scales_factor(at, gizmo->kept, gizmo->held,
+						  gizmo->grab, now);
+	bool all = gizmo->held == VOE_3D_GIZMO_CENTRE;
+	voe_math_float3 scale = voe_math_float3_mul(
+		gizmo->scale_start,
+		(voe_math_float3){
+			all || gizmo->held == VOE_3D_GIZMO_X ? factor : 1.0f,
+			all || gizmo->held == VOE_3D_GIZMO_Y ? factor : 1.0f,
+			all || gizmo->held == VOE_3D_GIZMO_Z ? factor : 1.0f });
+	if (scale.x == placed->scale.x && scale.y == placed->scale.y &&
+	    scale.z == placed->scale.z)
+		return false;
+	placed->scale = scale;
+	return true;
+}
+
 // One frame of a running drag in the captured view, wherever the pointer is
 // now. The point is worked out as voe_editor_views_under does, but for this view
 // even once the pointer has left it, as the views' own drag goes on. `placed`
@@ -92,6 +125,9 @@ static void gizmo_drag(voe_editor_gizmo *gizmo, voe_ecs_world *world,
 
 	if (gizmo->kind == VOE_3D_GIZMO_RINGS) {
 		if (!gizmo_turn(gizmo, at, ray, &placed))
+			return;
+	} else if (gizmo->kind == VOE_3D_GIZMO_SCALES) {
+		if (!gizmo_scale(gizmo, at, ray, &placed))
 			return;
 	} else {
 		// A refused grab is a glancing ray this frame (3d/gizmo.h): the
@@ -162,16 +198,19 @@ void voe_editor_gizmo_read(voe_editor_gizmo *gizmo, voe_editor_scene *scene,
 		return;
 	}
 
-	// The scales are drawn and, as yet, neither hovered nor grabbed.
-	if (scene->gizmo_kind == VOE_3D_GIZMO_SCALES ||
-	    !voe_editor_views_under(views, pointer, &view, &point))
+	if (!voe_editor_views_under(views, pointer, &view, &point))
 		return;
 
-	bool rings = scene->gizmo_kind == VOE_3D_GIZMO_RINGS;
+	// The scales stand on the entity's own axes, its world rotation the turn.
+	voe_3d_gizmo_kind kind = scene->gizmo_kind;
 	voe_3d_ray ray = gizmo_in_view(&views->views[view], point, pixels,
 				       placed.position, &at);
-	voe_3d_gizmo_handle under = rings ? voe_3d_gizmo_rings_hit(at, ray) :
-					    voe_3d_gizmo_hit(at, ray);
+	voe_3d_gizmo_handle under =
+		kind == VOE_3D_GIZMO_RINGS ?
+			voe_3d_gizmo_rings_hit(at, ray) :
+		kind == VOE_3D_GIZMO_SCALES ?
+			voe_3d_gizmo_scales_hit(at, placed.rotation, ray) :
+			voe_3d_gizmo_hit(at, ray);
 	if (under == VOE_3D_GIZMO_NONE)
 		return;
 	gizmo->hovered = under;
@@ -180,15 +219,23 @@ void voe_editor_gizmo_read(voe_editor_gizmo *gizmo, voe_editor_scene *scene,
 	// A refused grab captures nothing, and the press goes on to picking.
 	if (!pressed)
 		return;
-	if (rings ? !voe_3d_gizmo_rings_angle(at, under, ray, &gizmo->grab_angle) :
-		    !voe_3d_gizmo_grab(at, under, ray, &grab))
+	bool grabbed =
+		kind == VOE_3D_GIZMO_RINGS ?
+			voe_3d_gizmo_rings_angle(at, under, ray,
+						 &gizmo->grab_angle) :
+		kind == VOE_3D_GIZMO_SCALES ?
+			voe_3d_gizmo_scales_grab(at, placed.rotation, under,
+						 ray, &grab) :
+			voe_3d_gizmo_grab(at, under, ray, &grab);
+	if (!grabbed)
 		return;
 	gizmo->held = under;
 	gizmo->captured = view;
-	gizmo->kind = scene->gizmo_kind;
+	gizmo->kind = kind;
 	gizmo->grab = grab;
 	gizmo->start = placed.position;
 	gizmo->kept = placed.rotation;
+	gizmo->scale_start = placed.scale;
 }
 
 bool voe_editor_gizmo_taking(const voe_editor_gizmo *gizmo)
