@@ -18,6 +18,7 @@ void voe_editor_panels_start(voe_editor_dock_root *root, voe_editor_topbar *bar)
 	VOE_BASE_ASSERT(bar != NULL, "starting the panels with no bar");
 
 	root->tree = voe_editor_dock_default();
+	voe_editor_dock_floats_default(root->floats);
 	sizes = (voe_editor_settings){
 		.scene_wide = voe_editor_dock_panel_length(
 			&root->tree, VOE_EDITOR_PANEL_SCENE),

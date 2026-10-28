@@ -187,7 +187,7 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 	pointer = root->pointer;
 	high = voe_editor_topbar_high(bar, root->size.y);
 	voe_editor_dock_arrange(
-		&root->tree, root->closed,
+		root,
 		(voe_ui_rect){ .min = { 0.0f, high },
 			       .size = { root->size.x, root->size.y - high } },
 		&places);

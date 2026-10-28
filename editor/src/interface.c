@@ -389,9 +389,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// The Panels list last, so it paints over every other panel,
 		// hanging below where Panels sat last frame, ticked as now.
 		if (menuing) {
-			bool open[VOE_EDITOR_CLOSABLE_COUNT];
+			bool open[VOE_EDITOR_CLOSABLE_COUNT] = { false };
 
-			for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++)
+			for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_LISTED; c++)
 				open[c] = voe_editor_panels_open(
 					(voe_editor_closable)c, root,
 					project_panel, session, breakdown);

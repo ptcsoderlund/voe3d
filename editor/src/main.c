@@ -599,6 +599,14 @@ int main(int argc, char *argv[])
 				    wheel.y * WHEEL_MILLIMETRES }
 		};
 
+		// The four tool panels' open flags, copied from their own
+		// `showing` each frame and never remembered (dock.h, 0491).
+		roots[0].closed[VOE_EDITOR_CLOSABLE_PROJECT] = !project_panel.showing;
+		roots[0].closed[VOE_EDITOR_CLOSABLE_ERRORS] = !session.errors.showing;
+		roots[0].closed[VOE_EDITOR_CLOSABLE_FRAME] = !breakdown.showing;
+		roots[0].closed[VOE_EDITOR_CLOSABLE_LANDSCAPE] =
+			!landscape_panel.showing;
+
 		// The fly, the shortcuts, the borders, the middle drag, the
 		// brush, the gizmo, the Assets drag and the pick, in that order
 		// (frame_pointer.h); `ui`'s keyboard comes back.

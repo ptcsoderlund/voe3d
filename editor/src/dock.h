@@ -4,16 +4,12 @@
 // panel sits is a number in an array, and not the order of the calls in a
 // function.
 //
-// AND THAT IS WORTH A TREE BEFORE ANYTHING CAN BE DRAGGED, WHICH IS THE THING A
-// READER ARRIVING TODAY WILL DOUBT. Nothing here is rearrangeable: no tab bar,
-// no moving a panel; only a border's place, and a leaf can be closed and is
-// then not laid out (0363). An interface laid out by call
-// order looks identical on screen and costs less to write. The difference is
-// what it takes to CHANGE it — with call order, a splitter has to rewrite the
-// function that draws the frame, which is the function every panel's contents
-// are also in; with a tree, a splitter writes one `fraction` and this file is
-// untouched. The tree is here first so that the thing that comes next is an
-// edit to one number rather than a rewrite of everything around it.
+// PANELS MOVE (0439): a panel with a header docks anywhere or floats over the
+// dock in a box of its own, and moving one is an edit to the tree's numbers,
+// never to the function that draws the frame. A FLOATING PANEL KEEPS ITS LEAF
+// IN THE TREE, NOT LAID, as a closed one is not (0363, 0491 point 2), so
+// docking it back puts it exactly where it was. Its box is the root's
+// `floats`, in millimetres from the dock area's top left; there are no tabs.
 //
 // A HELD LENGTH IS WHAT A DRAG WRITES, THROUGH resize.h, AND THE TREE IS STILL
 // ONLY NUMBERS. A split may hold one child at a length in millimetres (0226);
@@ -51,6 +47,10 @@ typedef enum {
 	VOE_EDITOR_PANEL_INSPECTOR,
 	VOE_EDITOR_PANEL_SCENE_VIEW,
 	VOE_EDITOR_PANEL_ASSETS,
+	VOE_EDITOR_PANEL_FRAME,
+	VOE_EDITOR_PANEL_PROJECT,
+	VOE_EDITOR_PANEL_ERRORS,
+	VOE_EDITOR_PANEL_LANDSCAPE,
 	VOE_EDITOR_PANEL_COUNT
 } voe_editor_panel;
 
@@ -68,12 +68,13 @@ typedef enum {
 } voe_editor_dock_kind;
 
 // How many nodes one tree may hold, and how deep the walk may go before it is
-// certain something is wrong. A dock tree is a handful of panels: sixteen is
-// already more splits than a person can point at, and the depth is asserted
+// certain something is wrong. A dock tree is a handful of panels: thirty-two is
+// room for every moving panel docked and split anywhere (0491 point 8), more
+// splits than a person can point at, and the depth is asserted
 // rather than returned because a tree deeper than this is either a cycle in the
 // indices or a tree nobody built on purpose — the program's own bad value, which
 // is rule 13's assert side.
-#define VOE_EDITOR_DOCK_NODES 16
+#define VOE_EDITOR_DOCK_NODES 32
 #define VOE_EDITOR_DOCK_DEPTH 16
 
 // Which child of a split is held at `length` mm, the other taking the rest.
@@ -134,9 +135,12 @@ typedef struct {
 	uint32_t root;
 } voe_editor_dock_tree;
 
-// The panels a person can close, in the Panels menu's order (0351, 0363). The
-// first VOE_EDITOR_CLOSABLE_DOCKED are dock leaves; Project, Errors and the
-// Frame breakdown are panels over the dock and are not.
+// The panels a person can close, in the Panels menu's order (0351, 0363), and
+// every one but the bottom view can float (0491 point 1). The first
+// VOE_EDITOR_CLOSABLE_DOCKED have their open flag kept on the root; Project,
+// Errors, Frame and Landscape are open while their own `showing` is. The first
+// VOE_EDITOR_CLOSABLE_LISTED are the Panels list's rows: Landscape is not
+// one, it opens from a `.landscape` file.
 typedef enum {
 	VOE_EDITOR_CLOSABLE_SCENE_LIST,
 	VOE_EDITOR_CLOSABLE_ASSETS,
@@ -145,19 +149,33 @@ typedef enum {
 	VOE_EDITOR_CLOSABLE_PROJECT,
 	VOE_EDITOR_CLOSABLE_ERRORS,
 	VOE_EDITOR_CLOSABLE_FRAME,
+	VOE_EDITOR_CLOSABLE_LANDSCAPE,
 	VOE_EDITOR_CLOSABLE_COUNT
 } voe_editor_closable;
 
 #define VOE_EDITOR_CLOSABLE_DOCKED 4
+#define VOE_EDITOR_CLOSABLE_LISTED 7
 
 // The name a closable panel is shown by: "Scene list", "Assets", "Inspector",
-// "Bottom view", "Project", "Errors", "Frame breakdown".
+// "Bottom view", "Project", "Errors", "Frame breakdown", "Landscape".
 const char *voe_editor_closable_name(voe_editor_closable which);
 
 // The closable `leaf` is, or VOE_EDITOR_CLOSABLE_COUNT for the top view (a
 // SCENE_VIEW leaf of view 0), which never closes.
 voe_editor_closable
 voe_editor_dock_leaf_closable(const voe_editor_dock_node *leaf);
+
+// One closable's floating box. `box` is in millimetres from the dock area's
+// top left, as the person set it; what is shown is that clamped
+// (voe_editor_dock_float_shown). A larger `raised` is drawn later, over.
+typedef struct {
+	bool floating;
+	voe_ui_rect box;
+	uint32_t raised;
+} voe_editor_dock_float;
+
+// A floating box's least height; its least width is PANEL_MIN (0491 point 3).
+#define VOE_EDITOR_DOCK_FLOAT_LOW 20.0f
 
 // A surface with a tree on it: how big it is in the surface's own millimetres,
 // the pointer in those same millimetres, and this frame's keyboard (task 14).
@@ -174,9 +192,12 @@ voe_editor_dock_leaf_closable(const voe_editor_dock_node *leaf);
 // already here.
 //
 // `closed` IS APART FROM THE TREE ON PURPOSE (0351, 0363): one flag per
-// closable dock leaf, zeroed for all open. Where a leaf sits and whether it is
-// open are two facts, so a later docking feature moves leaves without touching
-// this, and a close never writes a length or a share.
+// closable, zeroed for all open. Where a leaf sits and whether it is open are
+// two facts, so a move never touches this and a close never writes a length or
+// a share. The first VOE_EDITOR_CLOSABLE_DOCKED are kept here (panels.h); the
+// entries past them are the caller's to fill each frame from each panel's own
+// `showing`, like `pointer`, and never remembered (0491 point 5). `floats` is
+// each closable's floating box, and whether it floats.
 //
 // THAT DOES NOT MAKE A SECOND OS WINDOW CHEAP, AND SAYING SO IS THE POINT OF
 // THIS PARAGRAPH. `platform` opens one window, `render` opens one device onto
@@ -190,8 +211,21 @@ typedef struct {
 	voe_ui_pointer pointer;
 	voe_ui_keyboard keyboard;
 	uint32_t lit;
-	bool closed[VOE_EDITOR_CLOSABLE_DOCKED];
+	bool closed[VOE_EDITOR_CLOSABLE_COUNT];
+	voe_editor_dock_float floats[VOE_EDITOR_CLOSABLE_COUNT];
 } voe_editor_dock_root;
+
+// The four tool panels — Project, Errors, Frame, Landscape — floating at
+// 0491 point 3's boxes, every other closable docked; `raised` in closable
+// order, so a later one is drawn over an earlier.
+void voe_editor_dock_floats_default(
+	voe_editor_dock_float floats[VOE_EDITOR_CLOSABLE_COUNT]);
+
+// Where `f`'s box is shown, in the root's millimetres, `area` being the dock
+// area there: at least PANEL_MIN × FLOAT_LOW, at most the area, and moved
+// inside it (0491 point 3). `f` itself is kept as set.
+voe_ui_rect voe_editor_dock_float_shown(const voe_editor_dock_float *f,
+					voe_ui_rect area);
 
 // The tree the editor opens on: three columns — `Scene` above `Assets`, held
 // at ASSETS_TALL, together held at SIDE_WIDE on the left, `Inspector` held
@@ -231,15 +265,15 @@ typedef struct {
 	voe_editor_dock_place nodes[VOE_EDITOR_DOCK_NODES];
 } voe_editor_dock_arrangement;
 
-// Lays `tree` out over `area` in millimetres, the same division the walk
+// Lays `root`'s tree out over `area` in millimetres, the same division the walk
 // draws — the walk takes every child's size from this, so the two cannot
 // disagree. A held length is clamped as 0226 says: no less than what the held
 // child needs, never so much the other side has less than it needs, and where
-// both cannot hold the other side wins. A leaf `closed` names is not laid,
-// and needs nothing of its parent; nothing in the tree is written.
-void voe_editor_dock_arrange(const voe_editor_dock_tree *tree,
-			     const bool closed[VOE_EDITOR_CLOSABLE_DOCKED],
-			     voe_ui_rect area, voe_editor_dock_arrangement *out);
+// both cannot hold the other side wins. A leaf whose closable is closed or
+// floating is not laid, and needs nothing of its parent; nothing in the tree
+// is written.
+void voe_editor_dock_arrange(const voe_editor_dock_root *root, voe_ui_rect area,
+			     voe_editor_dock_arrangement *out);
 
 // Whether `pointer` is over a laid leaf of `panel` in `root`'s tree laid out
 // below `top`, the top bar's height, all in the root's millimetres.

@@ -98,6 +98,14 @@ static const char *panel_key(voe_editor_panel panel)
 		return "scene_view";
 	case VOE_EDITOR_PANEL_ASSETS:
 		return "assets";
+	case VOE_EDITOR_PANEL_FRAME:
+		return "frame";
+	case VOE_EDITOR_PANEL_PROJECT:
+		return "project";
+	case VOE_EDITOR_PANEL_ERRORS:
+		return "errors";
+	case VOE_EDITOR_PANEL_LANDSCAPE:
+		return "landscape";
 	case VOE_EDITOR_PANEL_COUNT:
 		break;
 	}
@@ -311,8 +319,8 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 	// sizing_in(parent, root->size) IS root->size READ IN WHATEVER AXES
 	// `parent` FLOWS IN — see the header on why this row needs that now
 	// that it is not always the frame's own root.
-	voe_editor_dock_arrange(&root->tree, root->closed,
-				(voe_ui_rect){ .size = root->size }, &places);
+	voe_editor_dock_arrange(root, (voe_ui_rect){ .size = root->size },
+				&places);
 	// A view the walk does not show keeps no rectangle, so
 	// voe_editor_views_under (view.h) cannot find it under the pointer.
 	for (uint32_t v = 0; v < views->count; v++)
@@ -443,6 +451,12 @@ void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 	case VOE_EDITOR_PANEL_ASSETS:
 		voe_ui_label(ui, "Assets");
 		voe_editor_assets_draw(ui, &scene->assets);
+		return;
+	// Still drawn as overlays by interface.c; nothing here yet.
+	case VOE_EDITOR_PANEL_FRAME:
+	case VOE_EDITOR_PANEL_PROJECT:
+	case VOE_EDITOR_PANEL_ERRORS:
+	case VOE_EDITOR_PANEL_LANDSCAPE:
 		return;
 	case VOE_EDITOR_PANEL_COUNT:
 		break;
