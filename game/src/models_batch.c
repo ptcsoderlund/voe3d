@@ -3,10 +3,11 @@
 // next, cooking a loop on the caller, their put one at a time, the times and
 // their line; and the levels file of a `.glb`, read on its arena or made and
 // written, which the public prepare shares. A task touches only its own
-// file's or picture's record and arena and pushes its own subject on its
-// worker. A file's state moves only forward, set by the task of its phase or
-// between phases: a picture's failure is its own until the decoding phase is
-// done, then folded into its file's. Every arena is made with
+// file's or picture's record and arena, pushes its own subject on its worker
+// and, failing, carries its first error there for the put (0490). A file's
+// state moves only forward, set by the task of its phase or between phases: a
+// picture's failure is its own until the decoding phase is done, then folded
+// into its file's. Every arena is made with
 // voe_base_arena_new and destroyed after the file's put or by destroy, the
 // batch's own (its files, paths and pictures) last. A `.glb`'s cooked copy is
 // taken in reading onto its file's arena; a file to be cooked has each
@@ -69,6 +70,8 @@ struct batch_file {
 	enum file_state state;
 	uint64_t stamp;
 	voe_base_error error;
+	// The first error its failing phase's task met, on its arena, else NULL.
+	const char *carried;
 	// The file's own, NULL until read and after its put.
 	voe_base_arena *arena;
 	const uint8_t *bytes;
@@ -96,6 +99,8 @@ struct batch_picture {
 	uint32_t index;
 	voe_base_arena *arena;
 	voe_base_error error;
+	// The first error its failed decode met, on its arena, else NULL.
+	const char *carried;
 };
 
 struct voe_game_models_batch {
@@ -135,6 +140,22 @@ static void report_unsaved(voe_base_error error)
 		       "the LODs could not be saved in the project's "
 		       "`Cache/levels/`: %s",
 		       voe_base_error_string(error));
+}
+
+const char *voe_game_models_error_carried(voe_base_arena *arena)
+{
+	const char *first = voe_base_report_error_first();
+	size_t length;
+	char *copy;
+
+	VOE_BASE_ASSERT(arena != NULL, "carrying an error onto no arena");
+	if (first == NULL)
+		return NULL;
+	length = strlen(first) + 1;
+	copy = voe_base_arena_push(arena, length);
+	VOE_BASE_ASSERT(copy != NULL, "no room for a carried error");
+	memcpy(copy, first, length);
+	return copy;
 }
 
 // The `[Levels]` of the `.parts` beside `folder`'s `.glb` `path` (0430 point
@@ -356,6 +377,7 @@ static void read_task(void *context, uint32_t index)
 
 	VOE_BASE_ASSERT(index < batch->count, "reading a file past the batch");
 	VOE_BASE_ASSERT(file->state == FILE_ADDED, "reading a file twice");
+	voe_base_report_error_clear();
 	voe_base_report_subject_push(file->path);
 	if (!voe_platform_file_stamp(file->full, &file->stamp)) {
 		file->state = FILE_UNSTAMPED;
@@ -372,6 +394,9 @@ static void read_task(void *context, uint32_t index)
 						     &file->size, &file->error);
 		file->state = file->bytes != NULL ? FILE_READ : FILE_UNREADABLE;
 	}
+	// A stamp says nothing and leaves no arena; a read says why it failed.
+	if (file->state == FILE_UNREADABLE)
+		file->carried = voe_game_models_error_carried(file->arena);
 	voe_base_report_subject_pop();
 }
 
@@ -392,11 +417,13 @@ static void parse_task(void *context, uint32_t index)
 
 	if (file == NULL)
 		return;
+	voe_base_report_error_clear();
 	voe_base_report_subject_push(file->path);
 	if (!voe_assets_model_read_glb_encoded(file->bytes, file->size,
 					       file->arena, &file->model,
 					       &file->error)) {
 		file->state = FILE_REFUSED;
+		file->carried = voe_game_models_error_carried(file->arena);
 	} else if (file->model.image_count > 0) {
 		file->images = voe_base_arena_push(
 			file->arena,
@@ -418,13 +445,16 @@ static void lods_task(void *context, uint32_t index)
 
 	if (file == NULL)
 		return;
+	voe_base_report_error_clear();
 	voe_base_report_subject_push(file->path);
 	file->levels = voe_game_models_levels_for(
 		batch->folder, file->path, file->bytes, file->size, false,
 		file->arena, &file->levels_size, &made, &file->error);
 	// Refused, it is kept failed at its stamp, not read again (0445 point 4).
-	if (file->levels == NULL)
+	if (file->levels == NULL) {
 		file->state = FILE_REFUSED;
+		file->carried = voe_game_models_error_carried(file->arena);
+	}
 	voe_base_report_subject_pop();
 }
 
@@ -470,17 +500,21 @@ static void decode_task(void *context, uint32_t index)
 
 	VOE_BASE_ASSERT(index < batch->picture_count, "a picture past the batch");
 	VOE_BASE_ASSERT(file->images != NULL, "a picture with no room");
+	voe_base_report_error_clear();
 	voe_base_report_subject_push(file->path);
 	picture->arena = voe_base_arena_new(PICTURE_BLOCK);
 	if (!voe_assets_model_decode_picture(&file->model, picture->index,
 					     picture->arena, image,
-					     &picture->error))
+					     &picture->error)) {
 		VOE_BASE_ASSERT(picture->error != VOE_BASE_OK,
 				"a refused picture with no category");
-	else if (batch->cooking != VOE_GAME_MODELS_COOK_NEVER)
+		picture->carried =
+			voe_game_models_error_carried(picture->arena);
+	} else if (batch->cooking != VOE_GAME_MODELS_COOK_NEVER) {
 		*image = voe_assets_image_mips(
 			picture->arena, image,
 			voe_3d_model_cooked_kind(&file->model, picture->index));
+	}
 	voe_base_report_subject_pop();
 }
 
@@ -507,12 +541,15 @@ static void bake_task(void *context, uint32_t index)
 
 	if (file == NULL)
 		return;
+	voe_base_report_error_clear();
 	voe_base_report_subject_push(file->path);
 	file->prepared = voe_3d_model_prepare(file->arena, &file->model,
 					      file->bytes, file->size,
 					      file->levels, file->levels_size,
 					      &file->error);
 	file->state = file->prepared != NULL ? FILE_PREPARED : FILE_REFUSED;
+	if (file->state == FILE_REFUSED)
+		file->carried = voe_game_models_error_carried(file->arena);
 	voe_base_report_subject_pop();
 }
 
@@ -612,6 +649,20 @@ const char *voe_game_models_batch_phase(const voe_game_models_batch *batch,
 	return batch->files[index].phase;
 }
 
+// The first error a task of file `index` carried kept on the calling thread
+// (0490 point 3): its file's phase's, else its first failed picture's.
+static void error_keep(const voe_game_models_batch *batch, uint32_t index)
+{
+	const struct batch_file *file = &batch->files[index];
+	const char *carried = file->carried;
+
+	VOE_BASE_ASSERT(index < batch->count, "keeping a file past the batch");
+	for (uint32_t k = 0; carried == NULL && k < file->picture_count; k++)
+		carried = batch->pictures[file->first_picture + k].carried;
+	if (carried != NULL)
+		voe_base_report_error_keep(carried);
+}
+
 // The file into the store as its state says, under its path as the subject;
 // whether it failed, its line said here or where its cause was met.
 static bool file_put(struct batch_file *file, voe_3d_models *models,
@@ -667,6 +718,8 @@ bool voe_game_models_batch_put(voe_game_models_batch *batch,
 	*error = VOE_BASE_OK;
 	if (!held && voe_3d_models_count(models) == VOE_3D_MODELS)
 		return false;
+	// Kept before the put's own line, as one thread would have met them.
+	error_keep(batch, index);
 	voe_base_report_subject_push(file->path);
 	failed = file_put(file, models, device, held);
 	voe_base_report_subject_pop();

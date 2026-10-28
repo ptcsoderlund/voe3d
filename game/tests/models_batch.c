@@ -8,18 +8,25 @@
 // their copies and levels files gone, prepared one at a time with none: each
 // `Cache/models/<path>.model` is equal byte for byte to the first.
 //
+// a_batchs_first_error_is_its_first_failing_file: two `.glb`s that will not
+// parse, loaded in one batch on workers: the first error the calling thread
+// reads names the first of them (0490).
+//
 // The files and the folders are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a copy is compressed on it.
 #include "glb_build.h"
 
 #include <game/models.h>
+#include <game/world.h>
 
 #include <3d/model_levels.h>
+#include <3d/models.h>
 
 #include <assets/image.h>
 
 #include <base/arena.h>
 #include <base/error.h>
+#include <base/report.h>
 
 #include <platform/file.h>
 #include <platform/folder.h>
@@ -50,6 +57,10 @@ static const voe_render_capacities CAPACITIES = {
 	.shadings = 16,
 	.passes = 1,
 };
+
+// The two `.glb`s whose JSON will not parse, worn in this order.
+static const char *const BROKEN[2] = { "first_broken.glb",
+				       "second_broken.glb" };
 
 // `<FOLDER>/<under>/<path><ending>` into `out`.
 static const char *on_disk(char *out, size_t room, const char *under,
@@ -183,12 +194,48 @@ static void a_splash_cook_matches_one_by_one(voe_render_device *device,
 	}
 }
 
+// Both broken `.glb`s worn and loaded by one update given a progress, so in
+// one batch on the splash's workers: after a clear, the first error read once
+// it has failed begins with the path the batch holds first.
+static void a_batchs_first_error_is_its_first_failing_file(
+	voe_render_device *device, voe_base_arena *arena,
+	voe_base_arena *scratch)
+{
+	static uint8_t glb[512];
+	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_3d_models *models = voe_3d_models_new();
+	voe_game_progress progress = { 0 };
+	voe_game_models_failures failures;
+	uint32_t length = glb_pack(glb, sizeof(glb), "{\"asset\":", TRIANGLE,
+				   (uint32_t)sizeof(TRIANGLE));
+	const char *kept;
+	char path[256];
+
+	for (uint32_t n = 0; n < 2; n++) {
+		VOE_TEST_CHECK(voe_platform_file_write(
+			on_disk(path, sizeof(path), "", BROKEN[n], ""), glb,
+			length, NULL));
+		wear(world, BROKEN[n]);
+	}
+	voe_base_report_error_clear();
+	failures = voe_game_models_update(world, models, device, FOLDER,
+					  scratch, &progress);
+	VOE_TEST_CHECK_INT(failures.count, 2);
+	kept = voe_base_report_error_first();
+	snprintf(path, sizeof(path), "%s: ", BROKEN[0]);
+	VOE_TEST_CHECK(kept != NULL && strncmp(kept, path, strlen(path)) == 0);
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 // Every file and folder the case writes, deepest first.
 static void remove_files(void)
 {
 	char path[256];
 
 	copies_gone();
+	for (uint32_t n = 0; n < 2; n++)
+		remove(on_disk(path, sizeof(path), "", BROKEN[n], ""));
 	for (uint32_t n = 0; n < FILES; n++)
 		remove(on_disk(path, sizeof(path), "", PATHS[n], ""));
 	remove(MODELS_FOLDER_ON_DISK);
@@ -218,6 +265,7 @@ int main(void)
 	remove_files();
 	VOE_TEST_CHECK(voe_platform_folder_create(FOLDER, NULL));
 	a_splash_cook_matches_one_by_one(device, arena, scratch);
+	a_batchs_first_error_is_its_first_failing_file(device, arena, scratch);
 	remove_files();
 	voe_render_device_destroy(device);
 released:

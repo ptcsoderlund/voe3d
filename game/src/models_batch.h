@@ -38,7 +38,10 @@
 // another or not yet held, or that will not read, is kept failed at 0 with its
 // line; a `.glb` refused by its parse, levels make, a picture or its bake is
 // kept failed at its stamp, the cause said where it was met (0445 point 4);
-// each failure counted.
+// each failure counted. A failure's text met on a worker is carried in its
+// file's or picture's record and kept on the calling thread before its put,
+// in file order then picture order (0490), so a reader of the first error
+// sees what one thread would have.
 //
 // THE TIMES are each phase's wall seconds over every batch (a burst's from
 // its start to its finish), and the files
@@ -187,6 +190,10 @@ void voe_game_models_dot_and_water(const voe_ecs_world *world,
 // phases `line` names, a VOE_GAME_*_LINE.
 void voe_game_models_times_write(const voe_game_models_times *times,
 				 const char *noun, uint32_t line);
+
+// A failed burst task's own thread's first error copied onto `arena`, its
+// record's, for the calling thread to keep (0490 point 2); NULL for none.
+const char *voe_game_models_error_carried(voe_base_arena *arena);
 
 // Counts one failure of `path`, the store's copy kept when it is the first.
 void voe_game_models_failure_count(voe_game_models_failures *failures,

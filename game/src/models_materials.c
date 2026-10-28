@@ -18,7 +18,9 @@
 // voe_3d_models_put_material, a copy's or a queued map's levels as they are,
 // under its path). A map that will not read or decode keeps the material
 // failed at its stamp, the first map's category kept, each cause said where
-// it was met (0445); every failure counted. Each material's arenas are
+// it was met (0445), its text carried in the map's record and kept at the
+// fold on the calling thread, the first failing map's in map order (0490);
+// every failure counted. Each material's arenas are
 // destroyed after its put; `scratch` holds only the call's lists. The
 // one-material load goes the same way.
 //
@@ -90,8 +92,10 @@ struct chunk_material {
 	// its put, written by its copy's take, its decode and mip, or its cook.
 	voe_base_arena *picture_arenas[MAPS];
 	voe_assets_image pictures[MAPS];
-	// Each map's category when it would not read or decode, else OK.
+	// Each map's category when it would not read or decode, else OK, and the
+	// first error its task met then, on its arena, else NULL.
 	voe_base_error failed[MAPS];
+	const char *carried[MAPS];
 	// Each map task's seconds reading and decoding, to share the burst's.
 	double reading[MAPS];
 	double decoding[MAPS];
@@ -224,6 +228,7 @@ static void map_task(void *context, uint32_t index)
 	double before = voe_platform_clock_now();
 
 	VOE_BASE_ASSERT(index < chunk->count * MAPS, "a map past the chunk");
+	voe_base_report_error_clear();
 	voe_base_report_subject_push(read->material->path);
 	if (!map_take(chunk, read, k) &&
 	    !read_map(chunk->folder, map_path(&read->material->values, k),
@@ -238,6 +243,10 @@ static void map_task(void *context, uint32_t index)
 		read->pictures[k] = voe_assets_image_mips(
 			read->picture_arenas[k], &read->pictures[k],
 			MAP_KINDS[k]);
+	// A failed map has a path, so map_take made its arena (0490 point 2).
+	if (read->failed[k] != VOE_BASE_OK)
+		read->carried[k] =
+			voe_game_models_error_carried(read->picture_arenas[k]);
 	read->decoding[k] = voe_platform_clock_now() - before;
 	voe_base_report_subject_pop();
 }
@@ -336,8 +345,12 @@ static bool material_put(struct chunk_material *read, voe_3d_models *models,
 	bool loaded = false;
 
 	*error = VOE_BASE_OK;
-	for (uint32_t k = 0; k < MAPS && *error == VOE_BASE_OK; k++)
+	// The first failing map's carried text kept, in map order (0490 point 3).
+	for (uint32_t k = 0; k < MAPS && *error == VOE_BASE_OK; k++) {
 		*error = read->failed[k];
+		if (*error != VOE_BASE_OK && read->carried[k] != NULL)
+			voe_base_report_error_keep(read->carried[k]);
+	}
 	voe_base_report_subject_push(path);
 	if (*error != VOE_BASE_OK)
 		voe_3d_models_fail(models, path, stamp);
