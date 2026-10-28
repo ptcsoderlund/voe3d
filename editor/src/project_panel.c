@@ -63,8 +63,6 @@ void voe_editor_project_panel_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(panel->showing,
 			"drawing a project panel that is not showing");
 
-	panel->shown = window;
-
 	// Anchored exactly as preferences.c's panel is.
 	voe_ui_panel_begin(
 		ui, "project", 0, VOE_UI_SURFACE_RAISED,
@@ -88,6 +86,21 @@ void voe_editor_project_panel_draw(voe_ui_context *ui,
 	voe_ui_end(ui); // × button
 	voe_ui_end(ui); // title row
 
+	voe_editor_project_panel_contents_draw(ui, panel, window);
+
+	voe_ui_end(ui); // panel
+}
+
+void voe_editor_project_panel_contents_draw(voe_ui_context *ui,
+					    voe_editor_project_panel *panel,
+					    voe_authoring_project_window window)
+{
+	VOE_BASE_ASSERT(ui != NULL, "drawing no project panel into no interface");
+	VOE_BASE_ASSERT(panel != NULL, "drawing no project panel");
+	VOE_BASE_ASSERT(panel->showing,
+			"drawing a project panel that is not showing");
+
+	panel->shown = window;
 	panel->width_box = size_row(ui, "Width", window.width,
 				    panel->width_text, sizeof panel->width_text);
 	panel->height_box = size_row(ui, "Height", window.height,
@@ -106,8 +119,6 @@ void voe_editor_project_panel_draw(voe_ui_context *ui,
 	voe_ui_label(ui, "Fullscreen");
 	voe_ui_end(ui); // fullscreen choice
 	voe_ui_end(ui); // choice row
-
-	voe_ui_end(ui); // panel
 }
 
 // A box's value rounded to a whole number inside the project file's range.

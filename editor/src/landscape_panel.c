@@ -98,16 +98,10 @@ void voe_editor_landscape_panel_draw(voe_ui_context *ui,
 				     voe_editor_landscape_panel *panel,
 				     float top, voe_math_float2 surface)
 {
-	float shown;
-	float cells_shown;
-
 	VOE_BASE_ASSERT(ui != NULL, "drawing no landscape panel into no interface");
 	VOE_BASE_ASSERT(panel != NULL, "drawing no landscape panel");
 	VOE_BASE_ASSERT(panel->showing,
 			"drawing a landscape panel that is not showing");
-	shown = panel->dragging ? panel->dragged : panel->size;
-	cells_shown = panel->cells_dragging ? panel->cells_dragged :
-					      (float)panel->cells;
 
 	// Anchored exactly as project_panel.c's panel is.
 	voe_ui_panel_begin(
@@ -122,18 +116,39 @@ void voe_editor_landscape_panel_draw(voe_ui_context *ui,
 				    .y = { VOE_UI_ACROSS_START, top } },
 			.size = { .across = { VOE_UI_SIZE_FIXED, surface.y } } });
 
-	// The title and the file's name at the left, the × at the right.
+	// The title at the left, the × at the right.
 	voe_ui_row_begin(ui, (voe_ui_container){ .along = VOE_UI_ALONG_SPREAD,
 						 .across = VOE_UI_ACROSS_CENTER });
-	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
-						 .gap = LANDSCAPE_PANEL_GAP });
 	voe_ui_label(ui, "Landscape");
-	voe_ui_label(ui, voe_platform_path_name(panel->path));
-	voe_ui_end(ui); // title and name
 	panel->close_button = voe_ui_button_begin(ui, "close", 0);
 	voe_ui_label(ui, "×");
 	voe_ui_end(ui); // × button
 	voe_ui_end(ui); // title row
+
+	voe_editor_landscape_panel_contents_draw(ui, panel);
+
+	voe_ui_end(ui); // panel
+}
+
+void voe_editor_landscape_panel_contents_draw(voe_ui_context *ui,
+					      voe_editor_landscape_panel *panel)
+{
+	float shown;
+	float cells_shown;
+
+	VOE_BASE_ASSERT(ui != NULL, "drawing no landscape panel into no interface");
+	VOE_BASE_ASSERT(panel != NULL, "drawing no landscape panel");
+	VOE_BASE_ASSERT(panel->showing,
+			"drawing a landscape panel that is not showing");
+	shown = panel->dragging ? panel->dragged : panel->size;
+	cells_shown = panel->cells_dragging ? panel->cells_dragged :
+					      (float)panel->cells;
+
+	// The file's name first: the dock's header says only "Landscape".
+	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
+						 .gap = LANDSCAPE_PANEL_GAP });
+	voe_ui_label(ui, voe_platform_path_name(panel->path));
+	voe_ui_end(ui); // name row
 
 	panel->size_box = number_row(ui, "Size (m)", "size", shown,
 				     LANDSCAPE_PANEL_STEP, size_rounded,
@@ -143,7 +158,9 @@ void voe_editor_landscape_panel_draw(voe_ui_context *ui,
 				      panel->cells_text,
 				      sizeof panel->cells_text);
 
-	voe_ui_end(ui); // panel
+	VOE_BASE_ASSERT(panel->size_box == VOE_UI_NODE_NONE ||
+				panel->size_box != panel->cells_box,
+			"the size and cells boxes recorded as one");
 }
 
 // A drag is followed in `dragged`, unrounded so slow drags add up, and handed

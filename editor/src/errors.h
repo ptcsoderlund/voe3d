@@ -7,9 +7,15 @@
 //     voe_editor_errors errors = { 0 };
 //     voe_editor_errors_show(&errors, log);        // a refresh or Play failed
 //     voe_editor_errors_draw(ui, &errors, top, size);
+//     // or, inside a dock leaf's scroll area under the dock's header:
+//     voe_editor_errors_contents_draw(ui, &errors);
 //     ... voe_ui_frame_end ...
 //     if (voe_editor_errors_clicks_read(ui, &errors))
 //             voe_editor_errors_hide(&errors);
+//
+// THE CONTENTS ARE DRAWN APART from the panel, title row and scroll area so
+// the dock can place them in a leaf or a floating box under its own header
+// (0439, 0491); the draw is its panel, title row and scroll area round them.
 //
 // ONLY THE TAIL. A Ninja log ends at the step that failed, so the first error
 // is usually within its last lines, and the whole log stays in Build/build.log
@@ -55,6 +61,11 @@ void voe_editor_errors_hide(voe_editor_errors *errors);
 // bar, over the dock, and records its ×. Asserts when it is not showing.
 void voe_editor_errors_draw(voe_ui_context *ui, voe_editor_errors *errors,
 			    float top, voe_math_float2 size);
+
+// Draws only the kept lines as labels: no panel, title row, × or scroll area.
+// Asserts when it is not showing.
+void voe_editor_errors_contents_draw(voe_ui_context *ui,
+				     const voe_editor_errors *errors);
 
 // Whether the × fired this frame. Called after voe_ui_frame_end and before
 // the frame's arena is rewound — the one window in which a widget answers.

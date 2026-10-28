@@ -149,12 +149,12 @@ carries it out.
   pointer is on it, afterwards.
 - `project_panel.h` — the Project panel: a title row with its ×, the game window's width and height
   as number boxes and a Windowed / Fullscreen choice, as an anchored panel over the dock, carrying
-  out nothing.
+  out nothing; the contents call draws them alone for the dock.
 - `project_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
   a number rounded and clamped to the project file's range.
-- `landscape_panel.h` — the Landscape panel: a title row with the file's name and its ×, and the
-  size and cells as number boxes written at once, never unsaved or undone, as an anchored panel over the dock,
-  carrying out nothing.
+- `landscape_panel.h` — the Landscape panel: a title row with its ×, the file's name, and the size
+  and cells as number boxes written at once, never unsaved or undone, as an anchored panel over the
+  dock, carrying out nothing; the contents call draws all but the title row for the dock.
 - `landscape_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
   a drag handed back once on release, each number rounded and clamped to the file's range.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
@@ -163,12 +163,13 @@ carries it out.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
 - `errors.h` — the Errors panel a failed build shows: the last 48 lines of `Build/build.log`, each
-  cut at 160 bytes, in a scroll area under a title row with its ×, as an anchored panel over the dock.
+  cut at 160 bytes, in a scroll area under a title row with its ×, as an anchored panel over the dock;
+  the contents call draws the lines alone for the dock.
 - `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
   calls, and the read of its × afterwards.
-- `frame_breakdown.h` — the Frame panel: each GPU pass by name with its milliseconds, the total,
-  triangles, draws, the textures' MB and how many are compressed, and each picture's drawn and
-  skipped with its shadows', copied four times a second, under a title row with its ×.
+- `frame_breakdown.h` — the Frame panel: each GPU pass's milliseconds, the total, triangles, draws,
+  the textures' MB and each picture's counts, copied four times a second, under a title row with
+  its ×; the contents call draws the rows alone for the dock.
 - `frame_breakdown.c` — the quarter-second copy of the pictures' counts, the textures' memory and
   the triangle and draw counts, keeping the last times on no measurement, the panel's one frame of
   `ui` calls, and the read of its × afterwards.

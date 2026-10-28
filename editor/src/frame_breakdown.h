@@ -14,9 +14,15 @@
 //     voe_editor_frame_breakdown_take(&breakdown, gpu, &views, seconds); // each frame
 //     if (breakdown.showing)
 //             voe_editor_frame_breakdown_draw(ui, &breakdown, at);
+//     // or, inside a dock leaf or floating box under the dock's header:
+//     voe_editor_frame_breakdown_contents_draw(ui, &breakdown);
 //     ... voe_ui_frame_end ...
 //     if (voe_editor_frame_breakdown_clicks_read(ui, &breakdown))
 //             voe_editor_frame_breakdown_hide(&breakdown);
+//
+// THE CONTENTS ARE DRAWN APART from the panel and title row so the dock can
+// place them in a leaf or a floating box under its own header (0439, 0491);
+// the draw is its panel and title row round that same call.
 //
 // IT LAGS, AND THAT IS RENDER'S, NOT THIS FILE'S. The numbers are read from the
 // card after the frame slot's fence, so they describe the frame
@@ -126,6 +132,11 @@ void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
 void voe_editor_frame_breakdown_draw(voe_ui_context *ui,
 				     voe_editor_frame_breakdown *breakdown,
 				     voe_math_float2 at);
+
+// Draws only what is inside the panel: the pass rows through the last
+// picture's rows, no panel, title row or ×. Asserts when it is not showing.
+void voe_editor_frame_breakdown_contents_draw(
+	voe_ui_context *ui, voe_editor_frame_breakdown *breakdown);
 
 // Whether the × fired this frame. Called after voe_ui_frame_end and before
 // the frame's arena is rewound — the one window in which a widget answers.

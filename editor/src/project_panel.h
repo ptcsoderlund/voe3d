@@ -7,8 +7,14 @@
 //     voe_editor_project_panel panel = { 0 };
 //     voe_editor_project_panel_show(&panel);             // the bar's Project
 //     voe_editor_project_panel_draw(ui, &panel, window, top, size);
+//     // or, inside a dock leaf or floating box under the dock's header:
+//     voe_editor_project_panel_contents_draw(ui, &panel, window);
 //     ... voe_ui_frame_end ...
 //     result = voe_editor_project_panel_clicks_read(ui, &panel);
+//
+// THE CONTENTS ARE DRAWN APART from the panel and title row so the dock can
+// place them in a leaf or a floating box under its own header (0439, 0491);
+// the draw is its panel and title row round that same call.
 //
 // A CHANGE IS WRITTEN AT ONCE AND IS NOT UNDONE. The caller hands a changed
 // window straight to project.h's voe_editor_project_window_set, which writes
@@ -67,6 +73,13 @@ void voe_editor_project_panel_draw(voe_ui_context *ui,
 				   voe_editor_project_panel *panel,
 				   voe_authoring_project_window window,
 				   float top, voe_math_float2 size);
+
+// Draws only what is inside the panel: Width, Height and the choice, showing
+// `window`, no panel, title row or ×. Records every control but the × into
+// panel. Asserts when it is not showing.
+void voe_editor_project_panel_contents_draw(voe_ui_context *ui,
+					    voe_editor_project_panel *panel,
+					    voe_authoring_project_window window);
 
 // What this frame did: the × fired, and whether a number was committed or the
 // other choice picked, with the window that makes.

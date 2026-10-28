@@ -143,11 +143,23 @@ void voe_editor_errors_draw(voe_ui_context *ui, voe_editor_errors *errors,
 							 1.0f } },
 				    .across = VOE_UI_ACROSS_START },
 		(voe_ui_scroll_axes){ .x = true, .y = true });
-	for (uint32_t i = 0; i < errors->count; i++)
-		voe_ui_label(ui, errors->lines[i]);
+	voe_editor_errors_contents_draw(ui, errors);
 	voe_ui_end(ui); // scroll area
 
 	voe_ui_end(ui); // panel
+}
+
+void voe_editor_errors_contents_draw(voe_ui_context *ui,
+				     const voe_editor_errors *errors)
+{
+	VOE_BASE_ASSERT(ui != NULL, "drawing no errors into no interface");
+	VOE_BASE_ASSERT(errors != NULL, "drawing no errors");
+	VOE_BASE_ASSERT(errors->showing, "drawing errors that are not showing");
+	VOE_BASE_ASSERT(errors->count <= VOE_EDITOR_ERRORS_LINES,
+			"more error lines kept than there is room for");
+
+	for (uint32_t i = 0; i < errors->count; i++)
+		voe_ui_label(ui, errors->lines[i]);
 }
 
 bool voe_editor_errors_clicks_read(const voe_ui_context *ui,

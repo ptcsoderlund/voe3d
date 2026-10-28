@@ -1,6 +1,6 @@
-// The editor's Landscape panel (0379 point 6): a "Landscape" title row with
-// the file's name and an × at its right, a "Size (m)" and a "Cells" number box
-// showing what it was shown with — an anchored panel over the dock, below the
+// The editor's Landscape panel (0379 point 6): a "Landscape" title row with an
+// × at its right, a row with the file's name, a "Size (m)" and a "Cells" number
+// box showing what it was shown with — an anchored panel over the dock, below the
 // bar, exactly where project_panel.h's goes. Opened by a `.landscape` row clicked
 // in the Assets panel and after Create -> Landscape:
 //
@@ -8,8 +8,14 @@
 //     voe_editor_landscape_panel_show(&panel, "Assets/hill.landscape", 256.0f,
 //                                     512);
 //     voe_editor_landscape_panel_draw(ui, &panel, top, size);
+//     // or, inside a dock leaf or floating box under the dock's header:
+//     voe_editor_landscape_panel_contents_draw(ui, &panel);
 //     ... voe_ui_frame_end ...
 //     result = voe_editor_landscape_panel_clicks_read(ui, &panel);
+//
+// THE CONTENTS ARE DRAWN APART from the panel and title row so the dock can
+// place them in a leaf or a floating box under its own header (0439, 0491),
+// which says only "Landscape": so the file's name opens the contents.
 //
 // A CHANGE IS A SETTING WRITTEN AT ONCE, NEVER UNSAVED OR UNDONE. The caller
 // hands a new size and cells to models.h's voe_editor_models_landscape_shape,
@@ -80,6 +86,12 @@ void voe_editor_landscape_panel_hide(voe_editor_landscape_panel *panel);
 void voe_editor_landscape_panel_draw(voe_ui_context *ui,
 				     voe_editor_landscape_panel *panel,
 				     float top, voe_math_float2 surface);
+
+// Draws only what is inside the panel: the file's name, then Size and Cells,
+// no panel, title row or ×. Records every control but the × into panel.
+// Asserts when it is not showing.
+void voe_editor_landscape_panel_contents_draw(voe_ui_context *ui,
+					      voe_editor_landscape_panel *panel);
 
 // What this frame did: the × fired, and whether a number was typed or a drag
 // let go, with the size and cells it makes.

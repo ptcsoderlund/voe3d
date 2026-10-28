@@ -182,6 +182,19 @@ void voe_editor_frame_breakdown_draw(voe_ui_context *ui,
 	voe_ui_end(ui); // × button
 	voe_ui_end(ui); // title row
 
+	voe_editor_frame_breakdown_contents_draw(ui, breakdown);
+
+	voe_ui_end(ui); // panel
+}
+
+void voe_editor_frame_breakdown_contents_draw(
+	voe_ui_context *ui, voe_editor_frame_breakdown *breakdown)
+{
+	VOE_BASE_ASSERT(ui != NULL, "drawing no frame breakdown into no interface");
+	VOE_BASE_ASSERT(breakdown != NULL, "drawing no frame breakdown");
+	VOE_BASE_ASSERT(breakdown->showing,
+			"drawing a frame breakdown that is not showing");
+
 	if (!breakdown->measured) {
 		voe_ui_label(ui, "No GPU timings");
 	} else {
@@ -198,8 +211,8 @@ void voe_editor_frame_breakdown_draw(voe_ui_context *ui,
 			 breakdown->drawn_labels[i]);
 		row_draw(ui, "  shadows", breakdown->cast_labels[i]);
 	}
-
-	voe_ui_end(ui); // panel
+	VOE_BASE_ASSERT(breakdown->picture_count <= VOE_EDITOR_VIEWS + 1,
+			"drew more pictures than there is room for");
 }
 
 bool voe_editor_frame_breakdown_clicks_read(
