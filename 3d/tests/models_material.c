@@ -7,7 +7,8 @@
 // with voe_3d_models_put_material giving a like entry; a colour map alone
 // leaving the ORM slots none; a 64 × 64 colour map carrying its levels put as
 // one part (put_material_takes_given_levels); a BC7 colour map and a BC5 normal
-// map put as blocks, two more compressed textures (put_material_takes_blocks);
+// map of known blocks put, two more compressed textures
+// (put_material_takes_blocks);
 // a map that is no picture failing MALFORMED as a failed entry; and a rename
 // finding the material at its new path.
 //
@@ -201,9 +202,10 @@ static void put_material_takes_given_levels(voe_3d_models *models,
 	VOE_TEST_CHECK(entry != NULL && entry->part_count == 1);
 }
 
-// A 64 × 64 colour map compressed to BC7 and a normal map to BC5, each over its
-// full chain, put: the put is true, the entry a loaded material, and the card
-// holds two more compressed material textures.
+// A 64 × 64 colour map as BC7 and a normal map as BC5 blocks of known bytes,
+// each over its full chain, put: the put is true, the entry a loaded material,
+// and the card holds two more compressed material textures. Nothing is drawn
+// and read back, so the blocks need not be the picture's.
 static void put_material_takes_blocks(voe_3d_models *models,
 				      voe_render_device *device,
 				      voe_base_arena *arena,
@@ -223,10 +225,14 @@ static void put_material_takes_blocks(voe_3d_models *models,
 		image.pixels[i] = (uint8_t)(i * 7);
 	colour = voe_assets_image_mips(arena, &image, VOE_ASSETS_IMAGE_COLOUR);
 	normal = voe_assets_image_mips(arena, &image, VOE_ASSETS_IMAGE_NORMAL);
-	pictures.colour = voe_assets_image_compress(arena, &colour,
-						    VOE_ASSETS_IMAGE_COLOUR);
-	pictures.normal = voe_assets_image_compress(arena, &normal,
-						    VOE_ASSETS_IMAGE_NORMAL);
+	pictures.colour = voe_assets_image_blocks_new(arena, &colour,
+						      VOE_ASSETS_IMAGE_COLOUR);
+	pictures.normal = voe_assets_image_blocks_new(arena, &normal,
+						      VOE_ASSETS_IMAGE_NORMAL);
+	for (size_t i = 0; i < voe_assets_image_size(&pictures.colour); i++) {
+		pictures.colour.pixels[i] = (uint8_t)(i * 3);
+		pictures.normal.pixels[i] = (uint8_t)(i * 5);
+	}
 	VOE_TEST_CHECK_INT(pictures.colour.format, VOE_ASSETS_IMAGE_BC7);
 	VOE_TEST_CHECK_INT(pictures.normal.format, VOE_ASSETS_IMAGE_BC5);
 

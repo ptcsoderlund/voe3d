@@ -3,8 +3,9 @@
 //
 // THE WRITE WALKS TWICE: once measuring, `at` NULL, then filling the bytes it
 // measured, pushed once and zeroed, so a gap before a section is zero and the
-// walk that sizes the copy is the walk that writes it. The pictures are mipped,
-// compressed by their kind (0477) and cooked before either walk.
+// walk that sizes the copy is the walk that writes it. The pictures come as
+// their blocks, mipped and compressed by the caller (0484), and are cooked
+// before either walk.
 //
 // THE READ IS A CURSOR that turns false at the first count past its limit or
 // section past the bytes, every later take then giving nothing, so each step
@@ -139,10 +140,14 @@ static void put_copy(writer *w, const voe_3d_model_prepared *prepared,
 							     &none);
 }
 
-// The kind `image`'s first use in `model`'s materials says, COLOUR for none.
-static voe_assets_image_kind kind_of(const voe_assets_model *model,
-				     uint32_t image)
+voe_assets_image_kind voe_3d_model_cooked_kind(const voe_assets_model *model,
+					       uint32_t image)
 {
+	VOE_BASE_ASSERT(model != NULL && image < model->image_count,
+			"the kind of a picture the model does not hold");
+	VOE_BASE_ASSERT(model->material_count == 0 || model->materials != NULL,
+			"a model counting materials it does not hold");
+
 	for (uint32_t i = 0; i < model->material_count; i++) {
 		const voe_assets_material *m = &model->materials[i];
 
@@ -157,36 +162,50 @@ static voe_assets_image_kind kind_of(const voe_assets_model *model,
 	return VOE_ASSETS_IMAGE_COLOUR;
 }
 
+// Whether `blocks` is what the write takes for `image` of `kind`: its sides,
+// its full chain, and the format of its kind, with blocks to read.
+static bool blocks_fit(const voe_assets_image *blocks,
+		       const voe_assets_image *image, voe_assets_image_kind kind)
+{
+	return blocks->pixels != NULL && blocks->width == image->width &&
+	       blocks->height == image->height &&
+	       blocks->levels == voe_assets_image_level_count(image->width,
+							      image->height) &&
+	       blocks->format == voe_assets_image_blocks_format(kind);
+}
+
 voe_assets_bytes voe_3d_model_cooked_write(voe_base_arena *arena,
 					   const voe_3d_model_prepared *prepared,
+					   const voe_assets_image *pictures,
 					   voe_3d_model_cooked_key key)
 {
 	VOE_BASE_ASSERT(arena != NULL && prepared != NULL,
 			"cooking nothing, or onto no arena");
 	const voe_assets_model *model = prepared->model;
 
-	VOE_BASE_ASSERT(model->image_count == 0 || model->images != NULL,
-			"cooking a model whose pictures are not decoded");
+	VOE_BASE_ASSERT(model->image_count == 0 ||
+				(model->images != NULL && pictures != NULL),
+			"cooking a model whose pictures are not given");
 
-	voe_assets_bytes *pictures = voe_base_arena_push(
-		arena, (model->image_count + 1) * sizeof(*pictures));
+	voe_assets_bytes *cooked = voe_base_arena_push(
+		arena, (model->image_count + 1) * sizeof(*cooked));
 	writer w = { 0 };
 	size_t size;
 
 	for (uint32_t i = 0; i < model->image_count; i++) {
-		const voe_assets_image_kind kind = kind_of(model, i);
-		const voe_assets_image mipped =
-			voe_assets_image_mips(arena, &model->images[i], kind);
-		const voe_assets_image blocks =
-			voe_assets_image_compress(arena, &mipped, kind);
+		const voe_assets_image_kind kind =
+			voe_3d_model_cooked_kind(model, i);
 
-		pictures[i] = voe_assets_image_cooked_write(arena, &blocks,
-							    kind, 0);
+		VOE_BASE_ASSERT(blocks_fit(&pictures[i], &model->images[i], kind),
+				"a picture not its image's chain in its kind's "
+				"blocks");
+		cooked[i] = voe_assets_image_cooked_write(arena, &pictures[i],
+							  kind, 0);
 	}
-	put_copy(&w, prepared, pictures, key, 0);
+	put_copy(&w, prepared, cooked, key, 0);
 	size = w.used;
 	w = (writer){ .at = voe_base_arena_push(arena, size) };
-	put_copy(&w, prepared, pictures, key, size);
+	put_copy(&w, prepared, cooked, key, size);
 	VOE_BASE_ASSERT(w.used == size, "a copy written as measured");
 	return (voe_assets_bytes){ .bytes = w.at, .count = size };
 }

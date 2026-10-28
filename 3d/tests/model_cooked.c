@@ -7,11 +7,15 @@
 //    written and read back: every part's vertex and index bytes of level 0,
 //    of every own level and of every made level the same, the sphere, the
 //    flags, the own count, the level and part counts and the edge count too.
-// 2. round_trip_mips_and_compresses_every_picture: each picture read back has
+// 2. round_trip_keeps_every_picture: each picture, given as blocks of known
+//    bytes over its full chain in its kind's format, reads back with
 //    voe_assets_image_level_count(8, 8) levels, the colour and metal-roughness
-//    ones BC7 and the normal one BC5 (0477).
-// 3. key_comes_back: the key written is the read's and the head's alone.
-// 4. a_changed_version_is_refused: the copy with its version word raised by
+//    ones BC7 and the normal one BC5 (0477), and those bytes.
+// 3. kind_is_first_use: voe_3d_model_cooked_kind says COLOUR, DATA and NORMAL
+//    for the base-colour, metal-roughness and normal pictures, and COLOUR for
+//    a fourth no material names.
+// 4. key_comes_back: the key written is the read's and the head's alone.
+// 5. a_changed_version_is_refused: the copy with its version word raised by
 //    one, or set to 1, the version before its pictures were blocks, reads
 //    NULL, and its head gives no key.
 #include "../src/models_store.h"
@@ -90,13 +94,50 @@ static const voe_3d_model_prepared *sphere_prepared(voe_base_arena *arena,
 				    levels_size, &error);
 }
 
+// Byte `i` of picture `p`'s blocks as given to the write.
+static uint8_t known_byte(uint32_t p, size_t i)
+{
+	return (uint8_t)(i * 5 + p * 11 + 3);
+}
+
+// One picture a model image, the blocks of its full chain in its kind's
+// format, each byte known_byte's: what the caller of the write hands it.
+static const voe_assets_image *blocks_of(voe_base_arena *arena,
+					 const voe_assets_model *model)
+{
+	voe_assets_image *pictures = voe_base_arena_push(
+		arena, (model->image_count + 1) * sizeof(*pictures));
+
+	for (uint32_t p = 0; p < model->image_count; p++) {
+		const voe_assets_image *image = &model->images[p];
+		const voe_assets_image chain = {
+			.width = image->width, .height = image->height,
+			.levels = voe_assets_image_level_count(image->width,
+							       image->height)
+		};
+
+		pictures[p] = voe_assets_image_blocks_new(
+			arena, &chain, voe_3d_model_cooked_kind(model, p));
+		for (size_t i = 0; i < voe_assets_image_size(&pictures[p]); i++)
+			pictures[p].pixels[i] = known_byte(p, i);
+	}
+	return pictures;
+}
+
+// `prepared` written with KEY and its pictures' blocks.
+static voe_assets_bytes write_copy(voe_base_arena *arena,
+				   const voe_3d_model_prepared *prepared)
+{
+	return voe_3d_model_cooked_write(
+		arena, prepared, blocks_of(arena, prepared->model), KEY);
+}
+
 // `prepared` written with KEY and read back; NULL when either fails.
 static const voe_3d_model_prepared *
 round_trip(voe_base_arena *arena, const voe_3d_model_prepared *prepared,
 	   voe_3d_model_cooked_key *key)
 {
-	const voe_assets_bytes copy =
-		voe_3d_model_cooked_write(arena, prepared, KEY);
+	const voe_assets_bytes copy = write_copy(arena, prepared);
 
 	return voe_3d_model_cooked_read(arena, copy.bytes, copy.count, key);
 }
@@ -172,7 +213,7 @@ static void round_trip_keeps_the_bake(voe_base_arena *arena, bool own)
 	VOE_TEST_CHECK_INT(is->shape.edge_count, was->shape.edge_count);
 }
 
-static void round_trip_mips_and_compresses_every_picture(voe_base_arena *arena)
+static void round_trip_keeps_every_picture(voe_base_arena *arena)
 {
 	static const voe_assets_image_format formats[PICTURES] = {
 		VOE_ASSETS_IMAGE_BC7, VOE_ASSETS_IMAGE_BC7, VOE_ASSETS_IMAGE_BC5
@@ -186,12 +227,40 @@ static void round_trip_mips_and_compresses_every_picture(voe_base_arena *arena)
 	if (is == NULL || is->model->image_count != PICTURES)
 		return;
 	for (uint32_t p = 0; p < PICTURES; p++) {
-		VOE_TEST_CHECK_INT(is->model->images[p].levels,
+		const voe_assets_image *image = &is->model->images[p];
+		bool kept = true;
+
+		VOE_TEST_CHECK_INT(image->levels,
 				   voe_assets_image_level_count(SIDE, SIDE));
-		VOE_TEST_CHECK_INT(is->model->images[p].format, formats[p]);
+		VOE_TEST_CHECK_INT(image->format, formats[p]);
+		for (size_t i = 0; i < voe_assets_image_size(image); i++)
+			kept = kept && image->pixels[i] == known_byte(p, i);
+		VOE_TEST_CHECK(kept);
 	}
 	VOE_TEST_CHECK_INT(is->model->materials[0].base_colour_image, 0);
 	VOE_TEST_CHECK_INT(is->model->materials[0].normal_image, 2);
+}
+
+// Base colour COLOUR, normal NORMAL, metal-roughness DATA, and a fourth
+// picture no material names COLOUR.
+static void kind_is_first_use(voe_base_arena *arena)
+{
+	const voe_3d_model_prepared *was = sphere_prepared(arena, false);
+	voe_assets_model four;
+
+	VOE_TEST_CHECK(was != NULL);
+	if (was == NULL)
+		return;
+	four = *was->model;
+	four.image_count = PICTURES + 1;
+	VOE_TEST_CHECK_INT(voe_3d_model_cooked_kind(&four, 0),
+			   VOE_ASSETS_IMAGE_COLOUR);
+	VOE_TEST_CHECK_INT(voe_3d_model_cooked_kind(&four, 1),
+			   VOE_ASSETS_IMAGE_DATA);
+	VOE_TEST_CHECK_INT(voe_3d_model_cooked_kind(&four, 2),
+			   VOE_ASSETS_IMAGE_NORMAL);
+	VOE_TEST_CHECK_INT(voe_3d_model_cooked_kind(&four, 3),
+			   VOE_ASSETS_IMAGE_COLOUR);
 }
 
 static void key_comes_back(voe_base_arena *arena)
@@ -203,7 +272,7 @@ static void key_comes_back(voe_base_arena *arena)
 	VOE_TEST_CHECK(was != NULL);
 	if (was == NULL)
 		return;
-	copy = voe_3d_model_cooked_write(arena, was, KEY);
+	copy = write_copy(arena, was);
 	VOE_TEST_CHECK(voe_3d_model_cooked_read(arena, copy.bytes, copy.count,
 						&read) != NULL);
 	VOE_TEST_CHECK(voe_3d_model_cooked_key_of(
@@ -223,7 +292,7 @@ static void a_changed_version_is_refused(voe_base_arena *arena, bool old)
 	VOE_TEST_CHECK(was != NULL);
 	if (was == NULL)
 		return;
-	copy = voe_3d_model_cooked_write(arena, was, KEY);
+	copy = write_copy(arena, was);
 	memcpy(&version, copy.bytes + 4, sizeof(version));
 	version = old ? 1u : version + 1;
 	memcpy(copy.bytes + 4, &version, sizeof(version));
@@ -239,7 +308,8 @@ int main(void)
 
 	round_trip_keeps_the_bake(arena, false);
 	round_trip_keeps_the_bake(arena, true);
-	round_trip_mips_and_compresses_every_picture(arena);
+	round_trip_keeps_every_picture(arena);
+	kind_is_first_use(arena);
 	key_comes_back(arena);
 	a_changed_version_is_refused(arena, false);
 	a_changed_version_is_refused(arena, true);

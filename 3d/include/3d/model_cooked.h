@@ -4,7 +4,9 @@
 // `game` reads and writes the files.
 //
 //     voe_3d_model_cooked_key key = { glb_stamp, parts_stamp }, kept;
-//     voe_assets_bytes copy = voe_3d_model_cooked_write(arena, prepared, key);
+//     ... // pictures[i]: image i mipped by voe_3d_model_cooked_kind, compressed
+//     voe_assets_bytes copy =
+//             voe_3d_model_cooked_write(arena, prepared, pictures, key);
 //     ... // write copy.bytes, copy.count
 //     prepared = voe_3d_model_cooked_read(arena, file, file_size, &kept);
 //     if (prepared == NULL || kept.glb != key.glb || kept.parts != key.parts)
@@ -31,19 +33,20 @@
 // MIPS ARE BY USE. A level is the area average of what its texels mean (0466):
 // colour in linear light weighted by alpha, a normal made unit length again,
 // data as stored. A chain made the wrong way darkens a colour or flattens a
-// bump, so each picture is mipped by its first use in the model's materials:
-// base colour and emission colour, normal normal, metal-roughness and
-// occlusion data, one no material names colour. A picture used two ways keeps
-// its first use's chain in both.
+// bump, so the caller mips each picture by the kind voe_3d_model_cooked_kind
+// gives, its first use in the model's materials: base colour and emission
+// colour, normal normal, metal-roughness and occlusion data, one no material
+// names colour. A picture used two ways keeps its first use's chain in both.
 //
 // PICTURES ARE COOKED AS BLOCKS BY THEIR USE (0477): the chain of a colour or
 // data picture as BC7, of a normal one as BC5, so a read brings its format.
+// The caller compresses them (on the GPU, render's, 0484); the write only lays
+// them out.
 //
-// CONSTRAINTS: the write pushes every picture's mipped copy, its blocks and the
-// copy itself onto `arena`: the RGBA8 chains and a quarter more beside the
-// result. The read checks every count, range and index against what it
-// indexes, so a damaged copy cannot read past an array; it does not check
-// floats.
+// CONSTRAINTS: the write pushes each picture's cooked form and the copy itself
+// onto `arena`: the blocks twice beside the bake. The read checks every count,
+// range and index against what it indexes, so a damaged copy cannot read past
+// an array; it does not check floats.
 #pragma once
 
 #include <3d/model_prepare.h>
@@ -62,13 +65,20 @@ typedef struct {
 // The head's size in bytes: all voe_3d_model_cooked_key_of reads.
 #define VOE_3D_MODEL_COOKED_HEAD 32
 
-// `prepared` as a cooked copy on `arena`, keyed `key`. Asserts its pictures
-// are decoded; each is given its full chain (voe_assets_image_mips) of the
-// kind its first use says, compressed by that kind and written with key 0.
-// Cannot fail.
+// `prepared` as a cooked copy on `arena`, keyed `key`. `pictures` holds one
+// picture a model image, in the model's order: that image's sides and full
+// chain in the format voe_assets_image_blocks_format gives its kind, all
+// asserted. Each is written as given with key 0. Cannot fail.
 voe_assets_bytes voe_3d_model_cooked_write(voe_base_arena *arena,
 					   const voe_3d_model_prepared *prepared,
+					   const voe_assets_image *pictures,
 					   voe_3d_model_cooked_key key);
+
+// The kind picture `image` of `model` is mipped and compressed by: its first
+// use in the materials, as MIPS ARE BY USE says. `image` past the model's
+// pictures asserts.
+voe_assets_image_kind voe_3d_model_cooked_kind(const voe_assets_model *model,
+					       uint32_t image);
 
 // The key in a copy's head, from the head alone. False, `key` untouched, when
 // `size` is short of a head or its magic or version is not this one's.
