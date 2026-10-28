@@ -135,6 +135,3 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 
 - **No meshlets, no Nanite-style detail** (sponsor, 2026-10-16). Rejected: this engine offers performance and
   neither is performant yet. Do not propose it.
-
-- **Loading models on every core** (sponsor, 2026-10-20; was 0447, withdrawn by 0456). Taken up by 0485
-  (2026-10-28): controlled bursts on several threads, decided per feature.
