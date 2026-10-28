@@ -116,6 +116,8 @@ which file to open — what each one owns, and where the seams between them run.
   from one staging buffer with one region per level, no chain built.
 - `texture_blocks.c` — a SMOOTH texture of BC7 or BC5 blocks whose levels the caller gives (0477),
   one region per level, refused on a card without textureCompressionBC.
+- `compress.c` — the texture encoder (0486): an RGBA8 chain into BC7 or BC5 blocks by
+  `compress.slang`, one dispatch a level, through host-visible buffers; started, polled, finished.
 - `texture_memory.c` — what the live SMOOTH textures take, as the card sized their memory, how many
   and how many compressed: one walk of the slot table.
 - `texture_levels.c` — a texture's mip chain, blitted level by level from the upload inside its

@@ -2,7 +2,7 @@
 // starts it, descriptors.c builds what the shader reads, geometry.c and
 // shading.c hold what a caller uploads, target.c makes the images the scene is
 // drawn into, shadow.c the sun's depth maps, point_shadow.c the point lights',
-// bounce_volume.c the probe volumes, bounce_capture.c their capture pass, bounce_relight.c their relight, bounce_shadow.c its sun map, swapchain.c builds the images the window is made of, element.c
+// bounce_volume.c the probe volumes, bounce_capture.c their capture pass, bounce_relight.c their relight, bounce_shadow.c its sun map, compress.c the texture encoder, swapchain.c builds the images the window is made of, element.c
 // draws rectangles that are not meshes, and frame.c draws. The records the
 // device is built of are in device_parts.h, included below the constants it
 // reads; the device struct is here, and the calls between files are in
@@ -226,6 +226,9 @@ struct voe_render_device {
 	// (pipeline.c); until then the relight does nothing. Never true
 	// without output_layer.
 	bool relight_started;
+	// The texture encoder's, compress.c's: built at the first start, torn
+	// down at close; written only with `guard` held.
+	struct voe_render_compress compress;
 	// Whether a prepare step failed: every later prepare answers FAILED.
 	bool prepare_failed;
 	// What every mesh pipeline build passes, pipeline_cache.c's: made empty at

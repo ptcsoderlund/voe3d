@@ -494,6 +494,7 @@ static void close_down(voe_render_device *device)
 		voe_render_bounce_capture_shutdown(device);
 		voe_render_bounce_shadow_shutdown(device);
 		voe_render_bounce_relight_shutdown(device);
+		voe_render_compress_shutdown(device);
 		// The command buffers are not freed one at a time: destroying a
 		// slot's pool takes its one with it.
 		for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {

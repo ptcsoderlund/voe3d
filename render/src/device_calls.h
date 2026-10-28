@@ -108,6 +108,9 @@ void voe_render_bounce_capture_end(voe_render_device *device);
 // never got that far or never started it.
 [[nodiscard]] bool voe_render_bounce_relight_startup(voe_render_device *device);
 void voe_render_bounce_relight_shutdown(voe_render_device *device);
+// compress.c. The texture encoder's pipelines and layouts, from close; asserts
+// no job is live, and is safe when no job ever started.
+void voe_render_compress_shutdown(voe_render_device *device);
 // pipeline.c. voe_render_device_prepare until nothing is left: true once
 // prepared, false when a step failed. Every pass that can use a mesh pipeline,
 // and voe_render_bounce_begin, calls this first.
