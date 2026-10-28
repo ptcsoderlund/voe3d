@@ -18,8 +18,8 @@ an operating system.
   incidents.
 - `include/base/report.h` — the one call a recoverable problem is reported
   through, naming the thread's pushed subjects (ADR-0445), and the first error
-  kept per thread since the last clear (ADR-0160). Its header says what a
-  writer gets wrong and when to clear.
+  kept per thread since the last clear (ADR-0160), with the keep that carries
+  one across threads (ADR-0490).
 - `include/base/samples.h` — a run of measurements, and the three things anything
   asks one: how many, the average, the worst. Its header says why it is a period
   and not a sliding window, and why `worst` presumes a direction.

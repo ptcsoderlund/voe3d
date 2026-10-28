@@ -7,8 +7,9 @@
 //             voe_game_models_cooked_key(folder, path, stamp, arena);
 //     prepared = voe_game_models_cooked_take(folder, path, key, true, arena);
 //     if (prepared == NULL)
-//             ... // parse, LODs, decode and bake, then
-//             voe_game_models_cooked_save(folder, path, prepared, key, arena);
+//             ... // parse, LODs, decode and mip by kind, bake, then
+//             voe_game_models_cooked_save(folder, path, prepared, &model,
+//                                         key, device, arena);
 //
 // THE COPY is `<folder>/Cache/models/<path>.model`. Its key is the platform
 // stamps of the `.glb` and of the `.parts` beside it, 0 when there is none. It
@@ -29,17 +30,19 @@
 // `<folder>/Cache/pictures/<path>.<colour|normal|data>` by the kind its slot
 // mips it as, keyed by the map's stamp: the materials call cooks as update,
 // the one-material load as watch, materials_cooked (the game) as
-// update_cooked (game/src/models_materials.c).
+// update_cooked (game/src/models_materials.c). A picture both the `.glb` and
+// a map hold is compressed once, as the map (0488).
 //
 // COPIES ARE COMPRESSED (0477 points 1, 3 and 8): a model's pictures and a
-// map's chain are BC7 blocks, BC5 for a normal map, so every caller that
-// cooks one writes and uploads blocks; a copy of the older RGBA8 version is
-// stale and made again.
+// map's chain are BC7 blocks, BC5 for a normal map, compressed on the GPU
+// (0486) on the caller's device and thread, so every caller that cooks one
+// writes and uploads blocks; a copy of the older RGBA8 version is stale and
+// made again.
 //
 // Constraints: a take reads the whole copy onto the caller's arena, the
 // prepare's arrays or the map's pixels pointing into it, so the arena must
-// outlive the put. A map's save pushes its chain, then the blocks and the
-// copy, a quarter of the chain each: about twice the picture's RGBA8 bytes.
+// outlive the put. A save is handed each chain and pushes its blocks and the
+// copy, a quarter of the chain each.
 // Neither says a line for a copy that is missing or broken; a failed write
 // is one line on stderr.
 #pragma once
@@ -51,6 +54,8 @@
 
 #include <base/arena.h>
 #include <base/error.h>
+
+#include <render/device.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -72,8 +77,9 @@ const char *voe_game_models_parts_file(const char *folder, const char *path,
 				       voe_base_arena *arena);
 
 // Makes `<folder>/Cache`, `cache` (one folder under it) and each folder of the
-// `/`-separated `path` under `cache`, every one only when absent. False,
-// `error` set, when one could not be made.
+// `/`-separated `path` under `cache`, every one only when absent; one another
+// thread made between the look and the make counts as made. False, `error`
+// set, when one could not be made.
 [[nodiscard]] bool voe_game_models_folders_make(const char *folder,
 						const char *cache,
 						const char *path,
@@ -99,12 +105,26 @@ voe_game_models_cooked_take(const char *folder, const char *path,
 			    voe_3d_model_cooked_key key, bool compare,
 			    voe_base_arena *arena);
 
-// `prepared`, its pictures decoded, made a copy keyed `key` on `arena` and
-// written atomically with its folders made; a failed write is a line on
-// stderr under the caller's subject.
+// `chain`, a full chain of `kind`, compressed by `kind` (0477) on `device` and
+// waited for, the blocks on `arena`. A compression that will not start is
+// render's one line and `chain` handed back as it is (0477 point 8).
+voe_assets_image voe_game_models_compress(voe_render_device *device,
+					  const voe_assets_image *chain,
+					  voe_assets_image_kind kind,
+					  voe_base_arena *arena);
+
+// `prepared`, baked from `model` (whose pictures 3d keeps opaque), each of
+// those pictures, already mipped by its kind (voe_3d_model_cooked_kind),
+// compressed on `device`, made
+// a copy keyed `key` on `arena` and written atomically with its folders made;
+// a failed write is a line on stderr under the caller's subject. A picture
+// that would not compress leaves no copy written: 3d writes blocks alone,
+// and the next cook tries again.
 void voe_game_models_cooked_save(const char *folder, const char *path,
 				 const voe_3d_model_prepared *prepared,
+				 const voe_assets_model *model,
 				 voe_3d_model_cooked_key key,
+				 voe_render_device *device,
 				 voe_base_arena *arena);
 
 // `<folder>/Cache/pictures/<path>.<colour|normal|data>` by `kind`, on `arena`.
@@ -124,13 +144,14 @@ const char *voe_game_models_picture_file(const char *folder, const char *path,
 						voe_assets_image *image);
 
 // `image`, one level, given its full chain of `kind` on `arena`, compressed
-// by `kind` (0477) and returned, for the caller to upload; that written as
-// the map's copy by voe_game_models_picture_write.
+// by voe_game_models_compress on `device` and returned, for the caller to
+// upload; that written as the map's copy by voe_game_models_picture_write.
 voe_assets_image voe_game_models_picture_save(const char *folder,
 					      const char *path,
 					      const voe_assets_image *image,
 					      voe_assets_image_kind kind,
 					      uint64_t stamp,
+					      voe_render_device *device,
 					      voe_base_arena *arena);
 
 // `chain`, as given, made the map `path`'s copy of `kind` keyed `stamp` on

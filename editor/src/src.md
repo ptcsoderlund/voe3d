@@ -8,7 +8,7 @@ carries it out.
   live splash, and runs the loop until a close goes ahead or the picture is written.
 - `loading.h` — the start's, a New or Open load's, an import's prepare and the cook before Play and
   Ship works for a splash wait: shaders, shapes and models, the scene and its models, an imported
-  model's levels file, or every stale cooked copy, and what the worker owns.
+  model's levels file or every stale cooked copy made on the device, and what the worker owns.
 - `loading.c` — the four works, each step after a stop check, in the worker's own scratch, a
   refused prepare's notice from the kept error.
 - `waits.h` — the loop's splash waits between frames: an import's or Make levels' prepare then its
@@ -360,7 +360,7 @@ carries it out.
   stopping at the first refused pass, the shadows, their parts and gathers timed, counts recorded.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or on asking, emptied on a different project, a broken file in the notice, where landscapes and
-  the project's materials are edited, models given parts, and maps compressed 2 ms a frame.
+  materials are edited, models given parts, and maps compressed on the GPU between frames.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the

@@ -12,7 +12,8 @@
 // as is every held material a read of the tables found new or changed. A read
 // that fails is said in the session's notice, the kept line whole; a landscape
 // re-read names its path as the subject. A map with no fresh copy is queued
-// and compressed a step a frame outside a wait, inline under one, every row
+// and compressed on the GPU a step a frame outside a wait, inline under one,
+// every row
 // naming a written map loaded again at the next update. Once a second, after
 // the models' watch, the maps the materials name are stamped, and the rows
 // naming a changed one load again, the queue compressing it (0477 point 5).
@@ -37,12 +38,10 @@
 // How often the store's files are asked for their stamps, in seconds.
 #define WATCH_SECONDS 1.0
 
-// How long the queue compresses a frame, between frames (0477 point 3).
-#define COMPRESS_SECONDS 0.002
 struct voe_editor_models {
 	voe_3d_models *store;
-	// The maps uploaded uncompressed outside a wait, compressed a step a
-	// frame; emptied on a different folder.
+	// The maps queued outside a wait, compressed on the GPU a step a frame;
+	// emptied on a different folder.
 	voe_game_compressing *compressing;
 	// The project's materials and parts, read on a different folder.
 	voe_editor_materials *materials;
@@ -94,10 +93,10 @@ void voe_editor_models_destroy(voe_editor_models *models,
 {
 	if (models == NULL)
 		return;
-	VOE_BASE_ASSERT(device != NULL, "clearing models with no device");
+	VOE_BASE_ASSERT(device != NULL, "clearing models without a device");
 	voe_3d_models_clear(models->store, device);
 	voe_3d_models_destroy(models->store);
-	voe_game_compressing_destroy(models->compressing);
+	voe_game_compressing_destroy(models->compressing, device);
 	free(models->materials);
 	free(models->before);
 	free(models->parts);
@@ -117,7 +116,7 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 	    strcmp(folder, models->folder) == 0)
 		return;
 	voe_3d_models_clear(models->store, device);
-	voe_game_compressing_clear(models->compressing);
+	voe_game_compressing_clear(models->compressing, device);
 	voe_editor_map_watch_clear(&models->maps);
 	free(models->folder);
 	models->folder = NULL;
@@ -181,7 +180,7 @@ static void material_reload(voe_editor_models *models,
 	VOE_BASE_ASSERT(models != NULL && models->folder != NULL,
 			"reloading a material of no project");
 	VOE_BASE_ASSERT(device != NULL && scratch != NULL && notice != NULL,
-			"reloading a material with no device, scratch or notice");
+			"reloading a material without device, scratch or notice");
 	for (uint32_t i = 0; i < models->reloads; i++) {
 		const voe_game_material *row = voe_editor_materials_find(
 			models->materials, models->reload[i]);
@@ -282,7 +281,7 @@ void voe_editor_models_update(voe_editor_models *models,
 	material_reload(models, device, scratch, &session->notice);
 	if (progress == NULL) {
 		const char *written = voe_game_compressing_step(
-			models->compressing, COMPRESS_SECONDS, scratch);
+			models->compressing, device, scratch);
 
 		if (written != NULL)
 			reload_naming(models, written);
@@ -306,7 +305,7 @@ void voe_editor_models_reload(voe_editor_models *models,
 				session->project != NULL,
 			"reloading a model of no store or no project");
 	VOE_BASE_ASSERT(device != NULL && path != NULL && scratch != NULL,
-			"reloading a model with no device, path or scratch");
+			"reloading a model without device, path or scratch");
 	folder = session->project->folder;
 	if (folder == NULL || models->folder == NULL ||
 	    strcmp(folder, models->folder) != 0)
@@ -326,7 +325,7 @@ void voe_editor_models_frame(voe_editor_models *models,
 {
 	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
 			"writing landscapes of no store");
-	VOE_BASE_ASSERT(device != NULL, "writing landscapes with no device");
+	VOE_BASE_ASSERT(device != NULL, "writing landscapes without a device");
 	voe_3d_models_landscape_frame(models->store, device);
 	voe_3d_models_material_frame(models->store, device);
 }
@@ -414,7 +413,7 @@ void voe_editor_models_revert(voe_editor_models *models, const char *folder,
 	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
 			"reverting landscapes of no store");
 	VOE_BASE_ASSERT(device != NULL && scratch != NULL,
-			"reverting landscapes with no device or scratch");
+			"reverting landscapes without device or scratch");
 	if (folder == NULL)
 		return;
 	count = voe_3d_models_count(models->store);

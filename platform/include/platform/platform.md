@@ -25,3 +25,4 @@ stays on `platform/platform.md`.
   polling it without waiting, and ending it with everything it started.
 - `arguments.h` — the program's own arguments as UTF-8 on both platforms.
 - `environment.h` — one environment variable as UTF-8 on an arena: NULL unset, `""` empty.
+- `burst.h` — the core count, and tasks by index run on workers started for one burst and joined.

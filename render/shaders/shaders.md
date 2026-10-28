@@ -42,5 +42,7 @@ shader and never compiled alone.
   and a glyph's coverage at its edge.
 - `bounce_relight.slang` — the relight's compute: `settle` a probe's validity and moments, `relight`
   its picture into a level's six-axis irradiance, and `sum`.
+- `compress.slang` — the texture encoder's compute: `bc7` and `bc5`, one thread a 4×4 block of a
+  level, ports of the assets CPU encoders block for block.
 - `matrix_probe.slang` — writes three elements of a matrix out as colour, so a test can tell which
   layout slangc used.

@@ -180,7 +180,8 @@ static voe_3d_model_levels grid_read(voe_base_arena *scratch,
 
 // The grid prepared, remade, with `parts` as its parts file (NULL for none):
 // true and made, its level count returned; 0 when it would not prepare.
-static uint32_t grid_prepared(voe_base_arena *scratch, const uint8_t *grid,
+static uint32_t grid_prepared(voe_render_device *device,
+			      voe_base_arena *scratch, const uint8_t *grid,
 			      uint32_t size, const char *parts)
 {
 	voe_base_error error = VOE_BASE_OK;
@@ -191,8 +192,8 @@ static uint32_t grid_prepared(voe_base_arena *scratch, const uint8_t *grid,
 		VOE_TEST_CHECK(voe_platform_file_write(
 			GRID_PARTS_ON_DISK, (const uint8_t *)parts,
 			strlen(parts), NULL));
-	ready = voe_game_models_prepare(FOLDER, GRID, scratch, true, &made,
-					&error);
+	ready = voe_game_models_prepare(FOLDER, GRID, device, scratch, true,
+					&made, &error);
 	VOE_TEST_CHECK(ready);
 	VOE_TEST_CHECK(made);
 	return ready ? grid_read(scratch, grid, size).level_count : 0;
@@ -200,7 +201,8 @@ static uint32_t grid_prepared(voe_base_arena *scratch, const uint8_t *grid,
 
 // The grid's levels as its parts file says: the defaults with none, its
 // count, and the defaults again for a count past the limit.
-static void check_levels_asked(voe_base_arena *scratch)
+static void check_levels_asked(voe_render_device *device,
+			       voe_base_arena *scratch)
 {
 	static uint8_t grid[4096];
 	uint32_t size = grid_build(grid, sizeof(grid));
@@ -209,25 +211,25 @@ static void check_levels_asked(voe_base_arena *scratch)
 
 	// ---- no parts file: the default count, 3 or more
 	remove(GRID_PARTS_ON_DISK);
-	VOE_TEST_CHECK(grid_prepared(scratch, grid, size, NULL) >= 3);
+	VOE_TEST_CHECK(grid_prepared(device, scratch, grid, size, NULL) >= 3);
 
 	// ---- `count=2`: two levels
-	VOE_TEST_CHECK_INT(grid_prepared(scratch, grid, size,
+	VOE_TEST_CHECK_INT(grid_prepared(device, scratch, grid, size,
 					 "[Parts]\n[Levels]\ncount=2\n"),
 			   2);
 
 	// ---- `count=9` will not parse: the default again
-	VOE_TEST_CHECK(grid_prepared(scratch, grid, size,
+	VOE_TEST_CHECK(grid_prepared(device, scratch, grid, size,
 				     "[Parts]\n[Levels]\ncount=9\n") >= 3);
 
 	// ---- `swap="far"`: the file's swaps 1 to 5 are 2
-	VOE_TEST_CHECK(grid_prepared(scratch, grid, size,
+	VOE_TEST_CHECK(grid_prepared(device, scratch, grid, size,
 				     "[Parts]\n[Levels]\nswap=\"far\"\n") >= 3);
 	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++)
 		VOE_TEST_CHECK(grid_read(scratch, grid, size).swaps[k] == 2.0f);
 
 	// ---- `swap2=3` alone: swap 2 is 3, the others 1
-	VOE_TEST_CHECK(grid_prepared(scratch, grid, size,
+	VOE_TEST_CHECK(grid_prepared(device, scratch, grid, size,
 				     "[Parts]\n[Levels]\nswap2=3\n") >= 3);
 	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++)
 		VOE_TEST_CHECK(grid_read(scratch, grid, size).swaps[k] ==
@@ -274,10 +276,10 @@ static void check_swaps_patched(voe_ecs_world *world,
 	// patched, not made; the cooked copy, keyed by the new `.parts`' stamp,
 	// is made again, so `made` is true
 	remove(GRID_PARTS_ON_DISK);
-	VOE_TEST_CHECK(grid_prepared(scratch, grid, size, NULL) >= 3);
+	VOE_TEST_CHECK(grid_prepared(device, scratch, grid, size, NULL) >= 3);
 	before = grid_read(scratch, grid, size);
 	grid_parts_write("[Parts]\n[Levels]\nswap1=4\n");
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GRID, scratch,
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GRID, device, scratch,
 					       false, &made, &error));
 	VOE_TEST_CHECK(made);
 	after = grid_read(scratch, grid, size);
@@ -305,7 +307,8 @@ static void check_swaps_patched(voe_ecs_world *world,
 
 // The grid's triangles per level as its fresh file has them; a missing
 // `.glb`, none.
-static void check_triangles(voe_base_arena *scratch)
+static void check_triangles(voe_render_device *device,
+			    voe_base_arena *scratch)
 {
 	static uint8_t grid[4096];
 	uint32_t size = grid_build(grid, sizeof(grid));
@@ -316,7 +319,7 @@ static void check_triangles(voe_base_arena *scratch)
 
 	VOE_TEST_CHECK(voe_platform_file_write(GRID_ON_DISK, grid, size, NULL));
 	remove(GRID_PARTS_ON_DISK);
-	VOE_TEST_CHECK(grid_prepared(scratch, grid, size, NULL) >= 3);
+	VOE_TEST_CHECK(grid_prepared(device, scratch, grid, size, NULL) >= 3);
 
 	// ---- the file's level count, level 0 whole, each level fewer
 	count = voe_game_models_levels_triangles(FOLDER, GRID, scratch,
@@ -406,7 +409,7 @@ static void check_reload(voe_ecs_world *world, voe_render_device *device,
 	VOE_TEST_CHECK(held >= 3);
 
 	// ---- `count=2` prepared: the store's levels unchanged
-	VOE_TEST_CHECK_INT(grid_prepared(scratch, grid, size,
+	VOE_TEST_CHECK_INT(grid_prepared(device, scratch, grid, size,
 					 "[Parts]\n[Levels]\ncount=2\n"),
 			   2);
 	VOE_TEST_CHECK_INT(grid_held(models), held);
@@ -445,30 +448,30 @@ static void check_levels(voe_ecs_world *world, voe_render_device *device,
 	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
 
 	// ---- prepare with the file there: none made
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch,
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, device, scratch,
 					       false, &made, &error));
 	VOE_TEST_CHECK(!made);
 
 	// ---- the file stale: made again, fitting
 	VOE_TEST_CHECK(voe_platform_file_write(LEVELS_ON_DISK, STALE,
 					       sizeof(STALE) - 1, NULL));
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch,
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, device, scratch,
 					       false, &made, &error));
 	VOE_TEST_CHECK(made);
 	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
 
 	// ---- a remake on the fresh file: made again, fitting
 	made = false;
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, true,
-					       &made, &error));
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, device, scratch,
+					       true, &made, &error));
 	VOE_TEST_CHECK(made);
 	VOE_TEST_CHECK(levels_fit(scratch, glb, size));
 
 	// ---- a missing `.glb`: false
-	VOE_TEST_CHECK(!voe_game_models_prepare(FOLDER, MISSING, scratch,
-						false, &made, &error));
+	VOE_TEST_CHECK(!voe_game_models_prepare(FOLDER, MISSING, device,
+						scratch, false, &made, &error));
 
-	check_levels_asked(scratch);
+	check_levels_asked(device, scratch);
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
 }
@@ -518,7 +521,7 @@ int main(void)
 	check_levels(voe_game_world_new(arena), device, scratch, glb, length);
 	check_reload(voe_game_world_new(arena), device, scratch);
 	check_swaps_patched(voe_game_world_new(arena), device, scratch);
-	check_triangles(scratch);
+	check_triangles(device, scratch);
 	check_refused_make(voe_game_world_new(arena), device, scratch);
 	remove_files();
 	voe_render_device_destroy(device);

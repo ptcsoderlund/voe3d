@@ -16,7 +16,8 @@
 // and VOE_BASE_WARNING macros rather than voe_base_report_compose(), because
 // those macros are what feeds voe_base_report_error_first(). Each call still
 // prints to stderr, same as every other test that exercises a refusal; nothing
-// here captures it.
+// here captures it. And ADR-0490's keep: kept only when nothing is, and cut at
+// the same capacity.
 #include "../src/report_line.h"
 
 #include <testing/test.h>
@@ -109,6 +110,44 @@ int main(void)
 	const char *kept = voe_base_report_error_first();
 	VOE_TEST_CHECK_INT((long long)strlen(kept), (long long)fill);
 	VOE_TEST_CHECK(memcmp(kept + fill - 3, "...", 3) == 0);
+
+	// ADR-0490: a keep with nothing kept is read back; a second keep leaves
+	// the first.
+	voe_base_report_error_clear();
+	voe_base_report_error_keep("carried (1)");
+	VOE_TEST_CHECK(strcmp(voe_base_report_error_first(), "carried (1)") == 0);
+	voe_base_report_error_keep("carried (2)");
+	VOE_TEST_CHECK(strcmp(voe_base_report_error_first(), "carried (1)") == 0);
+
+	// A keep after a VOE_BASE_ERROR leaves the error.
+	voe_base_report_error_clear();
+	VOE_BASE_ERROR("demo", "reported");
+	voe_base_report_error_keep("carried");
+	VOE_TEST_CHECK(strcmp(voe_base_report_error_first(), "reported") == 0);
+
+	// A clear then a keep keeps the new text.
+	voe_base_report_error_clear();
+	voe_base_report_error_keep("after the clear");
+	VOE_TEST_CHECK(strcmp(voe_base_report_error_first(), "after the clear") ==
+		       0);
+
+	// A text over the capacity is cut at the line's text and marked.
+	voe_base_report_error_clear();
+	memset(message, 'x', capacity);
+	message[capacity] = '\0';
+	voe_base_report_error_keep(message);
+	kept = voe_base_report_error_first();
+	VOE_TEST_CHECK_INT((long long)strlen(kept), (long long)capacity - 1);
+	VOE_TEST_CHECK(memcmp(kept + capacity - 4, "...", 3) == 0);
+	VOE_TEST_CHECK(kept[capacity - 5] == 'x');
+
+	// A text exactly at the line's text capacity arrives whole.
+	voe_base_report_error_clear();
+	message[capacity - 1] = '\0';
+	voe_base_report_error_keep(message);
+	kept = voe_base_report_error_first();
+	VOE_TEST_CHECK_INT((long long)strlen(kept), (long long)capacity - 1);
+	VOE_TEST_CHECK(strstr(kept, "...") == NULL);
 
 	// ADR-0445: with no subject pushed the line is exactly as before.
 	compose(line, VOE_BASE_LEVEL_ERROR, "m", "message");

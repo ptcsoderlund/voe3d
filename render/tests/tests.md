@@ -81,6 +81,9 @@ by reading the offscreen colour image back.
 - `texture_blocks.c` — compressed textures: a BC7 chain of one colour drawn as its RGBA8 twin
   within 2, a BC5 DATA chain made, and the SMOOTH memory reading rising with an RGBA8 and a BC7
   texture, `compressed` with the BC7 one, and back again once both are destroyed. Headless.
+- `compress.c` — the GPU encoder: a gradient's and a noise picture's chains as BC7 and a normal
+  map's as BC5 drawn beside their RGBA8 sources within the CPU encoder's bounds, a 13×9 picture's
+  edge blocks those of its edge-repeated 16×12, and two jobs at once, one dropped. Headless.
 - `cutout_far.c` — a cut-out of one-texel alpha stripes, cutoff 0.5: filling the picture about half
   its pixels drawn, and seen 16 pixels across, at level 4, at least a third still drawn. Headless.
 - `dither.c` — an object record's `dither` on an unlit quad filling the picture: 0 every pixel, 0.5

@@ -43,9 +43,10 @@
 // uploaded as VOE_RENDER_TEXTURE_DATA and read exactly as written.
 //
 // ONE OTHER THREAD MAY CALL voe_render_device_prepare AND THE geometry, texture,
-// shading AND target CREATE, DESTROY, RESIZE AND READ WHILE THE OWNER DRAWS
-// FRAMES (ADR-0370). Each that uploads waits while a frame is open on another
-// thread; the owner's own never wait. Everything else is the owner's alone.
+// shading AND target CREATE, DESTROY, RESIZE AND READ, AND voe_render_compress_start,
+// _ready AND _finish, WHILE THE OWNER DRAWS FRAMES (ADR-0370, 0486 point 5). Each
+// that uploads waits while a frame is open on another thread; the owner's own
+// never wait. Everything else is the owner's alone.
 //
 // It opens unprepared; voe_render_device_prepare readies it a step at a time.
 // Passes onto the window or a target follow the sun's cascades and captures,
@@ -1289,6 +1290,37 @@ typedef enum {
 	voe_render_blocks blocks, uint32_t width, uint32_t height,
 	uint32_t level_count, const uint8_t *bytes, voe_render_texture *out,
 	voe_base_error *error);
+
+// The texture encoder (ADR-0486): an RGBA8 chain compressed into `blocks` on the
+// GPU. A blocking caller is start then finish.
+//
+// _start takes the chain as _create_levels takes it, level i max(1, width >> i)
+// × max(1, height >> i) texels back to back, copies it in, submits the work and
+// does not wait. NULL, REFUSED with a line, when memory or the pipelines will not
+// make. No picture, a level_count of 0 or past the full chain asserts.
+// _ready says whether the job is done, without waiting. _finish waits if it is
+// not, copies every level's blocks into `out` as _create_blocks takes them
+// (NULL drops them), and frees the job. Every job started is finished, and a
+// device closes with none live, asserted.
+//
+// WHAT IT SEARCHES is the CPU encoder's, block for block: BC7 mode 6 along the
+// texels' principal axis in RGBA, both p-bits of each endpoint tried, each
+// texel's nearest level, one least-squares refit; BC5 as two BC4 halves, both
+// of BC4's modes tried. An edge block's texels past the level's edge repeat the
+// nearest edge texel.
+//
+// A JOB HOLDS ITS CHAIN AND ITS BLOCKS UNTIL _finish, both in host-visible
+// memory: about 90 MB in and 22 MB out for a 4096 square chain.
+typedef struct voe_render_compressing voe_render_compressing;
+
+[[nodiscard]] voe_render_compressing *voe_render_compress_start(
+	voe_render_device *device, voe_render_blocks blocks, uint32_t width,
+	uint32_t height, uint32_t level_count, const uint8_t *rgba,
+	voe_base_error *error);
+bool voe_render_compress_ready(voe_render_device *device,
+			       const voe_render_compressing *job);
+void voe_render_compress_finish(voe_render_device *device,
+				voe_render_compressing *job, uint8_t *out);
 
 // What the material textures take (ADR-0477 point 7): the SMOOTH textures alive,
 // slot 0's white default not among them, their images' memory as the card sized

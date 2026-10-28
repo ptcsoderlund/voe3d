@@ -3,8 +3,8 @@
 The operating system, behind one API. The only folder allowed to include an OS
 header, and the only one that knows there is more than one operating system.
 Today that is a window, its keyboard, mouse and gamepads, a clock, reading and writing a
-file, listing, making or finding a folder, starting another program, the
-program's own arguments, the environment, and the sound device.
+file, listing, making or finding a folder, starting another program, its own
+arguments, the environment, the sound device, and work in bursts.
 
 - `include` — the public headers, in `include/platform/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
@@ -46,6 +46,9 @@ program's own arguments, the environment, and the sound device.
   hands back `argv` and Windows reads the wide command line instead.
 - `include/platform/environment.h` — one environment variable's value as UTF-8 on an arena, NULL when
   unset and `""` when empty. Its header says why the environment is platform's.
+- `include/platform/burst.h` — the core count, kept, the workers a burst gets, and a burst: tasks
+  by index on workers started for it, a look at whether it is done, and a finish that joins. Its
+  header says why bursts and not a pool, and why the caller runs no task.
 - `protocol/xdg-shell.xml` — the Wayland shell protocol, vendored.
   `wayland-scanner` turns every XML here into C at build time; nothing generated
   is committed.

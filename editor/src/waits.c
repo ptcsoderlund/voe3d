@@ -57,6 +57,7 @@ static bool waits_cook(voe_editor_waits *waits)
 		.folder = session->project->folder,
 		.table = voe_editor_materials_table(
 			voe_editor_models_materials(waits->models)),
+		.device = waits->device,
 		.scratch = waits->worker_scratch };
 
 	VOE_BASE_ASSERT(session->cook_due && cook.folder != NULL,
@@ -92,6 +93,7 @@ bool voe_editor_waits_run(voe_editor_waits *waits)
 		voe_editor_loading_prepare prepare = {
 			.folder = session->project->folder,
 			.path = session->prepare_path,
+			.device = waits->device,
 			.scratch = waits->worker_scratch,
 			.remake = session->prepare_remake };
 		if (!voe_game_starting_wait(waits->app, waits->ui,

@@ -1,7 +1,7 @@
 // A picture's levels from outside: the chain's length as Vulkan counts it, a
 // constant picture's mips staying that constant for every kind, a checker
 // halving to the grey of linear light, and the cooked form round-tripped as
-// RGBA8, BC7 and BC5, refused when its magic, version or format is wrong or
+// RGBA8 and as BC7 and BC5 blocks of known bytes, refused when its magic, version or format is wrong or
 // its bytes cut short, and its key read from the head alone.
 //
 // 5×3 is the shape that matters: its sides halve to 2×1 and then 1×1, so one
@@ -164,8 +164,9 @@ static void cooked_refuses_a_wrong_magic_or_short_bytes(void)
 	voe_base_arena_destroy(arena);
 }
 
-// A 5×3 picture of `kind`, mipped, compressed, cooked and read back: its
-// blocks and format as they went in, pixels pointing into the bytes.
+// A 5×3 picture of `kind`, mipped, given blocks of known bytes, cooked and
+// read back: its blocks and format as they went in, pixels pointing into the
+// bytes.
 static void cooked_keeps_blocks(voe_assets_image_kind kind,
 				voe_assets_image_format format)
 {
@@ -174,7 +175,10 @@ static void cooked_keeps_blocks(voe_assets_image_kind kind,
 	const voe_assets_image one = filled(arena, 5, 3, TEXEL);
 	const voe_assets_image mips = voe_assets_image_mips(arena, &one, kind);
 	const voe_assets_image blocks =
-		voe_assets_image_compress(arena, &mips, kind);
+		voe_assets_image_blocks_new(arena, &mips, kind);
+
+	for (size_t i = 0; i < voe_assets_image_size(&blocks); i++)
+		blocks.pixels[i] = (uint8_t)(i * 13 + 5);
 	const voe_assets_bytes bytes =
 		voe_assets_image_cooked_write(arena, &blocks, kind, KEY);
 	voe_assets_image read = { 0 };

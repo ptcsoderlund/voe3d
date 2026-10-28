@@ -1,40 +1,49 @@
-// The queue that compresses material maps between frames and writes their
-// copies (0477 points 3 and 4). Outside a splash a map with no fresh copy is
-// uploaded uncompressed and added here; each frame a step encodes its blocks
-// for a budget, and a map whose blocks are all made is written as its copy,
-// `Cache/pictures/<path>.<colour|normal|data>`, for its materials to load
-// again from.
+// The queue that compresses material maps on the GPU between frames and
+// writes their copies (0477 point 3, 0489). Outside a splash a map with no
+// fresh copy is not read by the materials call: it is added here by path,
+// kind and stamp, and its material loads as if that map were empty. Each
+// frame a step moves the oldest job on, and a map whose copy is written,
+// `Cache/pictures/<path>.<colour|normal|data>`, is handed back for its
+// materials to load again from.
 //
 //     voe_game_compressing *queue = voe_game_compressing_new();
-//     voe_game_compressing_add(queue, folder, path, kind, stamp, &chain);
-//     // between frames
-//     const char *written = voe_game_compressing_step(queue, 0.002, scratch);
+//     voe_game_compressing_add(queue, folder, path, kind, stamp);
+//     // between frames, on the device's thread
+//     const char *written = voe_game_compressing_step(queue, device, scratch);
 //     if (written != NULL)
 //             ... // load the materials naming `written` again
-//     voe_game_compressing_destroy(queue);
+//     voe_game_compressing_destroy(queue, device);
 //
-// ONE THREAD, THE OWNER'S, BETWEEN FRAMES. No worker compresses (0456, 0386):
-// a worker would be a new threading decision for a few seconds of waiting
-// that the uncompressed upload already hides. A step encodes the oldest job's
-// blocks in runs of 64 and reads the clock between runs, so it overruns its
-// budget by at most one run; it always encodes one, so a budget of 0 still
-// moves.
+// THE STAGES (0489 point 2), each step moving the oldest job at most one on:
+// read, decoded and mipped by its kind on a one-worker burst (platform/
+// burst.h, 0487 point 5); voe_render_compress_start on the caller; _ready
+// polled each step, then _finish; the copy written on a one-worker burst;
+// its path handed back. Only the oldest job moves, so one job is on the GPU
+// at a time. A step never waits: its longest part is a start's copy of the
+// chain into the GPU's buffer.
+//
+// A map that will not read or decode is one line under its path, said on
+// the worker, and its job dropped. A start that fails is render's line and
+// the job tries again at the next step.
 //
 // THE MEMORY IS THE QUEUE'S (rule 11's exception, as the store's is): each
-// job holds its own copy of the RGBA8 chain and its blocks, given back when
-// it is written, cleared or destroyed. A 2048² job is about 28 MB: the chain's
-// 22 MB and the blocks' quarter of it. The write pushes the copy on the
-// caller's scratch, rewound after it.
+// job has an arena of its own holding its strings, the file's bytes, the
+// decoded picture, its chain and its blocks, given back when it is written,
+// cleared or destroyed. A 2048² map is about 50 MB while it runs.
 //
 // Constraints: at most VOE_GAME_COMPRESSING jobs wait; one more is dropped
 // with one line, and that map waits for the next open, Play or Ship to be
 // cooked. A second add of a waiting path and kind replaces it and starts
-// over. Jobs are found by a scan, which is all sixteen allow.
+// over: at once when nothing of it runs, else when its running stage ends,
+// keeping its folder (the queue is cleared when the folder changes). Jobs
+// are found by a scan, which is all sixteen allow.
 #pragma once
 
 #include <assets/image.h>
 
 #include <base/arena.h>
+
+#include <render/device.h>
 
 #include <stdint.h>
 
@@ -44,22 +53,26 @@
 typedef struct voe_game_compressing voe_game_compressing;
 
 voe_game_compressing *voe_game_compressing_new(void);
-void voe_game_compressing_destroy(voe_game_compressing *queue);
+// Cleared as _clear does, then freed.
+void voe_game_compressing_destroy(voe_game_compressing *queue,
+				  voe_render_device *device);
 
-// The map `path` in `folder`, its RGBA8 `chain` of `kind` at `stamp`, copied
-// into the queue, replacing a waiting job of the same path and kind.
+// The map `path` in `folder` of `kind` at `stamp`, to be compressed, replacing
+// a waiting job of the same path and kind, which starts over.
 void voe_game_compressing_add(voe_game_compressing *queue, const char *folder,
 			      const char *path, voe_assets_image_kind kind,
-			      uint64_t stamp, const voe_assets_image *chain);
+			      uint64_t stamp);
 
-// The oldest job's blocks encoded for about `seconds`; an ended job written
-// keyed by its stamp and freed. Its path, the queue's copy valid until the
-// next call, or NULL when none ended.
+// The oldest job moved one stage on, never waiting. Its path, copied onto
+// `scratch`, when its copy keyed by its stamp is written, else NULL.
 const char *voe_game_compressing_step(voe_game_compressing *queue,
-				      double seconds, voe_base_arena *scratch);
+				      voe_render_device *device,
+				      voe_base_arena *scratch);
 
 // How many jobs wait.
 uint32_t voe_game_compressing_waiting(const voe_game_compressing *queue);
 
-// Every waiting job dropped and its memory given back.
-void voe_game_compressing_clear(voe_game_compressing *queue);
+// Every waiting job dropped and its memory given back: a running burst
+// finished, waiting for it, and a job on the GPU dropped.
+void voe_game_compressing_clear(voe_game_compressing *queue,
+				voe_render_device *device);

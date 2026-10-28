@@ -16,20 +16,23 @@
 // A LOAD is voe_editor_session_load ("Loading scene") and the models read the
 // same way. The project is opened before the window, so the start has none.
 // A PREPARE ("Preparing <file>") makes an imported `.glb`'s levels file
-// through voe_game_models_prepare (0426 point 3), no device in it; the Assets
+// through voe_game_models_prepare (0426 point 3), its maps compressed on the
+// program's own device under its guard (0486 point 6); the Assets
 // menu's Make levels runs the same one, made even when fresh (0429); main.c
 // loads the model again after the wait (0431) unless the prepare refused it
 // (0445 point 4).
 // THE COOK ("Preparing models" done/total) makes every stale copy of the
-// listed `.glb`s and the table's maps through voe_game_models_cook, no device
-// in it, so the Cache/ that Play and Ship carry is true (0470 point 6).
+// listed `.glb`s and the table's maps through voe_game_models_cook, compressed
+// on the same device the same way, so the Cache/ that Play and Ship carry is
+// true (0470 point 6).
 //
 // WHAT THE WORKER OWNS. During the wait the worker owns everything its context
 // names: the session and its project, the scene, the model store, the shapes
 // and the start log. The main thread touches none of them until the wait
 // returns; it only polls the window and draws the splash. Uploads on the
 // worker are safe because render guards its device against an open frame
-// (0370 point 5).
+// (0370 point 5); so are compressions, whose guard is held to record, submit
+// and free, never through the wait (0486 point 5).
 //
 // Constraints: `scratch` is the worker's own arena, never the main thread's,
 // and is left empty. The models are read with a frame clock of 0, so the
@@ -86,9 +89,11 @@ typedef struct {
 // voe_game_models_prepare's: Import leaves it false, Make levels sets it.
 // `refused` is set when the prepare refused the `.glb`, whose cause has its
 // own line on stderr; `refusal` is then that kept line as the notice.
+// `device` is the program's, which compresses the levels' maps.
 typedef struct {
 	const char *folder;
 	const char *path;
+	voe_render_device *device;
 	voe_base_arena *scratch;
 	bool remake;
 	bool refused;
@@ -98,12 +103,14 @@ typedef struct {
 
 // The cook before Play and Ship, the one `session->cook_due` asks for: the
 // `Assets/...` paths of the `.glb`s under `folder`, as model rows name them,
-// and the materials table, both the caller's and untouched through the wait.
+// and the materials table, both the caller's and untouched through the wait;
+// `device` the program's, which compresses the copies' maps.
 typedef struct {
 	const char *folder;
 	const char *const *paths;
 	uint32_t path_count;
 	voe_game_materials table;
+	voe_render_device *device;
 	voe_base_arena *scratch;
 } voe_editor_loading_cook;
 

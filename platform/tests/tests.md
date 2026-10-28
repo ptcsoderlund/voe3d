@@ -37,3 +37,6 @@ that module's promises from outside. None of them needs a window or a display.
 - `process.c` — that `cmake -E true` ends with 0 and `-E false` with non-zero, that a running
   `-E sleep 30` is ended within five seconds and zeroed, that a missing program is a false start,
   and on Linux that an output file holds both streams and is appended to.
+- `burst.c` — that the core count is at least 1 and kept, both worker counts sit at least 1 and
+  below it, 10 000 tasks on four workers and 3 on eight each run once, done stays true, and an
+  empty burst is done at once.

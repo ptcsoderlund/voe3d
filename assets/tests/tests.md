@@ -25,12 +25,8 @@ belongs to.
   kept constant for each kind, a checker halved to linear grey, and the cooked
   form round-tripped as RGBA8, BC7 and BC5, refused when broken, short, of an
   unknown format or the old version, and its key read alone.
-- `image_bc7.c` — a hand-built block decoded to its texels, and one colour,
-  two colours, a gradient and a cut-out's alpha round-tripped within bounds,
-  the same texels always the same bytes.
-- `image_blocks.c` — chains' sizes and block counts, a colour chain as BC7
-  and a bump map as BC5 decoded near their texels, runs of 7 blocks matching
-  one call, and a 5×3 picture's edge blocks.
+- `image_blocks.c` — chains' sizes and block counts, the blocks' room made
+  zeroed, and the format each kind takes.
 - `json.c` — a document read back as its values, every shape of broken input
   a tolerant reader would let past, and too many values or too deep refused as
   limits.

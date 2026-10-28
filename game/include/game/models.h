@@ -18,16 +18,16 @@
 // time. It follows the `.parts` beside the `.glb` (0430 point 5, 0436, 0435
 // point 4). A refused make keeps the entry failed at its stamp (0445 point 4).
 //
-// COOKED COPIES (0470), pictures and maps compressed (0477): a `.glb` loads
-// first from `Cache/models/<path>.model` when fresh, its key the stamps of
-// the `.glb` and its `.parts` (0 for none): no parse, LODs, decode or bake.
-// Update and prepare write a missing or stale one, remake always, watch and
-// reload never; the game's update_cooked trusts any that reads and writes a
-// missing one. Before Play and Ship the editor calls stale, then cook.
+// COOKED COPIES (0470), compressed (0477) on the call's device, on the
+// owner's thread or the one other (0370): a fresh `Cache/models/<path>.model`,
+// keyed by the stamps of the `.glb` and its `.parts` (0 for none), loads in
+// its place; a picture only dressed parts use is a white texel (0488). Update
+// and prepare write a missing or stale one, remake always, watch and reload
+// never, update_cooked (the game) a missing one, taking any that reads.
 //
-// PHASES (0457, 0459 point 1): one file at a time on the caller, read, parsed,
-// its LODs made, pictures decoded, baked, uploaded and cooked; a call that read
-// one says `game: models: <n> files in <s> s: …` on stderr, each phase's time.
+// PHASES (0457, 0487 point 3): read, parse, LODs, decode and bake each one
+// burst on workers over a batch (up to four files under a splash, else one),
+// then cook and upload on the caller; `game: models: …` times each phase.
 //
 // PROGRESS (0370 point 3, 0470 point 7), NULL outside a splash wait: the paths
 // to read counted first, a row's landscape's kinds once it loads, "Preparing
@@ -44,10 +44,10 @@
 // MATERIALS come from tables (game/materials.h, 0399 point 7, 0420): each
 // loaded model takes its parts; then each shape's material, part's `wears`
 // and landscape's layer (0402 point 8) the store lacks loads at stamp 0 or
-// stays failed, one at a time, each map from its copy `Cache/pictures/<path>.
-// <colour|normal|data>` (0470 point 2) or read, decoded and cooked compressed,
-// or given a queue mipped, uploaded RGBA8 and queued (game/compressing.h, 0477
-// point 3): `game: materials: …` with its phases.
+// stays failed, one at a time, its maps as one burst (0487 point 4), each its
+// copy `Cache/pictures/<path>.<colour|normal|data>` (0470 point 2) or read,
+// decoded, mipped, then cooked on the caller, or, given a queue (0489 point
+// 1), not read but added, loading as if empty: `game: materials: …`.
 // LANDSCAPES come from a table (game/landscapes.h, 0236), never a file.
 //
 // ALL RETURN how many paths failed and the first one's path, the store's own
@@ -98,12 +98,13 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_game_progress *progress);
 
 // The game's update: the same, but any cooked copy that reads is taken, its
-// key not compared, and only a missing one is written (0470 point 5). See the
-// header.
+// key not compared, and only a missing one is written (0470 point 5), each
+// `.glb` dressed by its row of `parts` when it has one (0488). See the header.
 voe_game_models_failures
 voe_game_models_update_cooked(const voe_ecs_world *world,
 			      voe_3d_models *models, voe_render_device *device,
-			      const char *folder, voe_base_arena *scratch,
+			      const char *folder, const voe_game_parts *parts,
+			      voe_base_arena *scratch,
 			      voe_game_progress *progress);
 
 // Loads every landscape of `landscapes` into the store at stamp 0. See the
@@ -119,10 +120,11 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 // its values as its path's entry at `stamp`, its `game: materials:` line said;
 // scratch rewound. A map's fresh copy is read in its place, but none is ever
 // written. A decoded map is uploaded as it is, the GPU mipping it; given a
-// queue (NULL for none), it is mipped on the CPU, uploaded RGBA8 with those
-// levels and added to `compressing` at its stamp, whose step writes its copy
-// (0477 point 3). False, `error` set and the entry kept failed, when a map
-// will not read or decode or the store refuses it.
+// queue (NULL for none), a map with no fresh copy is not read but added to
+// `compressing` at its stamp, whose step writes its copy, and the material
+// loads as if that map were empty (0489 point 1). False, `error` set and the
+// entry kept failed, when a map will not read or decode or the store refuses
+// it.
 [[nodiscard]] bool voe_game_models_material_load(
 	voe_3d_models *models, voe_render_device *device, const char *folder,
 	const voe_game_material *material, uint64_t stamp,
@@ -136,8 +138,9 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 //
 // A map decoded because it has no fresh copy is cooked inline, its copy
 // written compressed (0477 point 3), when `compressing` is NULL; given a
-// queue, it is mipped on the CPU, uploaded RGBA8 with those levels and added
-// to the queue at its stamp, no copy written now. Into `progress` (NULL for
+// queue, a map with no fresh copy is not read but added to it at its stamp,
+// no copy written now, and its material loads as if that map were empty
+// (0489 point 1). Into `progress` (NULL for
 // none), before each material, "Compressing textures" done/total over the
 // call's materials when it has a map to cook inline, else "Loading
 // materials"; a stop asked returns before the next material.
@@ -159,14 +162,17 @@ voe_game_models_failures voe_game_models_materials_cooked(
 	voe_base_arena *scratch, voe_game_progress *progress);
 
 // Reads `<folder>/<path>` and its levels file, making and writing that when
-// missing or stale, then its cooked copy the same way, `made` true when
-// either was made. `remake` false keeps a fresh file and copy; true makes and
+// missing or stale, then its cooked copy the same way, compressed on `device`
+// from the owner's thread between frames or the one other thread (0370),
+// `made` true when either was made. `remake` false keeps a fresh file and
+// copy; true makes and
 // writes both whatever is there, `made` then true whenever the `.glb` reads
 // and parses. False, `error` set, only when the `.glb` will not read or
 // parse; a write that fails is a line on stderr and true. Scratch rewound to
 // where it stood. It makes the file alone: the editor's import keeps a fresh
 // one, its Make levels makes it again (0429). See the header.
 [[nodiscard]] bool voe_game_models_prepare(const char *folder, const char *path,
+					   voe_render_device *device,
 					   voe_base_arena *scratch,
 					   bool remake, bool *made,
 					   voe_base_error *error);
@@ -181,9 +187,10 @@ unsigned voe_game_models_stale(const char *folder, const char *const *paths,
 			       const voe_game_materials *table,
 			       voe_base_arena *scratch);
 
-// Makes and writes every copy stale counts, one file at a time on the caller
-// and with no device: a `.glb` as prepare does, its levels file made when
-// missing; a map read, decoded and mipped. "Preparing models" done/total over
+// Makes and writes every copy stale counts, compressed on `device` from the
+// owner's thread between frames or the one other thread (0370): the `.glb`s
+// up to four at once as prepare does, its levels file made when missing; a
+// map read, decoded and mipped. "Preparing models" done/total over
 // that count goes into `progress` (NULL for none). A file that will not read
 // or parse is a line at its cause and skipped. Scratch rewound. False only
 // when the progress asked to stop, before the next file.
@@ -191,6 +198,7 @@ unsigned voe_game_models_stale(const char *folder, const char *const *paths,
 					const char *const *paths,
 					uint32_t path_count,
 					const voe_game_materials *table,
+					voe_render_device *device,
 					voe_base_arena *scratch,
 					voe_game_progress *progress);
 

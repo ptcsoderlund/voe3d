@@ -4,7 +4,7 @@
 // shading.c's and texture.c's; the shadow map is shadow.c's, the point shadow
 // map point_shadow.c's; the probe volume bounce_volume.c's, the capture scratch
 // bounce_capture.c's, the relight's sun map bounce_shadow.c's, its record
-// bounce_relight.c's; the swapchain
+// bounce_relight.c's; the encoder's record compress.c's; the swapchain
 // image is swapchain.c's; the
 // allocated image, the target and the target slot are target.c's; and
 // voe_render_frame is one frame slot, frame.c's, holding a target and buffers.
@@ -390,6 +390,19 @@ struct voe_render_bounce_shadow {
 	VkImageView layers[VOE_RENDER_DIRECTIONAL_LIGHTS];
 	voe_math_float4x4 light[VOE_RENDER_DIRECTIONAL_LIGHTS];
 	bool drawn[VOE_RENDER_DIRECTIONAL_LIGHTS];
+};
+
+// The texture encoder's part of the device, compress.c's (ADR-0486 point 2): the
+// set layout of a job's two storage buffers, the pipeline layout with the
+// level's push block, the bc7 and bc5 pipelines, all VK_NULL_HANDLE until the
+// first start; and how many jobs are started and not finished. Each job brings
+// its own descriptor pool.
+struct voe_render_compress {
+	VkDescriptorSetLayout set_layout;
+	VkPipelineLayout layout;
+	VkPipeline bc7;
+	VkPipeline bc5;
+	uint32_t live;
 };
 
 // bounce_relight.slang's struct relight_record at binding 11, std140: one

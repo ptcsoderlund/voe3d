@@ -12,7 +12,7 @@ module's promises from outside.
   wrong, and on a second struct proving every rank from 0 to 7. Its header says
   why the switch is turned on inside the test.
 - `report.c` — each level's word, the line's shape with and without subjects,
-  the kept first error, and the cut exactly at the capacity; its header says
+  the kept first error and the keep, and the cut exactly at the capacity; its header says
   why the boundary is the test.
 - `samples.c` — that an empty run reads as noughts, that the average and the
   worst are over exactly what was added, and that a reset does not leave the
