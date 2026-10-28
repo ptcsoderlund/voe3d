@@ -15,7 +15,7 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **assets** — glTF, images, WAV, fonts, landscapes, materials, sectioned text to CPU data; JSON.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text read and written, paths followed; cooked to C.
-- **render** — all of Vulkan: card, mips, GPU BC, heights, timed passes, light, bounce, sky, haze, tone.
+- **render** — Vulkan: card, mips, GPU BC, heights, timed passes, light, bounce, sky, haze, tone.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
@@ -30,10 +30,10 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **engine_assets** — the human's logo and input material; not code; agents read, link, never write.
 
 ## Decisions in force
-- 0001, 0004, 0005, 0008, 0021, 0023, 0026, 0028, 0031, 0042, 0047, 0213 — Static CMake folders; tools; CTest.
+- 0001, 0004, 0005, 0008, 0021, 0023, 0026, 0028, 0031, 0042, 0047, 0213 — Static CMake folders; CTest.
 - 0007, 0011, 0013, 0017 — The scene is an ECS; a component and its system are one module.
 - 0014, 0029, 0032, 0034, 0041 — Naming carries the namespace; memory is arenas; failure is a value.
-- 0022, 0121, 0135, 0151, 0174–0177, 0208–0211 — The folder map; leaves; a new folder registers itself.
+- 0022, 0121, 0135, 0151, 0174–0177, 0208–0211 — The folder map; leaves; new folders register.
 - 0033, 0035, 0250 — +Y up −Z forward, reversed depth; double positions, camera-relative on the GPU.
 - 0015, 0040, 0046 — Vulkan without an SDK; shaders in Slang, compiled at build time and embedded.
 - 0113, 0120, 0130, 0133, 0173 — A change owns what it breaks; Linux verifies; a folder has a `.md`.
