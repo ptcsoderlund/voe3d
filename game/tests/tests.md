@@ -11,5 +11,6 @@
 - `models.c` — the model loader on real files: models, pictures, water, progress, landscapes, materials, a broken map's path kept, layers, parts, foliage kinds and copies at their base size, and a row's landscape's kinds in one update; skips without a graphics card.
 - `models_levels.c` — a `.glb`'s levels file and the `.parts` count and swaps it is made with, prepared and reloaded, its swaps patched without a remake, its triangle counts per level, and a broken `.glb` kept failed with no levels file; skips without a graphics card.
 - `models_cooked.c` — a `.glb`'s and a map's cooked copies, BC7 or BC5: written by the loader's calls, kept when fresh, made again on a change, trusted by the game's, queued and written by the queue, shown as progress, counted stale and cooked by the editor's check; skips without a card.
+- `models_batch.c` — three two-picture `.glb`s cooked in one batch of bursts under a splash give copies equal byte for byte to prepare's one at a time; skips without a graphics card.
 - `compressing.c` — the compressing queue: a 64×64 colour chain stepped until its BC7 copy is written at its stamp, a second add replacing the first, and clear leaving none waiting.
-- `glb_build.h` — the hand-built one-triangle `.glb` and the world helpers the three model tests include.
+- `glb_build.h` — the hand-built one-triangle `.glb` and the world helpers the four model tests include.

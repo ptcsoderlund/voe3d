@@ -41,3 +41,6 @@ checks start their own file; entry in `game/tests/tests.md`) passes
 `a_splash_cook_matches_one_by_one`: three `.glb`s of two pictures each (`glb_build.h`), cooked
 once with a progress and once by `voe_game_models_prepare` one at a time with none, on the
 headless device, give copies equal byte for byte.
+
+## Blocked
+A failure now happens on a burst's worker, so `voe_base_report_error_first()` (thread_local) on the calling thread stays NULL: `game/models` `broken_load` (models.c:502) and `game/models_levels` (models_levels.c:373) fail, and the editor's notice would lose its reason. Everything else is done: `game/models_cooked` and the new `game/models_batch` pass. To unblock, `base/report.h` needs a call that keeps a given text as the calling thread's first error without printing it (e.g. `voe_base_report_error_keep`). Then each task clears its own first error, copies it into its record when it fails, and the caller keeps the first failing record's text in order at the put and fold.

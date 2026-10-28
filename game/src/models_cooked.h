@@ -7,7 +7,7 @@
 //             voe_game_models_cooked_key(folder, path, stamp, arena);
 //     prepared = voe_game_models_cooked_take(folder, path, key, true, arena);
 //     if (prepared == NULL)
-//             ... // parse, LODs, decode and bake, then
+//             ... // parse, LODs, decode and mip by kind, bake, then
 //             voe_game_models_cooked_save(folder, path, prepared, &model,
 //                                         key, device, arena);
 //
@@ -40,8 +40,8 @@
 //
 // Constraints: a take reads the whole copy onto the caller's arena, the
 // prepare's arrays or the map's pixels pointing into it, so the arena must
-// outlive the put. A save pushes each chain, then its blocks and the copy, a
-// quarter of the chain each: about twice the pictures' RGBA8 bytes.
+// outlive the put. A save is handed each chain and pushes its blocks and the
+// copy, a quarter of the chain each.
 // Neither says a line for a copy that is missing or broken; a failed write
 // is one line on stderr.
 #pragma once
@@ -76,8 +76,9 @@ const char *voe_game_models_parts_file(const char *folder, const char *path,
 				       voe_base_arena *arena);
 
 // Makes `<folder>/Cache`, `cache` (one folder under it) and each folder of the
-// `/`-separated `path` under `cache`, every one only when absent. False,
-// `error` set, when one could not be made.
+// `/`-separated `path` under `cache`, every one only when absent; one another
+// thread made between the look and the make counts as made. False, `error`
+// set, when one could not be made.
 [[nodiscard]] bool voe_game_models_folders_make(const char *folder,
 						const char *cache,
 						const char *path,
@@ -112,7 +113,8 @@ voe_assets_image voe_game_models_compress(voe_render_device *device,
 					  voe_base_arena *arena);
 
 // `prepared`, baked from `model` (whose pictures 3d keeps opaque), each of
-// those decoded pictures mipped by its kind and compressed on `device`, made
+// those pictures, already mipped by its kind (voe_3d_model_cooked_kind),
+// compressed on `device`, made
 // a copy keyed `key` on `arena` and written atomically with its folders made;
 // a failed write is a line on stderr under the caller's subject. A picture
 // that would not compress leaves no copy written: 3d writes blocks alone,

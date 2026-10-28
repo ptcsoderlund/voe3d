@@ -1,7 +1,7 @@
-// A batch of model files loaded in timed phases on the calling thread (0457,
-// 0459 point 1): game/src/models.c's update, watch and reload fill one with a
-// single file at a time, prepare it and put it, and prepare one to cook its
-// copy. Internal to `game`.
+// A batch of model files loaded in timed phases, run in bursts (0457, 0487
+// points 3 and 4): game/src/models.c's update, watch and reload fill one,
+// prepare it and put it, and the public prepare and the cook prepare one to
+// cook copies. Internal to `game`.
 //
 //     voe_game_models_batch *batch = voe_game_models_batch_new(
 //             folder, 1, VOE_GAME_MODELS_COOK_STALE, device, progress);
@@ -18,18 +18,21 @@
 // whatever its stamp; read, it gets an arena of its own, and each picture of
 // its `.glb` one more, all destroyed after its put.
 //
-// THE PHASES run in order on the calling thread, each one's tasks index by
-// index, each under its file's path as the subject: reading (stamp; a
-// `.glb`'s cooked copy taken, prepared then, or the bytes, all skipped at the
-// known stamp unless forced), parsing (the `.glb`, pictures left encoded),
-// making LODs (its levels file read, or made and written), decoding pictures
-// (one task a picture), baking (3d's prepare), and after them cooking (the
-// copy compressed on the batch's device, on the calling thread, and written,
-// as the batch's mode says: models_cooked.h). No store is touched in them,
-// nor the device before cooking; a `.landscape` or picture path is only read,
-// and loaded whole at its put. The progress, when given, shows a file's phase
-// from its reading: "Preparing models" when it will be cooked, "Compressing
-// textures" from its cooking on, else "Loading models".
+// THE PHASES run in order, each up to baking one burst (platform/burst.h) on
+// voe_platform_burst_workers(progress given) workers, every file's or
+// picture's task at once, each under its file's path as the subject, finished
+// before the next phase: reading (stamp; a `.glb`'s cooked copy taken,
+// prepared then, or the bytes, all skipped at the known stamp unless forced),
+// parsing (the `.glb`, pictures left encoded), making LODs (its levels file
+// read, or made and written), decoding pictures (one task a picture, mipped
+// by its kind when the batch cooks), baking (3d's prepare). Then cooking, on
+// the calling thread, which owns the device (the copy compressed and written,
+// as the batch's mode says: models_cooked.h), and the put. No store is
+// touched in the bursts, nor the device; a `.landscape` or picture path is
+// only read, and loaded whole at its put. The progress, when given, is set on
+// the calling thread alone and shows a file's phase from its reading:
+// "Preparing models" when it will be cooked, "Compressing textures" from its
+// cooking on, else "Loading models".
 //
 // THE PUT, one file on the device's thread: one with no stamp, known at
 // another or not yet held, or that will not read, is kept failed at 0 with its
@@ -37,15 +40,18 @@
 // kept failed at its stamp, the cause said where it was met (0445 point 4);
 // each failure counted.
 //
-// THE TIMES are each phase's wall seconds over every batch, and the files
+// THE TIMES are each phase's wall seconds over every batch (a burst's from
+// its start to its finish), and the files
 // or copies read; their line, `game: models: <n> files in <s> s: reading <s> s, …`,
 // or the materials' with their four phases (game/src/models_materials.c),
 // goes to stderr only when a file was read, and is no report: nothing went
 // wrong.
 //
 // Constraints: the folder is kept by pointer and must outlive the batch. A
-// batch holds at most its room, its files in memory at once: the loader's
-// hold one file, so one file's arenas at a time.
+// batch holds at most its room, its files in memory at once: a splash's (an
+// update given a progress, and the cook) min(4, splash workers), every other
+// one file. So a splash batch holds up to four files' bytes, decoded and
+// mipped pictures and bakes at once, about four times one file's peak.
 #pragma once
 
 #include "models_cooked.h"
@@ -110,7 +116,8 @@ void voe_game_models_batch_add(voe_game_models_batch *batch, const char *path,
 			       uint64_t known, bool forced);
 uint32_t voe_game_models_batch_count(const voe_game_models_batch *batch);
 
-// Every phase but uploading, in order on the calling thread.
+// Every phase but uploading, in order: up to baking each a burst, waited for;
+// cooking on the calling thread.
 void voe_game_models_batch_prepare(voe_game_models_batch *batch,
 				   voe_game_models_times *times);
 

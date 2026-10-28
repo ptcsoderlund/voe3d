@@ -1,6 +1,8 @@
 // The model loader of game/include/game/models.h: the paths a call loads
-// taken one file at a time (0459 point 1), each a batch of one
-// (models_batch.h) prepared in phases on the caller and put, then the soft dot
+// taken in batches (models_batch.h), each prepared in phases run as bursts
+// and put file by file: an update given a progress holds min(4, a splash's
+// burst workers) files a batch (0487 point 3), every other call one (0459
+// point 1); then the soft dot
 // loaded when any emitter is there and the water record when any water is,
 // each failure counted and the times' line written once. An update gathers
 // the model rows' paths and the emitters' textures the store lacks, each named
@@ -8,7 +10,7 @@
 // gathered once those load, so a landscape a row names gives its kinds in the
 // same call; with a progress the distinct unread paths are counted first, a
 // row's landscape's kinds added once it loads, "Loading models" set and the
-// stop flag asked before each file, the file's own phase before its put. A
+// stop flag asked before each batch, the file's own phase before its put. A
 // full store ends an update before its next file. The watch adds every entry but landscapes and materials at
 // its stamp, read only when that changed; a reload adds its one path, forced.
 // Each call's batches cook as its mode says (models_cooked.h): an update
@@ -35,6 +37,7 @@
 #include <base/error.h>
 #include <base/report.h>
 
+#include <platform/burst.h>
 #include <platform/file.h>
 #include <platform/path.h>
 
@@ -222,12 +225,24 @@ struct models_call {
 	voe_game_models_times times;
 };
 
-// A batch of one file of `folder` for `call`, cooking as it does.
+// The files a batch of `call` holds (0487 point 3): given a progress, a
+// splash's, min(4, its workers); every other call one.
+static uint32_t call_room(const struct models_call *call)
+{
+	uint32_t workers = voe_platform_burst_workers(true);
+
+	VOE_BASE_ASSERT(call != NULL, "no call");
+	if (call->progress == NULL)
+		return 1;
+	return workers < 4 ? workers : 4;
+}
+
+// A batch of `call_room` files of `folder` for `call`, cooking as it does.
 static voe_game_models_batch *batch_of(const struct models_call *call,
 				       const char *folder)
 {
-	return voe_game_models_batch_new(folder, 1, call->cooking, call->device,
-					 call->progress);
+	return voe_game_models_batch_new(folder, call_room(call), call->cooking,
+					 call->device, call->progress);
 }
 
 // `batch` prepared on the caller, "Loading models" set first, and each file
@@ -301,8 +316,8 @@ void voe_game_models_dot_and_water(const voe_ecs_world *world,
 // No kinds: the world's own files alone.
 static const voe_game_models_kinds NO_KINDS;
 
-// Loads, one at a time, every file from the `next`th on an update reads of
-// the world's and `kinds`', the stop flag asked before each. False when the
+// Loads, a batch at a time, every file from the `next`th on an update reads
+// of the world's and `kinds`', the stop flag asked before each. False when the
 // update ends there: stopped, `*stopped` set, or the store full.
 static bool load_from(struct models_call *call, const voe_ecs_world *world,
 		      const voe_game_models_kinds *kinds, const char *folder,
@@ -319,7 +334,7 @@ static bool load_from(struct models_call *call, const voe_ecs_world *world,
 		bool any;
 
 		next = voe_game_models_update_gather(world, call->models, kinds,
-						     next, 1, batch);
+						     next, call_room(call), batch);
 		any = voe_game_models_batch_count(batch) > 0;
 		*stopped = any && voe_game_progress_stopped(call->progress);
 		// A full store said so once; the update ends.

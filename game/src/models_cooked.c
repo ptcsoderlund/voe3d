@@ -2,26 +2,30 @@
 // each its path, take and save, a model's key, and the folder and `.parts`
 // helpers the levels files share. A take asks whether the copy is there before reading it, so a missing
 // copy says nothing on stderr; a folder already there is found by a listing
-// for the same reason. Every helper pushes its paths on the arena it is given.
+// for the same reason, and one a burst's other task made meanwhile by a
+// second. Every helper pushes its paths on the arena it is given.
 //
 // The public stale and cook of game/models.h walk one list of inputs: the
 // `.glb`s of the paths given, then each table row's four maps in order. An
 // input is stale when it has a stamp and its copy's head is missing, will not
-// read or holds another key; a model is cooked through the public prepare, a
-// map read, decoded and saved here, each on scratch, rewound after it. A
-// save mips each picture and compresses it by kind (0477) on the caller's
-// device, started and waited for (0486); a map's write is its own call so a
-// chain compressed elsewhere is written the same way.
+// read or holds another key; the stale models are cooked by batches of
+// min(4, splash workers) in prepare's STALE mode (models_batch.h), a map read,
+// decoded and saved here on scratch, rewound after it. A model's save
+// compresses its pictures, mipped by kind in the batch's decoding, (0477) on
+// the caller's device, started and waited for (0486); a map's write is its own
+// call so a chain compressed elsewhere is written the same way.
 //
 // Constraints: a map is compared with every map before it to count a path and
 // kind once, a square in the table's maps; a sorted table would lift it.
 #include "models_cooked.h"
+#include "models_batch.h"
 
 #include <game/models.h>
 
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <platform/burst.h>
 #include <platform/file.h>
 #include <platform/folder.h>
 #include <platform/path.h>
@@ -68,18 +72,32 @@ const char *voe_game_models_parts_file(const char *folder, const char *path,
 	return voe_platform_path_join(arena, folder, name);
 }
 
-// Makes the folder `path` unless a listing finds one there. False, `error`
-// set, when it could not be made.
-static bool make_absent(const char *path, voe_base_arena *scratch,
-			voe_base_error *error)
+// Whether a listing finds the folder `path`. Scratch rewound.
+static bool folder_there(const char *path, voe_base_arena *scratch)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	voe_platform_folder_listing listing;
 	bool there = voe_platform_folder_list(path, scratch, &listing, NULL);
 
-	VOE_BASE_ASSERT(path != NULL, "making no folder");
+	VOE_BASE_ASSERT(path != NULL, "looking for no folder");
 	voe_base_arena_rewind(scratch, mark);
-	return there || voe_platform_folder_create(path, error);
+	return there;
+}
+
+// Makes the folder `path` unless a listing finds one there. One another
+// thread's task made between the look and the make is refused as taken and
+// found by a second listing: made, though platform said its line. False,
+// `error` set, when it could not be made.
+static bool make_absent(const char *path, voe_base_arena *scratch,
+			voe_base_error *error)
+{
+	if (folder_there(path, scratch) ||
+	    voe_platform_folder_create(path, error))
+		return true;
+	if (*error != VOE_BASE_ERROR_REFUSED || !folder_there(path, scratch))
+		return false;
+	*error = VOE_BASE_OK;
+	return true;
 }
 
 bool voe_game_models_folders_make(const char *folder, const char *cache,
@@ -286,12 +304,9 @@ void voe_game_models_cooked_save(const char *folder, const char *path,
 
 	VOE_BASE_ASSERT(pictures != NULL, "no room for the pictures");
 	for (uint32_t i = 0; i < model->image_count; i++) {
-		voe_assets_image_kind kind = voe_3d_model_cooked_kind(model, i);
-		voe_assets_image chain =
-			voe_assets_image_mips(arena, &model->images[i], kind);
-
-		pictures[i] =
-			voe_game_models_compress(device, &chain, kind, arena);
+		pictures[i] = voe_game_models_compress(
+			device, &model->images[i],
+			voe_3d_model_cooked_kind(model, i), arena);
 		// Render said why; 3d lays out blocks alone.
 		if (pictures[i].format == VOE_ASSETS_IMAGE_RGBA8)
 			return;
@@ -479,6 +494,32 @@ unsigned voe_game_models_stale(const char *folder, const char *const *paths,
 	return total;
 }
 
+// The stale `.glb`s from `*next` on gathered into `batch`, up to its `room`;
+// one named earlier in the batch ends it, so the two never cook at once.
+static void models_gather(const struct inputs *in, uint32_t *next,
+			  uint32_t room, voe_game_models_batch *batch,
+			  voe_base_arena *scratch)
+{
+	uint32_t first = *next;
+	bool twice = false;
+	uint64_t stamp = 0;
+
+	VOE_BASE_ASSERT(in != NULL && next != NULL && batch != NULL,
+			"no inputs, next or batch");
+	for (; !twice && *next < in->path_count &&
+	       voe_game_models_batch_count(batch) < room;
+	     (*next)++) {
+		for (uint32_t j = first; !twice && j < *next; j++)
+			twice = strcmp(in->paths[j], in->paths[*next]) == 0;
+		if (twice)
+			break;
+		if (stale_at(in, *next, &stamp, scratch))
+			voe_game_models_batch_add(batch, in->paths[*next], 0,
+						  true);
+	}
+	VOE_BASE_ASSERT(*next <= in->path_count, "gathered past the paths");
+}
+
 bool voe_game_models_cook(const char *folder, const char *const *paths,
 			  uint32_t path_count, const voe_game_materials *table,
 			  voe_render_device *device, voe_base_arena *scratch,
@@ -487,29 +528,43 @@ bool voe_game_models_cook(const char *folder, const char *const *paths,
 	struct inputs in = { folder, paths, path_count, table };
 	unsigned total = voe_game_models_stale(folder, paths, path_count, table,
 					       scratch);
+	uint32_t workers = voe_platform_burst_workers(true);
+	uint32_t room = workers < 4 ? workers : 4;
+	uint32_t next = 0;
 	unsigned done = 0;
 
 	VOE_BASE_ASSERT(folder != NULL && scratch != NULL && device != NULL,
 			"no folder, scratch or device");
-	for (uint32_t i = 0; i < inputs_count(&in); i++) {
+	while (next < path_count) {
+		voe_game_models_batch *batch = voe_game_models_batch_new(
+			folder, room, VOE_GAME_MODELS_COOK_STALE, device,
+			progress);
+		voe_game_models_times times = { 0 };
+		uint32_t count;
+
+		models_gather(&in, &next, room, batch, scratch);
+		count = voe_game_models_batch_count(batch);
+		if (count > 0 && voe_game_progress_stopped(progress)) {
+			voe_game_models_batch_destroy(batch);
+			return false;
+		}
+		voe_game_progress_set(progress, "Preparing models", done, total);
+		// A `.glb` that will not read or parse is said at its cause.
+		voe_game_models_batch_prepare(batch, &times);
+		voe_game_models_batch_destroy(batch);
+		done += count;
+	}
+	for (uint32_t i = path_count; i < inputs_count(&in); i++) {
 		uint64_t stamp = 0;
-		bool made = false;
-		voe_base_error error = VOE_BASE_OK;
 
 		if (!stale_at(&in, i, &stamp, scratch))
 			continue;
 		if (voe_game_progress_stopped(progress))
 			return false;
 		voe_game_progress_set(progress, "Preparing models", done, total);
-		// A `.glb` that will not read or parse is said at its cause.
-		if (i < path_count)
-			(void)voe_game_models_prepare(folder, paths[i], device,
-						      scratch, false, &made,
-						      &error);
-		else
-			map_cook(folder, map_path(table, i - path_count),
-				 MAP_KINDS[(i - path_count) % MAPS], stamp,
-				 device, scratch);
+		map_cook(folder, map_path(table, i - path_count),
+			 MAP_KINDS[(i - path_count) % MAPS], stamp, device,
+			 scratch);
 		done++;
 	}
 	voe_game_progress_set(progress, "Preparing models", done, total);

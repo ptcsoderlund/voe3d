@@ -1,15 +1,19 @@
-// The batch of game/src/models_batch.h: its files' phases as tasks run in
-// order on the caller, their put one at a time, the times and their line; and
-// the levels file of a `.glb`, read on its arena or made and written, which
-// the public prepare shares. A file's state moves only forward, set by the
-// task of its phase or between phases: a picture's failure is its own until
-// the decoding phase is done, then folded into its file's. Every arena is
-// made with voe_base_arena_new and destroyed after the file's put or by
-// destroy, the batch's own (its files, paths and pictures) last. A `.glb`'s
-// cooked copy is taken in reading onto its file's arena and written in cooking
-// from that arena, compressed on the batch's device, as the batch's mode says
-// (models_cooked.h); the progress,
-// when given, shows each file's phase from its reading on. A `.glb`'s levels file is
+// The batch of game/src/models_batch.h: its files' phases as tasks, each phase
+// up to baking one burst (platform/burst.h, 0487 point 3) finished before the
+// next, cooking a loop on the caller, their put one at a time, the times and
+// their line; and the levels file of a `.glb`, read on its arena or made and
+// written, which the public prepare shares. A task touches only its own
+// file's or picture's record and arena and pushes its own subject on its
+// worker. A file's state moves only forward, set by the task of its phase or
+// between phases: a picture's failure is its own until the decoding phase is
+// done, then folded into its file's. Every arena is made with
+// voe_base_arena_new and destroyed after the file's put or by destroy, the
+// batch's own (its files, paths and pictures) last. A `.glb`'s cooked copy is
+// taken in reading onto its file's arena; a file to be cooked has each
+// picture mipped by its kind as it is decoded, so cooking only compresses on
+// the batch's device and writes, as the batch's mode says (models_cooked.h).
+// The progress, when given, is set by the caller alone, between bursts, with
+// each file's phase from its reading on. A `.glb`'s levels file is
 // `<folder>/Cache/levels/<path>.levels`, its folders made first when absent,
 // with the `[Levels]` of the `.parts` beside the `.glb`, the defaults when
 // there is none or it will not parse; a fresh file kept whose swaps differ
@@ -27,6 +31,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <platform/burst.h>
 #include <platform/clock.h>
 #include <platform/file.h>
 #include <platform/path.h>
@@ -324,12 +329,10 @@ uint32_t voe_game_models_batch_count(const voe_game_models_batch *batch)
 }
 
 // A `.glb`'s copy, on its arena, taken as the batch's mode allows, prepared
-// then; the file's phase "Preparing models" when it will be cooked instead,
-// and shown, its counts kept.
+// then; the file's phase "Preparing models" when it will be cooked instead.
 static void copy_take(voe_game_models_batch *batch, struct batch_file *file)
 {
 	enum voe_game_models_cooking cooking = batch->cooking;
-	voe_game_progress *progress = batch->progress;
 
 	file->key = voe_game_models_cooked_key(batch->folder, file->path,
 					       file->stamp, file->arena);
@@ -342,16 +345,13 @@ static void copy_take(voe_game_models_batch *batch, struct batch_file *file)
 		file->state = FILE_PREPARED;
 	else if (cooking != VOE_GAME_MODELS_COOK_NEVER)
 		file->phase = "Preparing models";
-	if (progress != NULL)
-		voe_game_progress_set(progress, file->phase,
-				      atomic_load(&progress->done),
-				      atomic_load(&progress->total));
 }
 
 // Reading: the stamp, then, unless the stamp is the known one and the file
 // not forced, a `.glb`'s copy or the bytes on the file's own arena.
-static void read_task(voe_game_models_batch *batch, uint32_t index)
+static void read_task(void *context, uint32_t index)
 {
+	voe_game_models_batch *batch = context;
 	struct batch_file *file = &batch->files[index];
 
 	VOE_BASE_ASSERT(index < batch->count, "reading a file past the batch");
@@ -386,9 +386,9 @@ static struct batch_file *glb_at(voe_game_models_batch *batch, uint32_t index)
 }
 
 // Parsing: the `.glb` with its pictures left encoded, and room for them.
-static void parse_task(voe_game_models_batch *batch, uint32_t index)
+static void parse_task(void *context, uint32_t index)
 {
-	struct batch_file *file = glb_at(batch, index);
+	struct batch_file *file = glb_at(context, index);
 
 	if (file == NULL)
 		return;
@@ -408,9 +408,11 @@ static void parse_task(voe_game_models_batch *batch, uint32_t index)
 			"a parse left its file elsewhere");
 }
 
-// Making LODs: the levels file read, or made and written.
-static void lods_task(voe_game_models_batch *batch, uint32_t index)
+// Making LODs: the levels file read, or made and written; its folders, made
+// by another file's task at once, count as made (models_cooked.h).
+static void lods_task(void *context, uint32_t index)
 {
+	voe_game_models_batch *batch = context;
 	struct batch_file *file = glb_at(batch, index);
 	bool made;
 
@@ -455,22 +457,30 @@ static void pictures_gather(voe_game_models_batch *batch)
 	VOE_BASE_ASSERT(at == total, "pictures gathered miscounted");
 }
 
-// Decoding pictures: one, on an arena of its own, into its file's images.
-static void decode_task(voe_game_models_batch *batch, uint32_t index)
+// Decoding pictures: one, on an arena of its own, into its file's images;
+// mipped there by its kind when the batch cooks, every file decoded being one
+// whose copy was not taken. The kind reads only the model's materials, which
+// nothing writes while the burst runs.
+static void decode_task(void *context, uint32_t index)
 {
+	voe_game_models_batch *batch = context;
 	struct batch_picture *picture = &batch->pictures[index];
 	struct batch_file *file = &batch->files[picture->file];
+	voe_assets_image *image = &file->images[picture->index];
 
 	VOE_BASE_ASSERT(index < batch->picture_count, "a picture past the batch");
 	VOE_BASE_ASSERT(file->images != NULL, "a picture with no room");
 	voe_base_report_subject_push(file->path);
 	picture->arena = voe_base_arena_new(PICTURE_BLOCK);
 	if (!voe_assets_model_decode_picture(&file->model, picture->index,
-					     picture->arena,
-					     &file->images[picture->index],
+					     picture->arena, image,
 					     &picture->error))
 		VOE_BASE_ASSERT(picture->error != VOE_BASE_OK,
 				"a refused picture with no category");
+	else if (batch->cooking != VOE_GAME_MODELS_COOK_NEVER)
+		*image = voe_assets_image_mips(
+			picture->arena, image,
+			voe_3d_model_cooked_kind(&file->model, picture->index));
 	voe_base_report_subject_pop();
 }
 
@@ -491,9 +501,9 @@ static void pictures_fold(voe_game_models_batch *batch)
 }
 
 // Baking: 3d's prepare, on the file's arena.
-static void bake_task(voe_game_models_batch *batch, uint32_t index)
+static void bake_task(void *context, uint32_t index)
 {
-	struct batch_file *file = glb_at(batch, index);
+	struct batch_file *file = glb_at(context, index);
 
 	if (file == NULL)
 		return;
@@ -506,10 +516,11 @@ static void bake_task(voe_game_models_batch *batch, uint32_t index)
 	voe_base_report_subject_pop();
 }
 
-// Cooking: a `.glb` baked here, its pictures still decoded, written as its
-// copy on its arena, unless the batch's mode writes none. The write compresses
-// every picture, minutes for a large one, so the file's phase is "Compressing
-// textures" first, and shown, its counts kept.
+// Cooking, on the caller, which owns the device: a `.glb` baked here, its
+// pictures mipped, written as its copy on its arena, unless the batch's mode
+// writes none. The write compresses every picture, minutes for a large one,
+// so the file's phase is "Compressing textures" first, and shown, its counts
+// kept.
 static void cook_task(voe_game_models_batch *batch, uint32_t index)
 {
 	struct batch_file *file = &batch->files[index];
@@ -533,34 +544,53 @@ static void cook_task(voe_game_models_batch *batch, uint32_t index)
 	voe_base_report_subject_pop();
 }
 
+// After reading, on the caller: the phase of a file that will be cooked
+// shown, its counts kept, so a splash says why the open is slow.
+static void reading_show(const voe_game_models_batch *batch)
+{
+	voe_game_progress *progress = batch->progress;
+
+	for (uint32_t i = 0; progress != NULL && i < batch->count; i++)
+		if (strcmp(batch->files[i].phase, "Loading models") != 0)
+			voe_game_progress_set(progress, batch->files[i].phase,
+					      atomic_load(&progress->done),
+					      atomic_load(&progress->total));
+}
+
 void voe_game_models_batch_prepare(voe_game_models_batch *batch,
 				   voe_game_models_times *times)
 {
-	static void (*const phases[VOE_GAME_MODELS_PHASES])(
-		voe_game_models_batch *, uint32_t) = {
-		read_task, parse_task, lods_task, decode_task, bake_task,
-		NULL, cook_task
+	static voe_platform_burst_task *const bursts[VOE_GAME_MODELS_COOKING] = {
+		read_task, parse_task, lods_task, decode_task, bake_task, NULL
 	};
+	double before;
 
 	VOE_BASE_ASSERT(batch != NULL && times != NULL, "no batch or times");
 	VOE_BASE_ASSERT(batch->count <= batch->room, "a batch past its room");
-	for (uint32_t p = 0; p < VOE_GAME_MODELS_PHASES; p++) {
-		double before = voe_platform_clock_now();
+	for (uint32_t p = 0; p < VOE_GAME_MODELS_COOKING; p++) {
 		bool decoding = p == VOE_GAME_MODELS_DECODING;
-		uint32_t tasks;
 
 		// Uploading is the put's.
-		if (phases[p] == NULL)
+		if (bursts[p] == NULL)
 			continue;
 		if (decoding)
 			pictures_gather(batch);
-		tasks = decoding ? batch->picture_count : batch->count;
-		for (uint32_t i = 0; i < tasks; i++)
-			phases[p](batch, i);
+		before = voe_platform_clock_now();
+		voe_platform_burst_finish(voe_platform_burst_start(
+			voe_platform_burst_workers(batch->progress != NULL),
+			decoding ? batch->picture_count : batch->count,
+			bursts[p], batch));
+		times->seconds[p] += voe_platform_clock_now() - before;
 		if (decoding)
 			pictures_fold(batch);
-		times->seconds[p] += voe_platform_clock_now() - before;
+		if (p == VOE_GAME_MODELS_READING)
+			reading_show(batch);
 	}
+	before = voe_platform_clock_now();
+	for (uint32_t i = 0; i < batch->count; i++)
+		cook_task(batch, i);
+	times->seconds[VOE_GAME_MODELS_COOKING] +=
+		voe_platform_clock_now() - before;
 	for (uint32_t i = 0; i < batch->count; i++)
 		times->files += batch->files[i].bytes != NULL ||
 				batch->files[i].taken;

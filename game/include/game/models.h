@@ -25,9 +25,9 @@
 // missing or stale one, remake always, watch and reload never; update_cooked
 // (the game) takes any that reads and writes a missing one; stale and cook.
 //
-// PHASES (0457, 0459 point 1): one file at a time on the caller, read, parsed,
-// its LODs made, pictures decoded, baked, uploaded and cooked; a call that read
-// one says `game: models: <n> files in <s> s: …` on stderr, each phase's time.
+// PHASES (0457, 0487 point 3): read, parse, LODs, decode and bake each one
+// burst on workers over a batch (up to four files under a splash, else one),
+// then cook and upload on the caller; `game: models: …` times each phase.
 //
 // PROGRESS (0370 point 3, 0470 point 7), NULL outside a splash wait: the paths
 // to read counted first, a row's landscape's kinds once it loads, "Preparing
@@ -44,10 +44,10 @@
 // MATERIALS come from tables (game/materials.h, 0399 point 7, 0420): each
 // loaded model takes its parts; then each shape's material, part's `wears`
 // and landscape's layer (0402 point 8) the store lacks loads at stamp 0 or
-// stays failed, one at a time, each map from its copy `Cache/pictures/<path>.
-// <colour|normal|data>` (0470 point 2) or read, decoded and cooked compressed,
-// or given a queue mipped, uploaded RGBA8 and queued (game/compressing.h, 0477
-// point 3): `game: materials: …` with its phases.
+// stays failed, one at a time, its maps as one burst (0487 point 4), each its
+// copy `Cache/pictures/<path>.<colour|normal|data>` (0470 point 2) or read,
+// decoded, mipped, then cooked on the caller, or uploaded and queued given a
+// queue (game/compressing.h, 0477 point 3): `game: materials: …`.
 // LANDSCAPES come from a table (game/landscapes.h, 0236), never a file.
 //
 // ALL RETURN how many paths failed and the first one's path, the store's own
@@ -184,10 +184,10 @@ unsigned voe_game_models_stale(const char *folder, const char *const *paths,
 			       const voe_game_materials *table,
 			       voe_base_arena *scratch);
 
-// Makes and writes every copy stale counts, one file at a time on the caller,
-// compressed on `device` from the owner's thread between frames or the one
-// other thread (0370): a `.glb` as prepare does, its levels file made when
-// missing; a map read, decoded and mipped. "Preparing models" done/total over
+// Makes and writes every copy stale counts, compressed on `device` from the
+// owner's thread between frames or the one other thread (0370): the `.glb`s
+// up to four at once as prepare does, its levels file made when missing; a
+// map read, decoded and mipped. "Preparing models" done/total over
 // that count goes into `progress` (NULL for none). A file that will not read
 // or parse is a line at its cause and skipped. Scratch rewound. False only
 // when the progress asked to stop, before the next file.
