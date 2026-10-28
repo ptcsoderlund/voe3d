@@ -14,8 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// The same plate, padding and gaps project_panel.c's panel uses. Millimetres.
-#define LANDSCAPE_PANEL_PAD (3.0f * VOE_EDITOR_SPACING)
+// The gap project_panel.c's panel uses. Millimetres.
 #define LANDSCAPE_PANEL_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // What one millimetre of drag across the size box is worth, in metres, and
@@ -94,9 +93,8 @@ static voe_ui_node number_row(voe_ui_context *ui, const char *label,
 	return box;
 }
 
-void voe_editor_landscape_panel_draw(voe_ui_context *ui,
-				     voe_editor_landscape_panel *panel,
-				     float top, voe_math_float2 surface)
+void voe_editor_landscape_panel_contents_draw(voe_ui_context *ui,
+					      voe_editor_landscape_panel *panel)
 {
 	float shown;
 	float cells_shown;
@@ -109,31 +107,11 @@ void voe_editor_landscape_panel_draw(voe_ui_context *ui,
 	cells_shown = panel->cells_dragging ? panel->cells_dragged :
 					      (float)panel->cells;
 
-	// Anchored exactly as project_panel.c's panel is.
-	voe_ui_panel_begin(
-		ui, "landscape", 0, VOE_UI_SURFACE_RAISED,
-		(voe_ui_container){
-			.across = VOE_UI_ACROSS_FILL,
-			.gap = LANDSCAPE_PANEL_GAP,
-			.pad = { LANDSCAPE_PANEL_PAD, LANDSCAPE_PANEL_PAD,
-				 LANDSCAPE_PANEL_PAD, LANDSCAPE_PANEL_PAD },
-			.anchor = { .anchored = true,
-				    .x = { VOE_UI_ACROSS_FILL, 0.0f },
-				    .y = { VOE_UI_ACROSS_START, top } },
-			.size = { .across = { VOE_UI_SIZE_FIXED, surface.y } } });
-
-	// The title and the file's name at the left, the × at the right.
-	voe_ui_row_begin(ui, (voe_ui_container){ .along = VOE_UI_ALONG_SPREAD,
-						 .across = VOE_UI_ACROSS_CENTER });
+	// The file's name first: the dock's header says only "Landscape".
 	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
 						 .gap = LANDSCAPE_PANEL_GAP });
-	voe_ui_label(ui, "Landscape");
 	voe_ui_label(ui, voe_platform_path_name(panel->path));
-	voe_ui_end(ui); // title and name
-	panel->close_button = voe_ui_button_begin(ui, "close", 0);
-	voe_ui_label(ui, "×");
-	voe_ui_end(ui); // × button
-	voe_ui_end(ui); // title row
+	voe_ui_end(ui); // name row
 
 	panel->size_box = number_row(ui, "Size (m)", "size", shown,
 				     LANDSCAPE_PANEL_STEP, size_rounded,
@@ -143,7 +121,9 @@ void voe_editor_landscape_panel_draw(voe_ui_context *ui,
 				      panel->cells_text,
 				      sizeof panel->cells_text);
 
-	voe_ui_end(ui); // panel
+	VOE_BASE_ASSERT(panel->size_box == VOE_UI_NODE_NONE ||
+				panel->size_box != panel->cells_box,
+			"the size and cells boxes recorded as one");
 }
 
 // A drag is followed in `dragged`, unrounded so slow drags add up, and handed
@@ -194,8 +174,6 @@ voe_editor_landscape_panel_clicks_read(const voe_ui_context *ui,
 					    &panel->cells_dragged, cells_rounded),
 	};
 
-	result.closed = panel->close_button != VOE_UI_NODE_NONE &&
-			voe_ui_button_action(ui, panel->close_button).fired;
 	result.changed = result.size != panel->size ||
 			 result.cells != panel->cells;
 

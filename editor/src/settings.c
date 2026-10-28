@@ -1,8 +1,9 @@
 // `<settings>/voe3d/editor_settings`: read line by line as a key and a number
 // or a `0`/`1` flag, and written back with every other key's line kept, by
-// making the two folders above it as needed. The panel and snap halves share
-// one line read (lines_read) and one keep-other-keys write (lines_write). See
-// the header for the shape of the contract.
+// making the two folders above it as needed. The panel and snap halves, and
+// settings_layout.c, share one line read (voe_editor_settings_lines_read) and
+// one keep-other-keys write (voe_editor_settings_lines_write). See the header
+// for the shape of the contract.
 #include "settings.h"
 
 #include <base/arena.h>
@@ -166,17 +167,15 @@ static char *file_text(voe_base_arena *scratch, const char *dir)
 	return (char *)voe_platform_file_read(path, scratch, &size, NULL);
 }
 
-// Hands take each line of the file that starts with one of KEYS: into, the
-// key's index and the text after the key. Nothing when there is no file.
-static void lines_read(void (*take)(void *into, size_t key, const char *rest),
-		       void *into)
+void voe_editor_settings_lines_read(void (*take)(void *into, const char *line),
+				    void *into)
 {
 	voe_base_arena *scratch;
 	char *line;
 	char *next;
-	size_t key;
 
-	VOE_BASE_ASSERT(take != NULL && into != NULL, "reading into nothing");
+	VOE_BASE_ASSERT(take != NULL, "reading lines into no taker");
+	VOE_BASE_ASSERT(into != NULL, "reading lines into nothing");
 
 	scratch = voe_base_arena_new(SETTINGS_SCRATCH);
 	for (line = file_text(scratch, settings_dir(scratch));
@@ -184,22 +183,24 @@ static void lines_read(void (*take)(void *into, size_t key, const char *rest),
 		next = line + strcspn(line, "\n");
 		if (*next == '\n')
 			*next++ = '\0';
-		key = key_of(line);
-		if (key != KEY_COUNT)
-			take(into, key, line + strlen(KEYS[key]));
+		take(into, line);
 	}
 	voe_base_arena_destroy(scratch);
 }
 
-// One panel line into the voe_editor_settings at into; snap lines are not its.
-static void panel_take(void *into, size_t key, const char *rest)
+// One panel line into the voe_editor_settings at into; snap lines and other
+// keys' are not its.
+static void panel_take(void *into, const char *line)
 {
 	voe_editor_settings *settings = into;
+	size_t key = key_of(line);
+	const char *rest;
 	double value;
 	int open;
 
 	if (key >= KEY_SNAP)
 		return;
+	rest = line + strlen(KEYS[key]);
 	if (key >= KEY_FIRST_FLAG) {
 		open = flag_value(rest);
 		if (open >= 0)
@@ -217,18 +218,22 @@ static void panel_take(void *into, size_t key, const char *rest)
 void voe_editor_settings_read(voe_editor_settings *settings)
 {
 	VOE_BASE_ASSERT(settings != NULL, "reading settings into nothing");
-	lines_read(panel_take, settings);
+	voe_editor_settings_lines_read(panel_take, settings);
 }
 
-// One snap line into the voe_editor_snap at into; panel lines are not its.
-static void snap_take(void *into, size_t key, const char *rest)
+// One snap line into the voe_editor_snap at into; panel lines and other keys'
+// are not its.
+static void snap_take(void *into, const char *line)
 {
 	voe_editor_snap *snap = into;
+	size_t key = key_of(line);
+	const char *rest;
 	double value;
 	int on;
 
-	if (key < KEY_SNAP)
+	if (key < KEY_SNAP || key == KEY_COUNT)
 		return;
+	rest = line + strlen(KEYS[key]);
 	if (key == KEY_SNAP) {
 		on = flag_value(rest);
 		if (on >= 0)
@@ -246,7 +251,7 @@ voe_editor_snap voe_editor_settings_snap_read(void)
 				 .rotate = VOE_EDITOR_SNAP_ROTATE,
 				 .scale = VOE_EDITOR_SNAP_SCALE };
 
-	lines_read(snap_take, &snap);
+	voe_editor_settings_lines_read(snap_take, &snap);
 	VOE_BASE_ASSERT(snap.move > 0.0f && snap.rotate > 0.0f &&
 				snap.scale > 0.0f,
 			"a snap step read out of range");
@@ -264,11 +269,8 @@ static bool ensure_folder(const char *path, voe_base_arena *scratch)
 	return voe_platform_folder_create(path, &error);
 }
 
-// Re-reads the file, keeps every line whose key is not one of KEYS[first] to
-// KEYS[end - 1], in its order, and writes own's used bytes after them,
-// making the two folders first. False on any failure, which the caller
-// reports.
-static bool lines_write(size_t first, size_t end, const char *own, size_t used)
+bool voe_editor_settings_lines_write(bool (*own_line)(const char *line),
+				     const char *own, size_t used)
 {
 	voe_base_arena *scratch;
 	const char *dir;
@@ -278,11 +280,10 @@ static bool lines_write(size_t first, size_t end, const char *own, size_t used)
 	char *text;
 	size_t kept = 0;
 	size_t length;
-	size_t key;
 	bool ok = false;
 
-	VOE_BASE_ASSERT(first < end && end <= KEY_COUNT && own != NULL,
-			"writing no keys");
+	VOE_BASE_ASSERT(own_line != NULL, "writing lines with no test of whose");
+	VOE_BASE_ASSERT(own != NULL, "writing no lines");
 
 	scratch = voe_base_arena_new(SETTINGS_SCRATCH);
 	dir = settings_dir(scratch);
@@ -297,8 +298,9 @@ static bool lines_write(size_t first, size_t end, const char *own, size_t used)
 			length = strcspn(line, "\n");
 			next = line[length] == '\n' ? line + length + 1 :
 						      line + length;
-			key = key_of(line);
-			if (length == 0 || (key >= first && key < end))
+			// Cut, so the test reads this line and not the next.
+			line[length] = '\0';
+			if (length == 0 || own_line(line))
 				continue;
 			memcpy(text + kept, line, length);
 			kept += length;
@@ -311,6 +313,20 @@ static bool lines_write(size_t first, size_t end, const char *own, size_t used)
 	}
 	voe_base_arena_destroy(scratch);
 	return ok;
+}
+
+// Whether a line is one of the panel keys', which the panel write replaces.
+static bool panel_line(const char *line)
+{
+	return key_of(line) < KEY_SNAP;
+}
+
+// Whether a line is one of the snap keys', which the snap write replaces.
+static bool snap_line(const char *line)
+{
+	const size_t key = key_of(line);
+
+	return key >= KEY_SNAP && key < KEY_COUNT;
 }
 
 bool voe_editor_settings_write(const voe_editor_settings *settings)
@@ -334,7 +350,7 @@ bool voe_editor_settings_write(const voe_editor_settings *settings)
 		used += (size_t)snprintf(own + used, sizeof own - used,
 					 "%s %d\n", KEYS[key],
 					 *flag(&copy, key) ? 1 : 0);
-	ok = lines_write(0, KEY_SNAP, own, used);
+	ok = voe_editor_settings_lines_write(panel_line, own, used);
 
 	if (!ok)
 		VOE_BASE_ERROR("editor",
@@ -361,7 +377,7 @@ bool voe_editor_settings_snap_write(const voe_editor_snap *snap)
 		used += (size_t)snprintf(own + used, sizeof own - used,
 					 "%s %.3f\n", KEYS[key],
 					 (double)*step(&copy, key));
-	ok = lines_write(KEY_SNAP, KEY_COUNT, own, used);
+	ok = voe_editor_settings_lines_write(snap_line, own, used);
 
 	if (!ok)
 		VOE_BASE_ERROR("editor",

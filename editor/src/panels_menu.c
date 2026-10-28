@@ -46,7 +46,7 @@ void voe_editor_panels_menu_draw(voe_ui_context *ui, voe_editor_panels_menu *men
 	voe_ui_size row_wide = { VOE_UI_SIZE_NATURAL, 0.0f };
 	if (menu->rows_wide > 0.0f)
 		row_wide = (voe_ui_size){ VOE_UI_SIZE_FIXED, menu->rows_wide };
-	for (uint32_t i = 0; i < VOE_EDITOR_CLOSABLE_COUNT; i++) {
+	for (uint32_t i = 0; i < VOE_EDITOR_CLOSABLE_LISTED; i++) {
 		menu->rows[i] = voe_ui_button_begin(ui, "panels menu row", i);
 		menu->names[i] = voe_ui_row_begin(
 			ui, (voe_ui_container){ .size = { .along = row_wide },
@@ -83,20 +83,21 @@ voe_editor_closable voe_editor_panels_menu_read(const voe_ui_context *ui,
 	*over = menu->panel != VOE_UI_NODE_NONE &&
 		voe_editor_inspector_rect_contains(
 			voe_ui_node_visible(ui, menu->panel), at);
-	for (uint32_t i = 0; i < VOE_EDITOR_CLOSABLE_COUNT; i++)
+	for (uint32_t i = 0; i < VOE_EDITOR_CLOSABLE_LISTED; i++)
 		if (fired == VOE_EDITOR_CLOSABLE_COUNT &&
 		    menu->rows[i] != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, menu->rows[i]).fired)
 			fired = (voe_editor_closable)i;
 	// The measured content ignores the row's own FIXED width (layout.h), so
 	// a longer name widens the next frame and nothing ratchets.
-	for (uint32_t i = 0; i < VOE_EDITOR_CLOSABLE_COUNT; i++)
+	for (uint32_t i = 0; i < VOE_EDITOR_CLOSABLE_LISTED; i++)
 		if (menu->names[i] != VOE_UI_NODE_NONE &&
 		    voe_ui_node_measured(ui, menu->names[i]).x > wide)
 			wide = voe_ui_node_measured(ui, menu->names[i]).x;
 	menu->rows_wide = wide;
 
-	VOE_BASE_ASSERT(fired <= VOE_EDITOR_CLOSABLE_COUNT,
-			"a Panels row past the closables");
+	VOE_BASE_ASSERT(fired < VOE_EDITOR_CLOSABLE_LISTED ||
+				fired == VOE_EDITOR_CLOSABLE_COUNT,
+			"a Panels row past the listed closables");
 	return fired;
 }

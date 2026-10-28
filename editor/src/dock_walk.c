@@ -25,8 +25,17 @@
 // read correctly either way, the row's own included.
 //
 // EVERY CLOSABLE LEAF STARTS WITH A HEADER ROW (0363 point 2): its name at the
-// left, an × at the right, recorded in the caller's voe_editor_dock_closes.
-// The top view has none; it never closes.
+// left, an × at the right, the row and the × recorded in the caller's
+// voe_editor_dock_closes. The top view has none; it never closes.
+//
+// FLOATING BOXES ARE DRAWN AFTER THE TREE, IN THE SAME ROW (0491 point 3):
+// each floating closable not closed, lowest `raised` first so the last paints
+// on top, an anchored raised panel at voe_editor_dock_float_shown less the
+// area's top left, holding the header and scroll area a leaf has.
+//
+// WHILE A PANEL IS DRAGGED, ITS DROP IS OUTLINED LAST IN THE ROW (0491 point
+// 4): the root's `outline` as four anchored strips of the lit seam's two
+// stripes, over the tree and every floating box, nothing filled, no pointer.
 //
 // A SCENE VIEW'S PANEL HAS NO PADDING, AND ITS PICTURE TAKES ALL BUT THE
 // HEADER. The rectangle the picture came to is what the view's target is sized
@@ -98,6 +107,14 @@ static const char *panel_key(voe_editor_panel panel)
 		return "scene_view";
 	case VOE_EDITOR_PANEL_ASSETS:
 		return "assets";
+	case VOE_EDITOR_PANEL_FRAME:
+		return "frame";
+	case VOE_EDITOR_PANEL_PROJECT:
+		return "project";
+	case VOE_EDITOR_PANEL_ERRORS:
+		return "errors";
+	case VOE_EDITOR_PANEL_LANDSCAPE:
+		return "landscape";
 	case VOE_EDITOR_PANEL_COUNT:
 		break;
 	}
@@ -106,9 +123,33 @@ static const char *panel_key(voe_editor_panel panel)
 	return "";
 }
 
+// The lit seam's two stripes in `box`, a row for ROW and a column else, each
+// half of VOE_EDITOR_DOCK_SEAM along it: `inverse_ink` first, then `inverse`
+// (0231, 0232).
+static void stripes_draw(voe_ui_context *ui, voe_editor_dock_axis axis,
+			 const voe_ui_theme *palette, voe_ui_container box)
+{
+	voe_ui_sizing stripe = { .along = { VOE_UI_SIZE_FIXED,
+					    VOE_EDITOR_DOCK_SEAM / 2.0f } };
+	voe_math_float4 dark = palette->inverse_ink;
+	voe_math_float4 light = palette->inverse;
+
+	VOE_BASE_ASSERT(ui != NULL, "drawing stripes into no interface");
+	VOE_BASE_ASSERT(palette != NULL, "drawing stripes with no palette");
+
+	if (axis == VOE_EDITOR_DOCK_ROW)
+		voe_ui_row_begin(ui, box);
+	else
+		voe_ui_column_begin(ui, box);
+	voe_ui_swatch(ui, (voe_math_float3){ dark.x, dark.y, dark.z }, stripe);
+	voe_ui_swatch(ui, (voe_math_float3){ light.x, light.y, light.z },
+		      stripe);
+	voe_ui_end(ui);
+}
+
 // A split's seam, VOE_EDITOR_DOCK_SEAM along it and filling across. Not lit,
-// one fill of `border`; lit, two stripes each half of it: the first child's
-// side `inverse_ink`, the second's `inverse` (0231, 0232).
+// one fill of `border`; lit, the two stripes, the first child's side
+// `inverse_ink`, the second's `inverse`.
 static void seam_draw(voe_ui_context *ui, voe_editor_dock_axis axis,
 		      const voe_ui_theme *palette, bool lit)
 {
@@ -116,31 +157,61 @@ static void seam_draw(voe_ui_context *ui, voe_editor_dock_axis axis,
 		.size = { .along = { VOE_UI_SIZE_FIXED, VOE_EDITOR_DOCK_SEAM } },
 		.across = VOE_UI_ACROSS_FILL
 	};
-	voe_ui_sizing stripe = { .along = { VOE_UI_SIZE_FIXED,
-					    VOE_EDITOR_DOCK_SEAM / 2.0f } };
 	voe_ui_sizing whole = { .along = { VOE_UI_SIZE_FIXED,
 					   VOE_EDITOR_DOCK_SEAM } };
-	voe_math_float4 dark = palette->inverse_ink;
-	voe_math_float4 light = palette->inverse;
 	voe_math_float4 rest = palette->border;
 
 	VOE_BASE_ASSERT(ui != NULL, "drawing a seam into no interface");
 	VOE_BASE_ASSERT(palette != NULL, "drawing a seam with no palette");
 
+	if (lit) {
+		stripes_draw(ui, axis, palette, box);
+		return;
+	}
 	if (axis == VOE_EDITOR_DOCK_ROW)
 		voe_ui_row_begin(ui, box);
 	else
 		voe_ui_column_begin(ui, box);
-	if (lit) {
-		voe_ui_swatch(ui, (voe_math_float3){ dark.x, dark.y, dark.z },
-			      stripe);
-		voe_ui_swatch(ui, (voe_math_float3){ light.x, light.y, light.z },
-			      stripe);
-	} else {
-		voe_ui_swatch(ui, (voe_math_float3){ rest.x, rest.y, rest.z },
-			      whole);
-	}
+	voe_ui_swatch(ui, (voe_math_float3){ rest.x, rest.y, rest.z }, whole);
 	voe_ui_end(ui);
+}
+
+// The drop outline: four anchored strips along `r`'s edges, `r` from the top
+// left of the walk's row, each the lit seam's two stripes across it. Nothing
+// inside is filled and no strip takes the pointer. An anchored child's size is
+// read as x and y (ui/layout.h).
+static void outline_draw(voe_ui_context *ui, const voe_ui_theme *palette,
+			 voe_ui_rect r)
+{
+	const float s = VOE_EDITOR_DOCK_SEAM;
+	const struct {
+		voe_editor_dock_axis axis;
+		voe_ui_rect at;
+	} strips[4] = {
+		{ VOE_EDITOR_DOCK_ROW, { r.min, { s, r.size.y } } },
+		{ VOE_EDITOR_DOCK_ROW,
+		  { { r.min.x + r.size.x - s, r.min.y }, { s, r.size.y } } },
+		{ VOE_EDITOR_DOCK_COLUMN, { r.min, { r.size.x, s } } },
+		{ VOE_EDITOR_DOCK_COLUMN,
+		  { { r.min.x, r.min.y + r.size.y - s }, { r.size.x, s } } },
+	};
+
+	VOE_BASE_ASSERT(r.size.x >= 0.0f && r.size.y >= 0.0f,
+			"an outline of negative size");
+	for (uint32_t i = 0; i < 4; i++)
+		stripes_draw(
+			ui, strips[i].axis, palette,
+			(voe_ui_container){
+				.size = { .along = { VOE_UI_SIZE_FIXED,
+						     strips[i].at.size.x },
+					  .across = { VOE_UI_SIZE_FIXED,
+						      strips[i].at.size.y } },
+				.across = VOE_UI_ACROSS_FILL,
+				.anchor = { .anchored = true,
+					    .x = { VOE_UI_ACROSS_START,
+						   strips[i].at.min.x },
+					    .y = { VOE_UI_ACROSS_START,
+						   strips[i].at.min.y } } });
 }
 
 // A closable leaf's header: its name at the left and its × at the right,
@@ -151,20 +222,56 @@ static void header_draw(voe_ui_context *ui, voe_editor_closable which,
 {
 	float side = picture ? PANEL_PAD : 0.0f;
 
-	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_DOCKED,
-			"a header on a leaf that is not a closable dock panel");
+	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_COUNT,
+			"a header on a panel that is not closable");
 	VOE_BASE_ASSERT(closes != NULL, "a header with nowhere to record its ×");
 
-	voe_ui_row_begin(ui, (voe_ui_container){
-				     .along = VOE_UI_ALONG_SPREAD,
-				     .across = VOE_UI_ACROSS_CENTER,
-				     .pad = { side, picture ? PANEL_GAP : 0.0f,
-					      side, 0.0f } });
+	closes->header[which] = voe_ui_row_begin(
+		ui, (voe_ui_container){ .along = VOE_UI_ALONG_SPREAD,
+					.across = VOE_UI_ACROSS_CENTER,
+					.pad = { side, picture ? PANEL_GAP : 0.0f,
+						 side, 0.0f } });
 	voe_ui_label(ui, voe_editor_closable_name(which));
 	closes->close[which] = voe_ui_button_begin(ui, "close", which);
 	voe_ui_label(ui, "×");
 	voe_ui_end(ui); // button
 	voe_ui_end(ui); // row
+}
+
+// A panel that is not a scene view, under its header: one scroll area growing
+// to fill the rest, and the panel's draw in it.
+static void scrolled_draw(voe_ui_context *ui, voe_editor_panel panel,
+			  uint32_t view, const voe_ui_theme *palette,
+			  voe_editor_scene *scene, voe_editor_views *views,
+			  const voe_3d_models *store,
+			  voe_editor_dock_contents *contents)
+{
+	VOE_BASE_ASSERT(panel != VOE_EDITOR_PANEL_SCENE_VIEW,
+			"a scene view's picture drawn in a scroll area");
+
+	// Keyed by the panel and the view, exactly as the panel round it is:
+	// the area is inside that panel, so its key is already distinct from
+	// every other leaf's, and the view keeps two leaves of one kind apart
+	// the day there are two.
+	voe_ui_node area = voe_ui_scroll_begin(
+		ui, panel_key(panel), view,
+		(voe_ui_container){ .size = { .along = { VOE_UI_SIZE_GROW, 1.0f } },
+				    .across = VOE_UI_ACROSS_FILL,
+				    .gap = PANEL_GAP },
+		(voe_ui_scroll_axes){ .x = true, .y = true });
+
+	// The Inspector's open list is drawn inside this area and clipped by
+	// it, so this is the rectangle it fits itself into (ADR-0200,
+	// inspector.h).
+	if (panel == VOE_EDITOR_PANEL_INSPECTOR)
+		voe_editor_inspector_area_set(&scene->inspector, area);
+	// The Scene list's, which a reveal scrolls its row into (scene.h).
+	if (panel == VOE_EDITOR_PANEL_SCENE)
+		scene->list_area = area;
+
+	voe_editor_panel_draw(ui, panel, view, palette, scene, views, store,
+			      contents);
+	voe_ui_end(ui);
 }
 
 static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
@@ -173,6 +280,7 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		      voe_math_float2 size, uint32_t depth, uint32_t lit,
 		      const voe_ui_theme *palette, voe_editor_scene *scene,
 		      voe_editor_views *views, const voe_3d_models *store,
+		      voe_editor_dock_contents *contents,
 		      voe_editor_dock_closes *closes)
 {
 	const voe_editor_dock_node *node;
@@ -210,37 +318,13 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 		if (which != VOE_EDITOR_CLOSABLE_COUNT)
 			header_draw(ui, which, picture, closes);
 
-		if (picture) {
+		if (picture)
 			voe_editor_panel_draw(ui, node->panel, node->view,
-					      palette, scene, views, store);
-			voe_ui_end(ui);
-			return;
-		}
-
-		// Keyed by the panel and the view, exactly as the panel above
-		// is: the area is inside that panel, so its key is already
-		// distinct from every other leaf's, and the view keeps two
-		// leaves of one kind apart the day there are two.
-		voe_ui_node area = voe_ui_scroll_begin(
-			ui, panel_key(node->panel), node->view,
-			(voe_ui_container){
-				.size = { .along = { VOE_UI_SIZE_GROW, 1.0f } },
-				.across = VOE_UI_ACROSS_FILL,
-				.gap = PANEL_GAP },
-			(voe_ui_scroll_axes){ .x = true, .y = true });
-
-		// The Inspector's open list is drawn inside this area and
-		// clipped by it, so this is the rectangle it fits itself into
-		// (ADR-0200, inspector.h).
-		if (node->panel == VOE_EDITOR_PANEL_INSPECTOR)
-			voe_editor_inspector_area_set(&scene->inspector, area);
-		// The Scene list's, which a reveal scrolls its row into (scene.h).
-		if (node->panel == VOE_EDITOR_PANEL_SCENE)
-			scene->list_area = area;
-
-		voe_editor_panel_draw(ui, node->panel, node->view,
-				      palette, scene, views, store);
-		voe_ui_end(ui);
+					      palette, scene, views, store,
+					      contents);
+		else
+			scrolled_draw(ui, node->panel, node->view, palette,
+				      scene, views, store, contents);
 		voe_ui_end(ui);
 		return;
 	}
@@ -252,7 +336,7 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 			  places->nodes[node->first].laid ? node->first :
 							    node->second,
 			  parent, size, depth + 1, lit, palette, scene, views,
-			  store, closes);
+			  store, contents, closes);
 		return;
 	}
 
@@ -273,17 +357,79 @@ static void walk_node(voe_ui_context *ui, const voe_editor_dock_tree *tree,
 	}
 
 	walk_node(ui, tree, places, node->first, node->axis, head, depth + 1,
-		  lit, palette, scene, views, store, closes);
+		  lit, palette, scene, views, store, contents, closes);
 	seam_draw(ui, node->axis, palette, index == lit);
 	walk_node(ui, tree, places, node->second, node->axis, tail, depth + 1,
-		  lit, palette, scene, views, store, closes);
+		  lit, palette, scene, views, store, contents, closes);
 	voe_ui_end(ui);
+}
+
+// Every floating closable not closed, as an anchored box over the tree inside
+// the walk's row, which starts at the dock area's top left (see the header).
+// Sorted into rising `raised` by insertion: there are at most
+// VOE_EDITOR_CLOSABLE_COUNT of them.
+static void floats_draw(voe_ui_context *ui, const voe_editor_dock_root *root,
+			const voe_ui_theme *palette, voe_editor_scene *scene,
+			voe_editor_views *views, const voe_3d_models *store,
+			voe_editor_dock_contents *contents,
+			voe_editor_dock_closes *closes)
+{
+	const voe_ui_rect area = { .size = root->size };
+	voe_editor_closable order[VOE_EDITOR_CLOSABLE_COUNT];
+	uint32_t count = 0;
+
+	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++) {
+		uint32_t at;
+
+		if (!root->floats[c].floating || root->closed[c])
+			continue;
+		at = count++;
+		while (at > 0 && root->floats[order[at - 1]].raised >
+					 root->floats[c].raised) {
+			order[at] = order[at - 1];
+			at--;
+		}
+		order[at] = (voe_editor_closable)c;
+	}
+
+	for (uint32_t i = 0; i < count; i++) {
+		voe_editor_closable which = order[i];
+		voe_editor_panel panel = voe_editor_closable_panel(which);
+		voe_ui_rect shown =
+			voe_editor_dock_float_shown(&root->floats[which], area);
+
+		VOE_BASE_ASSERT(panel != VOE_EDITOR_PANEL_COUNT &&
+					panel != VOE_EDITOR_PANEL_SCENE_VIEW,
+				"a scene view floating");
+		// An anchored child's size is read as x and y (ui/layout.h).
+		voe_ui_panel_begin(
+			ui, panel_key(panel), 0, VOE_UI_SURFACE_RAISED,
+			(voe_ui_container){
+				.size = { .along = { VOE_UI_SIZE_FIXED,
+						     shown.size.x },
+					  .across = { VOE_UI_SIZE_FIXED,
+						      shown.size.y } },
+				.across = VOE_UI_ACROSS_FILL,
+				.gap = PANEL_GAP,
+				.pad = { PANEL_PAD, PANEL_PAD, PANEL_PAD,
+					 PANEL_PAD },
+				.anchor = { .anchored = true,
+					    .x = { VOE_UI_ACROSS_START,
+						   shown.min.x - area.min.x },
+					    .y = { VOE_UI_ACROSS_START,
+						   shown.min.y - area.min.y } } });
+		header_draw(ui, which, false, closes);
+		scrolled_draw(ui, panel, 0, palette, scene, views, store,
+			      contents);
+		voe_ui_end(ui);
+	}
 }
 
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
 			  const voe_ui_theme *palette, voe_editor_scene *scene,
 			  voe_editor_views *views, const voe_3d_models *store,
+			  voe_editor_dock_contents *contents,
 			  voe_editor_dock_closes *closes)
 {
 	voe_editor_dock_arrangement places;
@@ -298,10 +444,13 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 	VOE_BASE_ASSERT(views != NULL, "walking a dock root with no views");
 	VOE_BASE_ASSERT(store != NULL, "walking a dock root with no store");
 	VOE_BASE_ASSERT(closes != NULL, "walking a dock root with no closes");
+	VOE_BASE_ASSERT(contents != NULL, "walking a dock root with no contents");
 
-	// A leaf the walk does not reach draws no ×.
-	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_DOCKED; c++)
+	// A panel the walk does not draw has no header and no ×.
+	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++) {
 		closes->close[c] = VOE_UI_NODE_NONE;
+		closes->header[c] = VOE_UI_NODE_NONE;
+	}
 
 	// Last frame's rows and pictures named last frame's nodes and the arena
 	// they were in has gone. The panels record this frame's as they draw.
@@ -311,8 +460,8 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 	// sizing_in(parent, root->size) IS root->size READ IN WHATEVER AXES
 	// `parent` FLOWS IN — see the header on why this row needs that now
 	// that it is not always the frame's own root.
-	voe_editor_dock_arrange(&root->tree, root->closed,
-				(voe_ui_rect){ .size = root->size }, &places);
+	voe_editor_dock_arrange(root, (voe_ui_rect){ .size = root->size },
+				&places);
 	// A view the walk does not show keeps no rectangle, so
 	// voe_editor_views_under (view.h) cannot find it under the pointer.
 	for (uint32_t v = 0; v < views->count; v++)
@@ -323,7 +472,10 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 						 .across = VOE_UI_ACROSS_FILL });
 	walk_node(ui, &root->tree, &places, root->tree.root,
 		  VOE_EDITOR_DOCK_ROW, root->size, 0, root->lit, palette, scene,
-		  views, store, closes);
+		  views, store, contents, closes);
+	floats_draw(ui, root, palette, scene, views, store, contents, closes);
+	if (root->moving != VOE_EDITOR_CLOSABLE_COUNT)
+		outline_draw(ui, palette, root->outline);
 	voe_ui_end(ui);
 }
 
@@ -334,7 +486,7 @@ voe_editor_dock_closes_read(const voe_ui_context *ui,
 	VOE_BASE_ASSERT(ui != NULL, "reading the closes of no interface");
 	VOE_BASE_ASSERT(closes != NULL, "reading no closes");
 
-	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_DOCKED; c++)
+	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++)
 		if (closes->close[c] != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, closes->close[c]).fired)
 			return (voe_editor_closable)c;
@@ -419,10 +571,12 @@ static void scene_view_panel(voe_ui_context *ui, uint32_t view,
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 			   uint32_t view, const voe_ui_theme *palette,
 			   voe_editor_scene *scene, voe_editor_views *views,
-			   const voe_3d_models *store)
+			   const voe_3d_models *store,
+			   voe_editor_dock_contents *contents)
 {
 	VOE_BASE_ASSERT(ui != NULL, "drawing a panel into no interface");
 	VOE_BASE_ASSERT(palette != NULL, "drawing a panel with no palette");
+	VOE_BASE_ASSERT(contents != NULL, "drawing a panel with no contents");
 	VOE_BASE_ASSERT(scene != NULL, "drawing a panel with no scene");
 	VOE_BASE_ASSERT(scene->world != NULL,
 			"drawing a panel onto a scene with no world");
@@ -443,6 +597,19 @@ void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 	case VOE_EDITOR_PANEL_ASSETS:
 		voe_ui_label(ui, "Assets");
 		voe_editor_assets_draw(ui, &scene->assets);
+		return;
+	case VOE_EDITOR_PANEL_FRAME:
+		voe_editor_frame_breakdown_contents_draw(ui, contents->breakdown);
+		return;
+	case VOE_EDITOR_PANEL_PROJECT:
+		voe_editor_project_panel_contents_draw(ui, contents->project,
+						       contents->window);
+		return;
+	case VOE_EDITOR_PANEL_ERRORS:
+		voe_editor_errors_contents_draw(ui, contents->errors);
+		return;
+	case VOE_EDITOR_PANEL_LANDSCAPE:
+		voe_editor_landscape_panel_contents_draw(ui, contents->landscape);
 		return;
 	case VOE_EDITOR_PANEL_COUNT:
 		break;

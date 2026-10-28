@@ -1,8 +1,7 @@
 // The rest of interface.c's one read that is not the Assets panel's: the
 // Inspector's, the colour picker's and the Scene list's, and the commands the
 // dock's ×, the Panels list, the top bar, the browser, Preferences and the
-// Project, Landscape, Errors and frame breakdown panels fired this frame,
-// carried out. Called by voe_editor_interface_draw only, between
+// Project and Landscape panels fired this frame, carried out. Called by voe_editor_interface_draw only, between
 // voe_ui_frame_end and the arena's rewind, at the two places in its order it
 // names.
 //
@@ -17,14 +16,13 @@
 
 // Which panels the frame was built with, captured before anything was drawn so
 // a click is read against what was laid out, not what this frame's commands
-// have since shown or hidden (interface.h on `browsing`).
+// have since shown or hidden (interface.h on `browsing`). Project and
+// Landscape are the walk's, drawn while showing; their controls are read.
 typedef struct {
 	bool browsing;
-	bool erroring;
 	bool preferring;
 	bool projecting;
 	bool landscaping;
-	bool framing;
 	// The Panels list was open.
 	bool menuing;
 } voe_editor_interface_shown;
@@ -45,10 +43,11 @@ bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 				     voe_ui_node picker,
 				     const voe_editor_picking *picked);
 
-// The dock's × in `closes` and the Panels list toggle a panel on `root`, a
-// failed remember said in the notice; the bar is measured for the next frame;
-// then the browser's clicks if it was `shown`, else the bar's, then each panel
-// over the dock that was shown. `escape` is the browser's Cancel. Scratch comes
+// The dock's × in `closes`, on a leaf or a floating box, and the Panels list
+// toggle a panel on `root`, Landscape's × hiding it, a failed remember said in
+// the notice; the bar is measured for the next frame; then the browser's
+// clicks if it was `shown`, else the bar's, then Project's, Landscape's and
+// Preferences' controls when each was shown. `escape` is the browser's Cancel. Scratch comes
 // out of `arena`, which the caller rewinds.
 void voe_editor_interface_commands_read(
 	voe_ui_context *ui, voe_base_arena *arena, voe_editor_dock_root *root,

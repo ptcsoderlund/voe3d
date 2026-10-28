@@ -5,8 +5,16 @@
 // and divided into roots[0].pointer, before the views are fitted.
 //
 // WHAT IT OWNS: the fly's lock edge (`flew`), the borders at rest (`resize`,
-// resize.h) and the left press that picks (`pick`, pick.h). The gizmo and the
-// Assets drag are main.c's, because the draw reads them too.
+// resize.h), a floating box's edges (`edges`, float_edges.h), a header's drag
+// (`moving`, panel_drag.h) and the left press that picks (`pick`, pick.h).
+// The gizmo and the Assets drag are main.c's, because the draw reads them too.
+//
+// A POINTER OVER A SHOWN FLOATING BOX IS THAT PANEL'S (0491 point 6), found
+// once a frame by voe_editor_dock_float_under: no fly, seam, middle drag,
+// brush stroke or gizmo drag starts under it and nothing is picked, the views
+// handed a point under none of them so their button edges stay true; one
+// going on carries on. The Assets drag is blocked there unless the box is the
+// Assets panel's or the Inspector's, its source and its target. `ui` keeps it.
 //
 // ITS ORDER, and why the order is the point:
 // 1. The right button flies the view it went down over (view.h). A flying
@@ -15,10 +23,13 @@
 //    told whether a view flies, then F's frame of the selection in the view
 //    under the pointer (frame_selection.h); a flying view then takes `ui`'s
 //    pointer and the left button.
-// 3. The borders (resize.h): a seam is a fill the walk draws, not a widget,
-//    so they are asked before anything else that reads the left button; one
-//    they have takes `ui`'s pointer and the left button too. Then the right
-//    button's down edge over the Assets panel opens its menu (assets_menu.h).
+// 3. A floating box's edges (float_edges.h), then a header's drag
+//    (panel_drag.h), then the borders (resize.h): none is a widget, so they
+//    are asked before anything else that reads the left button, with one area
+//    and one `allowed`. The first that has the pointer takes `ui`'s pointer
+//    and the left button, its cursor shown, and those after it are not asked.
+//    Any one's end remembers the layout. Then the right button's down edge
+//    over the Assets panel opens its menu (assets_menu.h).
 // 4. The middle drag (view.h), the views' and never the interface's.
 // 5. The brush (sculpt.h): a press on the selection's ground sculpts, and
 //    while it takes the press or a stroke is held, 6 to 8 are blocked.
@@ -28,16 +39,19 @@
 // 8. The pick (pick.h), last: a press the gizmo or a drag took selects nothing.
 //
 // Constraints: the parts pointed at are main.c's and outlive the loop; only a
-// stroke allocates (sculpt.h). `flew`, `right_was`, `resize` and `pick` are
-// this file's to write; main.c sets them once in the fill and reads none.
+// stroke allocates (sculpt.h). `flew`, `right_was`, `resize`, `edges`,
+// `moving` and `pick` are this file's to write; main.c sets them once in the
+// fill and reads none.
 #pragma once
 
 #include "assets_drag.h"
 #include "dock.h"
+#include "float_edges.h"
 #include "frame_commands.h"
 #include "gizmo.h"
 #include "keys.h"
 #include "models.h"
+#include "panel_drag.h"
 #include "pick.h"
 #include "resize.h"
 #include "scene.h"
@@ -61,7 +75,6 @@ typedef struct {
 	voe_editor_scene *scene;
 	voe_editor_browser *browser;
 	voe_editor_preferences *preferences;
-	voe_editor_project_panel *project_panel;
 	voe_editor_views *views;
 	voe_editor_undo *undo;
 	voe_editor_gizmo *gizmo;
@@ -82,6 +95,12 @@ typedef struct {
 	// The borders between the root's panels, at rest; main.c fills it with
 	// `.held = UINT32_MAX` (resize.h).
 	voe_editor_resize resize;
+	// A floating box's edges held; main.c fills it with nothing held
+	// (float_edges.h).
+	voe_editor_float_edges edges;
+	// A header pressed or dragged; main.c fills it with nothing pressed and
+	// no last press (panel_drag.h).
+	voe_editor_panel_drag moving;
 	// The left press in a view that moves the selection (pick.h).
 	voe_editor_pick pick;
 } voe_editor_frame_pointer;
@@ -107,7 +126,7 @@ typedef struct {
 // What main.c reads after the call.
 typedef struct {
 	bool flying;
-	// The borders had the pointer this frame.
+	// A box's edges, a header's drag or the borders had the pointer.
 	bool taken;
 	// The keyboard `ui` is handed this frame (frame_commands.h).
 	voe_ui_keyboard keyboard;

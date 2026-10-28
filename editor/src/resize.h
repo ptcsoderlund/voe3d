@@ -20,8 +20,10 @@
 //
 // THE DOUBLE-CLICK IS TIMED HERE (ADR-0226): `platform` reports levels, not
 // clicks, so two presses on one border within VOE_EDITOR_RESIZE_DOUBLE on
-// the caller's clock put that size back to the default tree's: the views to
-// an even split (ADR-0228), the bar to fitting its content.
+// the caller's clock put that size back: the views to an even split
+// (ADR-0228), the bar to fitting its content, any other split to the default
+// tree's length for the panel it holds, found by panel and not by node, since
+// a moved tree's indices are not the default's (0491 point 8).
 //
 // Constraints: a zeroed struct remembers a press on node 0 at the clock's
 // origin, which a monotonic clock started with the machine never comes within

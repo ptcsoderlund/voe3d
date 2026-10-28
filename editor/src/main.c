@@ -417,11 +417,14 @@ int main(int argc, char *argv[])
 	reads = (voe_editor_frame_pointer){
 		.commands = &commands, .session = &session, .scene = &scene,
 		.browser = &browser, .preferences = &preferences,
-		.project_panel = &project_panel, .views = &views, .undo = &undo,
+		.views = &views, .undo = &undo,
 		.gizmo = &gizmo, .drag = &drag, .root = &roots[0], .bar = &bar,
 		.geometries = &geometries, .models = models, .scratch = arena,
 		.window = window,
-		.resize = { .held = UINT32_MAX } };
+		.resize = { .held = UINT32_MAX },
+		.edges = { .held = VOE_EDITOR_CLOSABLE_COUNT },
+		.moving = { .pressed = VOE_EDITOR_CLOSABLE_COUNT,
+			    .last = VOE_EDITOR_CLOSABLE_COUNT } };
 	waits = (voe_editor_waits){
 		.app = app, .ui = ui, .scratch = scratch,
 		.splash = splash_held ? &splash : NULL, .session = &session,
@@ -598,6 +601,14 @@ int main(int argc, char *argv[])
 			.scroll = { wheel.x * WHEEL_MILLIMETRES,
 				    wheel.y * WHEEL_MILLIMETRES }
 		};
+
+		// The four tool panels' open flags, copied from their own
+		// `showing` each frame and never remembered (dock.h, 0491).
+		roots[0].closed[VOE_EDITOR_CLOSABLE_PROJECT] = !project_panel.showing;
+		roots[0].closed[VOE_EDITOR_CLOSABLE_ERRORS] = !session.errors.showing;
+		roots[0].closed[VOE_EDITOR_CLOSABLE_FRAME] = !breakdown.showing;
+		roots[0].closed[VOE_EDITOR_CLOSABLE_LANDSCAPE] =
+			!landscape_panel.showing;
 
 		// The fly, the shortcuts, the borders, the middle drag, the
 		// brush, the gizmo, the Assets drag and the pick, in that order

@@ -24,11 +24,20 @@ carries it out.
 - `frame_commands.c` — the loop's three per-frame stretches: the history step settling an open
   material's edit, the keyboard's read with its acts, and the acts that wait for the interface to
   have drawn.
-- `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, the
-  borders, the middle drag, the brush, the gizmo, the Assets drag and the pick, and what main.c
-  reads after.
-- `frame_pointer.c` — the fly with its lock edge, the borders with their clears and remember, and
-  the brush then the three left-press readers under one shared block a stroke joins.
+- `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, a
+  floating box's edges, a header's drag then the borders, the middle drag, the brush, the gizmo,
+  the Assets drag and the pick, none starting under a floating box, and what main.c reads after.
+- `frame_pointer.c` — the fly with its lock edge, a box's edges, a header's drag and the borders
+  with their clears and remember, and the brush then the three left-press readers under one shared
+  block a stroke joins, each kept from starting under a floating box.
+- `float_edges.h` — a floating panel's box resized by its edges, two at a corner, at least
+  30 × 20 mm inside the dock area, topmost box first, the press raising it; not the seams' file.
+- `float_edges.c` — the topmost box's edge under the pointer, the raise, and the drag writing the
+  box from the area's top left.
+- `panel_drag.h` — a panel's header dragged past 1 mm to dock or float it at the drop target, a
+  double-click on a floating one docking it back, asked before the borders by last frame's headers.
+- `panel_drag.c` — the header under a press, floating boxes topmost first, the raise, the
+  double-click, the drag's target each frame and the move on release.
 - `frame_selection.h` — F: the view under the pointer glides to the selection's size from `3d`, or
   to a sizeless thing's place at a fixed 3 m, nothing saved or undone.
 - `frame_selection.c` — the selection and view checked, the bounds or world position, the distance
@@ -84,6 +93,10 @@ carries it out.
 - `settings.c` — that file read line by line as a key and a number in range, the panel and snap
   keys alike, and written back with every other key's line kept, by making the two folders above
   it as needed.
+- `settings_layout.h` — the dock tree as one line per node and each moving panel's floating box as
+  one line in `editor_settings`, read back at start unchecked (0491 point 7).
+- `settings_layout.c` — each line's words taken by a cursor, a node or float kept only when all
+  parse, and the root, nodes and floats written through settings.h's keep-other-keys write.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file, the chosen one
   remembered and re-read once a second, each derived at the editor's base text size and spacing.
 - `themes.c` — the folder listed and made, each file read and derived with the one font, the
@@ -147,31 +160,30 @@ carries it out.
   a column of its own, as an anchored panel below the button, closed by its caller.
 - `panels_menu.c` — the list's one frame of `ui` calls and the read of its rows, and whether the
   pointer is on it, afterwards.
-- `project_panel.h` — the Project panel: a title row with its ×, the game window's width and height
-  as number boxes and a Windowed / Fullscreen choice, as an anchored panel over the dock, carrying
-  out nothing.
-- `project_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
-  a number rounded and clamped to the project file's range.
-- `landscape_panel.h` — the Landscape panel: a title row with the file's name and its ×, and the
-  size and cells as number boxes written at once, never unsaved or undone, as an anchored panel over the dock,
-  carrying out nothing.
-- `landscape_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
-  a drag handed back once on release, each number rounded and clamped to the file's range.
+- `project_panel.h` — the Project panel's contents in a dock panel: the game window's width and
+  height as number boxes and a Windowed / Fullscreen choice, carrying out nothing.
+- `project_panel.c` — the contents' one frame of `ui` calls and the read of its controls
+  afterwards, a number rounded and clamped to the project file's range.
+- `landscape_panel.h` — the Landscape panel's contents in a dock panel: the file's name, and the
+  size and cells as number boxes written at once, never unsaved or undone, carrying out nothing.
+- `landscape_panel.c` — the contents' one frame of `ui` calls and the read of its controls
+  afterwards, a drag handed back once on release, each number rounded and clamped to the file's
+  range.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
 - `errors.h` — the Errors panel a failed build shows: the last 48 lines of `Build/build.log`, each
-  cut at 160 bytes, in a scroll area under a title row with its ×, as an anchored panel over the dock.
-- `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
-  calls, and the read of its × afterwards.
-- `frame_breakdown.h` — the Frame panel: each GPU pass by name with its milliseconds, the total,
-  triangles, draws, the textures' MB and how many are compressed, and each picture's drawn and
-  skipped with its shadows', copied four times a second, under a title row with its ×.
+  cut at 160 bytes, drawn as a dock panel's contents in its scroll area.
+- `errors.c` — the log read back from its end to its last lines, and the contents' one frame of
+  `ui` calls.
+- `frame_breakdown.h` — the Frame panel: each GPU pass's milliseconds, the total, triangles, draws,
+  the textures' MB and each picture's counts, copied four times a second, drawn as a dock panel's
+  contents.
 - `frame_breakdown.c` — the quarter-second copy of the pictures' counts, the textures' memory and
-  the triangle and draw counts, keeping the last times on no measurement, the panel's one frame of
-  `ui` calls, and the read of its × afterwards.
+  the triangle and draw counts, keeping the last times on no measurement, and the contents' one
+  frame of `ui` calls.
 - `frame_hitches.h` — the editor's hitch watch: its own span's CPU stretches, the pace's wait, the
   shadows' and bounce's parts and foliage gathers timed, and an `editor: hitch:` line on stderr for
   each frame stalled on the CPU or the card, saying whether a light bounced (0458, 0461, 0463).
@@ -182,14 +194,17 @@ carries it out.
   able to start beside a given folder.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
-- `dock.h` — the tree of four panels, Scene over Assets on the left, whose splits hold a side
-  panel's length or the views' share, the closable panels with a closed leaf not laid out, every
-  seam's place (the reached one lit), whether a point is over a panel, and the walk.
+- `dock.h` — the panel tree, its splits holding a side panel's length or the views' share, the
+  closable panels (a closed or floating leaf not laid), floating boxes and the one under a point,
+  last frame's headers, every seam's place, the walk, a drop, move and dock-back, a tree's check.
 - `dock.c` — the tree: the default one, the arrangement, held lengths and the views' share clamped
-  and set, which views it shows and whether a point is over a panel.
-- `dock_walk.c` — the walk to one frame of `ui` calls: its seams, each closable leaf's header of
-  name and ×, each leaf a panel and scroll area handed to its panel's draw, and each scene view's
-  camera preview.
+  and set, which views it shows, the floating box under a point, whether a point is over a panel,
+  and the check's stack walk.
+- `dock_walk.c` — the walk to one frame of `ui` calls: its seams, each closable's header of name
+  and ×, each leaf a panel and scroll area handed to its panel's draw, then each floating panel as
+  an anchored box over the tree, a dragged panel's drop outline, and each view's camera preview.
+- `dock_move.c` — a panel's rectangle, the drop target's first match with its outline, the leaf
+  taken out, the tree compacted and a split put in at the target, a float raised, and the defaults.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree, a
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
   drag parents, unparents or, onto the Assets panel, makes a prefab; a part never drags.
@@ -252,13 +267,14 @@ carries it out.
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
 - `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
   double-click timed on the caller's clock.
-- `panels.h` — the editor's panels as the person left them: the default tree started with the
-  settings file read over it, the sizes remembered back into it when a drag ends, the toggle that
-  opens or closes a dock panel, Project, Errors or the frame breakdown, and whether one is open.
-- `panels.c` — the default tree's sizes filled in, read over and set back, and the same fields
-  written through `settings.h`.
-- `interface.h` — the screen-filling surface, made in the theme it is handed, and its one draw
-  command per root.
+- `panels.h` — the editor's panels as the person left them: the kept tree if it passes its check,
+  else the default with the size keys read over it, sizes and layout remembered when a drag ends,
+  the toggle that opens or closes a panel, and whether one is open.
+- `panels.c` — the kept layout read and checked, else the default tree's sizes filled in, read over
+  and set back, and the same fields and the layout written through `settings.h` and
+  `settings_layout.h`.
+- `interface.h` — the screen-filling surface, made in the theme it is handed, its one draw
+  command per root, and the frame's budget, the walk's four tool panels in it.
 - `interface.c` — one `ui` frame per root: the dock walk, the draws over the dock, and the one read
   of its clicks as calls, in order, into the two below, the bar's snap remembered when it changed.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu
@@ -268,7 +284,7 @@ carries it out.
   Import textures opening their questions, and the Delete, levels and Import textures questions
   answered, Make's asking the prepare or, for swaps alone, a reload, Import's importing at its size.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
-  then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
+  then the ×, Panels list, top bar, browser, Preferences, Project and Landscape.
 - `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,
   the picker's submit (a material's into the field its offset names), the drop's prefab, the reveal,
   the panels' toggles, the bar's or browser's commands, the covers' reads and Preferences'.

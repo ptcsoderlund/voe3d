@@ -126,12 +126,42 @@ static void border_drag(voe_editor_dock_root *root, voe_editor_topbar *bar,
 	voe_editor_dock_split_set(&root->tree, border, places, length);
 }
 
-// A double-click: the default tree's length and fraction for that node (the
-// views back to half and half), the bar fitting.
+// The panel split `split` sizes: its held child's (the first for a FRACTION
+// split), or that child's first leaf when it is a split, as the Scene list
+// heads its column; VOE_EDITOR_PANEL_COUNT for none within DEPTH.
+static voe_editor_panel split_panel(const voe_editor_dock_tree *tree,
+				    uint32_t split)
+{
+	const voe_editor_dock_node *node;
+	uint32_t at;
+
+	VOE_BASE_ASSERT(tree != NULL, "asking a split's panel of no tree");
+	VOE_BASE_ASSERT(split < tree->count &&
+				tree->nodes[split].kind == VOE_EDITOR_DOCK_SPLIT,
+			"asking the panel of a node that is not a split");
+
+	node = &tree->nodes[split];
+	at = node->hold == VOE_EDITOR_DOCK_HOLD_SECOND ? node->second :
+							 node->first;
+	for (uint32_t depth = 0; depth < VOE_EDITOR_DOCK_DEPTH && at < tree->count;
+	     depth++) {
+		if (tree->nodes[at].kind == VOE_EDITOR_DOCK_LEAF)
+			return tree->nodes[at].panel;
+		at = tree->nodes[at].first;
+	}
+	return VOE_EDITOR_PANEL_COUNT;
+}
+
+// A double-click: the bar fitting, the views back to half and half (0228),
+// any other split to the default tree's length for the panel it holds, found
+// by panel because a moved tree's indices are not the default's (0491 point
+// 8), SIDE_WIDE for a panel the default holds none for.
 static void border_set_back(voe_editor_dock_root *root, voe_editor_topbar *bar,
+			    const voe_editor_dock_arrangement *places,
 			    uint32_t border)
 {
 	const voe_editor_dock_tree fresh = voe_editor_dock_default();
+	float length;
 
 	VOE_BASE_ASSERT(root != NULL && bar != NULL, "setting back nothing");
 	VOE_BASE_ASSERT(border != NO_BORDER, "setting back no border");
@@ -140,22 +170,31 @@ static void border_set_back(voe_editor_dock_root *root, voe_editor_topbar *bar,
 		bar->wanted = 0.0f;
 		return;
 	}
-	root->tree.nodes[border].length = fresh.nodes[border].length;
-	root->tree.nodes[border].fraction = fresh.nodes[border].fraction;
+	if (border == voe_editor_dock_views_split(&root->tree)) {
+		voe_editor_dock_view_share_set(&root->tree, 0.5);
+		return;
+	}
+	length = voe_editor_dock_panel_length(&fresh,
+					      split_panel(&root->tree, border));
+	if (length <= 0.0f)
+		length = VOE_EDITOR_DOCK_SIDE_WIDE;
+	voe_editor_dock_split_set(&root->tree, border, places, length);
 }
 
 // A press on the hovered border: the second within VOE_EDITOR_RESIZE_DOUBLE
 // on the same one sets it back and ends, any other holds it.
 static void border_press(voe_editor_resize *resize, voe_editor_dock_root *root,
-			 voe_editor_topbar *bar, float edge, uint32_t border,
-			 double now, voe_editor_resize_result *result)
+			 voe_editor_topbar *bar,
+			 const voe_editor_dock_arrangement *places, float edge,
+			 uint32_t border, double now,
+			 voe_editor_resize_result *result)
 {
 	VOE_BASE_ASSERT(resize != NULL && result != NULL, "pressing into nothing");
 	VOE_BASE_ASSERT(border != NO_BORDER, "pressing no border");
 
 	if (resize->pressed == border &&
 	    now - resize->pressed_at < VOE_EDITOR_RESIZE_DOUBLE) {
-		border_set_back(root, bar, border);
+		border_set_back(root, bar, places, border);
 		resize->pressed = NO_BORDER;
 		result->ended = true;
 		return;
@@ -187,7 +226,7 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 	pointer = root->pointer;
 	high = voe_editor_topbar_high(bar, root->size.y);
 	voe_editor_dock_arrange(
-		&root->tree, root->closed,
+		root,
 		(voe_ui_rect){ .min = { 0.0f, high },
 			       .size = { root->size.x, root->size.y - high } },
 		&places);
@@ -205,7 +244,7 @@ voe_editor_resize_result voe_editor_resize_frame(voe_editor_resize *resize,
 	} else if (allowed && pointer.over && !resize->was_down) {
 		border = border_under(root, &places, high, pointer.at);
 		if (border != NO_BORDER && pointer.down)
-			border_press(resize, root, bar,
+			border_press(resize, root, bar, &places,
 				     border_edge(&root->tree, &places, border,
 						 high),
 				     border, now, &result);

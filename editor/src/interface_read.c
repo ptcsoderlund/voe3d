@@ -1,8 +1,8 @@
 // The commands interface.c's one read carries out that are not the Assets
 // panel's; see interface_read.h for when each is called and why it is apart.
 //
-// THE TOP BAR'S, THE BROWSER'S, PREFERENCES' AND THE ERRORS PANEL'S CLICKS
-// ARE COMMANDS CARRIED OUT HERE, through voe_editor_session_do and
+// THE TOP BAR'S, THE BROWSER'S AND PREFERENCES' CLICKS ARE COMMANDS CARRIED
+// OUT HERE, through voe_editor_session_do and
 // voe_editor_session_browser_do, because the window between voe_ui_frame_end
 // and the rewind is the only place topbar.h's and browser.h's recorded buttons
 // can be asked. Only one of the two is ever read in a given frame — see
@@ -28,10 +28,9 @@
 // THE TOP BAR'S PANELS LIST (panels_menu.h) is read here: Panels flips it, a
 // fired row goes through panels.h's voe_editor_panels_toggle and closes it, as
 // does a press off the list and Panels. A fired panel header's × goes through
-// the same toggle on its root.
+// the same toggle on its root, Landscape's hiding it instead.
 #include "interface_read.h"
 
-#include "errors.h"
 #include "inspector.h"
 #include "inspector_brush.h"
 #include "inspector_edit.h"
@@ -173,14 +172,16 @@ bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 }
 
 // A fired × closes its panel on this root, laid out so from the next frame,
-// and remembers it as a drag's end does (main.c). A row of the Panels list
-// fired is toggled the same way and closes the list; so does a press off the
-// list and Panels.
+// and remembers it as a drag's end does (main.c); Project's, Errors' and
+// Frame's hide theirs through the same toggle, Landscape's hides it. A row of
+// the Panels list fired is toggled the same way and closes the list; so does
+// a press off the list and Panels.
 static void voe_editor_interface_panels_read(
 	voe_ui_context *ui, voe_editor_dock_root *root,
 	const voe_editor_dock_closes *closes, voe_editor_session *session,
 	voe_editor_topbar *bar, voe_editor_preferences *preferences,
 	voe_editor_project_panel *project_panel,
+	voe_editor_landscape_panel *landscape_panel,
 	voe_editor_frame_breakdown *breakdown, bool menuing)
 {
 	voe_editor_closable fired = voe_editor_dock_closes_read(ui, closes);
@@ -188,7 +189,7 @@ static void voe_editor_interface_panels_read(
 	VOE_BASE_ASSERT(root != NULL && session != NULL && bar != NULL,
 			"reading the panels with no root, session or bar");
 	VOE_BASE_ASSERT(preferences != NULL && project_panel != NULL &&
-				breakdown != NULL,
+				landscape_panel != NULL && breakdown != NULL,
 			"reading the panels with a panel missing");
 	if (menuing) {
 		bool over;
@@ -206,7 +207,10 @@ static void voe_editor_interface_panels_read(
 			bar->menu.open = false;
 		}
 	}
-	if (fired != VOE_EDITOR_CLOSABLE_COUNT) {
+	// Not a Panels row: it opens from a `.landscape` file (0491 point 1).
+	if (fired == VOE_EDITOR_CLOSABLE_LANDSCAPE)
+		voe_editor_landscape_panel_hide(landscape_panel);
+	else if (fired != VOE_EDITOR_CLOSABLE_COUNT) {
 		voe_base_report_error_clear();
 		if (!voe_editor_panels_toggle(fired, root, bar, project_panel,
 					      preferences, session, breakdown))
@@ -261,18 +265,17 @@ static void voe_editor_interface_bar_read(
 		bar->menu.open = !shown.menuing;
 }
 
-// The Project, Landscape, Errors and frame breakdown panels, each read only
-// when it was drawn.
+// The Project and Landscape panels' controls, each read only when it was
+// drawn; their headers' × are the panels read's.
 static void voe_editor_interface_covers_read(
 	voe_ui_context *ui, voe_base_arena *arena, voe_editor_models *models,
 	voe_editor_session *session, voe_editor_project_panel *project_panel,
 	voe_editor_landscape_panel *landscape_panel,
-	voe_editor_frame_breakdown *breakdown, voe_editor_interface_shown shown)
+	voe_editor_interface_shown shown)
 {
 	VOE_BASE_ASSERT(ui != NULL && arena != NULL && session != NULL,
 			"reading the covers with no frame, scratch or session");
-	VOE_BASE_ASSERT(project_panel != NULL && landscape_panel != NULL &&
-				breakdown != NULL,
+	VOE_BASE_ASSERT(project_panel != NULL && landscape_panel != NULL,
 			"reading the covers with a panel missing");
 	// A changed window is written at once (project.h), a failure said in
 	// the notice.
@@ -285,8 +288,6 @@ static void voe_editor_interface_covers_read(
 			(void)voe_editor_project_window_set(
 				session->project, result.window,
 				&session->notice);
-		if (result.closed)
-			voe_editor_project_panel_hide(project_panel);
 	}
 	// A new shape is written at once (models.h) and shown, a refusal said
 	// in the notice.
@@ -303,16 +304,7 @@ static void voe_editor_interface_covers_read(
 			(void)voe_editor_landscape_panel_show(
 				landscape_panel, landscape_panel->path,
 				result.size, result.cells);
-		if (result.closed)
-			voe_editor_landscape_panel_hide(landscape_panel);
 	}
-	// The Errors panel's Close hides it; the frame breakdown's × hides it.
-	if (shown.erroring &&
-	    voe_editor_errors_clicks_read(ui, &session->errors))
-		voe_editor_errors_hide(&session->errors);
-	if (shown.framing &&
-	    voe_editor_frame_breakdown_clicks_read(ui, breakdown))
-		voe_editor_frame_breakdown_hide(breakdown);
 }
 
 // A theme chosen here is set on the context after this frame's records were
@@ -374,7 +366,8 @@ void voe_editor_interface_commands_read(
 	VOE_BASE_ASSERT(closes != NULL && themes != NULL,
 			"reading commands with no closes or no themes");
 	voe_editor_interface_panels_read(ui, root, closes, session, bar,
-					 preferences, project_panel, breakdown,
+					 preferences, project_panel,
+					 landscape_panel, breakdown,
 					 shown.menuing);
 	// Whatever the browser or Preferences show: the bar is drawn under
 	// both, and the next frame is laid out at this measure.
@@ -383,8 +376,7 @@ void voe_editor_interface_commands_read(
 				      preferences, project_panel,
 				      landscape_panel, shown, escape);
 	voe_editor_interface_covers_read(ui, arena, models, session,
-					 project_panel, landscape_panel,
-					 breakdown, shown);
+					 project_panel, landscape_panel, shown);
 	if (shown.preferring)
 		voe_editor_interface_preferences_read(ui, session, preferences,
 						      themes);

@@ -1,13 +1,15 @@
-// The editor's Landscape panel (0379 point 6): a "Landscape" title row with
-// the file's name and an × at its right, a "Size (m)" and a "Cells" number box
-// showing what it was shown with — an anchored panel over the dock, below the
-// bar, exactly where project_panel.h's goes. Opened by a `.landscape` row clicked
-// in the Assets panel and after Create -> Landscape:
+// The editor's Landscape panel (0379 point 6): a row with the file's name, a
+// "Size (m)" and a "Cells" number box showing what it was shown with — the
+// contents of a dock panel, in a leaf or a floating box under the walk's
+// header and its × (0439, 0491). That header says only "Landscape", so the
+// file's name opens the contents. Opened by a `.landscape` row clicked in the
+// Assets panel and after Create -> Landscape:
 //
 //     voe_editor_landscape_panel panel = { 0 };
 //     voe_editor_landscape_panel_show(&panel, "Assets/hill.landscape", 256.0f,
 //                                     512);
-//     voe_editor_landscape_panel_draw(ui, &panel, top, size);
+//     // inside the dock panel, under its header:
+//     voe_editor_landscape_panel_contents_draw(ui, &panel);
 //     ... voe_ui_frame_end ...
 //     result = voe_editor_landscape_panel_clicks_read(ui, &panel);
 //
@@ -35,8 +37,6 @@
 // it is not showing.
 #pragma once
 
-#include <math/float2.h>
-
 #include <scene/prefab_component.h>
 
 #include <ui/widgets.h>
@@ -60,7 +60,6 @@ typedef struct {
 	// The controls, recorded by the draw.
 	voe_ui_node size_box;
 	voe_ui_node cells_box;
-	voe_ui_node close_button;
 	// The boxes' text, `%d`, kept here because a label's text is drawn after
 	// the call that made it (ui/widgets.h).
 	char size_text[16];
@@ -74,17 +73,14 @@ typedef struct {
 	uint32_t cells);
 void voe_editor_landscape_panel_hide(voe_editor_landscape_panel *panel);
 
-// Draws the panel filling top..surface.y of `surface`'s width, the area below
-// the bar, over the dock. Records every control into panel. Asserts when it is
-// not showing.
-void voe_editor_landscape_panel_draw(voe_ui_context *ui,
-				     voe_editor_landscape_panel *panel,
-				     float top, voe_math_float2 surface);
+// Draws the file's name, then Size and Cells, into whatever the caller
+// opened. Records every control into panel. Asserts when it is not showing.
+void voe_editor_landscape_panel_contents_draw(voe_ui_context *ui,
+					      voe_editor_landscape_panel *panel);
 
-// What this frame did: the × fired, and whether a number was typed or a drag
-// let go, with the size and cells it makes.
+// What this frame did: whether a number was typed or a drag let go, with the
+// size and cells it makes.
 typedef struct {
-	bool closed;
 	bool changed;
 	float size;
 	uint32_t cells;
