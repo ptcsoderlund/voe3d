@@ -58,6 +58,27 @@ const char *voe_base_report_error_first(void)
 	return g_first_error_kept ? g_first_error : NULL;
 }
 
+// The same cut as voe_base_report_compose(): at most the line's text capacity,
+// the last three bytes "..." when longer. A text carried from a kept error is
+// already shorter than that, so only a text from elsewhere is ever cut.
+void voe_base_report_error_keep(const char *text)
+{
+	const size_t room = VOE_BASE_REPORT_LINE_CAPACITY - 1;
+
+	VOE_BASE_ASSERT(text != NULL, "a kept error has a text");
+	if (g_first_error_kept)
+		return;
+
+	const char *end = memchr(text, '\0', room + 1);
+	size_t length = end != NULL ? (size_t)(end - text) : room;
+
+	memcpy(g_first_error, text, length);
+	if (end == NULL)
+		memcpy(g_first_error + length - 3, "...", 3);
+	g_first_error[length] = '\0';
+	g_first_error_kept = true;
+}
+
 // Copies the "<subjects>: <message>" part out of a line already composed by
 // voe_base_report_compose(): everything after the "<level>: <module>: "
 // prefix and before the trailing newline, so the subjects come with it.

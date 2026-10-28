@@ -42,7 +42,10 @@
 // Warnings are never kept. A reader clears before the operation whose failure
 // it wants to explain and reads voe_base_report_error_first() once that has
 // failed; nothing below a program reads it, and a caller that forgets to clear
-// reads a stale error from earlier.
+// reads a stale error from earlier. The one exception is carrying (ADR-0490):
+// code that runs work on other threads (a burst, ADR-0487) reads a worker's
+// first error there and keeps it, with voe_base_report_error_keep(), on the
+// thread that started the work, in the work's own order.
 #pragma once
 
 typedef enum {
@@ -85,3 +88,10 @@ void voe_base_report_error_clear(void);
 // since its last voe_base_report_error_clear(), or NULL when none has been.
 // Valid until the next clear or the next kept error.
 const char *voe_base_report_error_first(void);
+
+// Carries an error read on another thread to this one (ADR-0490): when nothing
+// is kept on the calling thread since its last clear, `text` becomes the kept
+// first error, cut and marked at the line's capacity as a kept report is; when
+// one is kept, nothing. Prints nothing, because the worker's report already
+// did. A NULL text is the caller's bug and asserts.
+void voe_base_report_error_keep(const char *text);
