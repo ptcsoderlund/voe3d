@@ -455,8 +455,16 @@
 // zero, thirty, and while one is typed in a caret, VOE_UI_FIELD_CAPACITY (256)
 // characters and "not a number", 267 — 438. 54182 + 855 = 55037 elements.
 // AND FOUR SCROLL AREAS, the panels': nine.
-#define VOE_EDITOR_INTERFACE_NODES 2756
-#define VOE_EDITOR_INTERFACE_ELEMENTS 55037
+//
+// A PANEL DRAG'S OUTLINE (dock_walk.c, 0491 point 4) ADDS TWELVE NODES, counted
+// on top: four anchored strips, each a row or column and its two stripes'
+// swatches, three apiece. 2756 + 12 = 2768 nodes. AND EIGHT ELEMENTS, a solid
+// one per stripe; the container draws none. 55037 + 8 = 55045 elements. Its
+// ghost is the one counted above, one drag going on at a time, and "Frame
+// breakdown", its longest name, is within the 64 characters counted. No
+// scroll area: nine stands.
+#define VOE_EDITOR_INTERFACE_NODES 2768
+#define VOE_EDITOR_INTERFACE_ELEMENTS 55045
 #define VOE_EDITOR_INTERFACE_SCROLLS 9
 
 // Makes the context the interface is built in, once, drawing in `theme` and

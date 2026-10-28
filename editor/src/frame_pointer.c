@@ -112,6 +112,11 @@ static bool headers_and_borders(voe_editor_frame_pointer *frame, bool flying)
 			       .size = { frame->root->size.x,
 					 frame->root->size.y - high } },
 		allowed, now);
+	// What the walk outlines and the ghost names (dock.h).
+	frame->root->moving = frame->moving.dragging ?
+				      frame->moving.pressed :
+				      VOE_EDITOR_CLOSABLE_COUNT;
+	frame->root->outline = frame->moving.target.outline;
 	if (moved.ended)
 		layout_remember(frame);
 	if (moved.taken) {

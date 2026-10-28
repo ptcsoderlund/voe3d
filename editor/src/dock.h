@@ -230,6 +230,13 @@ typedef struct {
 // zero size where none was drawn: written by interface.c after each frame,
 // read by a header's drag (panel_drag.h).
 //
+// `moving` is the closable a header drag is moving this frame,
+// VOE_EDITOR_CLOSABLE_COUNT for none, and `outline` where its drop would put
+// it, in the root's millimetres (0491 point 4): the caller's to fill each
+// frame, like `lit` (frame_pointer.c). The walk draws `outline` from the top
+// left of the tree it is handed, so interface.c moves it below the bar as it
+// cuts the size.
+//
 // THAT DOES NOT MAKE A SECOND OS WINDOW CHEAP, AND SAYING SO IS THE POINT OF
 // THIS PARAGRAPH. `platform` opens one window, `render` opens one device onto
 // one surface and `app` brackets one frame for it; a second root that is its own
@@ -245,6 +252,8 @@ typedef struct {
 	bool closed[VOE_EDITOR_CLOSABLE_COUNT];
 	voe_editor_dock_float floats[VOE_EDITOR_CLOSABLE_COUNT];
 	voe_ui_rect heads[VOE_EDITOR_CLOSABLE_COUNT];
+	voe_editor_closable moving;
+	voe_ui_rect outline;
 } voe_editor_dock_root;
 
 // The four tool panels — Project, Errors, Frame, Landscape — floating at

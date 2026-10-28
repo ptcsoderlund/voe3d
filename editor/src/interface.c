@@ -6,7 +6,8 @@
 // pointer it was given, asks the dock to walk — the four tool panels' contents
 // handed to it, floating or docked (0491) — and moves records into the
 // device; what a panel says is dock.c's `voe_editor_panel_draw`. It also polls
-// Play and Ship once a frame and draws a Scene list or Assets drag's ghost.
+// Play and Ship once a frame and draws a Scene list, Assets or panel drag's
+// ghost.
 //
 // IT DOES ASK ONE QUESTION ABOUT WHAT WAS CLICKED, AND THAT IS NOT THE SAME
 // THING. A `ui` widget answers what the pointer did to it only after
@@ -35,6 +36,7 @@
 #include "assets_ask.h"
 #include "assets_menu.h"
 #include "browser.h"
+#include "drag_ghost.h"
 #include "inspector.h"
 #include "inspector_brush.h"
 #include "inspector_edit.h"
@@ -250,6 +252,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		menuing = bar->menu.open;
 
 		below_bar.size.y -= voe_editor_topbar_high(bar, root->size.y);
+		// The drop outline from the tree's top left, as the walk
+		// draws it (dock.h).
+		below_bar.outline.min.y -=
+			voe_editor_topbar_high(bar, root->size.y);
 		if (covered || menuing || asking || levels_asking ||
 		    textures_asking)
 			below_bar.pointer.over = false;
@@ -322,6 +328,12 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_scene_list_ghost_draw(ui, scene, root->pointer.at);
 		voe_editor_assets_drag_ghost_draw(ui, &scene->list_dim, drag,
 						  root->pointer.at);
+		// A panel drag's names the panel, never refused (0491 point 4).
+		if (root->moving != VOE_EDITOR_CLOSABLE_COUNT)
+			voe_editor_drag_ghost_draw(
+				ui, &scene->list_dim,
+				voe_editor_closable_name(root->moving), false,
+				root->pointer.at);
 		// ANCHORED, SO ITS PLACE IN THIS CALL ORDER DOES NOT MATTER TO
 		// WHERE IT PAINTS (ui/layout.h) — it is called here, after the
 		// tree, only because that is where browser.h's own state (the

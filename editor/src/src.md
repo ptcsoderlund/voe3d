@@ -193,7 +193,7 @@ carries it out.
   and set, which views it shows and whether a point is over a panel.
 - `dock_walk.c` — the walk to one frame of `ui` calls: its seams, each closable's header of name
   and ×, each leaf a panel and scroll area handed to its panel's draw, then each floating panel as
-  an anchored box over the tree, and each scene view's camera preview.
+  an anchored box over the tree, a dragged panel's drop outline, and each view's camera preview.
 - `dock_move.c` — a panel's rectangle, the drop target's first match with its outline, the leaf
   taken out, the tree compacted and a split put in at the target, a float raised, and the defaults.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree, a
