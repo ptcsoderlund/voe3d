@@ -519,9 +519,10 @@ void voe_editor_dock_split_set(voe_editor_dock_tree *tree, uint32_t node,
 			       1.0 - FRACTION_EDGE);
 }
 
-// The split whose two children are both scene-view leaves, or UINT32_MAX.
-static uint32_t views_split(const voe_editor_dock_tree *tree)
+uint32_t voe_editor_dock_views_split(const voe_editor_dock_tree *tree)
 {
+	VOE_BASE_ASSERT(tree != NULL, "looking for the views in no tree");
+
 	for (uint32_t i = 0; i < tree->count; i++) {
 		const voe_editor_dock_node *node = &tree->nodes[i];
 
@@ -543,7 +544,7 @@ double voe_editor_dock_view_share(const voe_editor_dock_tree *tree)
 
 	VOE_BASE_ASSERT(tree != NULL, "asking no tree for the views' share");
 
-	split = views_split(tree);
+	split = voe_editor_dock_views_split(tree);
 	return split == UINT32_MAX ? 0.5 : tree->nodes[split].fraction;
 }
 
@@ -555,7 +556,7 @@ void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share)
 	VOE_BASE_ASSERT(share > 0.0 && share < 1.0,
 			"a views' share that is not between nought and one");
 
-	split = views_split(tree);
+	split = voe_editor_dock_views_split(tree);
 	if (split != UINT32_MAX)
 		tree->nodes[split].fraction = share;
 }

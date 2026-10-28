@@ -11,6 +11,14 @@
 // docking it back puts it exactly where it was. Its box is the root's
 // `floats`, in millimetres from the dock area's top left; there are no tabs.
 //
+// A MOVE TAKES A LEAF OUT AND PUTS A SPLIT IN (0491 point 4). Docking removes
+// the panel's leaf, its parent split replaced by the sibling, then puts a new
+// split where the target was, the panel held on the dropped side; floating
+// changes only the box and `raised`, the leaf kept. A target names the dock,
+// the views or a panel, never a node index, because a removal moves indices:
+// its node is found again after it, and the tree is compacted to the nodes its
+// root reaches, so it never fills with dead nodes (dock_move.c).
+//
 // A HELD LENGTH IS WHAT A DRAG WRITES, THROUGH resize.h, AND THE TREE IS STILL
 // ONLY NUMBERS. A split may hold one child at a length in millimetres (0226);
 // `voe_editor_dock_panel_length_set` is the one write, and
@@ -337,8 +345,79 @@ voe_editor_closable
 voe_editor_dock_closes_read(const voe_ui_context *ui,
 			    const voe_editor_dock_closes *closes);
 
-// --- dock.c's and dock_walk.c's own, not for callers ---
+// An edge of the dock area, of the views or of a panel.
+typedef enum {
+	VOE_EDITOR_DOCK_EDGE_LEFT,
+	VOE_EDITOR_DOCK_EDGE_RIGHT,
+	VOE_EDITOR_DOCK_EDGE_TOP,
+	VOE_EDITOR_DOCK_EDGE_BOTTOM
+} voe_editor_dock_edge;
+
+// Where a dragged panel would go: floating, or docked at an edge of the
+// dock, of the views or of another panel.
+typedef enum {
+	VOE_EDITOR_DOCK_TARGET_FLOAT,
+	VOE_EDITOR_DOCK_TARGET_AT_DOCK,
+	VOE_EDITOR_DOCK_TARGET_AT_VIEWS,
+	VOE_EDITOR_DOCK_TARGET_AT_PANEL
+} voe_editor_dock_target_kind;
+
+// A drop target. `panel` is AT_PANEL's and VOE_EDITOR_CLOSABLE_COUNT
+// otherwise; `edge` and `length`, the millimetres a dock holds the panel at,
+// are a dock's. `outline` is where the panel would go, in the root's
+// millimetres: the docked strip, or the floating box as shown.
+typedef struct {
+	voe_editor_dock_target_kind kind;
+	voe_editor_closable panel;
+	voe_editor_dock_edge edge;
+	float length;
+	voe_ui_rect outline;
+} voe_editor_dock_target;
+
+// Where `which` is in the root's millimetres, `area` the dock area there: its
+// shown floating box, else its laid leaf's rectangle, else zero size.
+voe_ui_rect voe_editor_dock_panel_rect(const voe_editor_dock_root *root,
+				       voe_ui_rect area,
+				       voe_editor_closable which);
+
+// 0491 point 4's first match for `dragged`, whose rectangle at the press was
+// `box`, the pointer `grab` into it: within 4 mm of the area's edge, that edge
+// of the dock; over another shown floating box, floating; over a laid leaf
+// not a view and not its own, or over the views, the edge nearest `pointer`
+// within a quarter of that side, at most 15 mm; else floating. A dock's
+// `length` is `box`'s size along the edge's axis, its outline the target's
+// strip that deep, at most the target's extent; a float's outline is `box` at
+// `pointer - grab`, clamped as voe_editor_dock_float_shown clamps.
+voe_editor_dock_target voe_editor_dock_target_at(
+	const voe_editor_dock_root *root, voe_ui_rect area,
+	voe_editor_closable dragged, voe_ui_rect box, voe_math_float2 grab,
+	voe_math_float2 pointer);
+
+// Moves `which` to `target`. FLOAT: floating at the outline, raised above
+// every other. Otherwise its leaf is taken out if there and a new split put
+// in place of the target, found after the removal — the dock's root, the
+// views' split, the panel's laid leaf, or the dock's right edge when that is
+// not laid: a ROW for LEFT and RIGHT, the panel held first for LEFT and TOP,
+// second else, at `length`; no longer floating; the tree compacted.
+void voe_editor_dock_move(voe_editor_dock_root *root, voe_ui_rect area,
+			  voe_editor_closable which,
+			  const voe_editor_dock_target *target);
+
+// A double-click on a floating header: with a leaf, `which` stops floating
+// and is back where it was; without, it docks at 0491 point 2's default —
+// Frame and Landscape under the Inspector, Project under Assets, Errors under
+// the views, any other at the dock's right edge — held at its shown box's
+// size along that axis.
+void voe_editor_dock_back(voe_editor_dock_root *root, voe_ui_rect area,
+			  voe_editor_closable which);
+
+// --- dock.c's, dock_walk.c's and dock_move.c's own, not for callers ---
 //
+// The split whose two children are both scene-view leaves, the views, or
+// UINT32_MAX.
+uint32_t voe_editor_dock_views_split(const voe_editor_dock_tree *tree);
+
+
 // The space between the two children of a split, in millimetres: taken off
 // the split's length by the arrangement and drawn as a border by the walk.
 #define VOE_EDITOR_DOCK_SEAM 1.0f
