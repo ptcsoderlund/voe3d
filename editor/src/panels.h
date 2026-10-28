@@ -14,6 +14,12 @@
 // opens with them as they were last left. Which panels are open joins them
 // here (0363 point 5), started and remembered by the same two calls.
 //
+// THE WHOLE LAYOUT IS KEPT TOO (0491 point 7): the tree and each moving
+// panel's floating box, as settings_layout.h's lines. A kept tree that passes
+// voe_editor_dock_check is laid as it was and 0226's size keys are not
+// applied; with none, or a bad one, the default tree with the size keys read
+// over it, as before. The size keys are still written either way.
+//
 // Constraints: both calls are synchronous file reads or writes through
 // settings.h; remember is made once when a drag ends, never while one goes on.
 // A capture reads the file too, as it reads the themes.
@@ -26,16 +32,20 @@
 #include "session.h"
 #include "topbar.h"
 
-// Sets `root->tree` to the default tree, its lengths and the views' share to
-// whatever the file holds over the default's, `root->closed` from the file's
-// open flags (open where it has none), and `bar->wanted` to the bar's
-// remembered height (nought, fitting its content, when there is none).
+// Sets `root->floats` to the default with each kept float line over it, and
+// `root->tree` to the kept tree when it reads and passes its check; else to
+// the default tree, its lengths and the views' share to whatever the file
+// holds over the default's, and the floats back to the default when the ones
+// read do not fit it. Then `root->closed` from the file's open flags (open
+// where it has none), and `bar->wanted` to the bar's remembered height
+// (nought, fitting its content, when there is none).
 void voe_editor_panels_start(voe_editor_dock_root *root, voe_editor_topbar *bar);
 
 // The Scene list's, the Inspector's and the Assets panel's lengths and the
 // views' share in `root`'s tree, the open flags from `root->closed` and the
 // bar's `wanted`, written through voe_editor_settings_write, so a resize keeps
-// which panels are open. False when that fails.
+// which panels are open; then the tree and floats through
+// voe_editor_settings_layout_write. False when either fails.
 [[nodiscard]] bool voe_editor_panels_remember(const voe_editor_dock_root *root,
 					      const voe_editor_topbar *bar);
 

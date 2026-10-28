@@ -19,7 +19,7 @@
 // `%.3f`. The file is named for the editor's settings and later settings join
 // it, so each write keeps every line with another key, in its order, and only
 // replaces its own: the panel write keeps the four snap lines, the snap write
-// the nine panel lines.
+// the nine panel lines, and both the dock layout's (settings_layout.h).
 //
 // A FIRST START IS NOT A FAILURE. A missing settings folder or file, a line
 // that does not parse, a number out of range or a flag that is not exactly
@@ -28,6 +28,8 @@
 // answer. A write that fails is reported at the site. Each call keeps its own
 // scratch arena.
 #pragma once
+
+#include <stddef.h>
 
 // Millimetres, but `view_share`. `topbar_high` nought means the bar fits its
 // content; `view_share` is nought to one exclusive. The `_open` flags are the
@@ -89,3 +91,16 @@ voe_editor_snap voe_editor_settings_snap_read(void);
 // writes `snap`, `snap_move`, `snap_rotate` and `snap_scale` after them, as
 // voe_editor_settings_write does. False on any failure, reported at the site.
 [[nodiscard]] bool voe_editor_settings_snap_write(const voe_editor_snap *snap);
+
+// --- settings.c's and settings_layout.c's own, not for other callers ---
+//
+// Hands `take` each line of the file, its newline cut: `into` and the line.
+// Nothing when there is no file.
+void voe_editor_settings_lines_read(void (*take)(void *into, const char *line),
+				    void *into);
+
+// Re-reads the file, keeps every non-empty line `own_line` is false for, in
+// its order, and writes `own`'s `used` bytes after them, making `<settings>`
+// and `<settings>/voe3d` first. False on any failure, which the caller reports.
+[[nodiscard]] bool voe_editor_settings_lines_write(
+	bool (*own_line)(const char *line), const char *own, size_t used);

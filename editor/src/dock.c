@@ -1,7 +1,8 @@
 // The tree: the default one, its arrangement in millimetres, the held lengths
 // and the views' share a drag writes, and the questions asked of it (which
 // views it shows, which floating box is under a point, whether a point is
-// over a panel, a floating box covering what is laid). See dock.h for why the
+// over a panel, a floating box covering what is laid), and the check of a tree
+// read from a file, walked by an explicit stack. See dock.h for why the
 // layout is data rather than call order, and for what a root is; dock_walk.c
 // turns what is arranged here into `ui` calls.
 //
@@ -442,6 +443,106 @@ voe_editor_dock_tree voe_editor_dock_default(void)
 	tree.root = 0;
 
 	return tree;
+}
+
+// The longest a checked tree may hold a panel at, in millimetres (0491 point 7).
+#define CHECK_LENGTH_MOST 1000.0f
+
+// Whether one node's own fields are sound: a known kind; a split's axis and
+// hold known, a held length in (0, CHECK_LENGTH_MOST] and a dividing fraction
+// in (0, 1), a NaN failing both; a leaf's panel known.
+static bool node_sound(const voe_editor_dock_node *node)
+{
+	VOE_BASE_ASSERT(node != NULL, "checking no node");
+
+	if (node->kind == VOE_EDITOR_DOCK_LEAF)
+		return node->panel < VOE_EDITOR_PANEL_COUNT;
+	if (node->kind != VOE_EDITOR_DOCK_SPLIT ||
+	    (node->axis != VOE_EDITOR_DOCK_ROW &&
+	     node->axis != VOE_EDITOR_DOCK_COLUMN))
+		return false;
+	if (node->hold == VOE_EDITOR_DOCK_HOLD_FRACTION)
+		return node->fraction > 0.0 && node->fraction < 1.0;
+	return (node->hold == VOE_EDITOR_DOCK_HOLD_FIRST ||
+		node->hold == VOE_EDITOR_DOCK_HOLD_SECOND) &&
+	       node->length > 0.0f && node->length <= CHECK_LENGTH_MOST;
+}
+
+// Walks `tree` from its root by an explicit stack, not recursion, because the
+// tree came from a file (rule 14), counting each leaf into `leaves` by its
+// closable, the top view at VOE_EDITOR_CLOSABLE_COUNT. False on a node
+// reached twice, one not reached, an unsound node, a view other than 0 or 1,
+// a child past the count or a depth of DEPTH. A node is expanded once before
+// a second reach fails, so the stack never holds more than the tree's nodes
+// and the loop takes each node off at most once.
+static bool tree_walked(const voe_editor_dock_tree *tree,
+			uint32_t leaves[VOE_EDITOR_CLOSABLE_COUNT + 1])
+{
+	uint32_t stack[VOE_EDITOR_DOCK_NODES];
+	uint32_t depths[VOE_EDITOR_DOCK_NODES];
+	bool reached[VOE_EDITOR_DOCK_NODES] = { false };
+	uint32_t top = 0;
+	uint32_t seen = 0;
+
+	VOE_BASE_ASSERT(tree != NULL && leaves != NULL, "walking no tree");
+	VOE_BASE_ASSERT(tree->count > 0 && tree->count <= VOE_EDITOR_DOCK_NODES &&
+				tree->root < tree->count,
+			"walking a tree whose root is not checked");
+
+	stack[top] = tree->root;
+	depths[top++] = 0;
+	for (uint32_t steps = 0; top > 0 && steps <= tree->count; steps++) {
+		const uint32_t index = stack[--top];
+		const uint32_t depth = depths[top];
+		const voe_editor_dock_node *node = &tree->nodes[index];
+
+		if (reached[index] || depth >= VOE_EDITOR_DOCK_DEPTH ||
+		    !node_sound(node))
+			return false;
+		reached[index] = true;
+		seen++;
+		if (node->kind == VOE_EDITOR_DOCK_LEAF) {
+			if (node->panel == VOE_EDITOR_PANEL_SCENE_VIEW &&
+			    node->view > 1)
+				return false;
+			leaves[voe_editor_dock_leaf_closable(node)]++;
+			continue;
+		}
+		if (node->first >= tree->count || node->second >= tree->count ||
+		    top + 2 > VOE_EDITOR_DOCK_NODES)
+			return false;
+		stack[top] = node->first;
+		depths[top++] = depth + 1;
+		stack[top] = node->second;
+		depths[top++] = depth + 1;
+	}
+	return top == 0 && seen == tree->count;
+}
+
+bool voe_editor_dock_check(
+	const voe_editor_dock_tree *tree,
+	const voe_editor_dock_float floats[VOE_EDITOR_CLOSABLE_COUNT])
+{
+	uint32_t leaves[VOE_EDITOR_CLOSABLE_COUNT + 1] = { 0 };
+
+	VOE_BASE_ASSERT(tree != NULL, "checking no tree");
+	VOE_BASE_ASSERT(floats != NULL, "checking a tree against no floats");
+
+	if (tree->count == 0 || tree->count > VOE_EDITOR_DOCK_NODES ||
+	    tree->root >= tree->count || !tree_walked(tree, leaves))
+		return false;
+	// Every node reached once and one leaf each of view 0 and view 1, so a
+	// split of two views is those two.
+	if (leaves[VOE_EDITOR_CLOSABLE_COUNT] != 1 ||
+	    leaves[VOE_EDITOR_CLOSABLE_BOTTOM_VIEW] != 1 ||
+	    voe_editor_dock_views_split(tree) == UINT32_MAX ||
+	    floats[VOE_EDITOR_CLOSABLE_BOTTOM_VIEW].floating)
+		return false;
+	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++)
+		if (c != VOE_EDITOR_CLOSABLE_BOTTOM_VIEW &&
+		    (leaves[c] > 1 || (leaves[c] == 0 && !floats[c].floating)))
+			return false;
+	return true;
 }
 
 // Every node and not a walk from the root: a leaf the root cannot reach is not

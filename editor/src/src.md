@@ -93,6 +93,10 @@ carries it out.
 - `settings.c` — that file read line by line as a key and a number in range, the panel and snap
   keys alike, and written back with every other key's line kept, by making the two folders above
   it as needed.
+- `settings_layout.h` — the dock tree as one line per node and each moving panel's floating box as
+  one line in `editor_settings`, read back at start unchecked (0491 point 7).
+- `settings_layout.c` — each line's words taken by a cursor, a node or float kept only when all
+  parse, and the root, nodes and floats written through settings.h's keep-other-keys write.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file, the chosen one
   remembered and re-read once a second, each derived at the editor's base text size and spacing.
 - `themes.c` — the folder listed and made, each file read and derived with the one font, the
@@ -192,9 +196,10 @@ carries it out.
   of its buttons and rows afterwards.
 - `dock.h` — the panel tree, its splits holding a side panel's length or the views' share, the
   closable panels (a closed or floating leaf not laid), floating boxes and the one under a point,
-  last frame's headers, every seam's place, the walk, and a drop, move and dock-back.
+  last frame's headers, every seam's place, the walk, a drop, move and dock-back, a tree's check.
 - `dock.c` — the tree: the default one, the arrangement, held lengths and the views' share clamped
-  and set, which views it shows, the floating box under a point and whether a point is over a panel.
+  and set, which views it shows, the floating box under a point, whether a point is over a panel,
+  and the check's stack walk.
 - `dock_walk.c` — the walk to one frame of `ui` calls: its seams, each closable's header of name
   and ×, each leaf a panel and scroll area handed to its panel's draw, then each floating panel as
   an anchored box over the tree, a dragged panel's drop outline, and each view's camera preview.
@@ -262,11 +267,12 @@ carries it out.
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
 - `resize.c` — the hover, press, drag and release against the tree laid out below the bar, the
   double-click timed on the caller's clock.
-- `panels.h` — the editor's panels as the person left them: the default tree started with the
-  settings file read over it, the sizes remembered back into it when a drag ends, the toggle that
-  opens or closes a dock panel, Project, Errors or the frame breakdown, and whether one is open.
-- `panels.c` — the default tree's sizes filled in, read over and set back, and the same fields
-  written through `settings.h`.
+- `panels.h` — the editor's panels as the person left them: the kept tree if it passes its check,
+  else the default with the size keys read over it, sizes and layout remembered when a drag ends,
+  the toggle that opens or closes a panel, and whether one is open.
+- `panels.c` — the kept layout read and checked, else the default tree's sizes filled in, read over
+  and set back, and the same fields and the layout written through `settings.h` and
+  `settings_layout.h`.
 - `interface.h` — the screen-filling surface, made in the theme it is handed, its one draw
   command per root, and the frame's budget, the walk's four tool panels in it.
 - `interface.c` — one `ui` frame per root: the dock walk, the draws over the dock, and the one read

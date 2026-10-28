@@ -1,24 +1,36 @@
-// The panels' start and remember: the default tree's sizes and every panel
-// open filled into a voe_editor_settings, the file read over them and set back
-// into the tree and `root->closed`, and the same fields written back through
-// settings.h; a toggle flips one dock flag and remembers at once, or shows or
+// The panels' start and remember: the kept layout read and checked, else the
+// default tree's sizes filled into a voe_editor_settings, the file read over
+// them and set back into the tree, the open flags into `root->closed`, and the
+// same fields and the layout written back through settings.h and
+// settings_layout.h; a toggle flips one dock flag and remembers at once, or shows or
 // hides Project, Errors or the frame breakdown, and the open test reads the
 // same state.
 #include "panels.h"
 
 #include "settings.h"
+#include "settings_layout.h"
 
 #include <base/assert.h>
 
 void voe_editor_panels_start(voe_editor_dock_root *root, voe_editor_topbar *bar)
 {
 	voe_editor_settings sizes;
+	voe_editor_dock_tree kept;
+	bool tree_kept;
 
 	VOE_BASE_ASSERT(root != NULL, "starting the panels of no root");
 	VOE_BASE_ASSERT(bar != NULL, "starting the panels with no bar");
 
 	root->tree = voe_editor_dock_default();
 	voe_editor_dock_floats_default(root->floats);
+	// A kept tree that passes its check is laid as it is; else the default,
+	// and the floats too when the ones read do not fit the default.
+	tree_kept = voe_editor_settings_layout_read(&kept, root->floats) &&
+		    voe_editor_dock_check(&kept, root->floats);
+	if (tree_kept)
+		root->tree = kept;
+	else if (!voe_editor_dock_check(&root->tree, root->floats))
+		voe_editor_dock_floats_default(root->floats);
 	sizes = (voe_editor_settings){
 		.scene_wide = voe_editor_dock_panel_length(
 			&root->tree, VOE_EDITOR_PANEL_SCENE),
@@ -36,13 +48,16 @@ void voe_editor_panels_start(voe_editor_dock_root *root, voe_editor_topbar *bar)
 	root->closed[VOE_EDITOR_CLOSABLE_ASSETS] = !sizes.assets_open;
 	root->closed[VOE_EDITOR_CLOSABLE_INSPECTOR] = !sizes.inspector_open;
 	root->closed[VOE_EDITOR_CLOSABLE_BOTTOM_VIEW] = !sizes.view_open;
-	voe_editor_dock_panel_length_set(&root->tree, VOE_EDITOR_PANEL_SCENE,
-					 sizes.scene_wide);
-	voe_editor_dock_panel_length_set(&root->tree, VOE_EDITOR_PANEL_INSPECTOR,
-					 sizes.inspector_wide);
-	voe_editor_dock_panel_length_set(&root->tree, VOE_EDITOR_PANEL_ASSETS,
-					 sizes.assets_tall);
-	voe_editor_dock_view_share_set(&root->tree, sizes.view_share);
+	if (!tree_kept) {
+		voe_editor_dock_panel_length_set(
+			&root->tree, VOE_EDITOR_PANEL_SCENE, sizes.scene_wide);
+		voe_editor_dock_panel_length_set(&root->tree,
+						 VOE_EDITOR_PANEL_INSPECTOR,
+						 sizes.inspector_wide);
+		voe_editor_dock_panel_length_set(
+			&root->tree, VOE_EDITOR_PANEL_ASSETS, sizes.assets_tall);
+		voe_editor_dock_view_share_set(&root->tree, sizes.view_share);
+	}
 	bar->wanted = sizes.topbar_high;
 
 	VOE_BASE_ASSERT(bar->wanted >= 0.0f, "a remembered bar height below nought");
@@ -52,12 +67,13 @@ bool voe_editor_panels_remember(const voe_editor_dock_root *root,
 				const voe_editor_topbar *bar)
 {
 	const voe_editor_dock_tree *tree;
+	bool sized;
 
 	VOE_BASE_ASSERT(root != NULL, "remembering the panels of no root");
 	VOE_BASE_ASSERT(bar != NULL, "remembering the panels with no bar");
 
 	tree = &root->tree;
-	return voe_editor_settings_write(&(voe_editor_settings){
+	sized = voe_editor_settings_write(&(voe_editor_settings){
 		.scene_wide = voe_editor_dock_panel_length(
 			tree, VOE_EDITOR_PANEL_SCENE),
 		.inspector_wide = voe_editor_dock_panel_length(
@@ -70,6 +86,8 @@ bool voe_editor_panels_remember(const voe_editor_dock_root *root,
 		.assets_open = !root->closed[VOE_EDITOR_CLOSABLE_ASSETS],
 		.inspector_open = !root->closed[VOE_EDITOR_CLOSABLE_INSPECTOR],
 		.view_open = !root->closed[VOE_EDITOR_CLOSABLE_BOTTOM_VIEW] });
+	// Written even when the sizes were not, each failure reported at its site.
+	return voe_editor_settings_layout_write(tree, root->floats) && sized;
 }
 
 bool voe_editor_panels_toggle(voe_editor_closable which,

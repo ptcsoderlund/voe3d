@@ -276,6 +276,17 @@ voe_ui_rect voe_editor_dock_float_shown(const voe_editor_dock_float *f,
 // at all is for.
 voe_editor_dock_tree voe_editor_dock_default(void);
 
+// Whether a tree read from a file may be laid out with `floats` (0491 point
+// 7): the root and every index under the node count, every node reached
+// exactly once from the root by an explicit stack no deeper than DEPTH, each
+// moving panel's leaf at most once and in the tree or floating, the views one
+// split of view 0 and view 1 and the bottom view not floating, a held length
+// in (0, 1000] mm and a dividing fraction in (0, 1). Nothing is asserted of
+// the tree; a false is the caller's cue for the default.
+bool voe_editor_dock_check(
+	const voe_editor_dock_tree *tree,
+	const voe_editor_dock_float floats[VOE_EDITOR_CLOSABLE_COUNT]);
+
 // Whether an open leaf in `root`'s tree shows view `view`. The loop asks
 // before it draws a view, because a view nobody shows is not drawn — see view.h.
 bool voe_editor_dock_shows_view(const voe_editor_dock_root *root, uint32_t view);
