@@ -78,7 +78,7 @@ struct voe_editor_models;
 
 // A layer's growth of a kind (0476 point 2), in tenths of copies per 100 m²:
 // the Density slider's range, and what a tick asks, the brush's 4 per 100 m².
-#define VOE_EDITOR_SCULPT_GROW_MIN 1u
+#define VOE_EDITOR_SCULPT_GROW_MIN 1
 #define VOE_EDITOR_SCULPT_GROW_MAX VOE_ASSETS_LANDSCAPE_GROW_MAX
 #define VOE_EDITOR_SCULPT_GROW 40u
 
