@@ -1,11 +1,11 @@
-# 09 — The editor cooks and queues on its device
+# 15 — The editor cooks and queues on its device
 folder: editor
-after: 04, 05, 06, 07, 08
+after: 04, 11, 12, 13, 14
 decisions: 0168, 0370, 0484, 0486, 0487, 0489
 read: feature.md
 
 ## Change
-Cards 04 and 07 gave game's prepare, cook and map queue a device; this card moves the editor's
+Cards 04 and 13 gave game's prepare, cook and map queue a device; this card moves the editor's
 calls onto them and makes the feature's How to test true.
 
 - `editor/src/loading.h` — the prepare record (near line 89) and the cook record (near line 102)

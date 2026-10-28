@@ -1,10 +1,10 @@
-# 08 — The CPU encoder goes
+# 14 — The CPU encoder goes
 folder: assets
-after: 03, 07
+after: 03, 13
 decisions: 0168, 0477, 0484, 0486
 
 ## Change
-0484 point 2: one encoder, render's. Every caller has moved (cards 03, 04, 07); this card
+0484 point 2: one encoder, render's. Every caller has moved (cards 03, 04, 13); this card
 touches no other folder.
 
 - Delete `assets/src/image_blocks.h`, `assets/src/image_bc7.c`, `assets/src/image_bc5.c`.

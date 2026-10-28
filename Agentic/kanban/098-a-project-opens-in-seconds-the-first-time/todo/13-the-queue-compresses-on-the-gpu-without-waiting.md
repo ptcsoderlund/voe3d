@@ -1,10 +1,10 @@
-# 07 — The queue compresses on the GPU without waiting
+# 13 — The queue compresses on the GPU without waiting
 folder: game
-after: 06
+after: 12
 decisions: 0168, 0477, 0484, 0487, 0489, 0386
 
 ## Change
-0489. Public surface: `editor/src/models.c` calls the queue, and card 09 moves it; touch no
+0489. Public surface: `editor/src/models.c` calls the queue, and card 15 moves it; touch no
 other folder.
 
 - `game/include/game/compressing.h` — the API becomes:

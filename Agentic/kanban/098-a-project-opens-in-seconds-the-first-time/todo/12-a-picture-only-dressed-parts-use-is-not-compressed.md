@@ -1,6 +1,6 @@
-# 06 — A picture only dressed parts use is not compressed
+# 12 — A picture only dressed parts use is not compressed
 folder: game
-after: 05
+after: 11
 decisions: 0168, 0484, 0488, 0420, 0470
 
 ## Change
