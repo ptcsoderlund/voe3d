@@ -1,7 +1,7 @@
 // Images: bytes in, pixels out, and — for PNG — pixels in, bytes out. PNG and
 // JPEG, both written here (ADR-0023), and nothing fetched. A picture's mip
-// chain, its BC7 or BC5 blocks (0477) and its cooked form, the copy kept in
-// the cache (0470), are here too.
+// chain, the shape of its BC7 or BC5 blocks (0477) and its cooked form, the
+// copy kept in the cache (0470), are here too.
 //
 // NOTHING HERE OPENS A FILE, IN EITHER DIRECTION, AND THAT IS A DECISION AND NOT
 // A GAP. platform owns files and now has a call that writes one, so this could
@@ -219,9 +219,11 @@ voe_assets_image voe_assets_image_mips(voe_base_arena *arena,
 // gets eight levels of its own in a block and slopes stay smooth. A NORMAL
 // picture keeps x and y alone, and whoever reads it makes z again.
 //
-// The source is RGBA8 with any number of levels, and the blocks follow its
-// chain. A source already BC, or a run of blocks past the count, is the
-// caller's bug and asserts (rule 13).
+// THE BLOCKS ARE MADE BY RENDER'S ENCODER, ON THE GPU (0484, 0486); nothing
+// here encodes. What is here is their shape: the format, the count, and the
+// room _blocks_new makes for the encoder's output. The source is RGBA8 with
+// any number of levels, and the blocks follow its chain. A source already BC
+// is the caller's bug and asserts (rule 13).
 //
 // The format a picture of `kind` is compressed to: BC5 for NORMAL, else BC7.
 voe_assets_image_format voe_assets_image_blocks_format(voe_assets_image_kind kind);
@@ -230,24 +232,11 @@ voe_assets_image_format voe_assets_image_blocks_format(voe_assets_image_kind kin
 uint32_t voe_assets_image_block_count(const voe_assets_image *image);
 
 // The compressed picture's shape and room in `arena`: `source`'s sides and
-// levels, the format of `kind`, every block zeroed.
+// levels, the format of `kind`, every block zeroed, for render's encoder to
+// fill.
 voe_assets_image voe_assets_image_blocks_new(voe_base_arena *arena,
 					     const voe_assets_image *source,
 					     voe_assets_image_kind kind);
-
-// Blocks [first, first + count) of `target`, in chain order, encoded from
-// `source`, so a caller can spread the work across frames (0477 point 3).
-// `target` is what _blocks_new made for `source` and `kind`. An edge block's
-// missing texels repeat the nearest edge texel.
-void voe_assets_image_blocks_encode(const voe_assets_image *source,
-				    voe_assets_image_kind kind,
-				    voe_assets_image *target, uint32_t first,
-				    uint32_t count);
-
-// `source` compressed whole: _blocks_new, then every block encoded.
-voe_assets_image voe_assets_image_compress(voe_base_arena *arena,
-					   const voe_assets_image *source,
-					   voe_assets_image_kind kind);
 
 // THE COOKED FORM (0470 point 2): a head, then every level the picture holds,
 // the total padded to 16 so a containing file can hold several in a row,
