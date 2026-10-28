@@ -80,12 +80,13 @@ uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
 
 // The cooked copy of `folder`'s `path` made by a batch of it alone, prepared
 // and put nowhere: a fresh one kept unless `remake`. Whether one was made.
-static bool prepare_cooked(const char *folder, const char *path, bool remake)
+static bool prepare_cooked(const char *folder, const char *path,
+			   voe_render_device *device, bool remake)
 {
 	voe_game_models_batch *batch = voe_game_models_batch_new(
 		folder, 1,
 		remake ? VOE_GAME_MODELS_COOK_REMAKE : VOE_GAME_MODELS_COOK_STALE,
-		NULL);
+		device, NULL);
 	voe_game_models_times times = { 0 };
 	bool cooked;
 
@@ -97,8 +98,8 @@ static bool prepare_cooked(const char *folder, const char *path, bool remake)
 }
 
 bool voe_game_models_prepare(const char *folder, const char *path,
-			     voe_base_arena *scratch, bool remake, bool *made,
-			     voe_base_error *error)
+			     voe_render_device *device, voe_base_arena *scratch,
+			     bool remake, bool *made, voe_base_error *error)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	const uint8_t *glb;
@@ -106,7 +107,8 @@ bool voe_game_models_prepare(const char *folder, const char *path,
 	size_t size = 0;
 	bool ready;
 
-	VOE_BASE_ASSERT(folder != NULL && path != NULL, "no folder or path");
+	VOE_BASE_ASSERT(folder != NULL && path != NULL && device != NULL,
+			"no folder, path or device");
 	VOE_BASE_ASSERT(scratch != NULL && made != NULL && error != NULL,
 			"no scratch, made or error");
 	*made = false;
@@ -120,7 +122,7 @@ bool voe_game_models_prepare(const char *folder, const char *path,
 	voe_base_report_subject_pop();
 	voe_base_arena_rewind(scratch, mark);
 	if (ready)
-		*made = prepare_cooked(folder, path, remake) || *made;
+		*made = prepare_cooked(folder, path, device, remake) || *made;
 	return ready;
 }
 
@@ -224,7 +226,7 @@ struct models_call {
 static voe_game_models_batch *batch_of(const struct models_call *call,
 				       const char *folder)
 {
-	return voe_game_models_batch_new(folder, 1, call->cooking,
+	return voe_game_models_batch_new(folder, 1, call->cooking, call->device,
 					 call->progress);
 }
 

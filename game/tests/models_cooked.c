@@ -273,28 +273,29 @@ update_cooked_loads_a_copy_whose_glb_is_garbage(const voe_ecs_world *world,
 	store_gone(models, device);
 }
 
-static void prepare_writes_the_copy(voe_base_arena *scratch)
+static void prepare_writes_the_copy(voe_render_device *device,
+				    voe_base_arena *scratch)
 {
 	uint64_t stamp = glb_write(0);
 	voe_base_error error = VOE_BASE_OK;
 	bool made = false;
 
 	// ---- a first prepare leaves both files fresh
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, false,
-					       &made, &error));
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, device, scratch,
+					       false, &made, &error));
 	VOE_TEST_CHECK(voe_platform_file_exists(LEVELS_ON_DISK));
 
 	// ---- the copy gone: made again, keyed by the stamp
 	remove(COPY_ON_DISK);
 	made = false;
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, false,
-					       &made, &error));
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, device, scratch,
+					       false, &made, &error));
 	VOE_TEST_CHECK(made);
 	VOE_TEST_CHECK(copy_key().glb == stamp);
 
 	// ---- both fresh: nothing made
-	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, scratch, false,
-					       &made, &error));
+	VOE_TEST_CHECK(voe_game_models_prepare(FOLDER, GOOD, device, scratch,
+					       false, &made, &error));
 	VOE_TEST_CHECK(!made);
 }
 
@@ -579,7 +580,9 @@ static void pictured_write(voe_base_arena *scratch)
 	voe_base_arena_rewind(scratch, mark);
 }
 
-static void a_cooked_glb_reads_compressing_textures(voe_base_arena *scratch)
+static void
+a_cooked_glb_reads_compressing_textures(voe_render_device *device,
+					voe_base_arena *scratch)
 {
 	voe_game_progress progress = { 0 };
 	voe_game_models_times times = { 0 };
@@ -590,7 +593,7 @@ static void a_cooked_glb_reads_compressing_textures(voe_base_arena *scratch)
 	remove(PICTURED_COPY_ON_DISK);
 	voe_game_progress_set(&progress, "Loading models", 1, 3);
 	batch = voe_game_models_batch_new(FOLDER, 1, VOE_GAME_MODELS_COOK_STALE,
-					  &progress);
+					  device, &progress);
 	voe_game_models_batch_add(batch, PICTURED, 0, false);
 	voe_game_models_batch_prepare(batch, &times);
 	phase = atomic_load(&progress.phase);
@@ -625,7 +628,8 @@ static void stale_counts_missing_copies(voe_base_arena *scratch)
 	VOE_TEST_CHECK_INT(stale(scratch), 4);
 }
 
-static void cook_makes_them_and_stale_is_then_0(voe_base_arena *scratch)
+static void cook_makes_them_and_stale_is_then_0(voe_render_device *device,
+						voe_base_arena *scratch)
 {
 	voe_game_progress progress = { 0 };
 	uint64_t glb = 0;
@@ -634,7 +638,7 @@ static void cook_makes_them_and_stale_is_then_0(voe_base_arena *scratch)
 	VOE_TEST_CHECK(voe_platform_file_stamp(GOOD_ON_DISK, &glb));
 	VOE_TEST_CHECK(voe_platform_file_stamp(PICTURE_ON_DISK, &png));
 	VOE_TEST_CHECK(voe_game_models_cook(FOLDER, GLBS, 1, &MATERIALS,
-					    scratch, &progress));
+					    device, scratch, &progress));
 	VOE_TEST_CHECK(copy_key().glb == glb);
 	map_copies_check(png, scratch);
 	VOE_TEST_CHECK_INT(atomic_load(&progress.done), 4);
@@ -644,7 +648,8 @@ static void cook_makes_them_and_stale_is_then_0(voe_base_arena *scratch)
 
 // The colour copy rewritten with the version before 0477's, 1, at its head's
 // fifth byte: stale until a cook makes it again. Scratch rewound.
-static void an_old_map_copy_counts_stale(voe_base_arena *scratch)
+static void an_old_map_copy_counts_stale(voe_render_device *device,
+					 voe_base_arena *scratch)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	voe_game_progress progress = { 0 };
@@ -665,7 +670,7 @@ static void an_old_map_copy_counts_stale(voe_base_arena *scratch)
 	voe_base_arena_rewind(scratch, mark);
 	VOE_TEST_CHECK_INT(stale(scratch), 1);
 	VOE_TEST_CHECK(voe_game_models_cook(FOLDER, GLBS, 1, &MATERIALS,
-					    scratch, &progress));
+					    device, scratch, &progress));
 	VOE_TEST_CHECK_INT(stale(scratch), 0);
 }
 
@@ -675,14 +680,15 @@ static void stale_counts_a_changed_glb(voe_base_arena *scratch)
 	VOE_TEST_CHECK_INT(stale(scratch), 1);
 }
 
-static void cook_stops_when_asked(voe_base_arena *scratch)
+static void cook_stops_when_asked(voe_render_device *device,
+				  voe_base_arena *scratch)
 {
 	voe_game_progress progress = { 0 };
 	uint64_t before = copy_key().glb;
 
 	atomic_store(&progress.stop, true);
 	VOE_TEST_CHECK(!voe_game_models_cook(FOLDER, GLBS, 1, &MATERIALS,
-					     scratch, &progress));
+					     device, scratch, &progress));
 	VOE_TEST_CHECK(copy_key().glb == before);
 	VOE_TEST_CHECK_INT(stale(scratch), 1);
 }
@@ -737,7 +743,7 @@ int main(void)
 	a_changed_glb_writes_it_again(world, device, scratch);
 	watch_reloads_and_writes_no_copy(world, device, scratch);
 	update_cooked_loads_a_copy_whose_glb_is_garbage(world, device, scratch);
-	prepare_writes_the_copy(scratch);
+	prepare_writes_the_copy(device, scratch);
 	materials_write_the_map_copy(world, device, scratch);
 	material_load_writes_no_copy(device, scratch);
 	materials_cooked_loads_a_copy_whose_png_is_garbage(world, device,
@@ -745,12 +751,12 @@ int main(void)
 	a_queued_map_draws_uncompressed(world, device, scratch, queue);
 	the_stepped_queue_writes_the_copy(world, device, scratch, queue);
 	progress_reads_compressing_textures(world, device, scratch);
-	a_cooked_glb_reads_compressing_textures(scratch);
+	a_cooked_glb_reads_compressing_textures(device, scratch);
 	stale_counts_missing_copies(scratch);
-	cook_makes_them_and_stale_is_then_0(scratch);
-	an_old_map_copy_counts_stale(scratch);
+	cook_makes_them_and_stale_is_then_0(device, scratch);
+	an_old_map_copy_counts_stale(device, scratch);
 	stale_counts_a_changed_glb(scratch);
-	cook_stops_when_asked(scratch);
+	cook_stops_when_asked(device, scratch);
 	remove_files();
 	voe_render_device_destroy(device);
 released:

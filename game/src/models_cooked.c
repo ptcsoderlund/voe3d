@@ -9,8 +9,9 @@
 // input is stale when it has a stamp and its copy's head is missing, will not
 // read or holds another key; a model is cooked through the public prepare, a
 // map read, decoded and saved here, each on scratch, rewound after it. A
-// map's save mips, compresses by kind (0477) and writes, the write its own
-// call so a chain compressed elsewhere is written the same way.
+// save mips each picture and compresses it by kind (0477) on the caller's
+// device, started and waited for (0486); a map's write is its own call so a
+// chain compressed elsewhere is written the same way.
 //
 // Constraints: a map is compared with every map before it to count a path and
 // kind once, a square in the table's maps; a sorted table would lift it.
@@ -165,15 +166,45 @@ bool voe_game_models_picture_take(const char *folder, const char *path,
 	return false;
 }
 
+voe_assets_image voe_game_models_compress(voe_render_device *device,
+					  const voe_assets_image *chain,
+					  voe_assets_image_kind kind,
+					  voe_base_arena *arena)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(arena);
+	voe_assets_image blocks;
+	voe_base_error error = VOE_BASE_OK;
+	voe_render_compressing *job;
+
+	VOE_BASE_ASSERT(device != NULL && chain != NULL,
+			"compressing on no device or no chain");
+	blocks = voe_assets_image_blocks_new(arena, chain, kind);
+	job = voe_render_compress_start(device,
+					kind == VOE_ASSETS_IMAGE_NORMAL ?
+						VOE_RENDER_BLOCKS_BC5 :
+						VOE_RENDER_BLOCKS_BC7,
+					chain->width, chain->height,
+					chain->levels, chain->pixels, &error);
+	// Render said the one line; an RGBA8 chain is a copy still (0477).
+	if (job == NULL) {
+		voe_base_arena_rewind(arena, mark);
+		return *chain;
+	}
+	voe_render_compress_finish(device, job, blocks.pixels);
+	return blocks;
+}
+
 voe_assets_image voe_game_models_picture_save(const char *folder,
 					      const char *path,
 					      const voe_assets_image *image,
 					      voe_assets_image_kind kind,
 					      uint64_t stamp,
+					      voe_render_device *device,
 					      voe_base_arena *arena)
 {
 	voe_assets_image chain = voe_assets_image_mips(arena, image, kind);
-	voe_assets_image blocks = voe_assets_image_compress(arena, &chain, kind);
+	voe_assets_image blocks =
+		voe_game_models_compress(device, &chain, kind, arena);
 
 	voe_game_models_picture_write(folder, path, &blocks, kind, stamp, arena);
 	return blocks;
@@ -242,13 +273,31 @@ voe_game_models_cooked_take(const char *folder, const char *path,
 
 void voe_game_models_cooked_save(const char *folder, const char *path,
 				 const voe_3d_model_prepared *prepared,
+				 const voe_assets_model *model,
 				 voe_3d_model_cooked_key key,
+				 voe_render_device *device,
 				 voe_base_arena *arena)
 {
-	voe_assets_bytes copy = voe_3d_model_cooked_write(arena, prepared, key);
-	const char *cache = voe_platform_path_join(arena, folder, "Cache/models");
+	voe_assets_image *pictures = voe_base_arena_push(
+		arena, (model->image_count + 1) * sizeof(*pictures));
+	voe_assets_bytes copy;
+	const char *cache;
 	voe_base_error unsaved = VOE_BASE_OK;
 
+	VOE_BASE_ASSERT(pictures != NULL, "no room for the pictures");
+	for (uint32_t i = 0; i < model->image_count; i++) {
+		voe_assets_image_kind kind = voe_3d_model_cooked_kind(model, i);
+		voe_assets_image chain =
+			voe_assets_image_mips(arena, &model->images[i], kind);
+
+		pictures[i] =
+			voe_game_models_compress(device, &chain, kind, arena);
+		// Render said why; 3d lays out blocks alone.
+		if (pictures[i].format == VOE_ASSETS_IMAGE_RGBA8)
+			return;
+	}
+	copy = voe_3d_model_cooked_write(arena, prepared, pictures, key);
+	cache = voe_platform_path_join(arena, folder, "Cache/models");
 	VOE_BASE_ASSERT(copy.bytes != NULL && copy.count > 0, "an empty copy");
 	if (!voe_game_models_folders_make(folder, cache, path, arena, &unsaved) ||
 	    !voe_platform_file_write(
@@ -387,7 +436,7 @@ static bool stale_at(const struct inputs *in, uint32_t index, uint64_t *stamp,
 // decode is said at its cause and skipped. Scratch rewound.
 static void map_cook(const char *folder, const char *path,
 		     voe_assets_image_kind kind, uint64_t stamp,
-		     voe_base_arena *scratch)
+		     voe_render_device *device, voe_base_arena *scratch)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	voe_base_error error = VOE_BASE_OK;
@@ -408,7 +457,7 @@ static void map_cook(const char *folder, const char *path,
 		 voe_3d_model_picture_decode(path, bytes, size, scratch, &image,
 					     &error))
 		(void)voe_game_models_picture_save(folder, path, &image, kind,
-						   stamp, scratch);
+						   stamp, device, scratch);
 	voe_base_report_subject_pop();
 	voe_base_arena_rewind(scratch, mark);
 }
@@ -432,15 +481,16 @@ unsigned voe_game_models_stale(const char *folder, const char *const *paths,
 
 bool voe_game_models_cook(const char *folder, const char *const *paths,
 			  uint32_t path_count, const voe_game_materials *table,
-			  voe_base_arena *scratch, voe_game_progress *progress)
+			  voe_render_device *device, voe_base_arena *scratch,
+			  voe_game_progress *progress)
 {
 	struct inputs in = { folder, paths, path_count, table };
 	unsigned total = voe_game_models_stale(folder, paths, path_count, table,
 					       scratch);
 	unsigned done = 0;
 
-	VOE_BASE_ASSERT(folder != NULL && scratch != NULL,
-			"no folder or scratch");
+	VOE_BASE_ASSERT(folder != NULL && scratch != NULL && device != NULL,
+			"no folder, scratch or device");
 	for (uint32_t i = 0; i < inputs_count(&in); i++) {
 		uint64_t stamp = 0;
 		bool made = false;
@@ -453,12 +503,13 @@ bool voe_game_models_cook(const char *folder, const char *const *paths,
 		voe_game_progress_set(progress, "Preparing models", done, total);
 		// A `.glb` that will not read or parse is said at its cause.
 		if (i < path_count)
-			(void)voe_game_models_prepare(folder, paths[i], scratch,
-						      false, &made, &error);
+			(void)voe_game_models_prepare(folder, paths[i], device,
+						      scratch, false, &made,
+						      &error);
 		else
 			map_cook(folder, map_path(table, i - path_count),
 				 MAP_KINDS[(i - path_count) % MAPS], stamp,
-				 scratch);
+				 device, scratch);
 		done++;
 	}
 	voe_game_progress_set(progress, "Preparing models", done, total);

@@ -18,12 +18,12 @@
 // time. It follows the `.parts` beside the `.glb` (0430 point 5, 0436, 0435
 // point 4). A refused make keeps the entry failed at its stamp (0445 point 4).
 //
-// COOKED COPIES (0470), pictures and maps compressed (0477): a `.glb` loads
-// first from `Cache/models/<path>.model` when fresh, its key the stamps of
-// the `.glb` and its `.parts` (0 for none): no parse, LODs, decode or bake.
-// Update and prepare write a missing or stale one, remake always, watch and
-// reload never; the game's update_cooked trusts any that reads and writes a
-// missing one. Before Play and Ship the editor calls stale, then cook.
+// COOKED COPIES (0470), compressed (0477) on the call's device, on the
+// owner's thread or the one other (0370): a fresh `Cache/models/<path>.model`,
+// keyed by the stamps of the `.glb` and its `.parts` (0 for none), loads in
+// its place, no parse, LODs, decode or bake. Update and prepare write a
+// missing or stale one, remake always, watch and reload never; update_cooked
+// (the game) takes any that reads and writes a missing one; stale and cook.
 //
 // PHASES (0457, 0459 point 1): one file at a time on the caller, read, parsed,
 // its LODs made, pictures decoded, baked, uploaded and cooked; a call that read
@@ -159,14 +159,17 @@ voe_game_models_failures voe_game_models_materials_cooked(
 	voe_base_arena *scratch, voe_game_progress *progress);
 
 // Reads `<folder>/<path>` and its levels file, making and writing that when
-// missing or stale, then its cooked copy the same way, `made` true when
-// either was made. `remake` false keeps a fresh file and copy; true makes and
+// missing or stale, then its cooked copy the same way, compressed on `device`
+// from the owner's thread between frames or the one other thread (0370),
+// `made` true when either was made. `remake` false keeps a fresh file and
+// copy; true makes and
 // writes both whatever is there, `made` then true whenever the `.glb` reads
 // and parses. False, `error` set, only when the `.glb` will not read or
 // parse; a write that fails is a line on stderr and true. Scratch rewound to
 // where it stood. It makes the file alone: the editor's import keeps a fresh
 // one, its Make levels makes it again (0429). See the header.
 [[nodiscard]] bool voe_game_models_prepare(const char *folder, const char *path,
+					   voe_render_device *device,
 					   voe_base_arena *scratch,
 					   bool remake, bool *made,
 					   voe_base_error *error);
@@ -181,8 +184,9 @@ unsigned voe_game_models_stale(const char *folder, const char *const *paths,
 			       const voe_game_materials *table,
 			       voe_base_arena *scratch);
 
-// Makes and writes every copy stale counts, one file at a time on the caller
-// and with no device: a `.glb` as prepare does, its levels file made when
+// Makes and writes every copy stale counts, one file at a time on the caller,
+// compressed on `device` from the owner's thread between frames or the one
+// other thread (0370): a `.glb` as prepare does, its levels file made when
 // missing; a map read, decoded and mipped. "Preparing models" done/total over
 // that count goes into `progress` (NULL for none). A file that will not read
 // or parse is a line at its cause and skipped. Scratch rewound. False only
@@ -191,6 +195,7 @@ unsigned voe_game_models_stale(const char *folder, const char *const *paths,
 					const char *const *paths,
 					uint32_t path_count,
 					const voe_game_materials *table,
+					voe_render_device *device,
 					voe_base_arena *scratch,
 					voe_game_progress *progress);
 

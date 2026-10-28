@@ -7,7 +7,8 @@
 // made with voe_base_arena_new and destroyed after the file's put or by
 // destroy, the batch's own (its files, paths and pictures) last. A `.glb`'s
 // cooked copy is taken in reading onto its file's arena and written in cooking
-// from that arena, as the batch's mode says (models_cooked.h); the progress,
+// from that arena, compressed on the batch's device, as the batch's mode says
+// (models_cooked.h); the progress,
 // when given, shows each file's phase from its reading on. A `.glb`'s levels file is
 // `<folder>/Cache/levels/<path>.levels`, its folders made first when absent,
 // with the `[Levels]` of the `.parts` beside the `.glb`, the defaults when
@@ -101,6 +102,7 @@ struct voe_game_models_batch {
 	struct batch_picture *pictures;
 	uint32_t picture_count;
 	enum voe_game_models_cooking cooking;
+	voe_render_device *device;
 	voe_game_progress *progress;
 };
 
@@ -237,12 +239,14 @@ const uint8_t *voe_game_models_levels_for(const char *folder, const char *path,
 voe_game_models_batch *
 voe_game_models_batch_new(const char *folder, uint32_t room,
 			  enum voe_game_models_cooking cooking,
+			  voe_render_device *device,
 			  voe_game_progress *progress)
 {
 	voe_base_arena *arena = voe_base_arena_new(BATCH_BLOCK);
 	voe_game_models_batch *batch = voe_base_arena_push(arena, sizeof(*batch));
 
 	VOE_BASE_ASSERT(folder != NULL, "a batch of no folder");
+	VOE_BASE_ASSERT(device != NULL, "a batch with no device to cook on");
 	VOE_BASE_ASSERT(room > 0, "a batch with no room");
 	*batch = (voe_game_models_batch){
 		.arena = arena,
@@ -250,6 +254,7 @@ voe_game_models_batch_new(const char *folder, uint32_t room,
 		.files = voe_base_arena_push(arena, room * sizeof(*batch->files)),
 		.room = room,
 		.cooking = cooking,
+		.device = device,
 		.progress = progress,
 	};
 	return batch;
@@ -522,7 +527,8 @@ static void cook_task(voe_game_models_batch *batch, uint32_t index)
 				      atomic_load(&progress->total));
 	voe_base_report_subject_push(file->path);
 	voe_game_models_cooked_save(batch->folder, file->path, file->prepared,
-				    file->key, file->arena);
+				    &file->model, file->key, batch->device,
+				    file->arena);
 	file->cooked = true;
 	voe_base_report_subject_pop();
 }

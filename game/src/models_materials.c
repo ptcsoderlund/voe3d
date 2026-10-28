@@ -10,8 +10,9 @@
 // folder and read onto the material's arena, under its path as the subject),
 // decoding pictures (each map read, on its own arena, under its path and "the
 // <kind> map `path`" as 3d says it), cooking (each decoded map mipped and
-// written as its copy, compressed, unless the mode writes none; given a queue,
-// mipped and added to it instead, game/compressing.h, 0477 point 3), uploading
+// written as its copy, compressed on the call's device, unless the mode writes
+// none; given a queue, mipped and added to it instead, game/compressing.h,
+// 0477 point 3), uploading
 // (through voe_3d_models_put_material, a copy's or a queued map's levels as
 // they are, under its path). A
 // map that will not read or decode keeps the material failed at its stamp,
@@ -99,6 +100,7 @@ struct chunk {
 	struct chunk_material *materials;
 	uint32_t count;
 	enum voe_game_models_cooking cooking;
+	voe_render_device *device;
 	voe_game_compressing *compressing;
 	voe_game_progress *progress;
 	uint32_t done;
@@ -260,7 +262,8 @@ static void chunk_cook(struct chunk *chunk, uint32_t index)
 	} else {
 		read->pictures[k] = voe_game_models_picture_save(
 			chunk->folder, path, &read->pictures[k], MAP_KINDS[k],
-			read->stamps[k], read->picture_arenas[k]);
+			read->stamps[k], chunk->device,
+			read->picture_arenas[k]);
 	}
 	voe_base_report_subject_pop();
 }
@@ -354,6 +357,7 @@ bool voe_game_models_material_load(voe_3d_models *models,
 	struct chunk chunk = { .folder = folder,
 			       .count = 1,
 			       .cooking = VOE_GAME_MODELS_COOK_NEVER,
+			       .device = device,
 			       .compressing = compressing };
 	bool loaded;
 
@@ -504,6 +508,7 @@ materials_load(const voe_ecs_world *world, voe_3d_models *models,
 	struct chunk chunk = { .folder = folder,
 			       .count = 1,
 			       .cooking = cooking,
+			       .device = device,
 			       .compressing = compressing,
 			       .progress = progress };
 

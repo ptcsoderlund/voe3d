@@ -4,7 +4,7 @@
 // copy. Internal to `game`.
 //
 //     voe_game_models_batch *batch = voe_game_models_batch_new(
-//             folder, 1, VOE_GAME_MODELS_COOK_STALE, progress);
+//             folder, 1, VOE_GAME_MODELS_COOK_STALE, device, progress);
 //     voe_game_models_batch_add(batch, path, known, forced);
 //     voe_game_models_batch_prepare(batch, &times);
 //     for (uint32_t i = 0; i < voe_game_models_batch_count(batch); i++)
@@ -24,9 +24,10 @@
 // known stamp unless forced), parsing (the `.glb`, pictures left encoded),
 // making LODs (its levels file read, or made and written), decoding pictures
 // (one task a picture), baking (3d's prepare), and after them cooking (the
-// copy written, as the batch's mode says: models_cooked.h). No store and no
-// device is touched in them; a `.landscape` or picture path is only read, and
-// loaded whole at its put. The progress, when given, shows a file's phase
+// copy compressed on the batch's device, on the calling thread, and written,
+// as the batch's mode says: models_cooked.h). No store is touched in them,
+// nor the device before cooking; a `.landscape` or picture path is only read,
+// and loaded whole at its put. The progress, when given, shows a file's phase
 // from its reading: "Preparing models" when it will be cooked, "Compressing
 // textures" from its cooking on, else "Loading models".
 //
@@ -93,11 +94,12 @@ typedef struct {
 typedef struct voe_game_models_batch voe_game_models_batch;
 
 // An empty batch for up to `room` files of `folder`, taking and writing
-// copies as `cooking` says, each file's phase shown in `progress` (NULL for
-// none).
+// copies as `cooking` says, compressed on `device`, each file's phase shown
+// in `progress` (NULL for none).
 voe_game_models_batch *
 voe_game_models_batch_new(const char *folder, uint32_t room,
 			  enum voe_game_models_cooking cooking,
+			  voe_render_device *device,
 			  voe_game_progress *progress);
 // Every arena it still holds given back.
 void voe_game_models_batch_destroy(voe_game_models_batch *batch);
