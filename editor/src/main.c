@@ -422,6 +422,7 @@ int main(int argc, char *argv[])
 		.geometries = &geometries, .models = models, .scratch = arena,
 		.window = window,
 		.resize = { .held = UINT32_MAX },
+		.edges = { .held = VOE_EDITOR_CLOSABLE_COUNT },
 		.moving = { .pressed = VOE_EDITOR_CLOSABLE_COUNT,
 			    .last = VOE_EDITOR_CLOSABLE_COUNT } };
 	waits = (voe_editor_waits){

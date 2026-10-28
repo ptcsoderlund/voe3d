@@ -1,6 +1,7 @@
 // The tree: the default one, its arrangement in millimetres, the held lengths
 // and the views' share a drag writes, and the questions asked of it (which
-// views it shows, whether a point is over a panel). See dock.h for why the
+// views it shows, which floating box is under a point, whether a point is
+// over a panel, a floating box covering what is laid). See dock.h for why the
 // layout is data rather than call order, and for what a root is; dock_walk.c
 // turns what is arranged here into `ui` calls.
 //
@@ -324,24 +325,59 @@ void voe_editor_dock_arrange(const voe_editor_dock_root *root, voe_ui_rect area,
 	arrange_node(root, root->tree.root, area, 0, out);
 }
 
+static bool rect_holds(voe_ui_rect r, voe_math_float2 p)
+{
+	return p.x >= r.min.x && p.x < r.min.x + r.size.x && p.y >= r.min.y &&
+	       p.y < r.min.y + r.size.y;
+}
+
+voe_editor_closable voe_editor_dock_float_under(const voe_editor_dock_root *root,
+						voe_ui_rect area,
+						voe_math_float2 point)
+{
+	voe_editor_closable top = VOE_EDITOR_CLOSABLE_COUNT;
+
+	VOE_BASE_ASSERT(root != NULL, "asking for a floating box on no root");
+
+	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++) {
+		const voe_editor_dock_float *f = &root->floats[c];
+
+		if (!f->floating || root->closed[c] ||
+		    !rect_holds(voe_editor_dock_float_shown(f, area), point))
+			continue;
+		if (top == VOE_EDITOR_CLOSABLE_COUNT ||
+		    f->raised > root->floats[top].raised)
+			top = (voe_editor_closable)c;
+	}
+
+	VOE_BASE_ASSERT(top == VOE_EDITOR_CLOSABLE_COUNT ||
+				root->floats[top].floating,
+			"a box under the pointer that does not float");
+	return top;
+}
+
 bool voe_editor_dock_over_panel(const voe_editor_dock_root *root, float top,
 				voe_editor_panel panel, voe_math_float2 pointer)
 {
 	voe_editor_dock_arrangement places;
+	voe_ui_rect area;
+	voe_editor_closable under;
 
 	VOE_BASE_ASSERT(root != NULL, "asking where a panel is on no root");
-	voe_editor_dock_arrange(
-		root,
-		(voe_ui_rect){ .min = { 0.0f, top },
-			       .size = { root->size.x, root->size.y - top } },
-		&places);
+	area = (voe_ui_rect){ .min = { 0.0f, top },
+			      .size = { root->size.x, root->size.y - top } };
+	// A floating box over the point is the pointer's owner, whatever is
+	// laid beneath it.
+	under = voe_editor_dock_float_under(root, area, pointer);
+	if (under != VOE_EDITOR_CLOSABLE_COUNT)
+		return voe_editor_closable_panel(under) == panel;
+	voe_editor_dock_arrange(root, area, &places);
 	for (uint32_t i = 0; i < root->tree.count; i++) {
 		const voe_editor_dock_node *node = &root->tree.nodes[i];
-		voe_ui_rect r = places.nodes[i].rect;
 
 		if (node->kind == VOE_EDITOR_DOCK_LEAF && node->panel == panel &&
-		    places.nodes[i].laid && pointer.x >= r.min.x && pointer.x < r.min.x + r.size.x &&
-		    pointer.y >= r.min.y && pointer.y < r.min.y + r.size.y)
+		    places.nodes[i].laid &&
+		    rect_holds(places.nodes[i].rect, pointer))
 			return true;
 	}
 	return false;

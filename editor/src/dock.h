@@ -316,8 +316,18 @@ typedef struct {
 void voe_editor_dock_arrange(const voe_editor_dock_root *root, voe_ui_rect area,
 			     voe_editor_dock_arrangement *out);
 
-// Whether `pointer` is over a laid leaf of `panel` in `root`'s tree laid out
-// below `top`, the top bar's height, all in the root's millimetres.
+// The topmost shown floating box (floating, not closed) holding `point`, by
+// `raised`, `area` being the dock area in the root's millimetres;
+// VOE_EDITOR_CLOSABLE_COUNT for none. A pointer there is that panel's (0491
+// point 6).
+voe_editor_closable voe_editor_dock_float_under(const voe_editor_dock_root *root,
+						voe_ui_rect area,
+						voe_math_float2 point);
+
+// Whether `pointer` is over `panel` in `root`'s tree laid out below `top`, the
+// top bar's height, all in the root's millimetres: true over the panel's shown
+// floating box when it is the topmost box there; over a laid leaf of it only
+// where no other panel's floating box covers the point (0491 point 6).
 bool voe_editor_dock_over_panel(const voe_editor_dock_root *root, float top,
 				voe_editor_panel panel, voe_math_float2 pointer);
 

@@ -25,11 +25,15 @@ carries it out.
   material's edit, the keyboard's read with its acts, and the acts that wait for the interface to
   have drawn.
 - `frame_pointer.h` — the loop's pointer and view reads in their order: the fly, the shortcuts, a
-  header's drag then the borders, the middle drag, the brush, the gizmo, the Assets drag and the
-  pick, and what main.c reads after.
-- `frame_pointer.c` — the fly with its lock edge, a header's drag and the borders with their clears
-  and remember, and the brush then the three left-press readers under one shared block a stroke
-  joins.
+  floating box's edges, a header's drag then the borders, the middle drag, the brush, the gizmo,
+  the Assets drag and the pick, none starting under a floating box, and what main.c reads after.
+- `frame_pointer.c` — the fly with its lock edge, a box's edges, a header's drag and the borders
+  with their clears and remember, and the brush then the three left-press readers under one shared
+  block a stroke joins, each kept from starting under a floating box.
+- `float_edges.h` — a floating panel's box resized by its edges, two at a corner, at least
+  30 × 20 mm inside the dock area, topmost box first, the press raising it; not the seams' file.
+- `float_edges.c` — the topmost box's edge under the pointer, the raise, and the drag writing the
+  box from the area's top left.
 - `panel_drag.h` — a panel's header dragged past 1 mm to dock or float it at the drop target, a
   double-click on a floating one docking it back, asked before the borders by last frame's headers.
 - `panel_drag.c` — the header under a press, floating boxes topmost first, the raise, the
@@ -187,10 +191,10 @@ carries it out.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
 - `dock.h` — the panel tree, its splits holding a side panel's length or the views' share, the
-  closable panels (a closed or floating leaf not laid), floating boxes, last frame's headers, every
-  seam's place, what the tool panels draw from, the walk, and a drop target, move and dock-back.
+  closable panels (a closed or floating leaf not laid), floating boxes and the one under a point,
+  last frame's headers, every seam's place, the walk, and a drop, move and dock-back.
 - `dock.c` — the tree: the default one, the arrangement, held lengths and the views' share clamped
-  and set, which views it shows and whether a point is over a panel.
+  and set, which views it shows, the floating box under a point and whether a point is over a panel.
 - `dock_walk.c` — the walk to one frame of `ui` calls: its seams, each closable's header of name
   and ×, each leaf a panel and scroll area handed to its panel's draw, then each floating panel as
   an anchored box over the tree, a dragged panel's drop outline, and each view's camera preview.
