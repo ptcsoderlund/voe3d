@@ -1,20 +1,14 @@
-// The editor's Project panel: the game's window (0291 point 4) — a "Project"
-// title row with an × at its right (0363 point 2), a Width and a Height number
-// box showing the window it is handed and a Windowed / Fullscreen choice —
-// shown as an anchored panel over the dock, below the bar, exactly where
-// preferences.h's and browser.h's go.
+// The editor's Project panel: the game's window (0291 point 4) — a Width and a
+// Height number box showing the window it is handed and a Windowed /
+// Fullscreen choice — the contents of a dock panel, in a leaf or a floating
+// box under the walk's header and its × (0439, 0491).
 //
 //     voe_editor_project_panel panel = { 0 };
 //     voe_editor_project_panel_show(&panel);             // the bar's Project
-//     voe_editor_project_panel_draw(ui, &panel, window, top, size);
-//     // or, inside a dock leaf or floating box under the dock's header:
+//     // inside the dock panel, under its header:
 //     voe_editor_project_panel_contents_draw(ui, &panel, window);
 //     ... voe_ui_frame_end ...
 //     result = voe_editor_project_panel_clicks_read(ui, &panel);
-//
-// THE CONTENTS ARE DRAWN APART from the panel and title row so the dock can
-// place them in a leaf or a floating box under its own header (0439, 0491);
-// the draw is its panel and title row round that same call.
 //
 // A CHANGE IS WRITTEN AT ONCE AND IS NOT UNDONE. The caller hands a changed
 // window straight to project.h's voe_editor_project_window_set, which writes
@@ -33,13 +27,11 @@
 // not: a `ui` widget answers only after voe_ui_frame_end, so the draw records
 // each control and voe_editor_project_panel_clicks_read says what it did.
 //
-// Constraints. The panel has no scroll area: its four rows fit the smallest
+// Constraints. The panel has no scroll area: its three rows fit the smallest
 // surface the dock allows. Drawing asserts when it is not showing.
 #pragma once
 
 #include <authoring/project.h>
-
-#include <math/float2.h>
 
 #include <ui/widgets.h>
 
@@ -55,7 +47,6 @@ typedef struct {
 	voe_ui_node height_box;
 	voe_ui_node windowed_choice;
 	voe_ui_node fullscreen_choice;
-	voe_ui_node close_button;
 	// The two boxes' text, `%d`, kept here because a label's text is drawn
 	// after the call that made it (ui/widgets.h).
 	char width_text[16];
@@ -65,26 +56,16 @@ typedef struct {
 void voe_editor_project_panel_show(voe_editor_project_panel *panel);
 void voe_editor_project_panel_hide(voe_editor_project_panel *panel);
 
-// Draws the panel filling top..size.y of `size`'s width, the area below the
-// bar, over the dock: the title row and its ×, Width and Height rows, then the
-// choice, showing
-// `window`. Records every control into panel. Asserts when it is not showing.
-void voe_editor_project_panel_draw(voe_ui_context *ui,
-				   voe_editor_project_panel *panel,
-				   voe_authoring_project_window window,
-				   float top, voe_math_float2 size);
-
-// Draws only what is inside the panel: Width, Height and the choice, showing
-// `window`, no panel, title row or ×. Records every control but the × into
-// panel. Asserts when it is not showing.
+// Draws Width, Height and the choice, showing `window`, into whatever the
+// caller opened. Records every control into panel. Asserts when it is not
+// showing.
 void voe_editor_project_panel_contents_draw(voe_ui_context *ui,
 					    voe_editor_project_panel *panel,
 					    voe_authoring_project_window window);
 
-// What this frame did: the × fired, and whether a number was committed or the
-// other choice picked, with the window that makes.
+// What this frame did: whether a number was committed or the other choice
+// picked, with the window that makes.
 typedef struct {
-	bool closed;
 	bool changed;
 	voe_authoring_project_window window;
 } voe_editor_project_panel_result;

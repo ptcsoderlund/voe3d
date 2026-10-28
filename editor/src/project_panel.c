@@ -9,9 +9,8 @@
 
 #include <stdio.h>
 
-// The same plate, padding and gaps preferences.c's panel uses, so the
-// floating panels read as one kind of thing. Millimetres.
-#define PROJECT_PANEL_PAD (3.0f * VOE_EDITOR_SPACING)
+// The gap preferences.c's panel uses, so the panels read as one kind of
+// thing. Millimetres.
 #define PROJECT_PANEL_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // What one millimetre of drag across a size box is worth, in pixels.
@@ -22,8 +21,6 @@ void voe_editor_project_panel_show(voe_editor_project_panel *panel)
 	VOE_BASE_ASSERT(panel != NULL, "showing no project panel");
 
 	panel->showing = true;
-	// No × until a draw records one: the dock's header carries it now.
-	panel->close_button = VOE_UI_NODE_NONE;
 }
 
 void voe_editor_project_panel_hide(voe_editor_project_panel *panel)
@@ -53,44 +50,6 @@ static voe_ui_node size_row(voe_ui_context *ui, const char *name, int value,
 	voe_ui_end(ui); // row
 
 	return box;
-}
-
-void voe_editor_project_panel_draw(voe_ui_context *ui,
-				   voe_editor_project_panel *panel,
-				   voe_authoring_project_window window,
-				   float top, voe_math_float2 size)
-{
-	VOE_BASE_ASSERT(ui != NULL, "drawing no project panel into no interface");
-	VOE_BASE_ASSERT(panel != NULL, "drawing no project panel");
-	VOE_BASE_ASSERT(panel->showing,
-			"drawing a project panel that is not showing");
-
-	// Anchored exactly as preferences.c's panel is.
-	voe_ui_panel_begin(
-		ui, "project", 0, VOE_UI_SURFACE_RAISED,
-		(voe_ui_container){
-			.across = VOE_UI_ACROSS_FILL,
-			.gap = PROJECT_PANEL_GAP,
-			.pad = { PROJECT_PANEL_PAD, PROJECT_PANEL_PAD,
-				 PROJECT_PANEL_PAD, PROJECT_PANEL_PAD },
-			.anchor = { .anchored = true,
-				    .x = { VOE_UI_ACROSS_FILL, 0.0f },
-				    .y = { VOE_UI_ACROSS_START, top } },
-			.size = { .across = { VOE_UI_SIZE_FIXED, size.y } } });
-
-	// The title at the left and its × at the right (0363 point 2), spread
-	// apart along a row the panel stretches across, as a dock header is.
-	voe_ui_row_begin(ui, (voe_ui_container){ .along = VOE_UI_ALONG_SPREAD,
-						 .across = VOE_UI_ACROSS_CENTER });
-	voe_ui_label(ui, "Project");
-	panel->close_button = voe_ui_button_begin(ui, "close", 0);
-	voe_ui_label(ui, "×");
-	voe_ui_end(ui); // × button
-	voe_ui_end(ui); // title row
-
-	voe_editor_project_panel_contents_draw(ui, panel, window);
-
-	voe_ui_end(ui); // panel
 }
 
 void voe_editor_project_panel_contents_draw(voe_ui_context *ui,
@@ -175,7 +134,6 @@ voe_editor_project_panel_clicks_read(const voe_ui_context *ui,
 		result.window.fullscreen = false;
 	if (fired(ui, panel->fullscreen_choice))
 		result.window.fullscreen = true;
-	result.closed = fired(ui, panel->close_button);
 	result.changed = result.window.width != panel->shown.width ||
 			 result.window.height != panel->shown.height ||
 			 result.window.fullscreen != panel->shown.fullscreen;

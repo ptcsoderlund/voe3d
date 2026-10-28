@@ -277,8 +277,8 @@
 // scrollbars on both axes, four; each line at most VOE_EDITOR_ERRORS_LINE_BYTES
 // (160) characters, a byte at least apiece, 7680. 39642 + 7700 = 47342
 // elements. AND ONE MORE SCROLL AREA, its lines': five. It is a dock panel
-// now (0491), its lines under the walk's header in the walk's panel and area,
-// counted below; the panel, title row and area counted here stay as spare.
+// now (0491), its own panel, title row and × gone: the walk's header, panel
+// and area carry them, counted below, and what is counted here stays spare.
 //
 // THE SCENE LIST'S DRAG MARKS (scene_list.h, ADR-0282) ADD 132 NODES:
 // a rim wrapper round each of VOE_EDITOR_SCENE_ROWS (128) rows and the heading,
@@ -304,8 +304,9 @@
 //
 // THE PROJECT PANEL (project_panel.h) ADDED NOTHING WHILE IT WAS NEVER DRAWN
 // IN THE SAME FRAME AS THE BROWSER AND COST LESS. A dock panel now (0491), it
-// may be, and its contents are counted on top with the walk's four below. As
-// it was: the panel, one; its title row, the "Project" label and the × as a
+// may be, and its contents are counted on top with the walk's four below; its
+// own panel, title row and × are gone, the walk's header carrying them, and
+// their count stays spare. As it was: the panel, one; its title row, the "Project" label and the × as a
 // button and a label, four; Width's and Height's rows, each a row, its name
 // label, the number box and the figure composed into it, eight; the choice
 // row and Windowed and Fullscreen as a choice and a label each, five — 18
@@ -335,8 +336,9 @@
 // scroll area: five stands.
 //
 // THE FRAME BREAKDOWN (frame_breakdown.h) ADDS 200 NODES AND 2974 ELEMENTS,
-// the most its own header counts, on top; a dock panel now (0491), drawn
-// whatever else shows, its panel and title row stay spare. ITS ROW IN THE PANELS
+// as its own header counted them, on top; a dock panel now (0491), drawn
+// whatever else shows, its own panel and title row gone, the walk's header
+// carrying them, and their count stays spare. ITS ROW IN THE PANELS
 // LIST, a seventh, ADDS FIVE NODES, and "Frame breakdown"'s fourteen
 // characters, its space drawing nothing, are now the longest name: seven rows
 // of at most two, one and fourteen, 119 against the seventy-eight above,

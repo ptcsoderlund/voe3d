@@ -1,8 +1,6 @@
-// The Errors panel's log read, its one frame of `ui` calls and the read of
-// its × afterwards. See the header for why only the log's tail is kept.
+// The Errors panel's log read and its contents' one frame of `ui` calls. See
+// the header for why only the log's tail is kept.
 #include "errors.h"
-
-#include "themes.h"
 
 #include <base/arena.h>
 #include <base/assert.h>
@@ -10,10 +8,6 @@
 #include <platform/file.h>
 
 #include <stdio.h>
-
-// The same plate, padding and gap preferences.c's panel uses. Millimetres.
-#define ERRORS_PAD (3.0f * VOE_EDITOR_SPACING)
-#define ERRORS_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // A block size for the log's bytes, not a limit (base/arena.h).
 #define ERRORS_SCRATCH (64u * 1024u)
@@ -58,8 +52,6 @@ void voe_editor_errors_show(voe_editor_errors *errors, const char *log)
 	VOE_BASE_ASSERT(log != NULL, "showing the errors of no log");
 
 	errors->showing = true;
-	// No × until a draw records one: the dock's header carries it now.
-	errors->close_button = VOE_UI_NODE_NONE;
 	errors->count = 0;
 	scratch = voe_base_arena_new(ERRORS_SCRATCH);
 	VOE_BASE_ASSERT(scratch != NULL, "no scratch to read the log into");
@@ -109,48 +101,6 @@ void voe_editor_errors_hide(voe_editor_errors *errors)
 	errors->showing = false;
 }
 
-void voe_editor_errors_draw(voe_ui_context *ui, voe_editor_errors *errors,
-			    float top, voe_math_float2 size)
-{
-	VOE_BASE_ASSERT(ui != NULL, "drawing no errors into no interface");
-	VOE_BASE_ASSERT(errors != NULL, "drawing no errors");
-	VOE_BASE_ASSERT(errors->showing, "drawing errors that are not showing");
-
-	// Anchored exactly as preferences.c's panel is.
-	voe_ui_panel_begin(
-		ui, "errors", 0, VOE_UI_SURFACE_RAISED,
-		(voe_ui_container){
-			.across = VOE_UI_ACROSS_FILL,
-			.gap = ERRORS_GAP,
-			.pad = { ERRORS_PAD, ERRORS_PAD, ERRORS_PAD,
-				 ERRORS_PAD },
-			.anchor = { .anchored = true,
-				    .x = { VOE_UI_ACROSS_FILL, 0.0f },
-				    .y = { VOE_UI_ACROSS_START, top } },
-			.size = { .across = { VOE_UI_SIZE_FIXED, size.y } } });
-	// The title at the left and its × at the right (0363 point 2), spread
-	// apart along a row the panel stretches across, as a dock header is.
-	voe_ui_row_begin(ui, (voe_ui_container){ .along = VOE_UI_ALONG_SPREAD,
-						 .across = VOE_UI_ACROSS_CENTER });
-	voe_ui_label(ui, "Build errors");
-	errors->close_button = voe_ui_button_begin(ui, "errors_close", 0);
-	voe_ui_label(ui, "×");
-	voe_ui_end(ui); // × button
-	voe_ui_end(ui); // title row
-
-	// Both axes: a compiler's line is often wider than the panel.
-	voe_ui_scroll_begin(
-		ui, "error_lines", 0,
-		(voe_ui_container){ .size = { .along = { VOE_UI_SIZE_GROW,
-							 1.0f } },
-				    .across = VOE_UI_ACROSS_START },
-		(voe_ui_scroll_axes){ .x = true, .y = true });
-	voe_editor_errors_contents_draw(ui, errors);
-	voe_ui_end(ui); // scroll area
-
-	voe_ui_end(ui); // panel
-}
-
 void voe_editor_errors_contents_draw(voe_ui_context *ui,
 				     const voe_editor_errors *errors)
 {
@@ -162,16 +112,4 @@ void voe_editor_errors_contents_draw(voe_ui_context *ui,
 
 	for (uint32_t i = 0; i < errors->count; i++)
 		voe_ui_label(ui, errors->lines[i]);
-}
-
-bool voe_editor_errors_clicks_read(const voe_ui_context *ui,
-				   const voe_editor_errors *errors)
-{
-	VOE_BASE_ASSERT(ui != NULL, "reading the clicks of no interface");
-	VOE_BASE_ASSERT(errors != NULL, "reading the clicks of no errors");
-
-	// A refused frame hands back VOE_UI_NODE_NONE, skipped as
-	// preferences.c's are.
-	return errors->close_button != VOE_UI_NODE_NONE &&
-	       voe_ui_button_action(ui, errors->close_button).fired;
 }

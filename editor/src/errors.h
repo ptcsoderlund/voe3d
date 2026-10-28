@@ -1,21 +1,13 @@
 // The Errors panel: what a failed build said, shown in the editor so a person
-// reads the compiler's words without a terminal (ADR-0240, 0242 point 8). A
-// title row with an × at its right (0363 point 2), then the last lines of
-// <project>/Build/build.log in a scroll area — an anchored panel over the dock
-// below the bar, where preferences.h's own panel goes.
+// reads the compiler's words without a terminal (ADR-0240, 0242 point 8). The
+// last lines of <project>/Build/build.log — the contents of a dock panel, in
+// the scroll area of a leaf or a floating box under the walk's header and its
+// × (0439, 0491).
 //
 //     voe_editor_errors errors = { 0 };
 //     voe_editor_errors_show(&errors, log);        // a refresh or Play failed
-//     voe_editor_errors_draw(ui, &errors, top, size);
-//     // or, inside a dock leaf's scroll area under the dock's header:
-//     voe_editor_errors_contents_draw(ui, &errors);
-//     ... voe_ui_frame_end ...
-//     if (voe_editor_errors_clicks_read(ui, &errors))
-//             voe_editor_errors_hide(&errors);
-//
-// THE CONTENTS ARE DRAWN APART from the panel, title row and scroll area so
-// the dock can place them in a leaf or a floating box under its own header
-// (0439, 0491); the draw is its panel, title row and scroll area round them.
+//     if (errors.showing) // inside the dock panel's scroll area
+//             voe_editor_errors_contents_draw(ui, &errors);
 //
 // ONLY THE TAIL. A Ninja log ends at the step that failed, so the first error
 // is usually within its last lines, and the whole log stays in Build/build.log
@@ -30,8 +22,6 @@
 // the whole log once, into a scratch arena of its own made and destroyed in
 // the call; an unreadable log keeps one line saying so.
 #pragma once
-
-#include <math/float2.h>
 
 #include <ui/widgets.h>
 
@@ -50,24 +40,13 @@ typedef struct {
 	// Kept here because a label's text is drawn after the call that made
 	// it (ui/widgets.h).
 	char lines[VOE_EDITOR_ERRORS_LINES][VOE_EDITOR_ERRORS_LINE_BYTES + 1];
-	voe_ui_node close_button;
 } voe_editor_errors;
 
 // Keeps the last lines of the file at `log` and shows the panel.
 void voe_editor_errors_show(voe_editor_errors *errors, const char *log);
 void voe_editor_errors_hide(voe_editor_errors *errors);
 
-// Draws the panel filling top..size.y of `size`'s width, the area below the
-// bar, over the dock, and records its ×. Asserts when it is not showing.
-void voe_editor_errors_draw(voe_ui_context *ui, voe_editor_errors *errors,
-			    float top, voe_math_float2 size);
-
-// Draws only the kept lines as labels: no panel, title row, × or scroll area.
-// Asserts when it is not showing.
+// Draws the kept lines as labels into whatever the caller opened. Asserts
+// when it is not showing.
 void voe_editor_errors_contents_draw(voe_ui_context *ui,
 				     const voe_editor_errors *errors);
-
-// Whether the × fired this frame. Called after voe_ui_frame_end and before
-// the frame's arena is rewound — the one window in which a widget answers.
-bool voe_editor_errors_clicks_read(const voe_ui_context *ui,
-				   const voe_editor_errors *errors);

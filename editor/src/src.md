@@ -147,32 +147,30 @@ carries it out.
   a column of its own, as an anchored panel below the button, closed by its caller.
 - `panels_menu.c` — the list's one frame of `ui` calls and the read of its rows, and whether the
   pointer is on it, afterwards.
-- `project_panel.h` — the Project panel: a title row with its ×, the game window's width and height
-  as number boxes and a Windowed / Fullscreen choice, as an anchored panel over the dock, carrying
-  out nothing; the contents call draws them alone for the dock.
-- `project_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
-  a number rounded and clamped to the project file's range.
-- `landscape_panel.h` — the Landscape panel: a title row with its ×, the file's name, and the size
-  and cells as number boxes written at once, never unsaved or undone, as an anchored panel over the
-  dock, carrying out nothing; the contents call draws all but the title row for the dock.
-- `landscape_panel.c` — the panel's one frame of `ui` calls and the read of its controls afterwards,
-  a drag handed back once on release, each number rounded and clamped to the file's range.
+- `project_panel.h` — the Project panel's contents in a dock panel: the game window's width and
+  height as number boxes and a Windowed / Fullscreen choice, carrying out nothing.
+- `project_panel.c` — the contents' one frame of `ui` calls and the read of its controls
+  afterwards, a number rounded and clamped to the project file's range.
+- `landscape_panel.h` — the Landscape panel's contents in a dock panel: the file's name, and the
+  size and cells as number boxes written at once, never unsaved or undone, carrying out nothing.
+- `landscape_panel.c` — the contents' one frame of `ui` calls and the read of its controls
+  afterwards, a drag handed back once on release, each number rounded and clamped to the file's
+  range.
 - `preferences.h` — Preferences: one row per theme with its name and a Choose button, the one in
   force marked, three sliders for that theme's contrast, separation and text size with a Reset
   button, and Close, as an anchored panel over the dock.
 - `preferences.c` — the panel's one frame of `ui` calls and the read of its
   buttons and sliders afterwards.
 - `errors.h` — the Errors panel a failed build shows: the last 48 lines of `Build/build.log`, each
-  cut at 160 bytes, in a scroll area under a title row with its ×, as an anchored panel over the dock;
-  the contents call draws the lines alone for the dock.
-- `errors.c` — the log read back from its end to its last lines, the panel's one frame of `ui`
-  calls, and the read of its × afterwards.
+  cut at 160 bytes, drawn as a dock panel's contents in its scroll area.
+- `errors.c` — the log read back from its end to its last lines, and the contents' one frame of
+  `ui` calls.
 - `frame_breakdown.h` — the Frame panel: each GPU pass's milliseconds, the total, triangles, draws,
-  the textures' MB and each picture's counts, copied four times a second, under a title row with
-  its ×; the contents call draws the rows alone for the dock.
+  the textures' MB and each picture's counts, copied four times a second, drawn as a dock panel's
+  contents.
 - `frame_breakdown.c` — the quarter-second copy of the pictures' counts, the textures' memory and
-  the triangle and draw counts, keeping the last times on no measurement, the panel's one frame of
-  `ui` calls, and the read of its × afterwards.
+  the triangle and draw counts, keeping the last times on no measurement, and the contents' one
+  frame of `ui` calls.
 - `frame_hitches.h` — the editor's hitch watch: its own span's CPU stretches, the pace's wait, the
   shadows' and bounce's parts and foliage gathers timed, and an `editor: hitch:` line on stderr for
   each frame stalled on the CPU or the card, saying whether a light bounced (0458, 0461, 0463).
@@ -269,7 +267,7 @@ carries it out.
   Import textures opening their questions, and the Delete, levels and Import textures questions
   answered, Make's asking the prepare or, for swaps alone, a reload, Import's importing at its size.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
-  then the ×, Panels list, top bar, browser, Preferences, Project, Landscape, Errors and breakdown.
+  then the ×, Panels list, top bar, browser, Preferences, Project and Landscape.
 - `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,
   the picker's submit (a material's into the field its offset names), the drop's prefab, the reveal,
   the panels' toggles, the bar's or browser's commands, the covers' reads and Preferences'.

@@ -420,11 +420,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			themes, breakdown,
 			(voe_editor_interface_shown){
 				.browsing = browsing,
-				.erroring = erroring,
 				.preferring = preferring,
 				.projecting = projecting,
 				.landscaping = landscaping,
-				.framing = framing,
 				.menuing = menuing },
 			escape);
 

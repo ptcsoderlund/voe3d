@@ -1,28 +1,19 @@
 // The Frame panel: what the graphics card spent on each pass of a frame, by the
 // pass's own name, in milliseconds, and the frame's total (ADR-0358), so render
-// work is argued from a measurement. A title row "Frame" with an × at its right
-// (0363 point 2), a row per pass, name left and milliseconds right, then Total,
-// then Triangles, the frame's triangle count (ADR-0425 point 7), then Draws, its
-// draw commands, far fewer than trees (0442), then Textures, the material
-// textures' video memory in MB to one decimal and how many of them are
-// compressed (0477 point 7), then two rows per picture drawn, `Camera` or
+// work is argued from a measurement. A row per pass, name left and milliseconds
+// right, then Total, then Triangles, the frame's triangle count (ADR-0425 point
+// 7), then Draws, its draw commands, far fewer than trees (0442), then Textures,
+// the material textures' video memory in MB to one decimal and how many of them
+// are compressed (0477 point 7), then two rows per picture drawn, `Camera` or
 // `View N` with its things drawn and skipped and `  shadows` with its
-// cascades' (0465 point 1) — an anchored panel at a point the caller gives.
+// cascades' (0465 point 1) — the contents of a dock panel, in a leaf or a
+// floating box under the walk's header and its × (0439, 0491).
 //
 //     voe_editor_frame_breakdown breakdown = { 0 };
 //     voe_editor_frame_breakdown_show(&breakdown);
 //     voe_editor_frame_breakdown_take(&breakdown, gpu, &views, seconds); // each frame
-//     if (breakdown.showing)
-//             voe_editor_frame_breakdown_draw(ui, &breakdown, at);
-//     // or, inside a dock leaf or floating box under the dock's header:
-//     voe_editor_frame_breakdown_contents_draw(ui, &breakdown);
-//     ... voe_ui_frame_end ...
-//     if (voe_editor_frame_breakdown_clicks_read(ui, &breakdown))
-//             voe_editor_frame_breakdown_hide(&breakdown);
-//
-// THE CONTENTS ARE DRAWN APART from the panel and title row so the dock can
-// place them in a leaf or a floating box under its own header (0439, 0491);
-// the draw is its panel and title row round that same call.
+//     if (breakdown.showing) // inside the dock panel, under its header
+//             voe_editor_frame_breakdown_contents_draw(ui, &breakdown);
 //
 // IT LAGS, AND THAT IS RENDER'S, NOT THIS FILE'S. The numbers are read from the
 // card after the frame slot's fence, so they describe the frame
@@ -39,13 +30,11 @@
 //
 // Constraints. At most VOE_EDITOR_FRAME_PASSES passes; a frame with more shows
 // its first ones, and raising the number, with interface.h's budget, lifts it.
-// NODES, AT MOST 239: the panel, one; the title row, its label and the × as a
-// button and a label, four; per pass a row and two labels, three, 192; the
+// NODES, AT MOST 234: per pass a row and two labels, three, 192; the
 // total's, the triangles', the draws' and the textures' rows and two labels
 // each, twelve; per picture, VOE_EDITOR_VIEWS + 1 (5), two rows and two labels
 // each, thirty.
-// ELEMENTS, AT MOST 3507: the panel's border and fill, two; "Frame", five; the
-// ×'s border, fill and character, three; per pass its name, at most
+// ELEMENTS, AT MOST 3497: per pass its name, at most
 // VOE_RENDER_PASS_NAME - 1 (31) characters, and its milliseconds, at most
 // VOE_EDITOR_FRAME_MILLISECONDS - 1 (15), 2944; "Total" and its milliseconds,
 // twenty; "Triangles" and at most VOE_EDITOR_FRAME_TRIANGLES - 1 (20) digits,
@@ -57,8 +46,6 @@
 #pragma once
 
 #include "view.h"
-
-#include <math/float2.h>
 
 #include <render/device.h>
 
@@ -111,7 +98,6 @@ typedef struct {
 	char drawn_labels[VOE_EDITOR_VIEWS + 1][VOE_EDITOR_FRAME_COUNTS];
 	char cast_labels[VOE_EDITOR_VIEWS + 1][VOE_EDITOR_FRAME_COUNTS];
 	float since_refresh;
-	voe_ui_node close_button;
 } voe_editor_frame_breakdown;
 
 void voe_editor_frame_breakdown_show(voe_editor_frame_breakdown *breakdown);
@@ -127,18 +113,7 @@ void voe_editor_frame_breakdown_take(voe_editor_frame_breakdown *breakdown,
 				     const voe_editor_views *views,
 				     float seconds);
 
-// Draws the panel with its top left at `at` and records its ×. Asserts when it
-// is not showing.
-void voe_editor_frame_breakdown_draw(voe_ui_context *ui,
-				     voe_editor_frame_breakdown *breakdown,
-				     voe_math_float2 at);
-
-// Draws only what is inside the panel: the pass rows through the last
-// picture's rows, no panel, title row or ×. Asserts when it is not showing.
+// Draws the pass rows through the last picture's rows into whatever the
+// caller opened. Asserts when it is not showing.
 void voe_editor_frame_breakdown_contents_draw(
 	voe_ui_context *ui, voe_editor_frame_breakdown *breakdown);
-
-// Whether the × fired this frame. Called after voe_ui_frame_end and before
-// the frame's arena is rewound — the one window in which a widget answers.
-bool voe_editor_frame_breakdown_clicks_read(
-	const voe_ui_context *ui, const voe_editor_frame_breakdown *breakdown);
