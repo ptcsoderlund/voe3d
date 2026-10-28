@@ -5,8 +5,9 @@
 // and divided into roots[0].pointer, before the views are fitted.
 //
 // WHAT IT OWNS: the fly's lock edge (`flew`), the borders at rest (`resize`,
-// resize.h) and the left press that picks (`pick`, pick.h). The gizmo and the
-// Assets drag are main.c's, because the draw reads them too.
+// resize.h), a header's drag (`moving`, panel_drag.h) and the left press that
+// picks (`pick`, pick.h). The gizmo and the Assets drag are main.c's, because
+// the draw reads them too.
 //
 // ITS ORDER, and why the order is the point:
 // 1. The right button flies the view it went down over (view.h). A flying
@@ -15,10 +16,13 @@
 //    told whether a view flies, then F's frame of the selection in the view
 //    under the pointer (frame_selection.h); a flying view then takes `ui`'s
 //    pointer and the left button.
-// 3. The borders (resize.h): a seam is a fill the walk draws, not a widget,
-//    so they are asked before anything else that reads the left button; one
-//    they have takes `ui`'s pointer and the left button too. Then the right
-//    button's down edge over the Assets panel opens its menu (assets_menu.h).
+// 3. A header's drag (panel_drag.h), then the borders (resize.h): neither is
+//    a widget, so they are asked before anything else that reads the left
+//    button, with one area and one `allowed`. A drag going on takes `ui`'s
+//    pointer and the left button, and the borders are not asked; else they
+//    are, and one they have takes the same. Either's end remembers the
+//    layout. Then the right button's down edge over the Assets panel opens
+//    its menu (assets_menu.h).
 // 4. The middle drag (view.h), the views' and never the interface's.
 // 5. The brush (sculpt.h): a press on the selection's ground sculpts, and
 //    while it takes the press or a stroke is held, 6 to 8 are blocked.
@@ -28,8 +32,9 @@
 // 8. The pick (pick.h), last: a press the gizmo or a drag took selects nothing.
 //
 // Constraints: the parts pointed at are main.c's and outlive the loop; only a
-// stroke allocates (sculpt.h). `flew`, `right_was`, `resize` and `pick` are
-// this file's to write; main.c sets them once in the fill and reads none.
+// stroke allocates (sculpt.h). `flew`, `right_was`, `resize`, `moving` and
+// `pick` are this file's to write; main.c sets them once in the fill and reads
+// none.
 #pragma once
 
 #include "assets_drag.h"
@@ -38,6 +43,7 @@
 #include "gizmo.h"
 #include "keys.h"
 #include "models.h"
+#include "panel_drag.h"
 #include "pick.h"
 #include "resize.h"
 #include "scene.h"
@@ -81,6 +87,9 @@ typedef struct {
 	// The borders between the root's panels, at rest; main.c fills it with
 	// `.held = UINT32_MAX` (resize.h).
 	voe_editor_resize resize;
+	// A header pressed or dragged; main.c fills it with nothing pressed and
+	// no last press (panel_drag.h).
+	voe_editor_panel_drag moving;
 	// The left press in a view that moves the selection (pick.h).
 	voe_editor_pick pick;
 } voe_editor_frame_pointer;
@@ -106,7 +115,7 @@ typedef struct {
 // What main.c reads after the call.
 typedef struct {
 	bool flying;
-	// The borders had the pointer this frame.
+	// A header's drag or the borders had the pointer this frame.
 	bool taken;
 	// The keyboard `ui` is handed this frame (frame_commands.h).
 	voe_ui_keyboard keyboard;

@@ -393,6 +393,14 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			return false;
 		}
 
+		// Each header row where `ui` laid it, for next frame's header
+		// drag (panel_drag.h); zero size for one not drawn.
+		for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++)
+			root->heads[c] =
+				closes.header[c] == VOE_UI_NODE_NONE ?
+					(voe_ui_rect){ 0 } :
+					voe_ui_node_rect(ui, closes.header[c]);
+
 		// Before the rewind below, which is the whole of the window a
 		// widget will answer in. A refused frame above is not asked at
 		// all: nothing was laid out, so nothing was clicked.

@@ -225,7 +225,10 @@ typedef struct {
 // a share. The first VOE_EDITOR_CLOSABLE_DOCKED are kept here (panels.h); the
 // entries past them are the caller's to fill each frame from each panel's own
 // `showing`, like `pointer`, and never remembered (0491 point 5). `floats` is
-// each closable's floating box, and whether it floats.
+// each closable's floating box, and whether it floats. `heads` is each
+// closable's header row as last frame laid it out, in the root's millimetres,
+// zero size where none was drawn: written by interface.c after each frame,
+// read by a header's drag (panel_drag.h).
 //
 // THAT DOES NOT MAKE A SECOND OS WINDOW CHEAP, AND SAYING SO IS THE POINT OF
 // THIS PARAGRAPH. `platform` opens one window, `render` opens one device onto
@@ -241,6 +244,7 @@ typedef struct {
 	uint32_t lit;
 	bool closed[VOE_EDITOR_CLOSABLE_COUNT];
 	voe_editor_dock_float floats[VOE_EDITOR_CLOSABLE_COUNT];
+	voe_ui_rect heads[VOE_EDITOR_CLOSABLE_COUNT];
 } voe_editor_dock_root;
 
 // The four tool panels — Project, Errors, Frame, Landscape — floating at

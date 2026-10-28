@@ -421,7 +421,9 @@ int main(int argc, char *argv[])
 		.gizmo = &gizmo, .drag = &drag, .root = &roots[0], .bar = &bar,
 		.geometries = &geometries, .models = models, .scratch = arena,
 		.window = window,
-		.resize = { .held = UINT32_MAX } };
+		.resize = { .held = UINT32_MAX },
+		.moving = { .pressed = VOE_EDITOR_CLOSABLE_COUNT,
+			    .last = VOE_EDITOR_CLOSABLE_COUNT } };
 	waits = (voe_editor_waits){
 		.app = app, .ui = ui, .scratch = scratch,
 		.splash = splash_held ? &splash : NULL, .session = &session,

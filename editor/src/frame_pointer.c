@@ -1,7 +1,7 @@
 // main.c's loop's run of pointer and view reads, moved here with its comments:
-// the glide, the fly and the shortcuts, the borders, the Assets panel's right
-// button, then the middle drag, the brush, the gizmo, the Assets drag and the
-// pick, in the order frame_pointer.h gives. See there.
+// the glide, the fly and the shortcuts, a header's drag and the borders, the
+// Assets panel's right button, then the middle drag, the brush, the gizmo, the
+// Assets drag and the pick, in the order frame_pointer.h gives. See there.
 #include "frame_pointer.h"
 
 #include "frame_selection.h"
@@ -47,24 +47,31 @@ static bool fly(voe_editor_frame_pointer *frame,
 	return flying;
 }
 
-// THE BORDERS ARE ASKED FIRST (resize.h): a seam is a fill the walk draws, not
-// a widget, so no widget answers for it. While they have the pointer, `ui`
-// sees no pointer and pick and the gizmo no left button; the border they
-// reach is drawn lit.
-static bool borders(voe_editor_frame_pointer *frame, bool flying)
+// The layout remembered when a drag or double-click ends, a failure said in
+// the notice (panels.h).
+static void layout_remember(voe_editor_frame_pointer *frame)
+{
+	VOE_BASE_ASSERT(frame->root != NULL && frame->bar != NULL,
+			"remembering the layout of no root or bar");
+	VOE_BASE_ASSERT(frame->session != NULL,
+			"remembering the layout with no notice to say a failure in");
+	voe_base_report_error_clear();
+	if (!voe_editor_panels_remember(frame->root, frame->bar))
+		voe_editor_notice_from_report(&frame->session->notice,
+					      "editor_settings");
+}
+
+// THE BORDERS (resize.h): a seam is a fill the walk draws, not a widget, so no
+// widget answers for it. While they have the pointer, `ui` sees no pointer and
+// pick and the gizmo no left button; the border they reach is drawn lit.
+static bool borders(voe_editor_frame_pointer *frame, bool allowed, double now)
 {
 	voe_editor_resize_result resized;
 
 	VOE_BASE_ASSERT(frame->root != NULL && frame->bar != NULL,
 			"borders with no root or bar");
-	resized = voe_editor_resize_frame(
-		&frame->resize, frame->root, frame->bar,
-		!frame->browser->showing && !frame->preferences->showing &&
-			!frame->scene->picking.open &&
-			!frame->scene->dropdown.open &&
-			!frame->bar->menu.open &&
-			!frame->scene->assets.menu.open && !flying,
-		voe_platform_clock_now());
+	resized = voe_editor_resize_frame(&frame->resize, frame->root,
+					  frame->bar, allowed, now);
 	frame->root->lit = resized.reached;
 	if (resized.taken) {
 		frame->root->pointer.over = false;
@@ -72,15 +79,53 @@ static bool borders(voe_editor_frame_pointer *frame, bool flying)
 	}
 	if (frame->window != NULL)
 		voe_platform_input_cursor(frame->window, resized.cursor);
-	if (resized.ended) {
-		voe_base_report_error_clear();
-		if (!voe_editor_panels_remember(frame->root, frame->bar))
-			voe_editor_notice_from_report(&frame->session->notice,
-						      "editor_settings");
-	}
+	if (resized.ended)
+		layout_remember(frame);
 	VOE_BASE_ASSERT(!resized.taken || !frame->root->pointer.down,
 			"the borders took a pointer `ui` still sees");
 	return resized.taken;
+}
+
+// A HEADER'S DRAG IS ASKED BEFORE THE BORDERS (panel_drag.h), in the dock area
+// below the bar and under the borders' own `allowed`. While it drags, `ui`
+// sees no pointer, no seam is lit and the borders are not asked; a press the
+// borders then hold is theirs, not a header's beside the seam.
+static bool headers_and_borders(voe_editor_frame_pointer *frame, bool flying)
+{
+	const bool allowed = !frame->browser->showing &&
+			     !frame->preferences->showing &&
+			     !frame->scene->picking.open &&
+			     !frame->scene->dropdown.open &&
+			     !frame->bar->menu.open &&
+			     !frame->scene->assets.menu.open && !flying;
+	const double now = voe_platform_clock_now();
+	const float high =
+		voe_editor_topbar_high(frame->bar, frame->root->size.y);
+	voe_editor_panel_drag_result moved;
+	bool taken;
+
+	VOE_BASE_ASSERT(frame->root != NULL && frame->bar != NULL,
+			"a header drag with no root or bar");
+	moved = voe_editor_panel_drag_frame(
+		&frame->moving, frame->root,
+		(voe_ui_rect){ .min = { 0.0f, high },
+			       .size = { frame->root->size.x,
+					 frame->root->size.y - high } },
+		allowed, now);
+	if (moved.ended)
+		layout_remember(frame);
+	if (moved.taken) {
+		frame->root->lit = UINT32_MAX;
+		frame->root->pointer.over = false;
+		frame->root->pointer.down = false;
+		return true;
+	}
+	taken = borders(frame, allowed, now);
+	if (frame->resize.held != UINT32_MAX)
+		frame->moving.pressed = VOE_EDITOR_CLOSABLE_COUNT;
+	VOE_BASE_ASSERT(!taken || !frame->root->pointer.down,
+			"the borders took a pointer `ui` still sees");
+	return taken;
 }
 
 // THE RIGHT BUTTON'S DOWN EDGE OVER THE ASSETS PANEL OPENS ITS MENU (0378
@@ -194,7 +239,7 @@ voe_editor_frame_pointer_read(voe_editor_frame_pointer *frame,
 		left = false;
 	}
 
-	result.taken = borders(frame, result.flying);
+	result.taken = headers_and_borders(frame, result.flying);
 	if (result.taken)
 		left = false;
 	assets_right(frame, input, result.flying);
