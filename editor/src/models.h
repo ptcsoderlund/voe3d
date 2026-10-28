@@ -45,13 +45,14 @@
 // material whose row is new or changed at the next update; an Inspector edit
 // (_material_changed) sets factors live, or waits so for a changed map.
 //
-// COMPRESSING BETWEEN FRAMES (0477 points 3 and 4): outside a wait a map with
-// no fresh copy is uploaded uncompressed at once and queued, and each update
-// after the materials compresses for at most 2 ms; the map draws uncompressed
-// until its copy is written, then every held material naming it loads again
-// from the copy at the next update. Not under the frame: the encoder runs on
-// the CPU, one thread (0456, 0386), and the store has no call that swaps a
-// texture in place. Under a splash maps are compressed inline as progress.
+// COMPRESSING BETWEEN FRAMES (0477 point 4, 0489): outside a wait a map with
+// no fresh copy is queued, not read, and its material loads with that map
+// empty. Each update after the materials steps the queue once, and a step
+// never waits: the decode on a burst, the GPU's compression polled, the copy
+// written on a burst. When the copy is written every held material naming it
+// loads again from the copy at the next update, since the store has no call
+// that swaps a texture in place. Under a splash maps are compressed as
+// progress.
 #pragma once
 
 #include "materials.h"
@@ -81,7 +82,7 @@ void voe_editor_models_destroy(voe_editor_models *models,
 // reads the paths it lacks and, a second past the last look, re-reads changed
 // files. `scratch` holds one file at a time and is rewound; `now` is the frame
 // clock's, in seconds. `progress` is the splash wait's, NULL outside one,
-// when a 2 ms step of the queue follows the materials.
+// when one step of the queue follows the materials.
 void voe_editor_models_update(voe_editor_models *models,
 			      voe_editor_session *session,
 			      voe_render_device *device,

@@ -77,8 +77,9 @@ bool voe_editor_loading_prepare_work(void *context, voe_game_progress *progress)
 	voe_base_error error = VOE_BASE_OK;
 	bool made = false;
 
-	VOE_BASE_ASSERT(prepare != NULL && prepare->scratch != NULL,
-			"a prepare's work with no scratch");
+	VOE_BASE_ASSERT(prepare != NULL && prepare->device != NULL &&
+				prepare->scratch != NULL,
+			"a prepare's work with no device or scratch");
 	VOE_BASE_ASSERT(prepare->folder != NULL && prepare->path != NULL,
 			"a prepare's work with no folder or path");
 	snprintf(prepare->phase, sizeof prepare->phase, "Preparing %s",
@@ -89,8 +90,8 @@ bool voe_editor_loading_prepare_work(void *context, voe_game_progress *progress)
 	// The kept error is this thread's, so the refusal is built here.
 	voe_base_report_error_clear();
 	if (!voe_game_models_prepare(prepare->folder, prepare->path,
-				     prepare->scratch, prepare->remake, &made,
-				     &error)) {
+				     prepare->device, prepare->scratch,
+				     prepare->remake, &made, &error)) {
 		prepare->refused = true;
 		voe_editor_notice_from_report(&prepare->refusal, prepare->path);
 	}
@@ -103,14 +104,14 @@ bool voe_editor_loading_cook_work(void *context, voe_game_progress *progress)
 	voe_editor_loading_cook *cook = context;
 	bool cooked;
 
-	VOE_BASE_ASSERT(cook != NULL && cook->scratch != NULL &&
-				cook->folder != NULL,
-			"a cook's work with no scratch or folder");
+	VOE_BASE_ASSERT(cook != NULL && cook->device != NULL &&
+				cook->scratch != NULL && cook->folder != NULL,
+			"a cook's work with no device, scratch or folder");
 	VOE_BASE_ASSERT(cook->paths != NULL || cook->path_count == 0,
 			"a cook's work counting paths it lacks");
 	cooked = voe_game_models_cook(cook->folder, cook->paths,
 				      cook->path_count, &cook->table,
-				      cook->scratch, progress);
+				      cook->device, cook->scratch, progress);
 	voe_base_arena_clear(cook->scratch);
 	return cooked;
 }
