@@ -8,15 +8,17 @@
 // a time. Its maps are read, decoded and mipped as one burst (platform/
 // burst.h), a task a map on voe_platform_burst_workers(progress given)
 // workers, each task under the material's path and touching only its map's
-// fields and arena: reading (its cooked copy taken as the call's mode allows,
-// else the map joined onto the folder and read), decoding pictures (as 3d
-// says it, under "the <kind> map `path`"), mipped by its slot's kind when it
-// will be cooked. Then on the calling thread, which owns the device and the
-// progress, in order: cooking (each mipped map compressed on the call's
-// device and written as its copy, unless the mode writes none; given a queue,
-// added to it instead, game/compressing.h, 0477 point 3), uploading (through
-// voe_3d_models_put_material, a copy's or a queued map's levels as they are,
-// under its path). A map that will not read or decode keeps the material
+// fields and arena: reading (its cooked copy taken as the call's mode allows;
+// given a queue, a picture with a stamp and no fresh copy is not read but
+// marked queued, 0489 point 1; else the map joined onto the folder and read),
+// decoding pictures (as 3d says it, under "the <kind> map `path`"), mipped by
+// its slot's kind when it will be cooked. Then on the calling thread, which
+// owns the device and the progress, in order: cooking (each mipped map
+// compressed on the call's device and written as its copy, unless the mode
+// writes none or there is a queue; a queued map added to the queue,
+// game/compressing.h), uploading (through voe_3d_models_put_material, a
+// copy's levels as they are, a queued map as none, under its path). A map
+// that will not read or decode keeps the material
 // failed at its stamp, the first map's category kept, each cause said where
 // it was met (0445), its text carried in the map's record and kept at the
 // fold on the calling thread, the first failing map's in map order (0490);
@@ -85,9 +87,11 @@ struct chunk_material {
 	const voe_game_material *material;
 	// Each map's bytes, on its picture's arena.
 	voe_3d_material_map maps[MAPS];
-	// Each map's stamp, 0 for none, and whether its copy was taken.
+	// Each map's stamp, 0 for none, whether its copy was taken, and whether,
+	// not read, it goes to the queue.
 	uint64_t stamps[MAPS];
 	bool taken[MAPS];
+	bool queued[MAPS];
 	// Each map's picture on an arena of its own, NULL until its task and after
 	// its put, written by its copy's take, its decode and mip, or its cook.
 	voe_base_arena *picture_arenas[MAPS];
@@ -203,23 +207,35 @@ static void map_decode(struct chunk_material *read, uint32_t k)
 	voe_base_report_subject_pop();
 }
 
-// Whether map `k` of `read`, after its task, is cooked: decoded here, its
-// copy not taken, and given a queue or a mode that writes.
+// Whether map `k` of `read`, after its task, is cooked inline: decoded here,
+// its copy not taken, with no queue and a mode that writes.
 static bool map_cooks(const struct chunk *chunk,
 		      const struct chunk_material *read, uint32_t k)
 {
 	VOE_BASE_ASSERT(chunk != NULL && read != NULL && k < MAPS,
 			"no chunk, material or map");
 	return !read->taken[k] && read->failed[k] == VOE_BASE_OK &&
-	       read->maps[k].size > 0 &&
-	       (chunk->compressing != NULL ||
-		chunk->cooking != VOE_GAME_MODELS_COOK_NEVER);
+	       read->maps[k].size > 0 && chunk->compressing == NULL &&
+	       chunk->cooking != VOE_GAME_MODELS_COOK_NEVER;
+}
+
+// Whether map `k` of `read`, its copy not taken, goes to the chunk's queue
+// unread: a picture with a stamp. One with none, or no picture, is read and
+// fails at its cause as without a queue.
+static bool map_queues(const struct chunk *chunk,
+		       const struct chunk_material *read, uint32_t k)
+{
+	const char *path = map_path(&read->material->values, k);
+
+	VOE_BASE_ASSERT(!read->taken[k], "queueing a taken map");
+	return chunk->compressing != NULL && path[0] != '\0' &&
+	       read->stamps[k] != 0 && voe_3d_model_picture_is(path);
 }
 
 // One map's task of the chunk's burst, under its material's path: its copy
-// taken, or its bytes read and decoded, each on its own arena, then mipped
-// by its slot's kind when it will be cooked. A map that will not read or
-// decode keeps its category; the others go on.
+// taken, or marked queued, or its bytes read and decoded, each on its own
+// arena, then mipped by its slot's kind when it will be cooked. A map that
+// will not read or decode keeps its category; the others go on.
 static void map_task(void *context, uint32_t index)
 {
 	struct chunk *chunk = context;
@@ -230,11 +246,16 @@ static void map_task(void *context, uint32_t index)
 	VOE_BASE_ASSERT(index < chunk->count * MAPS, "a map past the chunk");
 	voe_base_report_error_clear();
 	voe_base_report_subject_push(read->material->path);
-	if (!map_take(chunk, read, k) &&
-	    !read_map(chunk->folder, map_path(&read->material->values, k),
-		      read->picture_arenas[k], &read->maps[k], &read->failed[k]))
-		VOE_BASE_ASSERT(read->failed[k] != VOE_BASE_OK,
-				"an unread map with no category");
+	if (!map_take(chunk, read, k)) {
+		read->queued[k] = map_queues(chunk, read, k);
+		if (!read->queued[k] &&
+		    !read_map(chunk->folder,
+			      map_path(&read->material->values, k),
+			      read->picture_arenas[k], &read->maps[k],
+			      &read->failed[k]))
+			VOE_BASE_ASSERT(read->failed[k] != VOE_BASE_OK,
+					"an unread map with no category");
+	}
 	read->reading[k] = voe_platform_clock_now() - before;
 	before = voe_platform_clock_now();
 	if (read->failed[k] == VOE_BASE_OK && read->maps[k].size > 0)
@@ -251,20 +272,20 @@ static void map_task(void *context, uint32_t index)
 	voe_base_report_subject_pop();
 }
 
-// Cooking, on the caller, which owns the device: one mipped map added to the
-// chunk's queue, or else compressed and written as its copy under its path.
+// Cooking, on the caller, which owns the device: one queued map added to the
+// chunk's queue, or one mipped map compressed and written as its copy under
+// its path.
 static void map_cook(struct chunk *chunk, struct chunk_material *read,
 		     uint32_t k)
 {
 	const char *path = map_path(&read->material->values, k);
 
-	if (!map_cooks(chunk, read, k))
+	if (!read->queued[k] && !map_cooks(chunk, read, k))
 		return;
 	voe_base_report_subject_push(read->material->path);
-	if (chunk->compressing != NULL) {
+	if (read->queued[k]) {
 		voe_game_compressing_add(chunk->compressing, chunk->folder, path,
-					 MAP_KINDS[k], read->stamps[k],
-					 &read->pictures[k]);
+					 MAP_KINDS[k], read->stamps[k]);
 	} else {
 		read->pictures[k] = voe_game_models_compress(
 			chunk->device, &read->pictures[k], MAP_KINDS[k],
@@ -299,9 +320,7 @@ static void chunk_prepare(struct chunk *chunk, voe_game_models_times *times)
 
 			reading += read->reading[k];
 			decoding += read->decoding[k];
-			inline_cook = inline_cook ||
-				      (chunk->compressing == NULL &&
-				       map_cooks(chunk, read, k));
+			inline_cook = inline_cook || map_cooks(chunk, read, k);
 			times->files += read->maps[k].bytes != NULL ||
 					read->taken[k];
 		}

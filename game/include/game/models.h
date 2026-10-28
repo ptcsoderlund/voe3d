@@ -46,8 +46,8 @@
 // and landscape's layer (0402 point 8) the store lacks loads at stamp 0 or
 // stays failed, one at a time, its maps as one burst (0487 point 4), each its
 // copy `Cache/pictures/<path>.<colour|normal|data>` (0470 point 2) or read,
-// decoded, mipped, then cooked on the caller, or uploaded and queued given a
-// queue (game/compressing.h, 0477 point 3): `game: materials: …`.
+// decoded, mipped, then cooked on the caller, or, given a queue (0489 point
+// 1), not read but added, loading as if empty: `game: materials: …`.
 // LANDSCAPES come from a table (game/landscapes.h, 0236), never a file.
 //
 // ALL RETURN how many paths failed and the first one's path, the store's own
@@ -120,10 +120,11 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 // its values as its path's entry at `stamp`, its `game: materials:` line said;
 // scratch rewound. A map's fresh copy is read in its place, but none is ever
 // written. A decoded map is uploaded as it is, the GPU mipping it; given a
-// queue (NULL for none), it is mipped on the CPU, uploaded RGBA8 with those
-// levels and added to `compressing` at its stamp, whose step writes its copy
-// (0477 point 3). False, `error` set and the entry kept failed, when a map
-// will not read or decode or the store refuses it.
+// queue (NULL for none), a map with no fresh copy is not read but added to
+// `compressing` at its stamp, whose step writes its copy, and the material
+// loads as if that map were empty (0489 point 1). False, `error` set and the
+// entry kept failed, when a map will not read or decode or the store refuses
+// it.
 [[nodiscard]] bool voe_game_models_material_load(
 	voe_3d_models *models, voe_render_device *device, const char *folder,
 	const voe_game_material *material, uint64_t stamp,
@@ -137,8 +138,9 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 //
 // A map decoded because it has no fresh copy is cooked inline, its copy
 // written compressed (0477 point 3), when `compressing` is NULL; given a
-// queue, it is mipped on the CPU, uploaded RGBA8 with those levels and added
-// to the queue at its stamp, no copy written now. Into `progress` (NULL for
+// queue, a map with no fresh copy is not read but added to it at its stamp,
+// no copy written now, and its material loads as if that map were empty
+// (0489 point 1). Into `progress` (NULL for
 // none), before each material, "Compressing textures" done/total over the
 // call's materials when it has a map to cook inline, else "Loading
 // materials"; a stop asked returns before the next material.

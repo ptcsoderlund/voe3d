@@ -26,10 +26,12 @@
 // and writes none.
 // materials_cooked_loads_a_copy_whose_png_is_garbage: a copy written, then
 // the PNG made garbage, the game's materials call loads from the copy, kept.
-// a_queued_map_draws_uncompressed: the colour copy gone, the materials call
-// with a queue leaves one texture uncompressed, one job waiting and no copy.
-// the_stepped_queue_writes_the_copy: stepped to its end, the copy is written;
-// loaded again, every texture is compressed and nothing waits.
+// a_queued_map_loads_empty: the colour copy gone, the materials call with a
+// queue loads without that map's texture, the other two compressed, one job
+// waiting and no copy.
+// the_stepped_queue_writes_the_copy: stepped on the device, a millisecond
+// apart, until the map's path comes back, the copy is written; loaded again,
+// every texture is compressed and nothing waits.
 // progress_reads_compressing_textures: the colour copy gone, the call with a
 // progress leaves "Compressing textures" over one material.
 // a_cooked_glb_reads_compressing_textures: a `.glb` wearing the PNG and with
@@ -72,6 +74,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <threads.h>
+#include <time.h>
 
 #define FOLDER "game_models_cooked_test"
 #define GOOD "good.glb"
@@ -470,10 +474,10 @@ static uint32_t uncompressed(const voe_render_device *device)
 	return memory.count - memory.compressed;
 }
 
-static void a_queued_map_draws_uncompressed(const voe_ecs_world *world,
-					    voe_render_device *device,
-					    voe_base_arena *scratch,
-					    voe_game_compressing *queue)
+static void a_queued_map_loads_empty(const voe_ecs_world *world,
+				     voe_render_device *device,
+				     voe_base_arena *scratch,
+				     voe_game_compressing *queue)
 {
 	voe_3d_models *models;
 
@@ -486,9 +490,10 @@ static void a_queued_map_draws_uncompressed(const voe_ecs_world *world,
 		   device);
 	remove(MAP_COPY_ON_DISK);
 
-	// ---- with the queue: the colour map uncompressed, one job, no copy
+	// ---- with the queue: no colour texture, one job, no copy
 	models = store_shaded(world, device, scratch, false, NULL, queue);
-	VOE_TEST_CHECK_INT(uncompressed(device), 1);
+	VOE_TEST_CHECK_INT(voe_render_texture_memory_smooth(device).count, 2);
+	VOE_TEST_CHECK_INT(uncompressed(device), 0);
 	VOE_TEST_CHECK_INT(voe_game_compressing_waiting(queue), 1);
 	VOE_TEST_CHECK(!voe_platform_file_exists(MAP_COPY_ON_DISK));
 	store_gone(models, device);
@@ -499,14 +504,21 @@ static void the_stepped_queue_writes_the_copy(const voe_ecs_world *world,
 					      voe_base_arena *scratch,
 					      voe_game_compressing *queue)
 {
+	const struct timespec millisecond = { .tv_nsec = 1000000 };
 	voe_3d_models *models;
 	uint64_t stamp = 0;
+	bool written = false;
 
 	VOE_TEST_CHECK(voe_platform_file_stamp(PICTURE_ON_DISK, &stamp));
-	// A 16×16 chain is a few dozen blocks, one run of a step.
-	for (uint32_t i = 0; i < 64 && voe_game_compressing_waiting(queue) > 0;
-	     i++)
-		(void)voe_game_compressing_step(queue, 0.002, scratch);
+	// Ten seconds at most; a step never waits.
+	for (uint32_t i = 0; i < 10000 && !written; i++) {
+		const char *path =
+			voe_game_compressing_step(queue, device, scratch);
+
+		written = path != NULL && strcmp(path, PICTURE) == 0;
+		(void)thrd_sleep(&millisecond, NULL);
+	}
+	VOE_TEST_CHECK(written);
 	VOE_TEST_CHECK_INT(voe_game_compressing_waiting(queue), 0);
 	map_copies_check(stamp, scratch);
 
@@ -749,7 +761,7 @@ int main(void)
 	material_load_writes_no_copy(device, scratch);
 	materials_cooked_loads_a_copy_whose_png_is_garbage(world, device,
 							   scratch);
-	a_queued_map_draws_uncompressed(world, device, scratch, queue);
+	a_queued_map_loads_empty(world, device, scratch, queue);
 	the_stepped_queue_writes_the_copy(world, device, scratch, queue);
 	progress_reads_compressing_textures(world, device, scratch);
 	a_cooked_glb_reads_compressing_textures(device, scratch);
@@ -759,9 +771,11 @@ int main(void)
 	stale_counts_a_changed_glb(scratch);
 	cook_stops_when_asked(device, scratch);
 	remove_files();
+	voe_game_compressing_destroy(queue, device);
 	voe_render_device_destroy(device);
+	queue = NULL;
 released:
-	voe_game_compressing_destroy(queue);
+	voe_game_compressing_destroy(queue, NULL);
 	voe_base_arena_destroy(scratch);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
