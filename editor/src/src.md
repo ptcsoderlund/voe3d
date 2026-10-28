@@ -184,13 +184,13 @@ carries it out.
 - `browser.c` — the browser's listing, its one frame of `ui` calls, and the read
   of its buttons and rows afterwards.
 - `dock.h` — the panel tree, its splits holding a side panel's length or the views' share, the
-  closable panels (a closed or floating leaf not laid), the floating panels' boxes, every seam's
-  place, whether a point is over a panel, and the walk.
+  closable panels (a closed or floating leaf not laid), the floating boxes, every seam's place,
+  whether a point is over a panel, what the tool panels draw from, and the walk.
 - `dock.c` — the tree: the default one, the arrangement, held lengths and the views' share clamped
   and set, which views it shows and whether a point is over a panel.
-- `dock_walk.c` — the walk to one frame of `ui` calls: its seams, each closable leaf's header of
-  name and ×, each leaf a panel and scroll area handed to its panel's draw, and each scene view's
-  camera preview.
+- `dock_walk.c` — the walk to one frame of `ui` calls: its seams, each closable's header of name
+  and ×, each leaf a panel and scroll area handed to its panel's draw, then each floating panel as
+  an anchored box over the tree, and each scene view's camera preview.
 - `scene_list.h` — the Scene list: heading, Add entity and one row per authored entity as a tree, a
   row with children folding by its identity's saved flag, a copy marked with its prefab's file; a
   drag parents, unparents or, onto the Assets panel, makes a prefab; a part never drags.
@@ -258,8 +258,8 @@ carries it out.
   opens or closes a dock panel, Project, Errors or the frame breakdown, and whether one is open.
 - `panels.c` — the default tree's sizes filled in, read over and set back, and the same fields
   written through `settings.h`.
-- `interface.h` — the screen-filling surface, made in the theme it is handed, and its one draw
-  command per root.
+- `interface.h` — the screen-filling surface, made in the theme it is handed, its one draw
+  command per root, and the frame's budget, the walk's four tool panels in it.
 - `interface.c` — one `ui` frame per root: the dock walk, the draws over the dock, and the one read
   of its clicks as calls, in order, into the two below, the bar's snap remembered when it changed.
 - `interface_assets.h` — the Assets panel's share of that read: its clicks, naming request, menu

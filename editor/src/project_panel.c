@@ -22,6 +22,8 @@ void voe_editor_project_panel_show(voe_editor_project_panel *panel)
 	VOE_BASE_ASSERT(panel != NULL, "showing no project panel");
 
 	panel->showing = true;
+	// No × until a draw records one: the dock's header carries it now.
+	panel->close_button = VOE_UI_NODE_NONE;
 }
 
 void voe_editor_project_panel_hide(voe_editor_project_panel *panel)

@@ -17,7 +17,8 @@
 
 // Which panels the frame was built with, captured before anything was drawn so
 // a click is read against what was laid out, not what this frame's commands
-// have since shown or hidden (interface.h on `browsing`).
+// have since shown or hidden (interface.h on `browsing`). Errors, Project,
+// Landscape and the frame breakdown are the walk's, drawn while showing.
 typedef struct {
 	bool browsing;
 	bool erroring;
@@ -45,10 +46,11 @@ bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 				     voe_ui_node picker,
 				     const voe_editor_picking *picked);
 
-// The dock's × in `closes` and the Panels list toggle a panel on `root`, a
-// failed remember said in the notice; the bar is measured for the next frame;
-// then the browser's clicks if it was `shown`, else the bar's, then each panel
-// over the dock that was shown. `escape` is the browser's Cancel. Scratch comes
+// The dock's × in `closes`, on a leaf or a floating box, and the Panels list
+// toggle a panel on `root`, Landscape's × hiding it, a failed remember said in
+// the notice; the bar is measured for the next frame; then the browser's
+// clicks if it was `shown`, else the bar's, then each tool panel and
+// Preferences that was shown. `escape` is the browser's Cancel. Scratch comes
 // out of `arena`, which the caller rewinds.
 void voe_editor_interface_commands_read(
 	voe_ui_context *ui, voe_base_arena *arena, voe_editor_dock_root *root,

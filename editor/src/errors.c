@@ -58,6 +58,8 @@ void voe_editor_errors_show(voe_editor_errors *errors, const char *log)
 	VOE_BASE_ASSERT(log != NULL, "showing the errors of no log");
 
 	errors->showing = true;
+	// No × until a draw records one: the dock's header carries it now.
+	errors->close_button = VOE_UI_NODE_NONE;
 	errors->count = 0;
 	scratch = voe_base_arena_new(ERRORS_SCRATCH);
 	VOE_BASE_ASSERT(scratch != NULL, "no scratch to read the log into");

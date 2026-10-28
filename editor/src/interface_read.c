@@ -28,7 +28,8 @@
 // THE TOP BAR'S PANELS LIST (panels_menu.h) is read here: Panels flips it, a
 // fired row goes through panels.h's voe_editor_panels_toggle and closes it, as
 // does a press off the list and Panels. A fired panel header's × goes through
-// the same toggle on its root.
+// the same toggle on its root, Landscape's hiding it instead; the four tool
+// panels' own title-row × reads stay until their frames go, and never fire.
 #include "interface_read.h"
 
 #include "errors.h"
@@ -173,14 +174,16 @@ bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 }
 
 // A fired × closes its panel on this root, laid out so from the next frame,
-// and remembers it as a drag's end does (main.c). A row of the Panels list
-// fired is toggled the same way and closes the list; so does a press off the
-// list and Panels.
+// and remembers it as a drag's end does (main.c); Project's, Errors' and
+// Frame's hide theirs through the same toggle, Landscape's hides it. A row of
+// the Panels list fired is toggled the same way and closes the list; so does
+// a press off the list and Panels.
 static void voe_editor_interface_panels_read(
 	voe_ui_context *ui, voe_editor_dock_root *root,
 	const voe_editor_dock_closes *closes, voe_editor_session *session,
 	voe_editor_topbar *bar, voe_editor_preferences *preferences,
 	voe_editor_project_panel *project_panel,
+	voe_editor_landscape_panel *landscape_panel,
 	voe_editor_frame_breakdown *breakdown, bool menuing)
 {
 	voe_editor_closable fired = voe_editor_dock_closes_read(ui, closes);
@@ -188,7 +191,7 @@ static void voe_editor_interface_panels_read(
 	VOE_BASE_ASSERT(root != NULL && session != NULL && bar != NULL,
 			"reading the panels with no root, session or bar");
 	VOE_BASE_ASSERT(preferences != NULL && project_panel != NULL &&
-				breakdown != NULL,
+				landscape_panel != NULL && breakdown != NULL,
 			"reading the panels with a panel missing");
 	if (menuing) {
 		bool over;
@@ -206,7 +209,10 @@ static void voe_editor_interface_panels_read(
 			bar->menu.open = false;
 		}
 	}
-	if (fired != VOE_EDITOR_CLOSABLE_COUNT) {
+	// Not a Panels row: it opens from a `.landscape` file (0491 point 1).
+	if (fired == VOE_EDITOR_CLOSABLE_LANDSCAPE)
+		voe_editor_landscape_panel_hide(landscape_panel);
+	else if (fired != VOE_EDITOR_CLOSABLE_COUNT) {
 		voe_base_report_error_clear();
 		if (!voe_editor_panels_toggle(fired, root, bar, project_panel,
 					      preferences, session, breakdown))
@@ -374,7 +380,8 @@ void voe_editor_interface_commands_read(
 	VOE_BASE_ASSERT(closes != NULL && themes != NULL,
 			"reading commands with no closes or no themes");
 	voe_editor_interface_panels_read(ui, root, closes, session, bar,
-					 preferences, project_panel, breakdown,
+					 preferences, project_panel,
+					 landscape_panel, breakdown,
 					 shown.menuing);
 	// Whatever the browser or Preferences show: the bar is drawn under
 	// both, and the next frame is laid out at this measure.

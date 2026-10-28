@@ -68,6 +68,24 @@ voe_editor_dock_leaf_closable(const voe_editor_dock_node *leaf)
 	return VOE_EDITOR_CLOSABLE_COUNT;
 }
 
+voe_editor_panel voe_editor_closable_panel(voe_editor_closable which)
+{
+	static const voe_editor_panel panels[VOE_EDITOR_CLOSABLE_COUNT] = {
+		[VOE_EDITOR_CLOSABLE_SCENE_LIST] = VOE_EDITOR_PANEL_SCENE,
+		[VOE_EDITOR_CLOSABLE_ASSETS] = VOE_EDITOR_PANEL_ASSETS,
+		[VOE_EDITOR_CLOSABLE_INSPECTOR] = VOE_EDITOR_PANEL_INSPECTOR,
+		[VOE_EDITOR_CLOSABLE_BOTTOM_VIEW] = VOE_EDITOR_PANEL_COUNT,
+		[VOE_EDITOR_CLOSABLE_PROJECT] = VOE_EDITOR_PANEL_PROJECT,
+		[VOE_EDITOR_CLOSABLE_ERRORS] = VOE_EDITOR_PANEL_ERRORS,
+		[VOE_EDITOR_CLOSABLE_FRAME] = VOE_EDITOR_PANEL_FRAME,
+		[VOE_EDITOR_CLOSABLE_LANDSCAPE] = VOE_EDITOR_PANEL_LANDSCAPE,
+	};
+
+	VOE_BASE_ASSERT(which < VOE_EDITOR_CLOSABLE_COUNT,
+			"the panel of a closable that is not one");
+	return panels[which];
+}
+
 void voe_editor_dock_floats_default(
 	voe_editor_dock_float floats[VOE_EDITOR_CLOSABLE_COUNT])
 {

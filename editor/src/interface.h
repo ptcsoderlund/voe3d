@@ -19,8 +19,9 @@
 //
 // IT DRAWS IN THE THEME IT IS HANDED, at pixels per millimetre from the
 // window's height (voe_editor_interface_surface). Each root is the top bar
-// above its dock tree, with the browser, Preferences, Project, Errors or the
-// frame breakdown over the dock when one shows, and the Delete, levels and
+// above its dock tree and the tree's floating panels — Project, Errors,
+// Landscape and the frame breakdown among them (0491) — with the browser or
+// Preferences over the dock when one shows, and the Delete, levels and
 // Import textures questions or the colour picker over that.
 #pragma once
 
@@ -275,7 +276,9 @@
 // border and fill and its one character, three — the row draws none; the
 // scrollbars on both axes, four; each line at most VOE_EDITOR_ERRORS_LINE_BYTES
 // (160) characters, a byte at least apiece, 7680. 39642 + 7700 = 47342
-// elements. AND ONE MORE SCROLL AREA, its lines': five.
+// elements. AND ONE MORE SCROLL AREA, its lines': five. It is a dock panel
+// now (0491), its lines under the walk's header in the walk's panel and area,
+// counted below; the panel, title row and area counted here stay as spare.
 //
 // THE SCENE LIST'S DRAG MARKS (scene_list.h, ADR-0282) ADD 132 NODES:
 // a rim wrapper round each of VOE_EDITOR_SCENE_ROWS (128) rows and the heading,
@@ -299,9 +302,10 @@
 // and NINE ELEMENTS: its border and fill, and the seven letters of "Project".
 // 2273 + 2 = 2275 nodes, 47485 + 9 = 47494 elements.
 //
-// THE PROJECT PANEL (project_panel.h) ADDS NOTHING, BECAUSE IT IS NEVER DRAWN
-// IN THE SAME FRAME AS THE BROWSER AND COSTS LESS. It takes the browser's
-// place: the panel, one; its title row, the "Project" label and the × as a
+// THE PROJECT PANEL (project_panel.h) ADDED NOTHING WHILE IT WAS NEVER DRAWN
+// IN THE SAME FRAME AS THE BROWSER AND COST LESS. A dock panel now (0491), it
+// may be, and its contents are counted on top with the walk's four below. As
+// it was: the panel, one; its title row, the "Project" label and the × as a
 // button and a label, four; Width's and Height's rows, each a row, its name
 // label, the number box and the figure composed into it, eight; the choice
 // row and Windowed and Fullscreen as a choice and a label each, five — 18
@@ -331,8 +335,8 @@
 // scroll area: five stands.
 //
 // THE FRAME BREAKDOWN (frame_breakdown.h) ADDS 200 NODES AND 2974 ELEMENTS,
-// the most its own header counts, on top though it is drawn only while the
-// browser, Preferences, Project and Errors are not. ITS ROW IN THE PANELS
+// the most its own header counts, on top; a dock panel now (0491), drawn
+// whatever else shows, its panel and title row stay spare. ITS ROW IN THE PANELS
 // LIST, a seventh, ADDS FIVE NODES, and "Frame breakdown"'s fourteen
 // characters, its space drawing nothing, are now the longest name: seven rows
 // of at most two, one and fourteen, 119 against the seventy-eight above,
@@ -431,9 +435,27 @@
 // VOE_UI_FIELD_CAPACITY (256) typed characters and "not a number", ten, 267,
 // counted on top as Preferences' sliders are. 53858 + 324 = 54182 elements.
 // No scroll area: five stands.
-#define VOE_EDITOR_INTERFACE_NODES 2709
-#define VOE_EDITOR_INTERFACE_ELEMENTS 54182
-#define VOE_EDITOR_INTERFACE_SCROLLS 5
+//
+// THE WALK'S FOUR TOOL PANELS (dock_walk.c, 0491) — Project, Errors, Frame
+// and Landscape, dock panels now, floating at first — ADD FORTY-SEVEN NODES:
+// each under a header, its row, name label, × button and label, four apiece,
+// sixteen; in an anchored panel, four; with a scroll area, four; and, drawn
+// beside the browser now, Project's contents, Width's and Height's rows of
+// four and the choice row of five, thirteen, and Landscape's, the name's row
+// and label and two number rows of four, ten. 2709 + 47 = 2756 nodes. AND
+// 855 ELEMENTS: each header's button border and fill, two, its ×, one, and
+// "Project", "Errors", "Frame breakdown" and "Landscape", 7 + 6 + 14 + 9,
+// forty-eight; each panel's border and fill, eight; each area's track and
+// thumb on both axes, sixteen; Project's contents as counted above less the
+// panel, "Project" and its ×, 345; Landscape's, the file's name at most
+// VOE_SCENE_PREFAB_PATH less the zero, 127, "Size (m)" and "Cells", twelve,
+// two boxes' fills, two, their figures at their 16-byte buffers less the
+// zero, thirty, and while one is typed in a caret, VOE_UI_FIELD_CAPACITY (256)
+// characters and "not a number", 267 — 438. 54182 + 855 = 55037 elements.
+// AND FOUR SCROLL AREAS, the panels': nine.
+#define VOE_EDITOR_INTERFACE_NODES 2756
+#define VOE_EDITOR_INTERFACE_ELEMENTS 55037
+#define VOE_EDITOR_INTERFACE_SCROLLS 9
 
 // Makes the context the interface is built in, once, drawing in `theme` and
 // with the font that theme was derived with — ui measures and draws every
@@ -522,26 +544,27 @@ void voe_editor_interface_surface(voe_platform_size target,
 // and sets that palette and its font on `ui`, saying in the session's notice
 // when it could not be remembered; Close hides it.
 //
-// `project_panel` IS DRAWN IN THE SAME PLACE THE SAME WAY, WHEN IT IS SHOWING
-// AND NONE OF THE BROWSER, THE ERRORS PANEL AND PREFERENCES IS: one of the
-// three at a time, the bar's Project hiding Preferences and its Preferences
-// hiding Project. It shows the session's project's window; a changed one goes
-// to voe_editor_project_window_set, a failure into the notice; its × hides it.
+// `project_panel` IS A DOCK PANEL (0491), drawn by the walk while it shows,
+// floating at first, under the browser and Preferences and keeping the dock's
+// pointer: one of it, Errors and Preferences at a time, the bar's Project
+// hiding Preferences and its Preferences hiding Project. It shows the
+// session's project's window; a changed one goes to
+// voe_editor_project_window_set, a failure into the notice; its header's ×
+// hides it through panels.h's toggle.
 //
-// `landscape_panel` IS DRAWN IN THE SAME PLACE, UNDER THE PROJECT PANEL, and
-// opens on the Assets panel's `landscape_opened` or after Create -> Landscape's
-// make, at the shape models.h finds, hiding Preferences and Project, which the
-// bar's two hide in turn. A new shape goes to voe_editor_models_landscape_shape,
-// a refusal into the notice; its × hides it. It counts nothing above: never
-// beside the browser, it costs less than the Project panel.
+// `landscape_panel` IS A DOCK PANEL THE SAME WAY, and opens on the Assets
+// panel's `landscape_opened` or after Create -> Landscape's make, at the shape
+// models.h finds, hiding Preferences and Project, which the bar's two hide in
+// turn. A new shape goes to voe_editor_models_landscape_shape, a refusal into
+// the notice; its header's × hides it.
 //
-// THE SESSION'S ERRORS PANEL (errors.h) IS DRAWN THE SAME WAY, WHEN IT IS
-// SHOWING AND THE BROWSER IS NOT, and covers Preferences, which is then not
-// drawn or read; its × hides it.
+// THE SESSION'S ERRORS PANEL (errors.h) IS A DOCK PANEL THE SAME WAY, drawn
+// while it shows whatever else does; its header's × hides it through the
+// toggle.
 //
 // THE COLOUR PICKER IS DRAWN OVER THE DOCK TOO, beside the Inspector column,
-// while scene.h's `picking` shows and neither the browser, Preferences nor
-// the Errors panel does — any of those closes it. What it changes is submitted at once as the
+// while scene.h's `picking` shows and neither the browser nor Preferences
+// does — either closes it. What it changes is submitted at once as the
 // row's replace intent and counted in `scene->inspector.replaced`; a press
 // outside it closes it. See interface.c.
 //
@@ -562,11 +585,11 @@ void voe_editor_interface_surface(voe_platform_size target,
 // the same toggle and closes it; `escape`, a press off the list and Panels, or
 // the browser showing close it.
 //
-// `breakdown` (frame_breakdown.h) IS DRAWN AT THE LEFT JUST BELOW THE BAR,
-// over the Scene list, while it shows and none of the browser, Preferences,
-// Project and Errors does. The dock keeps its pointer, so the views and the
-// Inspector stay usable beside it; its × hides it, and the Panels list's
-// Frame breakdown row shows or hides it through the same toggle.
+// `breakdown` (frame_breakdown.h) IS A DOCK PANEL THE SAME WAY, floating at
+// first at the dock's top left, over the Scene list, while it shows. The dock
+// keeps its pointer, so the views and the Inspector stay usable beside it; its
+// header's ×, and the Panels list's Frame breakdown row, show or hide it
+// through the same toggle.
 //
 // `undo` IS FORGOTTEN BY A RENAME the Assets panel's field commits, carried out
 // through assets_manage.h, which renames in `models` too, with a new folder's

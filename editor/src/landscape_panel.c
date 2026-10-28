@@ -41,6 +41,8 @@ bool voe_editor_landscape_panel_show(voe_editor_landscape_panel *panel,
 	panel->dragging = false;
 	panel->cells_dragging = false;
 	panel->showing = true;
+	// No × until a draw records one: the dock's header carries it now.
+	panel->close_button = VOE_UI_NODE_NONE;
 	return true;
 }
 

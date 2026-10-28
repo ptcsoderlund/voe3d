@@ -417,7 +417,7 @@ int main(int argc, char *argv[])
 	reads = (voe_editor_frame_pointer){
 		.commands = &commands, .session = &session, .scene = &scene,
 		.browser = &browser, .preferences = &preferences,
-		.project_panel = &project_panel, .views = &views, .undo = &undo,
+		.views = &views, .undo = &undo,
 		.gizmo = &gizmo, .drag = &drag, .root = &roots[0], .bar = &bar,
 		.geometries = &geometries, .models = models, .scratch = arena,
 		.window = window,

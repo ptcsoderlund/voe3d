@@ -61,7 +61,6 @@ typedef struct {
 	voe_editor_scene *scene;
 	voe_editor_browser *browser;
 	voe_editor_preferences *preferences;
-	voe_editor_project_panel *project_panel;
 	voe_editor_views *views;
 	voe_editor_undo *undo;
 	voe_editor_gizmo *gizmo;

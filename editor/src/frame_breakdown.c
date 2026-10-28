@@ -33,6 +33,8 @@ void voe_editor_frame_breakdown_show(voe_editor_frame_breakdown *breakdown)
 	VOE_BASE_ASSERT(breakdown != NULL, "showing no frame breakdown");
 
 	breakdown->showing = true;
+	// No × until a draw records one: the dock's header carries it now.
+	breakdown->close_button = VOE_UI_NODE_NONE;
 	// The first take after a show copies at once.
 	breakdown->since_refresh = FRAME_REFRESH;
 }

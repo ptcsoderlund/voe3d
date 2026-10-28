@@ -3,7 +3,8 @@
 // the pointer arrives already in millimetres.
 //
 // NOTHING IN HERE DECIDES WHAT IS ON A PANEL. It opens the frame, hands over the
-// pointer it was given, asks the dock to walk, and moves records into the
+// pointer it was given, asks the dock to walk — the four tool panels' contents
+// handed to it, floating or docked (0491) — and moves records into the
 // device; what a panel says is dock.c's `voe_editor_panel_draw`. It also polls
 // Play and Ship once a frame and draws a Scene list or Assets drag's ghost.
 //
@@ -34,7 +35,6 @@
 #include "assets_ask.h"
 #include "assets_menu.h"
 #include "browser.h"
-#include "errors.h"
 #include "inspector.h"
 #include "inspector_brush.h"
 #include "inspector_edit.h"
@@ -43,14 +43,12 @@
 #include "inspector_sculpt.h"
 #include "interface_assets.h"
 #include "interface_read.h"
-#include "landscape_panel.h"
 #include "levels_ask.h"
 #include "notice.h"
 #include "panels.h"
 #include "panels_menu.h"
 #include "preferences.h"
 #include "project.h"
-#include "project_panel.h"
 #include "scene_list.h"
 #include "textures_ask.h"
 #include "themes.h"
@@ -180,23 +178,24 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// commands have run has to answer for what this frame
 		// actually laid out.
 		bool browsing = browser->showing;
-		// The same, for the Errors panel, which the browser covers,
-		// and for preferences, which both cover.
-		bool erroring = session->errors.showing && !browsing;
-		bool preferring = preferences->showing && !browsing &&
-				  !erroring;
-		// The Project panel, in the same place, under all three.
-		bool projecting = project_panel->showing && !browsing &&
-				  !erroring && !preferring;
-		// The Landscape panel, in the same place, under all four.
-		bool landscaping = landscape_panel->showing && !browsing &&
-				   !erroring && !preferring && !projecting;
-		// The frame breakdown, under all five, the dock still live.
-		bool framing = breakdown->showing && !browsing && !erroring &&
-			       !preferring && !projecting && !landscaping;
-		// Any of the panels drawn over the dock.
-		bool covered = browsing || preferring || erroring ||
-			       projecting || landscaping;
+		// The same, for Preferences, which the browser covers.
+		bool preferring = preferences->showing && !browsing;
+		// The four tool panels, dock panels the walk draws while their
+		// own `showing` is (0491 point 5); the dock keeps its pointer.
+		bool erroring = session->errors.showing;
+		bool projecting = project_panel->showing;
+		bool landscaping = landscape_panel->showing;
+		bool framing = breakdown->showing;
+		// What the four draw from (dock.h).
+		voe_editor_dock_contents contents = {
+			.breakdown = breakdown,
+			.project = project_panel,
+			.errors = &session->errors,
+			.landscape = landscape_panel,
+			.window = session->project->file.window
+		};
+		// Either of the panels drawn over the dock.
+		bool covered = browsing || preferring;
 		// The Assets panel's Delete question, over all of those but
 		// the browser, whose showing closes it.
 		bool asking;
@@ -254,6 +253,13 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		if (covered || menuing || asking || levels_asking ||
 		    textures_asking)
 			below_bar.pointer.over = false;
+		// The four's open flags again, as captured above: main.c copied
+		// them before Escape could hide one, and a contents call asserts
+		// its panel shows.
+		below_bar.closed[VOE_EDITOR_CLOSABLE_ERRORS] = !erroring;
+		below_bar.closed[VOE_EDITOR_CLOSABLE_PROJECT] = !projecting;
+		below_bar.closed[VOE_EDITOR_CLOSABLE_LANDSCAPE] = !landscaping;
+		below_bar.closed[VOE_EDITOR_CLOSABLE_FRAME] = !framing;
 
 		// The tree lives in the arena only until its records have been
 		// read out of it, which is before the next root is walked.
@@ -308,7 +314,8 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_dock_walk(&below_bar, VOE_EDITOR_DOCK_COLUMN, ui,
 				     &voe_editor_themes_chosen(themes)->palette,
 				     scene, views,
-				     voe_editor_models_store(models), &closes);
+				     voe_editor_models_store(models), &contents,
+				     &closes);
 		// A Scene list or Assets drag's ghost, anchored beside the
 		// pointer (ADR-0282, 0286); before the overlays, so they paint
 		// over it.
@@ -329,29 +336,6 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 						    voe_editor_topbar_high(
 							    bar, root->size.y),
 						    below_bar.size);
-		if (projecting)
-			voe_editor_project_panel_draw(
-				ui, project_panel, session->project->file.window,
-				voe_editor_topbar_high(bar, root->size.y),
-				below_bar.size);
-		if (landscaping)
-			voe_editor_landscape_panel_draw(
-				ui, landscape_panel,
-				voe_editor_topbar_high(bar, root->size.y),
-				below_bar.size);
-		if (erroring)
-			voe_editor_errors_draw(ui, &session->errors,
-					       voe_editor_topbar_high(
-						       bar, root->size.y),
-					       below_bar.size);
-		// At the left under the bar, over the Scene list.
-		if (framing)
-			voe_editor_frame_breakdown_draw(
-				ui, breakdown,
-				(voe_math_float2){
-					PICKER_GAP,
-					voe_editor_topbar_high(bar, root->size.y) +
-						PICKER_GAP });
 		if (asking)
 			voe_editor_assets_ask_draw(
 				ui, &session->asking,

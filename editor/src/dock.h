@@ -1,8 +1,8 @@
 // Where the editor's panels are, as a tree of data (ADR-0142). A node either
 // divides the space it was given in two or names the one panel that fills it,
-// and the walk turns that tree into `ui` rows, columns and panels — so where a
-// panel sits is a number in an array, and not the order of the calls in a
-// function.
+// and the walk turns that tree into `ui` rows, columns and panels, and each
+// floating panel into a box drawn over them — so where a panel sits is a
+// number in an array, and not the order of the calls in a function.
 //
 // PANELS MOVE (0439): a panel with a header docks anywhere or floats over the
 // dock in a box of its own, and moving one is an edit to the tree's numbers,
@@ -27,6 +27,10 @@
 // set of panels something a reader has to assemble from call sites.
 #pragma once
 
+#include "errors.h"
+#include "frame_breakdown.h"
+#include "landscape_panel.h"
+#include "project_panel.h"
 #include "scene.h"
 #include "view.h"
 
@@ -165,6 +169,22 @@ const char *voe_editor_closable_name(voe_editor_closable which);
 voe_editor_closable
 voe_editor_dock_leaf_closable(const voe_editor_dock_node *leaf);
 
+// The panel a closable is drawn as; VOE_EDITOR_PANEL_COUNT for the bottom
+// view, a scene view that never floats (0491 point 1).
+voe_editor_panel voe_editor_closable_panel(voe_editor_closable which);
+
+// What the four tool panels draw from, the caller's to fill each frame:
+// the frame breakdown, the Project panel, Errors and the Landscape panel, and
+// the project's window the Project panel shows. Read only by
+// voe_editor_panel_draw's FRAME, PROJECT, ERRORS and LANDSCAPE cases.
+typedef struct {
+	voe_editor_frame_breakdown *breakdown;
+	voe_editor_project_panel *project;
+	const voe_editor_errors *errors;
+	voe_editor_landscape_panel *landscape;
+	voe_authoring_project_window window;
+} voe_editor_dock_contents;
+
 // One closable's floating box. `box` is in millimetres from the dock area's
 // top left, as the person set it; what is shown is that clamped
 // (voe_editor_dock_float_shown). A larger `raised` is drawn later, over.
@@ -301,16 +321,18 @@ void voe_editor_dock_split_set(voe_editor_dock_tree *tree, uint32_t node,
 double voe_editor_dock_view_share(const voe_editor_dock_tree *tree);
 void voe_editor_dock_view_share_set(voe_editor_dock_tree *tree, double share);
 
-// The × button in each docked closable's header, as the walk drew it this
-// frame (0363 point 2), indexed by voe_editor_closable; VOE_UI_NODE_NONE for a
-// leaf not drawn. Not zero: node zero is a frame's root and would read as a
-// button that is not one.
+// Each closable's header row and the × button in it, as the walk drew them
+// this frame on a leaf or a floating box (0363 point 2), indexed by
+// voe_editor_closable; VOE_UI_NODE_NONE for a header not drawn. Not zero:
+// node zero is a frame's root and would read as a button that is not one.
 typedef struct {
-	voe_ui_node close[VOE_EDITOR_CLOSABLE_DOCKED];
+	voe_ui_node close[VOE_EDITOR_CLOSABLE_COUNT];
+	voe_ui_node header[VOE_EDITOR_CLOSABLE_COUNT];
 } voe_editor_dock_closes;
 
-// The closable whose × fired this frame, VOE_EDITOR_CLOSABLE_COUNT for none.
-// Asked after voe_ui_frame_end and before the arena is rewound, as any button.
+// The closable whose × fired this frame, any of them,
+// VOE_EDITOR_CLOSABLE_COUNT for none. Asked after voe_ui_frame_end and before
+// the arena is rewound, as any button.
 voe_editor_closable
 voe_editor_dock_closes_read(const voe_ui_context *ui,
 			    const voe_editor_dock_closes *closes);
@@ -323,7 +345,10 @@ voe_editor_dock_closes_read(const voe_ui_context *ui,
 
 // Emits `root`'s tree into `ui` as one row or column whose two children are
 // given fixed sizes in millimetres, on down to a leaf's panel with
-// `voe_editor_panel_draw`'s contents in it.
+// `voe_editor_panel_draw`'s contents in it. Then, over the tree in that same
+// row, every floating closable that is not closed as an anchored box at its
+// shown place, lowest `raised` first, with the same header and scroll area a
+// leaf has (dock_walk.c).
 //
 // `parent` IS THE AXIS OF WHATEVER CONTAINER THIS CALL IS MADE INSIDE — the
 // same thing walk_node's own `parent` argument already is, for the tree's
@@ -354,12 +379,14 @@ voe_editor_dock_closes_read(const voe_ui_context *ui,
 //
 // `palette` is the one in force, read for every seam's colours (0231, 0232)
 // and handed to each panel, where only the Scene list reads it (0282).
-// `closes` is filled with every header's × this frame, for
-// voe_editor_dock_closes_read once the frame has ended.
+// `closes` is filled with every header's row and × this frame, for
+// voe_editor_dock_closes_read once the frame has ended. `contents` passes
+// through to voe_editor_panel_draw as `scene` does.
 void voe_editor_dock_walk(const voe_editor_dock_root *root,
 			  voe_editor_dock_axis parent, voe_ui_context *ui,
 			  const voe_ui_theme *palette, voe_editor_scene *scene,
 			  voe_editor_views *views, const voe_3d_models *store,
+			  voe_editor_dock_contents *contents,
 			  voe_editor_dock_closes *closes);
 
 // What is on one panel. One function, one `switch`, no table and no function
@@ -374,7 +401,10 @@ void voe_editor_dock_walk(const voe_editor_dock_root *root,
 //
 // `view` is the leaf's own and is read only for a SCENE_VIEW panel.
 // `palette` is the walk's, read only by the Scene list for its drag's marks.
+// `contents` is read only by the four tool panels, each drawn by its own
+// contents call (0491).
 void voe_editor_panel_draw(voe_ui_context *ui, voe_editor_panel panel,
 			   uint32_t view, const voe_ui_theme *palette,
 			   voe_editor_scene *scene, voe_editor_views *views,
-			   const voe_3d_models *store);
+			   const voe_3d_models *store,
+			   voe_editor_dock_contents *contents);
