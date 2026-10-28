@@ -23,7 +23,7 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file, hitches.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash worker.
-- **editor** — top bar, panels that dock or float, Scene list, Assets, prefabs, views, gizmo, sculpt, Inspector, Play.
+- **editor** — top bar, docking panels, Scene list, Assets, prefabs, views, gizmo, sculpt, Play.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
@@ -40,7 +40,7 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - 0169–0172, 0178, 0194, 0196, 0231, 0232 — Four-level keys; a theme derived in OKLab; one `hue=`.
 - 0180–0185, 0212, 0269 — Wayland at fractional scale; text scales, dilated when thin, edge ramped.
 - 0186–0188, 0234–0237, 0251–0252, 0258–0262, 0264–0266 — Coin game; shadows; Play; UI; Ship; sound.
-- 0197, 0219, 0220, 0224–0226, 0228, 0229, 0306, 0344, 0439 — Text scale; fit; mm panels; dock; PC sizes.
+- 0197, 0219, 0220, 0224–0226, 0228, 0229, 0306, 0344, 0439 — Text scale; fit; mm docks; PC sizes.
 - 0192, 0193, 0195, 0198–0200, 0202–0207 — Queue; focus; dropdowns; overlays; picks; undo; gizmo.
 - 0189–0191, 0201, 0214–0218, 0221, 0227, 0233, 0300, 0302, 0303 — Fastest card; 4 fps; one camera.
 - 0222, 0223, 0273–0276, 0287–0290 — Placed by transform; markers; rings; no light: preview, black.
