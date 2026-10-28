@@ -175,6 +175,7 @@ static bool run_start_work(void *context, voe_game_progress *progress)
 					 start->scratch);
 	(void)voe_game_models_update_cooked(start->world, start->store,
 					    start->device, start->folder,
+					    &voe_game_parts_cooked,
 					    start->scratch, progress);
 	(void)voe_game_models_materials_cooked(
 		start->world, start->store, start->device, start->folder,
@@ -271,7 +272,8 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 			steps = (voe_game_steps){ 0 };
 			(void)voe_game_models_update_cooked(
 				world, models->store, voe_app_device(app),
-				models->folder, scratch, NULL);
+				models->folder, &voe_game_parts_cooked,
+				scratch, NULL);
 			(void)voe_game_models_materials_cooked(
 				world, models->store, voe_app_device(app),
 				models->folder, &voe_game_materials_cooked,
@@ -286,8 +288,9 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 				voe_game_project_systems_after_move);
 		(void)voe_game_models_update_cooked(world, models->store,
 						    voe_app_device(app),
-						    models->folder, scratch,
-						    NULL);
+						    models->folder,
+						    &voe_game_parts_cooked,
+						    scratch, NULL);
 		(void)voe_game_models_materials_cooked(
 			world, models->store, voe_app_device(app),
 			models->folder, &voe_game_materials_cooked,

@@ -4,7 +4,7 @@
 // cook copies. Internal to `game`.
 //
 //     voe_game_models_batch *batch = voe_game_models_batch_new(
-//             folder, 1, VOE_GAME_MODELS_COOK_STALE, device, progress);
+//             folder, 1, VOE_GAME_MODELS_COOK_STALE, device, NULL, progress);
 //     voe_game_models_batch_add(batch, path, known, forced);
 //     voe_game_models_batch_prepare(batch, &times);
 //     for (uint32_t i = 0; i < voe_game_models_batch_count(batch); i++)
@@ -24,8 +24,9 @@
 // before the next phase: reading (stamp; a `.glb`'s cooked copy taken,
 // prepared then, or the bytes, all skipped at the known stamp unless forced),
 // parsing (the `.glb`, pictures left encoded), making LODs (its levels file
-// read, or made and written), decoding pictures (one task a picture, mipped
-// by its kind when the batch cooks), baking (3d's prepare). Then cooking, on
+// read, or made and written), decoding pictures (one task a picture, a white
+// texel when only dressed parts use it, 0488, mipped by its kind when the
+// batch cooks), baking (3d's prepare). Then cooking, on
 // the calling thread, which owns the device (the copy compressed and written,
 // as the batch's mode says: models_cooked.h), and the put. No store is
 // touched in the bursts, nor the device; a `.landscape` or picture path is
@@ -103,12 +104,14 @@ typedef struct {
 typedef struct voe_game_models_batch voe_game_models_batch;
 
 // An empty batch for up to `room` files of `folder`, taking and writing
-// copies as `cooking` says, compressed on `device`, each file's phase shown
-// in `progress` (NULL for none).
+// copies as `cooking` says, compressed on `device`, dressed by `parts` (NULL
+// for none: the `.parts` beside), each file's phase shown in `progress` (NULL
+// for none). `parts` must outlive the batch.
 voe_game_models_batch *
 voe_game_models_batch_new(const char *folder, uint32_t room,
 			  enum voe_game_models_cooking cooking,
 			  voe_render_device *device,
+			  const voe_game_parts *parts,
 			  voe_game_progress *progress);
 // Every arena it still holds given back.
 void voe_game_models_batch_destroy(voe_game_models_batch *batch);

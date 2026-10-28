@@ -30,7 +30,8 @@
 // `<folder>/Cache/pictures/<path>.<colour|normal|data>` by the kind its slot
 // mips it as, keyed by the map's stamp: the materials call cooks as update,
 // the one-material load as watch, materials_cooked (the game) as
-// update_cooked (game/src/models_materials.c).
+// update_cooked (game/src/models_materials.c). A picture both the `.glb` and
+// a map hold is compressed once, as the map (0488).
 //
 // COPIES ARE COMPRESSED (0477 points 1, 3 and 8): a model's pictures and a
 // map's chain are BC7 blocks, BC5 for a normal map, compressed on the GPU

@@ -21,9 +21,9 @@
 // COOKED COPIES (0470), compressed (0477) on the call's device, on the
 // owner's thread or the one other (0370): a fresh `Cache/models/<path>.model`,
 // keyed by the stamps of the `.glb` and its `.parts` (0 for none), loads in
-// its place, no parse, LODs, decode or bake. Update and prepare write a
-// missing or stale one, remake always, watch and reload never; update_cooked
-// (the game) takes any that reads and writes a missing one; stale and cook.
+// its place; a picture only dressed parts use is a white texel (0488). Update
+// and prepare write a missing or stale one, remake always, watch and reload
+// never, update_cooked (the game) a missing one, taking any that reads.
 //
 // PHASES (0457, 0487 point 3): read, parse, LODs, decode and bake each one
 // burst on workers over a batch (up to four files under a splash, else one),
@@ -98,12 +98,13 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_game_progress *progress);
 
 // The game's update: the same, but any cooked copy that reads is taken, its
-// key not compared, and only a missing one is written (0470 point 5). See the
-// header.
+// key not compared, and only a missing one is written (0470 point 5), each
+// `.glb` dressed by its row of `parts` when it has one (0488). See the header.
 voe_game_models_failures
 voe_game_models_update_cooked(const voe_ecs_world *world,
 			      voe_3d_models *models, voe_render_device *device,
-			      const char *folder, voe_base_arena *scratch,
+			      const char *folder, const voe_game_parts *parts,
+			      voe_base_arena *scratch,
 			      voe_game_progress *progress);
 
 // Loads every landscape of `landscapes` into the store at stamp 0. See the

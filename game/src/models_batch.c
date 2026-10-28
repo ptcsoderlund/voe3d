@@ -20,6 +20,9 @@
 // there is none or it will not parse; a fresh file kept whose swaps differ
 // from those of a `.parts` that reads has them patched into a copy, written
 // back and handed on, not made again; with no `.parts` its own swaps stand.
+// A picture only dressed parts use (0488) is a white texel, the dressing the
+// parts table's row (every row compared; a lookup would lift that), else the
+// `.parts` beside, read once with the levels.
 #include "models_batch.h"
 #include "models_cooked.h"
 
@@ -79,6 +82,8 @@ struct batch_file {
 	voe_assets_model model;
 	// model.images, written by the decoding tasks.
 	voe_assets_image *images;
+	// Per picture, whether only dressed parts use it (0488); NULL for none.
+	const bool *dressed;
 	const uint8_t *levels;
 	size_t levels_size;
 	const voe_3d_model_prepared *prepared;
@@ -113,6 +118,8 @@ struct voe_game_models_batch {
 	uint32_t picture_count;
 	enum voe_game_models_cooking cooking;
 	voe_render_device *device;
+	// The game's parts table, NULL for none: the `.parts` beside are read.
+	const voe_game_parts *parts;
 	voe_game_progress *progress;
 };
 
@@ -158,29 +165,27 @@ const char *voe_game_models_error_carried(voe_base_arena *arena)
 	return copy;
 }
 
-// The `[Levels]` of the `.parts` beside `folder`'s `.glb` `path` (0430 point
-// 5), `*parted` whether that file was there and read: the defaults, silently,
-// when there is no such file, and when it will not parse, the parts reader
-// having said why. Scratch rewound.
-static voe_assets_levels levels_asked(const char *folder, const char *path,
-				      voe_base_arena *scratch, bool *parted)
+// The `.parts` beside `folder`'s `.glb` `path` (0430 point 5) into `*parts`;
+// whether that file was there and read: false, silently, when there is no
+// such file, and when it will not parse, the parts reader having said why.
+// Scratch rewound.
+static bool parts_beside(const char *folder, const char *path,
+			 voe_base_arena *scratch, voe_assets_parts *parts)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	const char *file = voe_game_models_parts_file(folder, path, scratch);
-	voe_assets_levels levels = VOE_ASSETS_LEVELS_DEFAULT;
-	voe_assets_parts parts;
 	const uint8_t *text = NULL;
 	size_t size = 0;
+	bool read;
 
-	VOE_BASE_ASSERT(parted != NULL, "no parted");
+	VOE_BASE_ASSERT(folder != NULL && path != NULL, "no folder or path");
+	VOE_BASE_ASSERT(parts != NULL, "reading into no parts");
 	if (voe_platform_file_exists(file))
 		text = voe_platform_file_read(file, scratch, &size, NULL);
-	*parted = text != NULL &&
-		  voe_assets_parts_read((const char *)text, size, &parts, NULL);
-	if (*parted)
-		levels = parts.levels;
+	read = text != NULL &&
+	       voe_assets_parts_read((const char *)text, size, parts, NULL);
 	voe_base_arena_rewind(scratch, mark);
-	return levels;
+	return read;
 }
 
 const char *voe_game_models_levels_file(const char *levels, const char *path,
@@ -224,11 +229,13 @@ static const uint8_t *swaps_patched(const char *file, const uint8_t *bytes,
 	return copy;
 }
 
-const uint8_t *voe_game_models_levels_for(const char *folder, const char *path,
-					  const uint8_t *glb, size_t glb_size,
-					  bool remake, voe_base_arena *scratch,
-					  size_t *size, bool *made,
-					  voe_base_error *error)
+// The levels file voe_game_models_levels_for describes, `beside` the `.parts`
+// read beside the `.glb`, NULL for none: the defaults asked, its swaps kept.
+static const uint8_t *levels_of(const char *folder, const char *path,
+				const uint8_t *glb, size_t glb_size, bool remake,
+				const voe_assets_parts *beside,
+				voe_base_arena *scratch, size_t *size,
+				bool *made, voe_base_error *error)
 {
 	const char *levels = voe_platform_path_join(scratch, folder,
 						    "Cache/levels");
@@ -236,8 +243,8 @@ const uint8_t *voe_game_models_levels_for(const char *folder, const char *path,
 	const uint8_t *bytes = NULL;
 	voe_base_error unsaved = VOE_BASE_OK;
 	voe_3d_model_levels read;
-	bool parted;
-	voe_assets_levels asked = levels_asked(folder, path, scratch, &parted);
+	voe_assets_levels asked = beside != NULL ? beside->levels :
+						   VOE_ASSETS_LEVELS_DEFAULT;
 
 	VOE_BASE_ASSERT(glb != NULL && size != NULL, "no `.glb` or size");
 	VOE_BASE_ASSERT(made != NULL && error != NULL, "no made or error");
@@ -247,9 +254,9 @@ const uint8_t *voe_game_models_levels_for(const char *folder, const char *path,
 	// A shipped game has no `.parts`: the file's own swaps stand.
 	if (bytes != NULL && voe_3d_model_levels_read(scratch, bytes, *size,
 						      glb, glb_size, &read))
-		return parted ? swaps_patched(file, bytes, *size, &read, &asked,
-					      scratch) :
-				bytes;
+		return beside != NULL ? swaps_patched(file, bytes, *size, &read,
+						      &asked, scratch) :
+					bytes;
 	bytes = voe_3d_model_levels_make(scratch, glb, glb_size, asked, size,
 					 error);
 	if (bytes == NULL)
@@ -262,10 +269,27 @@ const uint8_t *voe_game_models_levels_for(const char *folder, const char *path,
 	return bytes;
 }
 
+const uint8_t *voe_game_models_levels_for(const char *folder, const char *path,
+					  const uint8_t *glb, size_t glb_size,
+					  bool remake, voe_base_arena *scratch,
+					  size_t *size, bool *made,
+					  voe_base_error *error)
+{
+	voe_assets_parts beside;
+	bool parted;
+
+	VOE_BASE_ASSERT(folder != NULL && path != NULL, "no folder or path");
+	VOE_BASE_ASSERT(scratch != NULL, "no scratch");
+	parted = parts_beside(folder, path, scratch, &beside);
+	return levels_of(folder, path, glb, glb_size, remake,
+			 parted ? &beside : NULL, scratch, size, made, error);
+}
+
 voe_game_models_batch *
 voe_game_models_batch_new(const char *folder, uint32_t room,
 			  enum voe_game_models_cooking cooking,
 			  voe_render_device *device,
+			  const voe_game_parts *parts,
 			  voe_game_progress *progress)
 {
 	voe_base_arena *arena = voe_base_arena_new(BATCH_BLOCK);
@@ -281,6 +305,7 @@ voe_game_models_batch_new(const char *folder, uint32_t room,
 		.room = room,
 		.cooking = cooking,
 		.device = device,
+		.parts = parts,
 		.progress = progress,
 	};
 	return batch;
@@ -435,25 +460,97 @@ static void parse_task(void *context, uint32_t index)
 			"a parse left its file elsewhere");
 }
 
-// Making LODs: the levels file read, or made and written; its folders, made
-// by another file's task at once, count as made (models_cooked.h).
+// The dressing `batch`'s parts table gives `path`, NULL when there is no
+// table or no row of that path. Every row is compared.
+static const voe_assets_parts *row_dressing(const voe_game_models_batch *batch,
+					    const char *path)
+{
+	const voe_game_parts *table = batch->parts;
+
+	VOE_BASE_ASSERT(path != NULL, "dressing no path");
+	VOE_BASE_ASSERT(table == NULL || table->count == 0 ||
+				table->models != NULL,
+			"a parts table counting rows it does not hold");
+	for (uint32_t i = 0; table != NULL && i < table->count; i++)
+		if (strcmp(table->models[i].path, path) == 0)
+			return &table->models[i].parts;
+	return NULL;
+}
+
+// Whether material `m` uses picture `image` through any of its five maps.
+static bool material_uses(const voe_assets_material *m, uint32_t image)
+{
+	VOE_BASE_ASSERT(m != NULL, "asking after no material");
+	return m->base_colour_image == image ||
+	       m->metallic_roughness_image == image ||
+	       m->normal_image == image || m->occlusion_image == image ||
+	       m->emissive_image == image;
+}
+
+// Per picture of `model`, on `arena`, whether glTF materials use it and
+// `dressing` gives each that does a `.material` (0488); NULL when none is.
+static const bool *dressed_find(const voe_assets_model *model,
+				const voe_assets_parts *dressing,
+				voe_base_arena *arena)
+{
+	bool *dressed;
+	bool any = false;
+
+	VOE_BASE_ASSERT(model != NULL && dressing != NULL, "no model or dressing");
+	VOE_BASE_ASSERT(dressing->count <= VOE_ASSETS_PARTS,
+			"a dressing past its parts");
+	if (model->image_count == 0)
+		return NULL;
+	dressed = voe_base_arena_push(arena,
+				      model->image_count * sizeof(*dressed));
+	for (uint32_t k = 0; k < model->image_count; k++) {
+		bool used = false;
+		bool bare = false;
+
+		for (uint32_t n = 0; n < model->material_count; n++) {
+			if (!material_uses(&model->materials[n], k))
+				continue;
+			used = true;
+			bare = bare || n >= dressing->count ||
+			       dressing->materials[n][0] == '\0';
+		}
+		dressed[k] = used && !bare;
+		any = any || dressed[k];
+	}
+	return any ? dressed : NULL;
+}
+
+// Making LODs: the `.parts` beside read once, the levels file read, or made
+// and written; its folders, made by another file's task at once, count as
+// made (models_cooked.h). Then the pictures only dressed parts use, the
+// dressing the table's row, else the `.parts` beside, else none.
 static void lods_task(void *context, uint32_t index)
 {
 	voe_game_models_batch *batch = context;
 	struct batch_file *file = glb_at(batch, index);
+	const voe_assets_parts *dressing;
+	voe_assets_parts beside;
+	bool parted;
 	bool made;
 
 	if (file == NULL)
 		return;
 	voe_base_report_error_clear();
 	voe_base_report_subject_push(file->path);
-	file->levels = voe_game_models_levels_for(
-		batch->folder, file->path, file->bytes, file->size, false,
-		file->arena, &file->levels_size, &made, &file->error);
+	parted = parts_beside(batch->folder, file->path, file->arena, &beside);
+	file->levels = levels_of(batch->folder, file->path, file->bytes,
+				 file->size, false, parted ? &beside : NULL,
+				 file->arena, &file->levels_size, &made,
+				 &file->error);
+	dressing = row_dressing(batch, file->path);
+	if (dressing == NULL && parted)
+		dressing = &beside;
 	// Refused, it is kept failed at its stamp, not read again (0445 point 4).
 	if (file->levels == NULL) {
 		file->state = FILE_REFUSED;
 		file->carried = voe_game_models_error_carried(file->arena);
+	} else if (dressing != NULL) {
+		file->dressed = dressed_find(&file->model, dressing, file->arena);
 	}
 	voe_base_report_subject_pop();
 }
@@ -487,9 +584,10 @@ static void pictures_gather(voe_game_models_batch *batch)
 	VOE_BASE_ASSERT(at == total, "pictures gathered miscounted");
 }
 
-// Decoding pictures: one, on an arena of its own, into its file's images;
-// mipped there by its kind when the batch cooks, every file decoded being one
-// whose copy was not taken. The kind reads only the model's materials, which
+// Decoding pictures: one, on an arena of its own, into its file's images, or
+// a 1×1 white RGBA8 one there when only dressed parts use it (0488); mipped
+// there by its kind when the batch cooks, every file decoded being one whose
+// copy was not taken. The kind reads only the model's materials, which
 // nothing writes while the burst runs.
 static void decode_task(void *context, uint32_t index)
 {
@@ -497,20 +595,29 @@ static void decode_task(void *context, uint32_t index)
 	struct batch_picture *picture = &batch->pictures[index];
 	struct batch_file *file = &batch->files[picture->file];
 	voe_assets_image *image = &file->images[picture->index];
+	uint8_t *white;
 
 	VOE_BASE_ASSERT(index < batch->picture_count, "a picture past the batch");
 	VOE_BASE_ASSERT(file->images != NULL, "a picture with no room");
 	voe_base_report_error_clear();
 	voe_base_report_subject_push(file->path);
 	picture->arena = voe_base_arena_new(PICTURE_BLOCK);
-	if (!voe_assets_model_decode_picture(&file->model, picture->index,
-					     picture->arena, image,
-					     &picture->error)) {
+	if (file->dressed != NULL && file->dressed[picture->index]) {
+		white = voe_base_arena_push(picture->arena, 4);
+		memset(white, 255, 4);
+		*image = (voe_assets_image){ 1, 1, white, 1,
+					     VOE_ASSETS_IMAGE_RGBA8 };
+	} else if (!voe_assets_model_decode_picture(&file->model,
+						    picture->index,
+						    picture->arena, image,
+						    &picture->error)) {
 		VOE_BASE_ASSERT(picture->error != VOE_BASE_OK,
 				"a refused picture with no category");
 		picture->carried =
 			voe_game_models_error_carried(picture->arena);
-	} else if (batch->cooking != VOE_GAME_MODELS_COOK_NEVER) {
+	}
+	if (picture->error == VOE_BASE_OK &&
+	    batch->cooking != VOE_GAME_MODELS_COOK_NEVER) {
 		*image = voe_assets_image_mips(
 			picture->arena, image,
 			voe_3d_model_cooked_kind(&file->model, picture->index));

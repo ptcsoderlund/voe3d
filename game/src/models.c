@@ -89,7 +89,7 @@ static bool prepare_cooked(const char *folder, const char *path,
 	voe_game_models_batch *batch = voe_game_models_batch_new(
 		folder, 1,
 		remake ? VOE_GAME_MODELS_COOK_REMAKE : VOE_GAME_MODELS_COOK_STALE,
-		device, NULL);
+		device, NULL, NULL);
 	voe_game_models_times times = { 0 };
 	bool cooked;
 
@@ -218,6 +218,8 @@ struct models_call {
 	voe_render_device *device;
 	voe_game_progress *progress;
 	enum voe_game_models_cooking cooking;
+	// The game's parts table, NULL for none.
+	const voe_game_parts *parts;
 	unsigned done;
 	unsigned total;
 	voe_base_error error;
@@ -242,7 +244,8 @@ static voe_game_models_batch *batch_of(const struct models_call *call,
 				       const char *folder)
 {
 	return voe_game_models_batch_new(folder, call_room(call), call->cooking,
-					 call->device, call->progress);
+					 call->device, call->parts,
+					 call->progress);
 }
 
 // `batch` prepared on the caller, "Loading models" set first, and each file
@@ -355,14 +358,16 @@ static bool load_from(struct models_call *call, const voe_ecs_world *world,
 static voe_game_models_failures
 update_cooking(const voe_ecs_world *world, voe_3d_models *models,
 	       voe_render_device *device, const char *folder,
-	       voe_base_arena *scratch, voe_game_progress *progress,
+	       const voe_game_parts *parts, voe_base_arena *scratch,
+	       voe_game_progress *progress,
 	       enum voe_game_models_cooking cooking)
 {
 	uint32_t paths = world_paths(world);
 	struct models_call call = { .models = models,
 				    .device = device,
 				    .progress = progress,
-				    .cooking = cooking };
+				    .cooking = cooking,
+				    .parts = parts };
 	bool stopped = false;
 	bool going;
 	voe_game_models_kinds kinds;
@@ -402,18 +407,20 @@ voe_game_models_failures voe_game_models_update(const voe_ecs_world *world,
 						voe_base_arena *scratch,
 						voe_game_progress *progress)
 {
-	return update_cooking(world, models, device, folder, scratch, progress,
-			      VOE_GAME_MODELS_COOK_STALE);
+	return update_cooking(world, models, device, folder, NULL, scratch,
+			      progress, VOE_GAME_MODELS_COOK_STALE);
 }
 
 voe_game_models_failures
 voe_game_models_update_cooked(const voe_ecs_world *world,
 			      voe_3d_models *models, voe_render_device *device,
-			      const char *folder, voe_base_arena *scratch,
+			      const char *folder, const voe_game_parts *parts,
+			      voe_base_arena *scratch,
 			      voe_game_progress *progress)
 {
-	return update_cooking(world, models, device, folder, scratch, progress,
-			      VOE_GAME_MODELS_COOK_MISSING);
+	VOE_BASE_ASSERT(parts != NULL, "the game's update with no parts table");
+	return update_cooking(world, models, device, folder, parts, scratch,
+			      progress, VOE_GAME_MODELS_COOK_MISSING);
 }
 
 bool voe_game_models_reload(voe_3d_models *models, voe_render_device *device,

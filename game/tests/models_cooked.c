@@ -169,7 +169,8 @@ static voe_3d_models *store_updated(const voe_ecs_world *world,
 	voe_3d_models *models = voe_3d_models_new();
 	voe_game_models_failures failures =
 		cooked ? voe_game_models_update_cooked(world, models, device,
-						       FOLDER, scratch, NULL) :
+						       FOLDER, &NO_PARTS,
+						       scratch, NULL) :
 			 voe_game_models_update(world, models, device, FOLDER,
 						scratch, NULL);
 	const voe_3d_model_entry *entry = voe_3d_models_find(models, GOOD);
@@ -593,7 +594,7 @@ a_cooked_glb_reads_compressing_textures(voe_render_device *device,
 	remove(PICTURED_COPY_ON_DISK);
 	voe_game_progress_set(&progress, "Loading models", 1, 3);
 	batch = voe_game_models_batch_new(FOLDER, 1, VOE_GAME_MODELS_COOK_STALE,
-					  device, &progress);
+					  device, NULL, &progress);
 	voe_game_models_batch_add(batch, PICTURED, 0, false);
 	voe_game_models_batch_prepare(batch, &times);
 	phase = atomic_load(&progress.phase);

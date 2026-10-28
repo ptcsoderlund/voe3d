@@ -538,7 +538,7 @@ bool voe_game_models_cook(const char *folder, const char *const *paths,
 	while (next < path_count) {
 		voe_game_models_batch *batch = voe_game_models_batch_new(
 			folder, room, VOE_GAME_MODELS_COOK_STALE, device,
-			progress);
+			NULL, progress);
 		voe_game_models_times times = { 0 };
 		uint32_t count;
 
