@@ -112,6 +112,9 @@ by reading the offscreen colour image back.
 - `fog.c` — a fog volume 30 m ahead: count 0 the same bytes and no span, the volume changing the
   centre with `<pass>: fog` listed, density 0 and a view missing the box as none, a quad before it
   kept, an eye inside it, and clouds and fog in one pass both drawn. Headless.
+- `godrays.c` — beams in a fog volume: a slab in the cascades shading its left half darker at
+  godrays 1, even at 0, between at 0.5, again with the sun low behind the eye, and clouds above
+  darkening it at shadow strength 1 and not at 0. Headless.
 - `cloud_shadows.c` — clouds shadowing a lit floor: strength 1 darker, 0 the same bytes as none,
   0.5 between, a floor facing away lit by its fill alone unchanged, clouds below it nothing, and
   water darker under them. Headless.
