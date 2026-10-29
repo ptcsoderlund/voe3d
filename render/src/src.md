@@ -140,9 +140,9 @@ which file to open — what each one owns, and where the seams between them run.
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
-- `frame_internal.h` — the calls frame.c, pass.c, depth_copy.c, clouds_draw.c, draw.c, present.c,
-  point_shadow.c, bounce_capture.c and bounce_shadow.c make across one another; included by those
-  nine only.
+- `frame_internal.h` — the calls frame.c, pass.c, depth_copy.c, clouds_draw.c, fog_draw.c,
+  half_march.c, draw.c, present.c, point_shadow.c, bounce_capture.c and bounce_shadow.c make across
+  one another; included by those eleven only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured and
   its passes through `pass_timing.c`, rebuild on resize, end, submit and present, both ends under
   the device's guard.
@@ -156,9 +156,12 @@ which file to open — what each one owns, and where the seams between them run.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written
   into the pass's block.
-- `clouds_draw.c` — a camera pass's clouds over the world: the depth copy if missing, the block
-  split round a half-size march into the target's clouds image, then the composite, timed as the
-  span `clouds`.
+- `half_march.c` — the sequence the clouds and the fog share: the depth copy if missing, the block
+  split round a half-size march into the target's clouds image, then the composite, in a span.
+- `clouds_draw.c` — a camera pass's clouds over the world through `half_march.c`, timed as the span
+  `clouds`; kind none records nothing.
+- `fog_draw.c` — a camera pass's fog volumes over the world after the clouds through
+  `half_march.c`, timed as the span `fog`; no volumes records nothing.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, one
   instance per cube face reached in the point-shadow pass, a frame's instance records and the
   instanced draw of copies they place, bounce sun maps included, and the sides a draw shows.

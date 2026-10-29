@@ -1781,7 +1781,8 @@ static_assert(sizeof(voe_render_fog_volume) == 96,
 
 // A pass's fog (ADR-0493 point 3), in voe_render_pass_camera after its clouds:
 // `count` of `volumes`, at most VOE_RENDER_FOG_VOLUMES, copied whole.
-// ZEROED IS NONE, THE OLD PICTURE, BYTE FOR BYTE.
+// ZEROED IS NONE, THE OLD PICTURE, BYTE FOR BYTE. Drawn over the world after
+// the clouds by voe_render_frame_draw_fog.
 typedef struct {
 	voe_render_fog_volume volumes[VOE_RENDER_FOG_VOLUMES];
 	uint32_t count;
@@ -2259,6 +2260,22 @@ void voe_render_frame_clear_depth(voe_render_device *device);
 // shadow, point-shadow or capture pass is the caller's bug and asserts, as the
 // depth clear does.
 [[nodiscard]] bool voe_render_frame_draw_clouds(voe_render_device *device);
+
+// Draws the open camera pass's fog volumes (ADR-0493 point 5) over what the
+// pass holds: marched at half size into the target's clouds image, then
+// composited over the world. Called right after voe_render_frame_draw_clouds
+// and before the overlay's voe_render_frame_clear_depth, once a pass.
+//
+// IT COPIES DEPTH FIRST when the pass has not, as voe_render_frame_copy_depth
+// does, splitting the pass's rendering block; everything drawn before stays.
+//
+// A PASS WHOSE FOG COUNT IS 0 RECORDS NOTHING AND IS TRUE. Otherwise it is
+// timed as the span `<pass>: fog`. False only when the depth copy is.
+//
+// Calling it with no pass open, in a pass opened with no camera, or in a
+// shadow, point-shadow or capture pass is the caller's bug and asserts, as the
+// clouds' call does.
+[[nodiscard]] bool voe_render_frame_draw_fog(voe_render_device *device);
 
 // Whether a frame is open for drawing: true from a _begin whose `drawing` came
 // back true until its _end. Not a way to ask whether to begin a frame: the loop

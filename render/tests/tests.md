@@ -109,6 +109,9 @@ by reading the offscreen colour image back.
 - `clouds.c` — clouds drawn over the world, looking straight up: kind none the same bytes and no
   span, Volumetric and Flat at coverage 1 changing the centre with `<pass>: clouds` listed,
   coverage 0 as none, a quad under them kept, and an eye inside the layer. Headless.
+- `fog.c` — a fog volume 30 m ahead: count 0 the same bytes and no span, the volume changing the
+  centre with `<pass>: fog` listed, density 0 and a view missing the box as none, a quad before it
+  kept, an eye inside it, and clouds and fog in one pass both drawn. Headless.
 - `cloud_shadows.c` — clouds shadowing a lit floor: strength 1 darker, 0 the same bytes as none,
   0.5 between, a floor facing away lit by its fill alone unchanged, clouds below it nothing, and
   water darker under them. Headless.

@@ -356,8 +356,8 @@ struct voe_render_allocated_image {
 //
 // `clouds` IS WHAT THE CLOUDS ARE MARCHED INTO (ADR-0492 point 5): RGBA16F, half
 // the target's size rounded up and at least 1 × 1, premultiplied light in RGB and
-// transmittance in A, resting in SHADER_READ_ONLY_OPTIMAL outside the clouds' own
-// march.
+// transmittance in A. The fog marches into it after the clouds (ADR-0493 point
+// 5); it rests in SHADER_READ_ONLY_OPTIMAL outside either march.
 struct voe_render_target {
 	struct voe_render_allocated_image colour;
 	struct voe_render_allocated_image depth;
