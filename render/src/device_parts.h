@@ -79,7 +79,7 @@
 //
 // `clouds` ARE THE CAMERA'S voe_render_clouds (ADR-0492 point 3), zeroed as the
 // sky is. `clouds_image` IS THE PASS TARGET'S CLOUDS IMAGE TEXTURE SLOT, render's
-// own: VOE_RENDER_NO_CLOUDS_IMAGE in a camera pass until a later card names it.
+// own: VOE_RENDER_NO_CLOUDS_IMAGE until voe_render_frame_draw_clouds names it.
 // Three reserved words round it to sixteen bytes.
 struct voe_render_frame_bounce {
 	float corner[3];

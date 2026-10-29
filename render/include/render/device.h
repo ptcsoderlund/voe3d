@@ -1723,7 +1723,9 @@ static_assert(sizeof(voe_render_exposure) == 16,
 // PERIOD on x and z: eye x − drift x and eye z − drift z, wrapped by the caller
 // in double, so a float keeps its precision however far the eye or the wind
 // goes. `shadow_strength`, 0 to 1, is how dark a cloud's shadow is, 0 none.
-// What is drawn, shadowed and mirrored is said by the calls that do it.
+// They are drawn over the world, not behind it with the sky, by
+// voe_render_frame_draw_clouds; what is shadowed and mirrored is said by the
+// calls that do it.
 typedef struct {
 	uint32_t kind;
 	float coverage;
@@ -2181,6 +2183,23 @@ void voe_render_frame_clear_depth(voe_render_device *device);
 // CALLING IT AT MOST ONCE A PASS IS THE CALLER'S BUSINESS. Nothing stops a
 // second call, and each call costs a full copy of the depth image.
 [[nodiscard]] bool voe_render_frame_copy_depth(voe_render_device *device);
+
+// Draws the open camera pass's clouds (ADR-0492 point 5) over what the pass
+// holds: marched at half size into the target's clouds image, then composited
+// over the world, a surface nearer than the layer keeping its colour. Called
+// after the world's blended draws and before the overlay's
+// voe_render_frame_clear_depth, once a pass.
+//
+// IT COPIES DEPTH FIRST when the pass has not, as voe_render_frame_copy_depth
+// does, splitting the pass's rendering block; everything drawn before stays.
+//
+// A PASS WHOSE CLOUDS KIND IS NONE RECORDS NOTHING AND IS TRUE. Otherwise it is
+// timed as the span `<pass>: clouds`. False only when the depth copy is.
+//
+// Calling it with no pass open, in a pass opened with no camera, or in a
+// shadow, point-shadow or capture pass is the caller's bug and asserts, as the
+// depth clear does.
+[[nodiscard]] bool voe_render_frame_draw_clouds(voe_render_device *device);
 
 // Whether a frame is open for drawing: true from a _begin whose `drawing` came
 // back true until its _end. Not a way to ask whether to begin a frame: the loop

@@ -106,6 +106,9 @@ by reading the offscreen colour image back.
 - `haze_sky.c` — the sky seen through the haze: dense haze the whole sky and the sun's disc, thin
   haze the horizon most, clear above the layer, and without a drawn sky the clear colour veiled.
   Headless.
+- `clouds.c` — clouds drawn over the world, looking straight up: kind none the same bytes and no
+  span, Volumetric and Flat at coverage 1 changing the centre with `<pass>: clouds` listed,
+  coverage 0 as none, a quad under them kept, and an eye inside the layer. Headless.
 - `sky_light.c` — the sky lighting nothing: a cube's face the same with the sky or without, a
   non-metal quad unchanged, a metal one the sky along R times the light on it, none indoors or
   unlit, no brighter than the sky head-on, the same at sky strength 0 and 1. Headless.
