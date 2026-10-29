@@ -33,8 +33,23 @@ static_assert(sizeof(voe_render_directional_light) == 368,
 static_assert(sizeof(struct voe_render_frame_light) == 368,
 	      "the frame light no longer matches bindings.slangh's");
 static_assert(sizeof(struct voe_render_frame_block) ==
-		      656 + 3 * 368 + 96 + 16 + 9 * 16 + 32 + 16,
+		      656 + 3 * 368 + 96 + 16 + 9 * 16 + 32 + 16 + 784,
 	      "the per-pass block no longer matches what draw.slang reads at binding 0");
+static_assert(offsetof(struct voe_render_frame_block, fog) ==
+		      656 + 3 * 368 + 96 + 16 + 9 * 16 + 32 + 16,
+	      "the fog moved inside the per-pass block; draw.slang has it at 2064");
+static_assert(sizeof(voe_render_fog_volume) == 96 &&
+		      offsetof(voe_render_fog_volume, rows) == 0 &&
+		      offsetof(voe_render_fog_volume, patches) == 48 &&
+		      offsetof(voe_render_fog_volume, density) == 60 &&
+		      offsetof(voe_render_fog_volume, change) == 64 &&
+		      offsetof(voe_render_fog_volume, patchiness) == 76 &&
+		      offsetof(voe_render_fog_volume, godrays) == 80,
+	      "the fog volume's fields moved; bindings.slangh has rows at 0, patches 48, density 60, change 64, patchiness 76, godrays 80, 96 bytes");
+static_assert(sizeof(voe_render_fog) == 8 * 96 + 16 &&
+		      offsetof(voe_render_fog, volumes) == 0 &&
+		      offsetof(voe_render_fog, count) == 8 * 96,
+	      "the fog record's fields moved; bindings.slangh has volumes at 0, count 768, 784 bytes");
 static_assert(offsetof(struct voe_render_frame_block, clouds) ==
 			      656 + 3 * 368 + 96 + 16 + 9 * 16 &&
 		      offsetof(struct voe_render_frame_block, clouds_image) ==

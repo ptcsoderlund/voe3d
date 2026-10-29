@@ -1744,6 +1744,52 @@ typedef struct {
 static_assert(sizeof(voe_render_clouds) == 32,
 	      "voe_render_clouds is the 32 bytes bindings.slangh reads");
 
+// The most fog volumes a pass carries, and the metres after which the fog's
+// patches and its change repeat on every axis (ADR-0493 point 3).
+#define VOE_RENDER_FOG_VOLUMES 8
+#define VOE_RENDER_FOG_PATCHES 128.0f
+#define VOE_RENDER_FOG_CHANGE 32.0f
+
+// One fog volume, a box, for one pass (ADR-0493 point 3), 96 bytes.
+//
+// `rows` TAKE A POSITION ABOUT THE EYE TO THE BOX'S UNIT SPACE, as a light
+// blocker's do: for a box of centre c, unit axes a_i and half sizes h_i, row i
+// is (a_i / h_i, −a_i·c / h_i), and a point is inside when every
+// |row.xyz·p + row.w| is at most 1.
+//
+// `density`, at least 0, is the extinction per metre in the thickest place.
+// `patches`, each component 0 to VOE_RENDER_FOG_PATCHES, is the eye's place in
+// the patches' field, which repeats every PATCHES metres; `change`, each 0 to
+// VOE_RENDER_FOG_CHANGE, its place in the change's, which repeats every CHANGE
+// metres; both wrapped by the caller in double. `patchiness`, 0 to 1, is 0 even
+// and 1 patches with clear air between; `godrays`, 0 to 1, how much the shadowed
+// light shows in it, 0 lit evenly. The fade, the shape and the lighting are said
+// by the calls that draw it.
+typedef struct {
+	voe_math_float4 rows[3];
+	voe_math_float3 patches;
+	float density;
+	voe_math_float3 change;
+	float patchiness;
+	float godrays;
+	uint32_t reserved[3];
+} voe_render_fog_volume;
+
+static_assert(sizeof(voe_render_fog_volume) == 96,
+	      "voe_render_fog_volume is the 96 bytes bindings.slangh reads");
+
+// A pass's fog (ADR-0493 point 3), in voe_render_pass_camera after its clouds:
+// `count` of `volumes`, at most VOE_RENDER_FOG_VOLUMES, copied whole.
+// ZEROED IS NONE, THE OLD PICTURE, BYTE FOR BYTE.
+typedef struct {
+	voe_render_fog_volume volumes[VOE_RENDER_FOG_VOLUMES];
+	uint32_t count;
+	uint32_t reserved[3];
+} voe_render_fog;
+
+static_assert(sizeof(voe_render_fog) == VOE_RENDER_FOG_VOLUMES * 96 + 16,
+	      "voe_render_fog is the volumes and a count bindings.slangh reads");
+
 // The camera, the sun, the sun's shadow and the point lights one pass draws with.
 // Handed over together because the shader reads them for the whole pass, and a
 // pass that has one has all of them; a zeroed `shadow` is none.
@@ -1772,6 +1818,8 @@ static_assert(sizeof(voe_render_clouds) == 32,
 // other.
 //
 // `clouds` ARE THE PASS'S CLOUDS (ADR-0492 point 3); zeroed is none.
+//
+// `fog` IS THE PASS'S FOG VOLUMES (ADR-0493 point 3); zeroed is none.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
@@ -1782,6 +1830,7 @@ typedef struct {
 	voe_render_sky sky;
 	voe_render_exposure exposure;
 	voe_render_clouds clouds;
+	voe_render_fog fog;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass
@@ -1805,7 +1854,11 @@ typedef struct {
 // past ±16, or a `tone` past VOE_RENDER_TONE_SOFT; or whose `clouds` hold a
 // `kind` past VOLUMETRIC, a `coverage` or `shadow_strength` outside 0 to 1, a
 // `thickness` below 0, a `bottom` not finite, or an `origin` outside 0 to
-// VOE_RENDER_CLOUDS_PERIOD.
+// VOE_RENDER_CLOUDS_PERIOD; or whose `fog` holds a `count` past
+// VOE_RENDER_FOG_VOLUMES, or in a counted volume a number not finite, a
+// `density` below 0, a `patchiness` or `godrays` outside 0 to 1, a `patches`
+// outside 0 to VOE_RENDER_FOG_PATCHES or a `change` outside 0 to
+// VOE_RENDER_FOG_CHANGE.
 //
 // THE CAMERA MAY BE NULL, BECAUSE NOT EVERY PASS LOOKS AT A WORLD. A pass that
 // draws only elements — an interface filling the window — has no eye and no sun,
