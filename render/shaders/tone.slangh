@@ -25,7 +25,8 @@
 // sky's fragment fades towards the haze's colour by voe_render_haze_veil, the
 // path along its view through the layer below haze_top; never a mesh exit,
 // which hazes by distance only as before. VOE_RENDER_CLEAR is the backdrop a
-// sky not drawn fades from.
+// sky not drawn fades from. The clouds' march is veiled the same way over the
+// path no farther than the cloud, voe_render_haze_veil_to (ADR-0492 point 5).
 //
 // THERE IS NO HDR TARGET. The curve runs per fragment before an 8-bit sRGB
 // target, so blending happens after it; only see-through draws differ from a
@@ -115,6 +116,29 @@ float voe_render_haze_veil(float3 view)
 	if (sky.haze_top <= 0.0)
 		return 0.0;
 	float past = sky.haze_top / view.y - sky.haze_start;
+
+	return past <= 0.0 ? 0.0 : 1.0 - exp2(-past / sky.haze);
+}
+
+// voe_render_haze_veil's fade over the path no farther than `distance` along
+// unit world `view` (ADR-0492 point 5): L the part of [0, distance] below the
+// sky's haze_top T. T > 0: to min(T / view.y, distance) looking up, to
+// `distance` looking level or down. T <= 0: from T / view.y to `distance`
+// looking down, none looking level or up. Then f = 1 − 2^(−max(L −
+// haze_start, 0)/haze); haze 0 is 0. The clouds' march calls it at the
+// distance its light came from.
+float voe_render_haze_veil_to(float3 view, float distance)
+{
+	voe_render_sky sky = voe_render_frame.sky;
+	float path = distance;
+
+	if (sky.haze <= 0.0)
+		return 0.0;
+	if (sky.haze_top > 0.0 && view.y > 0.0)
+		path = min(sky.haze_top / view.y, distance);
+	else if (sky.haze_top <= 0.0)
+		path = view.y < 0.0 ? distance - sky.haze_top / view.y : 0.0;
+	float past = path - sky.haze_start;
 
 	return past <= 0.0 ? 0.0 : 1.0 - exp2(-past / sky.haze);
 }

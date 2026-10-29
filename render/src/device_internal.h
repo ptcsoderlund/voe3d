@@ -200,6 +200,12 @@ struct voe_render_device {
 	// The sky's (ADR-0405 point 4): one full-screen triangle, no vertex
 	// input, no depth test or write, no blend; sky_draw.c draws it.
 	VkPipeline pipeline_sky;
+	// The clouds' (ADR-0492 point 5), behind the sky's vertex stage: the
+	// march into the target's half-size RGBA16F clouds image, no depth, no
+	// blend; the composite onto the target, no depth test or write,
+	// premultiplied blend.
+	VkPipeline pipeline_clouds_march;
+	VkPipeline pipeline_clouds_composite;
 	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
 	// settle, relight and sum pipelines; per frame slot a mapped list buffer,
 	// a mapped record buffer of a region per volume, each at its descriptor

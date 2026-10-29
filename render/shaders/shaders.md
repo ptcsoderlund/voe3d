@@ -9,16 +9,20 @@ shader and never compiled alone.
   constant, each matching its C side; an object carries paint, layers, dither, instances, a ground.
 - `instances.slangh` — where a mesh draw's copy stands: from the record and the instance index its
   world matrix, normal matrix and dither, the record's own when it names no instances.
-- `draw.slang` — the mesh pipelines' seven entry points, the capture's and the sky's in its parts
-  below: placing, maps, a painted landscape's layers, a ground record's blend, alpha and dither, the
-  lit and unlit exits hazed, exposed and tone mapped, and the point-shadow vertex stage.
+- `draw.slang` — the mesh pipelines' nine entry points, the capture's, the sky's and the clouds' in
+  its parts below: placing, maps, a painted landscape's layers, a ground record's blend, alpha and
+  dither, the lit and unlit exits hazed, exposed and tone mapped, and the point-shadow vertex stage.
 - `draw_capture.slangh` — the part `draw.slang` includes at its end: the bounce capture pass's two
   entry points, a mesh on a probe's faces as albedo and normal with distance.
 - `draw_sky.slangh` — the part `draw.slang` includes last: the sky's two full-screen entry points,
   the sky or the clear colour veiled by the haze.
+- `draw_clouds.slangh` — the part `draw.slang` includes after `draw_sky.slangh`: the clouds' march
+  at half size to the furthest depth, veiled by the haze, and their bilinear composite, skipped
+  where a surface is nearer than the layer, both behind the sky's vertex stage.
 - `tone.slangh` — haze, exposure and tone at every mesh exit: mixed by distance past the haze start
   towards the drawn sky's horizon hue at the lights' brightness, or else their colour, × 2^exposure,
-  Clip or Soft; a `plain` draw as authored; the sky's veil along a view below the haze's top.
+  Clip or Soft; a `plain` draw as authored; the veil along a view below the haze's top, endless or
+  stopping at a distance.
 - `sky.slangh` — whether a light is shown, the sky's backdrop and its radiance along a view, that
   backdrop plus each of the frame's shown lights' glow then disc, twin of `src/sky.h`.
 - `clouds.slangh` — the cloud field read by the shaders: density, where a view meets the layer,
