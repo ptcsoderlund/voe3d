@@ -1,0 +1,171 @@
+// The fog's two full-screen stages (ADR-0493 point 5), both behind the sky's
+// vertex stage, voe_render_sky_vertex: the march, drawn into the target's
+// half-size RGBA16F clouds image once the clouds are composited, premultiplied
+// light in RGB and transmittance in A; then the composite, drawn over the
+// target, exposed and tone mapped as a blended mesh exit.
+//
+// A PART (ADR-0308): included by draw.slang at its end, after
+// draw_clouds.slangh, whose depth reach, jitter and NEVER it takes, after
+// draw_sky.slangh's vertex stage and out record, and after everything else it
+// calls — fog.slangh's march, tone.slangh's haze and exposure,
+// voe_render_premultiplied. Never compiled alone; its entry points are in
+// draw.spv under the names spelled here.
+//
+// HALF SIZE AND THE CHECKERBOARD: a quarter of the pixels march, up to
+// VOE_RENDER_FOG_STEPS each. A half-size texel covers four full ones of the
+// pass's depth copy and marches to one of them by a checkerboard: x + y even
+// to the NEAREST (the greatest stored depth, as depth runs backwards), odd to
+// the FURTHEST (the least). So beside a trunk one texel holds the fog before
+// it and its neighbour the fog behind it. The clear, 0, is no geometry and no
+// limit; no depth copy (~0u) is no limit either.
+//
+// DEPTH-WEIGHTED, NOT PLAIN BILINEAR: a plain bilinear read would mix the fog
+// behind a trunk into the trunk's own pixels and a halo would ring it. The
+// composite weighs each of the four nearest texels bilinearly and by how alike
+// the distance it marched to is to the pixel's own, worked out again from the
+// depth copy as the march chose it; normalised, or the nearest in distance
+// alone when every weight is negligible.
+//
+// THE HAZE: the march's straight light, light ÷ (1 − transmittance), is hazed
+// as a surface at the fog's mean distance along the view is (voe_render_haze),
+// then weighted back by that opacity, so it stays premultiplied. The composite
+// exposes and tones the straight colour, then premultiplies it again.
+//
+// A clouds image slot samples SHARP, so the composite's reads are four Loads.
+
+// How sharply the composite turns away from a texel whose distance differs
+// from the pixel's: the power the distances' ratio is raised to.
+static const float VOE_RENDER_FOG_DEPTH_SHARPNESS = 32.0;
+// The summed weight under which the composite takes the nearest in distance.
+static const float VOE_RENDER_FOG_NEGLIGIBLE = 1e-4;
+
+// The stored depth half-size `texel` marches to, of the 2 × 2 of depth copy
+// `slot` under it: the greatest where x + y is even, the least where odd.
+float voe_render_fog_chosen_depth(uint slot, int2 texel)
+{
+	uint width;
+	uint height;
+
+	voe_render_textures[slot].GetDimensions(width, height);
+	int2 corner = texel * 2;
+	int2 last = int2(width, height) - 1;
+	bool nearest = ((texel.x + texel.y) & 1) == 0;
+	float chosen = nearest ? 0.0 : 1.0;
+
+	for (uint k = 0; k < 4; k++) {
+		int2 at = min(corner + int2(k & 1, k >> 1), last);
+		float depth = voe_render_textures[slot].Load(int3(at, 0)).r;
+
+		chosen = nearest ? max(chosen, depth) : min(chosen, depth);
+	}
+	return chosen;
+}
+
+// How far along unnormalized `direction` half-size `texel` marches:
+// VOE_RENDER_CLOUDS_NEVER with no depth copy or where it chose the clear.
+float voe_render_fog_texel_reach(int2 texel, float3 direction)
+{
+	uint slot = voe_render_frame.depth_copy;
+
+	if (slot == ~0u)
+		return VOE_RENDER_CLOUDS_NEVER;
+	return voe_render_clouds_depth_reach(
+		voe_render_fog_chosen_depth(slot, texel), direction);
+}
+
+// How alike two distances are, the lesser over the greater: 1 the same, both
+// endless included, 0 one endless and the other not.
+float voe_render_fog_alike(float a, float b)
+{
+	if (a == b)
+		return 1.0;
+	return min(a, b) / max(a, b);
+}
+
+// THE MARCH, at half size: the checkerboard's depth as the reach, the march
+// from the eye along the view, its light hazed at its mean distance. Out:
+// premultiplied light and transmittance.
+[shader("fragment")]
+float4 voe_render_fog_march_fragment(voe_render_sky_out vertex) : SV_Target
+{
+	float3 direction = vertex.direction;
+
+	if (dot(direction, direction) < VOE_LEAST)
+		direction = float3(0.0, 1.0, 0.0);
+	float reach = voe_render_fog_texel_reach(int2(vertex.position.xy),
+						 direction);
+	float3 view = normalize(direction);
+	voe_render_fog_marched marched = voe_render_fog_march(
+		view, reach, voe_render_clouds_jitter(vertex.position.xy));
+	float opacity = 1.0 - marched.transmittance;
+	float3 light = marched.light;
+
+	if (opacity > 0.0)
+		light = voe_render_haze(light / opacity,
+					view * marched.distance) *
+			opacity;
+	return float4(light, marched.transmittance);
+}
+
+// THE COMPOSITE, at full size: nothing where no clouds image is named; else
+// the four nearest texels weighted bilinearly and by distance (see the
+// header), exposed and toned straight and out premultiplied, alpha
+// 1 − transmittance.
+[shader("fragment")]
+float4 voe_render_fog_composite_fragment(voe_render_sky_out vertex) : SV_Target
+{
+	float3 direction = vertex.direction;
+	uint image = voe_render_frame.clouds_image;
+	uint slot = voe_render_frame.depth_copy;
+	float own = VOE_RENDER_CLOUDS_NEVER;
+	uint width;
+	uint height;
+
+	if (image == ~0u)
+		return float4(0.0, 0.0, 0.0, 0.0);
+	if (dot(direction, direction) < VOE_LEAST)
+		direction = float3(0.0, 1.0, 0.0);
+	if (slot != ~0u)
+		own = voe_render_clouds_depth_reach(
+			voe_render_textures[slot]
+				.Load(int3(int2(vertex.position.xy), 0))
+				.r,
+			direction);
+	voe_render_textures[image].GetDimensions(width, height);
+	// Half texel i covers full pixels 2i and 2i + 1, its centre at 2i + 1.
+	float2 at = vertex.position.xy * 0.5 - 0.5;
+	float2 low = floor(at);
+	float2 t = at - low;
+	int2 last = int2(width, height) - 1;
+	int2 a = clamp(int2(low), int2(0, 0), last);
+	int2 b = clamp(int2(low) + 1, int2(0, 0), last);
+	float4 sum = float4(0.0, 0.0, 0.0, 0.0);
+	float total = 0.0;
+	float4 closest = float4(0.0, 0.0, 0.0, 1.0);
+	float best = -1.0;
+
+	for (uint k = 0; k < 4; k++) {
+		int2 texel = int2((k & 1) != 0 ? b.x : a.x,
+				  (k >> 1) != 0 ? b.y : a.y);
+		float bilinear = ((k & 1) != 0 ? t.x : 1.0 - t.x) *
+				 ((k >> 1) != 0 ? t.y : 1.0 - t.y);
+		float alike = voe_render_fog_alike(
+			voe_render_fog_texel_reach(texel, direction), own);
+		float4 fog = voe_render_textures[image].Load(int3(texel, 0));
+		float w = bilinear * pow(alike, VOE_RENDER_FOG_DEPTH_SHARPNESS);
+
+		sum += w * fog;
+		total += w;
+		if (alike > best) {
+			best = alike;
+			closest = fog;
+		}
+	}
+	float4 fog = total > VOE_RENDER_FOG_NEGLIGIBLE ? sum / total : closest;
+	float coverage = saturate(1.0 - fog.a);
+
+	if (!(coverage > 0.0))
+		return float4(0.0, 0.0, 0.0, 0.0);
+	return voe_render_premultiplied(voe_render_expose(fog.rgb / coverage),
+					coverage);
+}

@@ -22,10 +22,10 @@
 // array below. Every one of them is the same integer the CPU handed out
 // (ADR-0018), so there is no table anywhere between the two sides of the bus.
 //
-// ONE FILE, NINE ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
+// ONE FILE, ELEVEN ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
 // to draw.spv with all of them in it (the point-shadow pass's vertex stage, which writes the layer, the capture
-// pass's two in draw_capture.slangh, the sky's two in draw_sky.slangh and the clouds' two
-// fragments in draw_clouds.slangh), and pipeline.c names them by the names
+// pass's two in draw_capture.slangh, the sky's two in draw_sky.slangh, the clouds' two
+// fragments in draw_clouds.slangh and the fog's two in draw_fog.slangh), and pipeline.c names them by the names
 // spelled here — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
 // keeps those strings true.
 //
@@ -50,7 +50,7 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// FOURTEEN PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// FIFTEEN PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
 // tone.slangh, after lighting.slangh, hazes, exposes and tone maps every exit;
 // fog.slangh, after both, the fog volumes' density, light and march (ADR-0493);
 // lighting.slangh includes sky.slangh, the sky's radiance, twin of src/sky.c.
@@ -67,9 +67,9 @@
 // landscape's layers blended by height, hex-tiled (ADR-0402).
 // ground_blend.slangh after it: a ground record's model blending into the
 // painted ground under it, main fragment entry only (ADR-0481).
-// draw_capture.slangh, draw_sky.slangh and draw_clouds.slangh at the end, after
-// everything they call: the capture pass's, the sky's and the clouds' entry
-// points, the clouds' behind the sky's vertex stage. A part is
+// draw_capture.slangh, draw_sky.slangh, draw_clouds.slangh and draw_fog.slangh at
+// the end, after everything they call: the capture pass's, the sky's, the clouds'
+// and the fog's entry points, the last two behind the sky's vertex stage. A part is
 // never compiled alone, and cmake/voe.cmake rebuilds every shader when one
 // changes.
 //
@@ -683,3 +683,4 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 #include "draw_capture.slangh"
 #include "draw_sky.slangh"
 #include "draw_clouds.slangh"
+#include "draw_fog.slangh"

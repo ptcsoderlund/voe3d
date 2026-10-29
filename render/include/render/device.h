@@ -1074,8 +1074,9 @@ typedef enum {
 } voe_render_prepare;
 
 // Each call builds the next thing this device still lacks, in the order solid,
-// blended, shadow, sky, clouds march, clouds composite, point shadow and capture
-// pipelines (the last two only on a card with shaderOutputLayer), then the
+// blended, shadow, sky, clouds march, clouds composite, fog march, fog
+// composite, point shadow and capture pipelines (the last two only on a card
+// with shaderOutputLayer), then the
 // relight's startup. PREPARING while
 // something is left, PREPARED once nothing is (and on every later call).
 // PREPARE_FAILED, with a line on stderr, when a step failed, and on every later
@@ -1093,10 +1094,10 @@ typedef enum {
 voe_render_prepare voe_render_device_prepare(voe_render_device *device);
 
 // How many steps voe_render_device_prepare takes on this card from an unprepared
-// device: the solid, blended, shadow, sky, clouds march and clouds composite
-// pipelines, six, and with shaderOutputLayer the point shadow and capture ones
-// and the relight's startup, nine. So a caller can show "2/9" as the steps are
-// taken.
+// device: the solid, blended, shadow, sky, clouds march, clouds composite, fog
+// march and fog composite pipelines, eight, and with shaderOutputLayer the
+// point shadow and capture ones and the relight's startup, eleven. So a caller
+// can show "2/11" as the steps are taken.
 uint32_t voe_render_device_prepare_steps(const voe_render_device *device);
 
 // THE PIPELINE CACHE, AS BYTES OUT AND IN (ADR-0370 point 6). Every mesh

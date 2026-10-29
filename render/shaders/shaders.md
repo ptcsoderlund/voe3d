@@ -9,7 +9,7 @@ shader and never compiled alone.
   constant, each matching its C side; an object carries paint, layers, dither, instances, a ground.
 - `instances.slangh` — where a mesh draw's copy stands: from the record and the instance index its
   world matrix, normal matrix and dither, the record's own when it names no instances.
-- `draw.slang` — the mesh pipelines' nine entry points, the capture's, the sky's and the clouds' in
+- `draw.slang` — the mesh pipelines' eleven entry points, the capture's, sky's, clouds' and fog's in
   its parts below: placing, maps, a painted landscape's layers, a ground record's blend, alpha and
   dither, exits hazed, exposed and toned, the point-shadow vertex stage; includes the fog's part.
 - `draw_capture.slangh` — the part `draw.slang` includes at its end: the bounce capture pass's two
@@ -19,6 +19,9 @@ shader and never compiled alone.
 - `draw_clouds.slangh` — the part `draw.slang` includes after `draw_sky.slangh`: the clouds' march
   at half size to the furthest depth, veiled by the haze, and their bilinear composite, skipped
   where a surface is nearer than the layer, both behind the sky's vertex stage.
+- `draw_fog.slangh` — the part `draw.slang` includes after `draw_clouds.slangh`: the fog's march at
+  half size to a checkerboard of nearest and furthest depths, hazed at its mean distance, and its
+  depth-weighted composite, both behind the sky's vertex stage.
 - `tone.slangh` — haze, exposure and tone at every mesh exit: mixed by distance past the haze start
   towards the drawn sky's horizon hue at the lights' brightness, or else their colour, × 2^exposure,
   Clip or Soft; a `plain` draw as authored; the veil along a view below the haze's top, endless or
