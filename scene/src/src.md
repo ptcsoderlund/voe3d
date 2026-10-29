@@ -42,6 +42,11 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `haze_system.c` — registration with a default row of haze 1000, start 100
   and height 1000, creation, and the run that applies a whole haze or keeps it
   over a number not finite or a haze or start below 0.
+- `clouds_component.c` — the two keys, the kind names Flat and Volumetric, and
+  the reads.
+- `clouds_system.c` — registration with 0492's default row and the runtime-only
+  drift, creation, and the run that applies whole clouds or keeps the row over
+  one it refuses, adds and drops drifts and moves them by the wind.
 - `picture_component.c` — the key, the tone names Clip and Soft, and the reads.
 - `picture_system.c` — registration with 0406's default row, creation, and the
   run that applies a whole picture or keeps it over an exposure not finite or

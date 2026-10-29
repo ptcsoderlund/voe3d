@@ -75,6 +75,13 @@ space is.
 - `include/scene/haze_system.h` — the whole-row intent as its replace, the
   direct call that creates one, and the run that drains it. Its header says
   what is refused and why the replace is queued.
+- `include/scene/clouds_component.h` — clouds, Flat or Volumetric, named:
+  coverage, height, thickness, wind and shadow strength as a described field
+  list, the runtime-only drift and the reads. Its header says the row is
+  clouds on and each field's bounds.
+- `include/scene/clouds_system.h` — the whole-row intent as its replace, the
+  direct call that creates one, and the run that drains it and moves the drift
+  by the wind. Its header says what is refused and where it runs.
 - `include/scene/picture_component.h` — the whole picture's exposure in stops
   and its tone, Clip or Soft, named, as a described field list, and the reads.
   Its header says why it is not a camera's and that no row is x1 and Clip.

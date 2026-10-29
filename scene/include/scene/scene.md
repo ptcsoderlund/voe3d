@@ -41,6 +41,10 @@ stays on `scene/scene.md`.
   height its layer reaches, which veils the sky.
 - `haze_system.h` — the replace intent, the direct call that creates one, and
   the run that drains it.
+- `clouds_component.h` — the clouds: Flat or Volumetric, coverage, height,
+  thickness, wind and their own shadow strength, and how far they have drifted.
+- `clouds_system.h` — the replace intent, the direct call that creates one,
+  and the run that drains it and moves the drift by the wind.
 - `picture_component.h` — the picture: how the whole drawn image is exposed and
   toned, exposure in stops and tone, Clip or Soft.
 - `picture_system.h` — the replace intent, the direct call that creates one,
