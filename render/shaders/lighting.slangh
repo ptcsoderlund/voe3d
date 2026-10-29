@@ -1,9 +1,9 @@
 // The directional lights and what they light by: glTF's BRDF terms, the shadow
-// lookup over the cascades, each light's radiance, the bounce, the fills and the
-// point lights. A part (ADR-0308): included by draw.slang after bindings.slangh,
-// whose frame block, lights, cascades, bounce volumes, point lights and blockers
-// it reads; includes point_shadow.slangh, blockers.slangh, bounce_read.slangh
-// and sky.slangh; never compiled alone. draw.slang's fragment stage and
+// lookup over the cascades, each light's radiance, the clouds' shadow, the
+// bounce, the fills and the point lights. A part (ADR-0308): included by
+// draw.slang after bindings.slangh, whose frame block it reads; includes
+// point_shadow.slangh, blockers.slangh, bounce_read.slangh, sky.slangh and
+// clouds.slangh; never compiled alone. draw.slang's fragment stage and
 // water.slangh light by it.
 //
 // SEVERAL DIRECTIONAL LIGHTS, EACH GATED, SHADOWED AND FILLED BY ITS OWN
@@ -17,6 +17,12 @@
 // no gain (0317), the fills a floor (0307). A light's weight is whole where it
 // does not reach, gone from reach 0.3 (ADR-0276); a fill of zero is no floor.
 // more_count 0 is one light's picture. The water path lights by light 0 alone.
+//
+// CLOUDS DIM EACH LIGHT'S DIRECT TERM (ADR-0492 point 7): its radiance times
+// 1 − shadow_strength × (1 − T), T voe_render_clouds_transmittance from the
+// surface towards it. The reach that weighs its fill (0276) is taken before
+// and does not change, nor do the shadows or the bounce. Kind none is the old
+// picture, byte for byte.
 //
 // POINT LIGHTS ADD TO THE DIRECT TERM (ADR-0320): voe_render_points, the same
 // BRDF towards each light, times N·L, its colour and saturate(1 −
@@ -34,14 +40,9 @@
 // gated reach. The bounce reads only probes that rule passes to p. The water
 // path takes mask 0 and no gate. No blockers is every gate passing.
 //
-// THE BOUNCE READS EACH VOLUME THE PASS NAMES (0389 point 6), grid ~0u none, by
-// bounce_read.slangh at bindings 6 and 10 (ADR-0312): E from 0, volume 0's rgb
-// × a at band 1, then each nest lerp(E, rgb, a) at band 2.
-//
 // EACH LIGHT CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258, 0357 point 3): the
-// first cascade whose split is past the view distance, the surface pushed one
-// texel along its normal, a 3×3 of comparison lookups on layer slot × 4 +
-// cascade; past the last split fully lit. The reach is multiplied by it.
+// first cascade past the view distance, the surface pushed a texel along its
+// normal, 3×3 compares on layer slot × 4 + cascade; past the last, fully lit.
 //
 // THE SKY LIGHTS NOTHING; A METAL MIRRORS IT (ADR-0411, 0412 point 5): as
 // bright as the light on the surface, L over F (0423, 0424); a surface no light
@@ -53,10 +54,9 @@
 // π × the indirect; F the largest channel of Σ colour × intensity over the
 // shown lights, at least 1. draw.slang multiplies by saturate(max L / F).
 //
-// THE ARITHMETIC IS glTF'S METALNESS-ROUGHNESS BRDF, WRITTEN OUT: GGX, Smith's
-// height-correlated visibility with the denominator folded in, Schlick's
-// Fresnel, and Lambert scaled by what Fresnel did not reflect. Alpha is
-// roughness squared; using roughness directly makes every surface too shiny.
+// THE ARITHMETIC IS glTF'S METALNESS-ROUGHNESS BRDF: GGX, Smith's height-
+// correlated visibility folding in its denominator, Schlick's Fresnel, Lambert
+// times what Fresnel left. Alpha is roughness squared; roughness is too shiny.
 
 #include "point_shadow.slangh"
 #include "blockers.slangh"
@@ -264,6 +264,22 @@ float3 voe_render_sun_radiance(voe_render_light light, float reach)
 	return light.colour * light.intensity * reach;
 }
 
+// What the pass's clouds leave of directional light `light`'s direct term at
+// `world`: 1 − shadow_strength × (1 − T), T their transmittance from there,
+// eye-relative as clouds.slangh reads, towards the light; exactly 1 with no
+// clouds or no strength. See the header.
+float voe_render_cloud_shadow(voe_render_light light, float3 world)
+{
+	voe_render_clouds clouds = voe_render_frame.clouds;
+
+	if (clouds.kind == VOE_RENDER_CLOUDS_NONE || !(clouds.shadow_strength > 0.0))
+		return 1.0;
+	float t = voe_render_clouds_transmittance(
+		world - voe_render_frame.camera.eye, normalize(-light.direction));
+
+	return 1.0 - clouds.shadow_strength * (1.0 - t);
+}
+
 // A light's fill weight at a surface it reaches by `reach`: whole at nought,
 // faded along a smoothstep, gone from VOE_FILL_FADE_REACH (ADR-0276).
 float voe_render_fill_weight(float reach)
@@ -282,9 +298,10 @@ float3 voe_render_fill(voe_render_light light, float reach, bool reaches)
 }
 
 // The bounce's irradiance E(n) at `world` facing `n`, per channel, never below
-// nought, from the probes the blockers pass to a surface of `mask`: the level
-// grid, then each named nest blended over it; nought with no volume named. See
-// the header.
+// nought, from the probes the blockers pass to a surface of `mask`: each volume
+// the pass names (0389 point 6), grid ~0u none, read by bounce_read.slangh at
+// bindings 6 and 10 (ADR-0312), E from 0, volume 0's rgb × a at band 1, then
+// each nest lerp(E, rgb, a) at band 2; nought with no volume named.
 float3 voe_render_bounce_irradiance(float3 world, float3 n, uint mask)
 {
 	voe_render_pass_blockers blockers;
@@ -451,7 +468,9 @@ float3 voe_render_directionals(float3 world, float3 surface, float3 n, float3 v,
 				n_dot_l,
 				voe_render_sunlight(voe_render_directional_shadow(i),
 						    world, surface));
-		float3 radiance = voe_render_sun_radiance(light, reach);
+		// The clouds dim the direct term only; `reach` weighs the fill.
+		float3 radiance = voe_render_sun_radiance(light, reach) *
+				  voe_render_cloud_shadow(light, world);
 
 		sum += (diffuse + specular) * radiance;
 		reaching += radiance;

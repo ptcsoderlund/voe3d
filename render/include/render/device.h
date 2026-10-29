@@ -1722,10 +1722,13 @@ static_assert(sizeof(voe_render_exposure) == 16,
 // VOE_RENDER_CLOUDS_PERIOD, is the eye's place in a field that repeats every
 // PERIOD on x and z: eye x − drift x and eye z − drift z, wrapped by the caller
 // in double, so a float keeps its precision however far the eye or the wind
-// goes. `shadow_strength`, 0 to 1, is how dark a cloud's shadow is, 0 none.
-// They are drawn over the world, not behind it with the sky, by
-// voe_render_frame_draw_clouds; what is shadowed and mirrored is said by the
-// calls that do it.
+// goes. `shadow_strength`, 0 to 1, is how dark a cloud's shadow is, 0 none:
+// each directional light's direct light on every lit surface, water included,
+// is multiplied by 1 − shadow_strength × (1 − what the clouds let through
+// towards that light) (ADR-0492 point 7); the fill, the objects' shadows and
+// the bounce are not. They are drawn over the world, not behind it with the
+// sky, by voe_render_frame_draw_clouds; what is mirrored is said by the calls
+// that do it.
 typedef struct {
 	uint32_t kind;
 	float coverage;

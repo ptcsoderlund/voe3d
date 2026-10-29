@@ -109,6 +109,9 @@ by reading the offscreen colour image back.
 - `clouds.c` — clouds drawn over the world, looking straight up: kind none the same bytes and no
   span, Volumetric and Flat at coverage 1 changing the centre with `<pass>: clouds` listed,
   coverage 0 as none, a quad under them kept, and an eye inside the layer. Headless.
+- `cloud_shadows.c` — clouds shadowing a lit floor: strength 1 darker, 0 the same bytes as none,
+  0.5 between, a floor facing away lit by its fill alone unchanged, clouds below it nothing, and
+  water darker under them. Headless.
 - `sky_light.c` — the sky lighting nothing: a cube's face the same with the sky or without, a
   non-metal quad unchanged, a metal one the sky along R times the light on it, none indoors or
   unlit, no brighter than the sky head-on, the same at sky strength 0 and 1. Headless.
