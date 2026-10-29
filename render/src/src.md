@@ -63,9 +63,11 @@ which file to open — what each one owns, and where the seams between them run.
   freed and reused, and a record's rewrite recorded into a frame before its first pass. Its header
   says why one buffer serves every frame slot and why creating a record waits for the GPU.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, each
-  depth with its sampled copy, the image build, settle and teardown every target shares.
+  depth with its sampled copy and a half-size clouds image, the image build, settle and teardown
+  every target shares.
 - `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into
-  GENERAL that lets one texture slot show them, and a second slot for their depth copy.
+  GENERAL that lets one texture slot show them, a second slot for their depth copy and a third for
+  their clouds image.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the directional lights' shadow maps: one D32 array image of four cascades per held
@@ -119,7 +121,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `point_shadow_faces.c` — those three calls: a box-centred sphere, its move under a world matrix,
   and the face mask against one light's widened pyramids; plain arithmetic, no state.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, a mip
-  chain for a SMOOTH texture, the three samplers, and the slot table the ids name.
+  chain for a SMOOTH texture, the three samplers, and the slot table the ids name, a target's slots
+  written as its frame slot's colour, depth copy or clouds image.
 - `texture_given.c` — a SMOOTH texture whose levels the caller gives (0470), uploaded as they are
   from one staging buffer with one region per level, no chain built.
 - `texture_blocks.c` — a SMOOTH texture of BC7 or BC5 blocks whose levels the caller gives (0477),

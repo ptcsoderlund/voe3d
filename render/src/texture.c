@@ -304,6 +304,22 @@ static bool copy_into_image(voe_render_device *device,
 	return true;
 }
 
+// The images a depth-copy or clouds slot shows in frame slot `slot`: the
+// window's when `target` is the window's value for its kind, else that target's.
+static const struct voe_render_target *
+target_images(const voe_render_device *device,
+	      const struct voe_render_texture_slot *texture, uint32_t slot)
+{
+	const uint32_t window = texture->depth ? VOE_RENDER_WINDOW_DEPTH :
+						 VOE_RENDER_WINDOW_CLOUDS;
+
+	VOE_BASE_DEBUG_ASSERT(texture->is_target, "the images of no target");
+	VOE_BASE_DEBUG_ASSERT(slot < VOE_RENDER_FRAMES_IN_FLIGHT, "no frame slot");
+	return texture->target == window ?
+		       &device->frames[slot].target :
+		       &device->targets[texture->target].images[slot];
+}
+
 void voe_render_texture_write_descriptors(voe_render_device *device,
 					  uint32_t slot)
 {
@@ -334,24 +350,22 @@ void voe_render_texture_write_descriptors(voe_render_device *device,
 		// is the whole of how a frame in slot n comes to read slot n's
 		// picture through an id that is the same in every slot — and in
 		// GENERAL, the one layout that image is ever in. See target_own.c.
-		if (texture->is_target && !texture->depth) {
+		if (texture->is_target && !texture->depth && !texture->clouds) {
 			view = device->targets[texture->target]
 				       .images[slot]
 				       .colour.view;
 			layout = VK_IMAGE_LAYOUT_GENERAL;
 		}
 
-		// A depth copy, which rests in SHADER_READ_ONLY_OPTIMAL: the
-		// window's or a target's, this frame slot's own — and white while
-		// the window has no images, its area nought.
-		if (texture->is_target && texture->depth) {
+		// A depth copy or a clouds image, which rest in
+		// SHADER_READ_ONLY_OPTIMAL: the window's or a target's, this frame
+		// slot's own — and white while the window has no images.
+		if (texture->is_target && (texture->depth || texture->clouds)) {
 			const struct voe_render_target *images =
-				texture->target == VOE_RENDER_WINDOW_DEPTH ?
-					&device->frames[slot].target :
-					&device->targets[texture->target]
-						 .images[slot];
+				target_images(device, texture, slot);
 
-			view = images->depth_copy.view;
+			view = texture->depth ? images->depth_copy.view :
+						images->clouds.view;
 			if (view == VK_NULL_HANDLE)
 				view = device->textures[0].view;
 		}

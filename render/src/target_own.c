@@ -12,7 +12,8 @@
 // descriptor write reads the frame slot it is writing and names that slot's
 // image for a target's texture. See voe_render_texture_write_descriptors. A
 // second slot shows the depth copy beside each depth image the same way
-// (ADR-0305), so a target costs two.
+// (ADR-0305), and a third the half-size clouds image beside it (ADR-0492 point
+// 5), so a target costs three.
 //
 // The images themselves are built and torn down by target.c's
 // voe_render_target_image_build and _teardown, so a caller's target and the
@@ -45,6 +46,8 @@ static void teardown_target_images(voe_render_device *device,
 				   struct voe_render_target_slot *target)
 {
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
+		voe_render_target_image_teardown(device,
+						 &target->images[i].clouds);
 		voe_render_target_image_teardown(device,
 						 &target->images[i].depth_copy);
 		voe_render_target_image_teardown(device,
@@ -117,11 +120,12 @@ struct voe_render_target_slot *voe_render_target_at(voe_render_device *device,
 // undefined, and the layers stay quiet about it here too; that is what the debug
 // asserts in frame.c and element.c are for.
 //
-// The depth copies settle in the same submit, into SHADER_READ_ONLY_OPTIMAL.
+// The depth copies and clouds images settle in the same submit, into
+// SHADER_READ_ONLY_OPTIMAL.
 static bool settle(voe_render_device *device,
 		   const struct voe_render_target_slot *target)
 {
-	VkImageMemoryBarrier2 barriers[2 * VOE_RENDER_FRAMES_IN_FLIGHT];
+	VkImageMemoryBarrier2 barriers[3 * VOE_RENDER_FRAMES_IN_FLIGHT];
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "settling a target on no device");
 	VOE_BASE_DEBUG_ASSERT(target != NULL, "settling no target");
@@ -130,6 +134,9 @@ static bool settle(voe_render_device *device,
 		barriers[VOE_RENDER_FRAMES_IN_FLIGHT + i] =
 			voe_render_target_settle_copy(
 				target->images[i].depth_copy.image);
+		barriers[2 * VOE_RENDER_FRAMES_IN_FLIGHT + i] =
+			voe_render_target_settle_clouds(
+				target->images[i].clouds.image);
 		barriers[i] = (VkImageMemoryBarrier2){
 			.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 			.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
@@ -150,7 +157,7 @@ static bool settle(voe_render_device *device,
 	}
 
 	return voe_render_target_settle(device, barriers,
-					2 * VOE_RENDER_FRAMES_IN_FLIGHT);
+					3 * VOE_RENDER_FRAMES_IN_FLIGHT);
 }
 
 // Every frame slot's pair for one target, at `extent`, settled. On failure
@@ -180,7 +187,10 @@ static bool build_target_images(voe_render_device *device,
 			    VK_IMAGE_ASPECT_DEPTH_BIT, "caller's depth") ||
 		    !voe_render_target_depth_copy_build(
 			    device, &target->images[i].depth_copy, extent,
-			    "caller's depth copy")) {
+			    "caller's depth copy") ||
+		    !voe_render_target_clouds_build(
+			    device, &target->images[i].clouds, extent,
+			    "caller's clouds")) {
 			teardown_target_images(device, target);
 			return false;
 		}
@@ -203,9 +213,11 @@ static bool create_target(voe_render_device *device, uint32_t width,
 	struct voe_render_target_slot *target = NULL;
 	struct voe_render_texture_slot *texture = NULL;
 	struct voe_render_texture_slot *depth = NULL;
+	struct voe_render_texture_slot *clouds = NULL;
 	uint32_t target_index = 0;
 	uint32_t texture_index = 0;
 	uint32_t depth_index = 0;
+	uint32_t clouds_index = 0;
 
 	VOE_BASE_ASSERT(device != NULL, "making a target on no device");
 	VOE_BASE_ASSERT(out_target != NULL && out_texture != NULL,
@@ -233,19 +245,24 @@ static bool create_target(voe_render_device *device, uint32_t width,
 		goto refused;
 	}
 
-	// Two slots: the picture and the depth copy (ADR-0305).
+	// Three slots: the picture, the depth copy (ADR-0305) and the clouds
+	// image (ADR-0492 point 5).
 	texture_index = voe_render_target_free_texture(device, 0);
 	if (texture_index != 0)
 		depth_index = voe_render_target_free_texture(device,
 							     texture_index);
-	if (depth_index == 0) {
+	if (depth_index != 0)
+		clouds_index = voe_render_target_free_texture(device,
+							      depth_index);
+	if (clouds_index == 0) {
 		VOE_BASE_ERROR("render",
-			       "all %d texture slots are taken, and a target needs two: its picture and its depth copy",
+			       "all %d texture slots are taken, and a target needs three: its picture, its depth copy and its clouds image",
 			       VOE_RENDER_MAX_TEXTURES);
 		goto refused;
 	}
 	texture = &device->textures[texture_index];
 	depth = &device->textures[depth_index];
+	clouds = &device->textures[clouds_index];
 
 	if (!build_target_images(device, target,
 				 (VkExtent2D){ width, height }))
@@ -253,6 +270,7 @@ static bool create_target(voe_render_device *device, uint32_t width,
 
 	target->texture = texture_index;
 	target->depth_texture = depth_index;
+	target->clouds_texture = clouds_index;
 	target->generation++;
 	target->live = true;
 	target->cleared = false;
@@ -263,15 +281,24 @@ static bool create_target(voe_render_device *device, uint32_t width,
 	texture->sampling = VOE_RENDER_SAMPLING_SHARP;
 	texture->is_target = true;
 	texture->depth = false;
+	texture->clouds = false;
 	texture->target = target_index;
 	texture->generation++;
 	texture->live = true;
 	depth->sampling = VOE_RENDER_SAMPLING_SHARP;
 	depth->is_target = true;
 	depth->depth = true;
+	depth->clouds = false;
 	depth->target = target_index;
 	depth->generation++;
 	depth->live = true;
+	clouds->sampling = VOE_RENDER_SAMPLING_SHARP;
+	clouds->is_target = true;
+	clouds->depth = false;
+	clouds->clouds = true;
+	clouds->target = target_index;
+	clouds->generation++;
+	clouds->live = true;
 
 	// settle() has idled the card, so no frame is reading the sets.
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)

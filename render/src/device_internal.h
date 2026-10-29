@@ -394,9 +394,11 @@ struct voe_render_device {
 	// live from the create that claimed it until the device closes.
 	struct voe_render_target_slot *targets;
 
-	// The texture slot that shows the window's depth copy, each frame slot
-	// its own; claimed by the first voe_render_target_build, never freed.
+	// The texture slots that show the window's depth copy and clouds image,
+	// each frame slot its own; claimed by the first voe_render_target_build,
+	// never freed.
 	uint32_t window_depth_texture;
+	uint32_t window_clouds_texture;
 	// The window's probe volumes, each built on the first begin onto it.
 	struct voe_render_bounce_volume window_volume[VOE_RENDER_BOUNCE_VOLUMES];
 
