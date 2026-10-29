@@ -1701,6 +1701,40 @@ typedef struct {
 static_assert(sizeof(voe_render_exposure) == 16,
 	      "voe_render_exposure is the 16 bytes bindings.slangh reads");
 
+// voe_render_clouds' `kind`, and the metres after which the cloud field repeats
+// on x and on z (ADR-0492 point 3).
+#define VOE_RENDER_CLOUDS_NONE 0u
+#define VOE_RENDER_CLOUDS_FLAT 1u
+#define VOE_RENDER_CLOUDS_VOLUMETRIC 2u
+#define VOE_RENDER_CLOUDS_PERIOD 8192.0f
+
+// A pass's clouds (ADR-0492 point 3), in voe_render_pass_camera after its
+// exposure, 32 bytes. ZEROED IS NONE, THE OLD PICTURE, BYTE FOR BYTE.
+//
+// `kind` is a VOE_RENDER_CLOUDS_*: none, flat at one plane, or volumetric.
+// `coverage`, 0 to 1, is how much of the layer is cloud, 0 none anywhere and 1
+// cloud over every point. `bottom`, any finite, is the layer's bottom in metres
+// above the eye: the Clouds row's height − the eye's world y, above the eye as
+// voe_render_sky's `haze_top` is. `thickness`, at least 0, is the layer's depth
+// in metres, read by volumetric alone. `origin`, each component 0 to
+// VOE_RENDER_CLOUDS_PERIOD, is the eye's place in a field that repeats every
+// PERIOD on x and z: eye x − drift x and eye z − drift z, wrapped by the caller
+// in double, so a float keeps its precision however far the eye or the wind
+// goes. `shadow_strength`, 0 to 1, is how dark a cloud's shadow is, 0 none.
+// What is drawn, shadowed and mirrored is said by the calls that do it.
+typedef struct {
+	uint32_t kind;
+	float coverage;
+	float bottom;
+	float thickness;
+	voe_math_float2 origin;
+	float shadow_strength;
+	uint32_t reserved;
+} voe_render_clouds;
+
+static_assert(sizeof(voe_render_clouds) == 32,
+	      "voe_render_clouds is the 32 bytes bindings.slangh reads");
+
 // The camera, the sun, the sun's shadow and the point lights one pass draws with.
 // Handed over together because the shader reads them for the whole pass, and a
 // pass that has one has all of them; a zeroed `shadow` is none.
@@ -1727,6 +1761,8 @@ static_assert(sizeof(voe_render_exposure) == 16,
 // `sky` IS THE PASS'S SKY AND `exposure` ITS PICTURE (ADR-0406 points 1 and 4);
 // either zeroed is the old picture, byte for byte, and each works without the
 // other.
+//
+// `clouds` ARE THE PASS'S CLOUDS (ADR-0492 point 3); zeroed is none.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
@@ -1736,6 +1772,7 @@ typedef struct {
 	voe_render_directional_lights more;
 	voe_render_sky sky;
 	voe_render_exposure exposure;
+	voe_render_clouds clouds;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass
@@ -1756,7 +1793,10 @@ typedef struct {
 // finite or a sky field outside its range (voe_render_sky above): a colour,
 // `strength`, `haze` or `haze_start` below 0, a `horizon_height` or `glow_size` past 0 to 1,
 // a `disc_size` past 0 to 10 degrees, a `haze_top` not finite; an `exposure`
-// past ±16, or a `tone` past VOE_RENDER_TONE_SOFT.
+// past ±16, or a `tone` past VOE_RENDER_TONE_SOFT; or whose `clouds` hold a
+// `kind` past VOLUMETRIC, a `coverage` or `shadow_strength` outside 0 to 1, a
+// `thickness` below 0, a `bottom` not finite, or an `origin` outside 0 to
+// VOE_RENDER_CLOUDS_PERIOD.
 //
 // THE CAMERA MAY BE NULL, BECAUSE NOT EVERY PASS LOOKS AT A WORLD. A pass that
 // draws only elements — an interface filling the window — has no eye and no sun,

@@ -4,7 +4,7 @@ The engine's shaders and the only files `slangc` runs over: Slang compiled to ro
 build time and `#embed`ded, so nothing is read at run time. A `.slangh` is a part, included by a
 shader and never compiled alone.
 
-- `bindings.slangh` — the part `draw.slang` includes first: the frame block, the object and instance
+- `bindings.slangh` — the part `draw.slang` includes first: the frame block with its clouds, the object and instance
   records, set 0's bindings and the push constant, each matching its C struct; the object record
   carries a landscape's paint and layers, a draw's dither, its first instance and a ground.
 - `instances.slangh` — where a mesh draw's copy stands: from the record and the instance index its

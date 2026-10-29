@@ -33,8 +33,20 @@ static_assert(sizeof(voe_render_directional_light) == 368,
 static_assert(sizeof(struct voe_render_frame_light) == 368,
 	      "the frame light no longer matches bindings.slangh's");
 static_assert(sizeof(struct voe_render_frame_block) ==
-		      656 + 3 * 368 + 96 + 16 + 9 * 16,
+		      656 + 3 * 368 + 96 + 16 + 9 * 16 + 32 + 16,
 	      "the per-pass block no longer matches what draw.slang reads at binding 0");
+static_assert(offsetof(struct voe_render_frame_block, clouds) ==
+			      656 + 3 * 368 + 96 + 16 + 9 * 16 &&
+		      offsetof(struct voe_render_frame_block, clouds_image) ==
+			      656 + 3 * 368 + 96 + 16 + 9 * 16 + 32,
+	      "the clouds or their image moved inside the per-pass block; draw.slang has them at 2016 and 2048");
+static_assert(sizeof(voe_render_clouds) == 32 &&
+		      offsetof(voe_render_clouds, coverage) == 4 &&
+		      offsetof(voe_render_clouds, bottom) == 8 &&
+		      offsetof(voe_render_clouds, thickness) == 12 &&
+		      offsetof(voe_render_clouds, origin) == 16 &&
+		      offsetof(voe_render_clouds, shadow_strength) == 24,
+	      "the clouds record's fields moved; bindings.slangh has coverage at 4, bottom 8, thickness 12, origin 16, shadow_strength 24, 32 bytes");
 static_assert(offsetof(struct voe_render_frame_block, sky_harmonics) ==
 		      656 + 3 * 368 + 96 + 16,
 	      "the sky's harmonics moved inside the per-pass block; draw.slang has them at 1872");

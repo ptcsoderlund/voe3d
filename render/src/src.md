@@ -137,8 +137,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `pass.c` — a pass: one rendering block onto the window or a target, its camera block with probe
   volume, point lights, light blockers and further lights, the clear colour, the
   first-clears-later-load rule, the one Y flip, and each pass's name, timed by `pass_timing.c`.
-- `pass_sky.c` — a camera pass's sky and exposure placed into its block, checked, and the nine
-  harmonics of its backdrop at strength 1 when its sky is drawn.
+- `pass_sky.c` — a camera pass's sky, exposure and clouds placed into its block, checked, with no
+  clouds image yet, and the nine harmonics of its backdrop at strength 1 when its sky is drawn.
 - `pass_timing.c` — every pass timed and labelled by its name: a timestamp pair per pass in the
   slot's pool, read after the fence into the breakdown `voe_render_frame_pass_times` copies out.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of

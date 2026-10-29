@@ -76,6 +76,11 @@
 // cosine-convolved harmonics of the sky's backdrop at strength 1 (ADR-0424
 // point 4), no glow and no disc, filled by pass_sky.c when the sky is `drawn`,
 // zero otherwise; only a rough metal's reflection reads them.
+//
+// `clouds` ARE THE CAMERA'S voe_render_clouds (ADR-0492 point 3), zeroed as the
+// sky is. `clouds_image` IS THE PASS TARGET'S CLOUDS IMAGE TEXTURE SLOT, render's
+// own: VOE_RENDER_NO_CLOUDS_IMAGE in a camera pass until a later card names it.
+// Three reserved words round it to sixteen bytes.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;
@@ -105,6 +110,9 @@ struct voe_render_frame_block {
 	voe_render_sky sky;
 	voe_render_exposure exposure;
 	voe_math_float4 sky_harmonics[9];
+	voe_render_clouds clouds;
+	uint32_t clouds_image;
+	uint32_t clouds_reserved[3];
 };
 
 // One pass's region at binding 11 (ADR-0347 point 3): its light blockers as
@@ -124,6 +132,7 @@ struct voe_render_frame_blockers {
 #define VOE_RENDER_NO_DEPTH_COPY (~0u)
 #define VOE_RENDER_NO_BOUNCE (~0u)
 #define VOE_RENDER_NO_SUN_LAYER (~0u)
+#define VOE_RENDER_NO_CLOUDS_IMAGE (~0u)
 
 // A buffer and the memory under it, which in this engine are always made and
 // thrown away together. One allocation per buffer, exactly as target.c makes one
