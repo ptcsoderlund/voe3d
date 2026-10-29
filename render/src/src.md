@@ -102,6 +102,11 @@ which file to open — what each one owns, and where the seams between them run.
   cosine-convolved harmonics, and the irradiance. Pure CPU.
 - `sky.c` — those five calls: a backdrop of strength × an authored gradient, the radiance that plus
   each shown light's glow then disc, the backdrop alone projected over 256 Fibonacci directions.
+- `clouds_noise.h` — the cloud field's baked textures (ADR-0492 point 4): a 256² weather map over
+  the period and a 64³ detail volume repeating every 256 m, both tiling, the same bytes on every
+  machine. Pure CPU.
+- `clouds_noise.c` — those two calls: Perlin fBm and inverted Worley fBm in integer arithmetic,
+  the weather stretched over the whole byte, the detail over its greatest sum.
 - `sky_draw.c` — the sky drawn first in a camera pass whose sky is `drawn` or has haze: one
   full-screen triangle through the sky pipeline, timed as the span `sky`.
 - `light_blockers.c` — `voe_render_light_blockers_mask`, declared in `render/device.h`: the boxes

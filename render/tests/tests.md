@@ -154,6 +154,9 @@ by reading the offscreen colour image back.
 - `sky_model.c` — the backdrop, glow and irradiance, with no card: colours as authored, the
   horizon band, strength scaling the backdrop, each light's disc at 2c, a light not shown leaving
   the backdrop, glow in a black sky, and the harmonics within 5% of a brute-force sum.
+- `clouds_noise.c` — the cloud field's baked textures, with no card: the weather and the detail
+  each the same bytes made twice, each tiling across every axis's wrap, and each darkest under 64
+  and brightest over 192.
 - `light_blockers.c` — which boxes hold a point, with no card: a box's centre and face and not
   past it, a turned box's diagonal, two boxes both bits, blocker 31 bit 31, none mask 0, and
   inside the sphere but outside the box 0, the call reached through `render/device.h`.
