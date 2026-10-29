@@ -1,9 +1,9 @@
-// A fresh game world has every one of the twenty-seven types registered: each
+// A fresh game world has every one of the twenty-nine types registered: each
 // public key resolves through voe_ecs_component_type, which asserts on a key
-// nothing registered, the twenty-five answers, the parent, prefab, emitter,
+// nothing registered, the twenty-seven answers, the parent, prefab, emitter,
 // particles, sound, sound voice, water, waves, point light, light blocker, sky,
-// haze and picture tables' among them, are twenty-five different types, and the
-// world counts twenty-seven, the two more the transforms' previous table, whose key is
+// haze, picture, clouds and drift tables' among them, are twenty-seven different
+// types, and the world counts twenty-nine, the two more the transforms' previous table, whose key is
 // scene's own, and the shape changes table, whose key is 3d's own: the type
 // walk finds exactly one type named voe_3d_shape_changes, and it is
 // runtime-only. Needs no window and no graphics card.
@@ -30,7 +30,7 @@
 
 // The public keys; the previous and the shape changes tables are the two more
 // the world counts.
-#define TYPES 25
+#define TYPES 27
 
 // More colliders than the authored room, as spawned things carry.
 #define SPAWNED (2 * VOE_GAME_WORLD_AUTHORED)
@@ -101,7 +101,8 @@ int main(void)
 		&voe_3d_water_key,	  &voe_3d_waves_key,
 		&voe_scene_point_light_key, &voe_scene_light_blocker_key,
 		&voe_scene_sky_key,	  &voe_scene_picture_key,
-		&voe_scene_haze_key,
+		&voe_scene_haze_key,	  &voe_scene_clouds_key,
+		&voe_scene_clouds_drift_key,
 	};
 	voe_base_arena *arena = voe_base_arena_new(1 << 20);
 	voe_ecs_world *world = voe_game_world_new(arena);
