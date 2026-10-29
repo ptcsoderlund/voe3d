@@ -36,7 +36,8 @@ shader and never compiled alone.
   weighted and normalised.
 - `lighting.slangh` — the directional lights, their shadows and fills, the clouds dimming each
   one's direct term, the bounce and the binned point lights, each gated by the light blockers; the
-  sky lights nothing, and a metal mirrors it only as bright as the light on it.
+  sky lights nothing, and a metal mirrors it, the clouds along the reflected view over its sharp
+  sky, only as bright as the light on it.
 - `terrain.slangh` — a landscape node's vertex: the grid point morphed by distance, its height and
   normal from the height map.
 - `terrain_layers.slangh` — a painted landscape's surface: the paint's weights, up to eight layers
@@ -44,7 +45,7 @@ shader and never compiled alone.
 - `ground_blend.slangh` — a ground record's model blending into the painted ground under it:
   weight by height over the ground within the reach, colour, ORM and normal lerped to the ground's.
 - `water.slangh` — the water path, lit by directional light 0 alone, dimmed under the clouds: wave
-  normals, fresnel and coverage from its depth.
+  normals, fresnel towards its sky with the clouds mirrored over it, and coverage from its depth.
 - `elements.slang` — the element pipeline: a rectangle per instance from its vertex index, clipped,
   and a glyph's coverage at its edge.
 - `bounce_relight.slang` — the relight's compute: `settle` a probe's validity and moments, `relight`

@@ -112,6 +112,9 @@ by reading the offscreen colour image back.
 - `cloud_shadows.c` — clouds shadowing a lit floor: strength 1 darker, 0 the same bytes as none,
   0.5 between, a floor facing away lit by its fill alone unchanged, clouds below it nothing, and
   water darker under them. Headless.
+- `cloud_reflections.c` — clouds in what mirrors the sky, seen at a slant: a smooth metal floor
+  changed by Flat clouds of coverage 1, the same within 1/255 at coverage 0, and a water plane
+  changed too. Headless.
 - `sky_light.c` — the sky lighting nothing: a cube's face the same with the sky or without, a
   non-metal quad unchanged, a metal one the sky along R times the light on it, none indoors or
   unlit, no brighter than the sky head-on, the same at sky strength 0 and 1. Headless.

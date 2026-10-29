@@ -814,7 +814,8 @@ typedef struct {
 	// frequency is a whole multiple of 2π/60 and so seconds 0 and 60 are the
 	// same picture, while a float clock counting up for hours loses the
 	// precision the waves need. `sky` is a linear rgb the surface reflects
-	// toward at a grazing angle; w is reserved.
+	// toward at a grazing angle, the pass's clouds along the reflected view
+	// showing in it, unveiled (ADR-0492 point 8); w is reserved.
 	voe_math_float4 waves;
 	voe_math_float4 sky;
 	// Read only when `heights` is not nought. `terrain` is the node's corner
@@ -1663,10 +1664,11 @@ typedef struct {
 //
 // THE SKY LIGHTS NOTHING (ADR-0411 point 1): lights alone light, the same with
 // a sky or without. With `drawn` the sky's reflection, sharp on a smooth
-// surface and the backdrop's irradiance on a rough one, occluded, shows on
-// metal only, times the surface's metalness (0412 point 5), and nowhere whose
-// blocker mask holds an Indoors or Room bit; a non-metal reads the same bytes
-// as with no sky.
+// surface, the pass's clouds along the reflected view showing in it unveiled
+// (ADR-0492 point 8), and the backdrop's irradiance on a rough one, occluded,
+// shows on metal only, times the surface's metalness (0412 point 5), and
+// nowhere whose blocker mask holds an Indoors or Room bit; a non-metal reads
+// the same bytes as with no sky.
 typedef struct {
 	voe_math_float3 zenith;
 	float horizon_height;
