@@ -1,7 +1,7 @@
 // The world's step once a frame: the transforms remembered, game's step, then
 // the emitters by the frame's
-// seconds, the point lights' replaces, the water system by the seconds, then
-// every placed copy queued since expanded (world_step.h).
+// seconds, the point lights' replaces, the water system and the clouds' drift
+// by the seconds, then every placed copy queued since expanded (world_step.h).
 //
 // Constraints: every call runs every system, unconditionally, and no move.
 #include "world_step.h"
@@ -15,6 +15,7 @@
 
 #include <game/frame.h>
 
+#include <scene/clouds_system.h>
 #include <scene/point_light_system.h>
 #include <scene/transform_system.h>
 
@@ -31,5 +32,6 @@ void voe_editor_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes,
 	voe_3d_emitter_system_run(world, seconds);
 	voe_scene_point_light_system_run(world);
 	voe_3d_water_system_run(world, seconds);
+	voe_scene_clouds_system_run(world, seconds);
 	voe_editor_prefabs_expand(world, folder, scratch, why);
 }
