@@ -8,8 +8,10 @@
 // A BLENDED PLANE WHOSE VERTICES DO NOT MOVE. Four sine waves bend its normal,
 // measured in metres over the model's own x and y so they keep their size
 // however the quad is scaled. It is lit by directional light 0 alone, with its
-// shadow, fill and the bounce, the further lights left out; glints at roughness
-// 0.05, takes the record's sky in the share
+// shadow, fill and the bounce, the further lights left out, its direct term and
+// glint dimmed by the clouds' shadow as lighting.slangh's are (ADR-0492 point
+// 7); glints at roughness 0.05, takes the record's sky, the clouds along the
+// reflected view laid over it unveiled (0492 point 8), in the share
 // Schlick's fresnel from 0.02 gives it, and its thickness over the pass's depth
 // copy sets its coverage and darkens its body. No depth copy reads as deep.
 //
@@ -112,8 +114,9 @@ float voe_water_depth_share(float4 position, float deep)
 }
 
 // The water's colour: the body darkened with depth and lit by the sun, its
-// shadow and the fill, the sun's glint at roughness 0.05, and the sky taking
-// the share Schlick's fresnel from 0.02 gives it; coverage rises with depth.
+// shadow and the fill, the sun's glint at roughness 0.05, and the sky, the
+// clouds along the reflected view over it, taking the share Schlick's fresnel
+// from 0.02 gives it; coverage rises with depth.
 float4 voe_render_water(voe_render_object object, voe_render_draw_vertex_out vertex,
 			float3 colour)
 {
@@ -133,15 +136,18 @@ float4 voe_render_water(voe_render_object object, voe_render_draw_vertex_out ver
 		       voe_render_distribution(saturate(dot(n, h)), alpha) *
 		       voe_render_visibility(n_dot_l, n_dot_v, alpha);
 	float sky_share = voe_render_fresnel(float3(VOE_WATER_REFLECTANCE), n_dot_v).x;
+	float4 clouds = voe_render_clouds_reflected(reflect(-v, n));
+	float3 sky = object.sky.rgb * (1.0 - clouds.a) + clouds.rgb;
 	float reach = n_dot_l * voe_render_sunlight(voe_render_frame.shadow,
 						    vertex.world,
 						    voe_water_plane_normal(object));
-	float3 radiance = voe_render_sun_radiance(sun, reach);
+	float3 radiance = voe_render_sun_radiance(sun, reach) *
+			  voe_render_cloud_shadow(sun, vertex.world);
 	float3 lit = (1.0 - sky_share) *
 			     (body * radiance / VOE_PI +
 			      voe_render_indirect(voe_render_fill(sun, reach, true),
 						  vertex.world, n, body)) +
-		     sky_share * object.sky.rgb + glint * radiance;
+		     sky_share * sky + glint * radiance;
 
 	return voe_render_premultiplied(
 		voe_render_expose(voe_render_haze(

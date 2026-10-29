@@ -200,6 +200,12 @@ struct voe_render_device {
 	// The sky's (ADR-0405 point 4): one full-screen triangle, no vertex
 	// input, no depth test or write, no blend; sky_draw.c draws it.
 	VkPipeline pipeline_sky;
+	// The clouds' (ADR-0492 point 5), behind the sky's vertex stage: the
+	// march into the target's half-size RGBA16F clouds image, no depth, no
+	// blend; the composite onto the target, no depth test or write,
+	// premultiplied blend.
+	VkPipeline pipeline_clouds_march;
+	VkPipeline pipeline_clouds_composite;
 	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
 	// settle, relight and sum pipelines; per frame slot a mapped list buffer,
 	// a mapped record buffer of a region per volume, each at its descriptor
@@ -282,6 +288,13 @@ struct voe_render_device {
 	// (ADR-0326). descriptors.c makes and destroys both.
 	VkSampler bounce_sampler;
 	VkSampler moments_sampler;
+	// The cloud field (ADR-0492 point 4): the 64³ detail at binding 13 and the
+	// 256² weather at 14, both R8_UNORM in SHADER_READ_ONLY_OPTIMAL, and the
+	// linear sampler repeating on every axis both are read through.
+	// clouds_textures.c makes and destroys all three.
+	struct voe_render_allocated_image clouds_detail;
+	struct voe_render_allocated_image clouds_weather;
+	VkSampler clouds_sampler;
 
 	VkDescriptorSetLayout descriptor_layout;
 	VkDescriptorPool descriptor_pool;
@@ -387,9 +400,11 @@ struct voe_render_device {
 	// live from the create that claimed it until the device closes.
 	struct voe_render_target_slot *targets;
 
-	// The texture slot that shows the window's depth copy, each frame slot
-	// its own; claimed by the first voe_render_target_build, never freed.
+	// The texture slots that show the window's depth copy and clouds image,
+	// each frame slot its own; claimed by the first voe_render_target_build,
+	// never freed.
 	uint32_t window_depth_texture;
+	uint32_t window_clouds_texture;
 	// The window's probe volumes, each built on the first begin onto it.
 	struct voe_render_bounce_volume window_volume[VOE_RENDER_BOUNCE_VOLUMES];
 

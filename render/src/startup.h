@@ -9,7 +9,9 @@
 // each is a step that needs what the one before it made. The instance comes
 // straight after the loader is open, because every later call goes through it.
 // The card is chosen after the surface exists, because a card qualifies only if
-// one of its queue families presents to that surface. The pipeline layout comes
+// one of its queue families presents to that surface. The cloud field's textures
+// (clouds_textures.c) come after the frame objects, whose pool uploads them, and
+// before voe_render_descriptors_build, which names them. The pipeline layout comes
 // after voe_render_descriptors_build, because it names the descriptor set layout
 // that makes — built first, it would name a null handle. The element pipeline
 // (element.c) comes after the layout, because it shares it. The mesh pipelines

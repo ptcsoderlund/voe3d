@@ -33,9 +33,8 @@
 // voe_game_models_landscapes and a row wearing it under the sun; its nodes
 // are drawn into every pass and both frames come back true (0396 point 4).
 //
-// THE INTERFACE CASE: a context holding a label, laid out as
-// tests/interface.c lays one out, is drawn over the world and the frame comes
-// back true: the records fit VOE_GAME_CAPACITIES and draw in the window pass.
+// THE INTERFACE CASE: a label laid out as tests/interface.c does, drawn over
+// the world: the frame comes back true, its records fitting VOE_GAME_CAPACITIES.
 //
 // THE BLOCKER CASE: a camera four metres over a grey ground under a sun and a
 // 1 m light blocker, grown to 2 m between the frames and read back: the game
@@ -53,8 +52,9 @@
 // THE MODEL CASE: a thing whose model an empty store lacks draws as nothing.
 // THE COUNTS CASE: a cube before the camera and one behind: drawn 1, skipped 1.
 //
-// THE HAZE CASE: a Haze row's replace reaches the sky record with no sky
-// drawn, its top above the origin's eye. It needs no device.
+// THE HAZE AND CLOUDS CASES: a Haze row's replace reaches the sky record with
+// no sky drawn, its top above the origin's eye; a Volumetric Clouds row at 1500
+// reaches the clouds record, its bottom 1500 over that eye. No device.
 //
 // Each draw case writes one file into the working directory, checks it and
 // removes it, pass or fail. A machine with no usable Vulkan skips and says so.
@@ -77,6 +77,7 @@
 
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
+#include <scene/clouds_system.h>
 #include <scene/haze_system.h>
 #include <scene/light_blocker_system.h>
 #include <scene/light_system.h>
@@ -643,6 +644,30 @@ static void haze_case(void)
 	voe_base_arena_destroy(arena);
 }
 
+// A world with only a Volumetric Clouds row at height 1500:
+// voe_3d_draw_system_clouds, its eye the origin, reads volumetric and bottom
+// 1500 (0492 point 3).
+static void clouds_case(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(1 << 20);
+	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_scene_clouds row = *(const voe_scene_clouds *)voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_scene_clouds_key));
+	voe_ecs_entity settings;
+	voe_render_clouds clouds;
+
+	row.kind = VOE_SCENE_CLOUDS_VOLUMETRIC;
+	row.height = 1500.0f;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &settings));
+	VOE_TEST_CHECK(voe_scene_clouds_add(world, settings, row));
+	clouds = voe_3d_draw_system_clouds(world,
+					   (voe_math_double3){ 0.0, 0.0, 0.0 });
+	VOE_TEST_CHECK_INT(clouds.kind, VOE_RENDER_CLOUDS_VOLUMETRIC);
+	VOE_TEST_CHECK(clouds.bottom == 1500.0f);
+
+	voe_base_arena_destroy(arena);
+}
+
 // The unlit world with a second cube behind the camera, two frames, the second
 // handed a counts record: the cube in front drawn, the one behind skipped.
 static void counts_case(voe_app *app, voe_base_arena *arena,
@@ -715,6 +740,7 @@ int main(void)
 	voe_app *app;
 
 	haze_case();
+	clouds_case();
 	app = voe_app_new_headless(arena, scratch, settings, &error);
 	if (app == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||

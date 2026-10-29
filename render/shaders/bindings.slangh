@@ -1,5 +1,5 @@
 // What draw.slang's two stages read: the frame block (camera, sun, cascades,
-// depth copy, point lights, blockers, the further lights, the sky, the exposure), the object, instance and shading records, the point
+// depth copy, point lights, blockers, the further lights, the sky, the exposure, the clouds), the object, instance and shading records, the point
 // lights and their bins, the light blockers, the bindings of set 0 and the push constant that names the
 // object, a point-shadow draw's faces and whether the draw is plain. A part (ADR-0308): included first by
 // draw.slang, never compiled alone.
@@ -121,6 +121,26 @@ struct voe_render_exposure {
 	uint reserved1;
 };
 
+// render/device.h's numbers, which these must equal (ADR-0492 point 3).
+static const uint VOE_RENDER_CLOUDS_NONE = 0;
+static const uint VOE_RENDER_CLOUDS_FLAT = 1;
+static const uint VOE_RENDER_CLOUDS_VOLUMETRIC = 2;
+static const float VOE_RENDER_CLOUDS_PERIOD = 8192.0;
+
+// The pass's clouds: voe_render_clouds in render/device.h, 32 bytes, kind 0
+// none; bottom the layer's bottom in metres above the eye, as haze_top; origin
+// the eye's place in the field, which repeats every VOE_RENDER_CLOUDS_PERIOD on
+// x and z. Nothing reads it yet.
+struct voe_render_clouds {
+	uint kind;
+	float coverage;
+	float bottom;
+	float thickness;
+	float2 origin;
+	float shadow_strength;
+	uint reserved;
+};
+
 struct voe_render_frame_block {
 	voe_render_view camera;
 	voe_render_light light;
@@ -140,6 +160,12 @@ struct voe_render_frame_block {
 	voe_render_exposure exposure;
 	// The backdrop's nine harmonics, sky.h's order, zero unless drawn.
 	float4 sky_harmonics[9];
+	voe_render_clouds clouds;
+	// The pass target's clouds image texture slot, ~0u for none.
+	uint clouds_image;
+	uint clouds_reserved0;
+	uint clouds_reserved1;
+	uint clouds_reserved2;
 };
 
 [[vk::binding(0, 0)]]
@@ -239,6 +265,17 @@ Sampler3D voe_render_bounce_grids[];
 
 [[vk::binding(10, 0)]]
 Sampler2D voe_render_bounce_moments[];
+
+// Set 0, binding 13: the cloud field's detail (ADR-0492 point 4), 64³ R8 texels
+// of inverted Worley fBm repeating every 256 m, through a linear sampler that
+// repeats on every axis (render/src/clouds_textures.c).
+[[vk::binding(13, 0)]]
+Sampler3D voe_render_clouds_detail;
+
+// Set 0, binding 14: the cloud field's weather, 256² R8 texels of Perlin fBm over
+// one VOE_RENDER_CLOUDS_PERIOD, the clouds' shapes, through binding 13's sampler.
+[[vk::binding(14, 0)]]
+Sampler2D voe_render_clouds_weather;
 
 // Set 0, binding 1: every texture at once, indexed by a number out of a shading
 // record.

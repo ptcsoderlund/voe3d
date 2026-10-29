@@ -23,8 +23,8 @@ which file to open — what each one owns, and where the seams between them run.
   one-frame record and a pass's blocker region with its kinds; included only through
   `device_internal.h`.
 - `device.c` — opening, and the one place its order is: the surface, the logical device, the
-  format, frame objects, the layout and element pipeline but no mesh
-  pipeline, the guard's take and give, and close-down, plus the headless device the tests run on.
+  format, frame objects, the cloud field before the descriptors, the layout and element pipeline
+  but no mesh pipeline, the guard's take and give, and close-down, plus the headless device.
 - `startup.h` — the startup steps that live beside device.c, why open_device calls them in the
   order it does, and the card facts and ranking a test can call with no card.
 - `pacing.c` — the card's clock and the present modes learnt at startup, the present mode set and
@@ -39,12 +39,13 @@ which file to open — what each one owns, and where the seams between them run.
   capture tool; each does nothing without debug-utils.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,
   and the `render` line that says which and why.
-- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the six
-  mesh pipelines, solid, blended, shadow, sky, point shadow and capture, through the device's pipeline
-  cache, then the relight, a step a call, and the count of those steps.
+- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the eight
+  mesh pipelines, solid, blended, shadow, sky, clouds march and composite, point shadow and capture,
+  through the pipeline cache, then the relight, a step a call, and the count of those steps.
 - `pipeline_cache.c` — the device's pipeline cache: made empty at open, seeded from a caller's bytes
   before the first prepare step, and handed out behind render's own header.
-- `descriptors.c` — everything the shader reads and the one layout that describes it.
+- `descriptors.c` — everything the shader reads and the one layout that describes it, fifteen
+  bindings, the cloud field's detail and weather at 13 and 14.
 - `records_layout.c` — the build-time proof that the C and Slang layouts of every record a shader
   reads agree, by size and member offset; no code.
 - `buffer.c` — a named buffer with the memory under it, the staging upload
@@ -62,9 +63,11 @@ which file to open — what each one owns, and where the seams between them run.
   freed and reused, and a record's rewrite recorded into a frame before its first pass. Its header
   says why one buffer serves every frame slot and why creating a record waits for the GPU.
 - `target.c` — the colour and depth images a frame is drawn into, one pair per frame slot, each
-  depth with its sampled copy, the image build, settle and teardown every target shares.
+  depth with its sampled copy and a half-size clouds image, the image build, settle and teardown
+  every target shares.
 - `target_own.c` — the targets of a caller's own: their table, create, resize, and the settle into
-  GENERAL that lets one texture slot show them, and a second slot for their depth copy.
+  GENERAL that lets one texture slot show them, a second slot for their depth copy and a third for
+  their clouds image.
 - `target_read.c` — the read that copies a finished picture, the window's or a caller's target,
   into an arena as RGBA8 with straight alpha.
 - `shadow.c` — the directional lights' shadow maps: one D32 array image of four cascades per held
@@ -102,6 +105,13 @@ which file to open — what each one owns, and where the seams between them run.
   cosine-convolved harmonics, and the irradiance. Pure CPU.
 - `sky.c` — those five calls: a backdrop of strength × an authored gradient, the radiance that plus
   each shown light's glow then disc, the backdrop alone projected over 256 Fibonacci directions.
+- `clouds_noise.h` — the cloud field's baked textures (ADR-0492 point 4): a 256² weather map over
+  the period and a 64³ detail volume repeating every 256 m, both tiling, the same bytes on every
+  machine. Pure CPU.
+- `clouds_noise.c` — those two calls: Perlin fBm and inverted Worley fBm in integer arithmetic,
+  the weather stretched over the whole byte, the detail over its greatest sum.
+- `clouds_textures.c` — those bytes made at open into a 64³ and a 256² R8 image through one
+  staging upload, resting shader-readable, and their one repeating linear sampler; 320 KiB.
 - `sky_draw.c` — the sky drawn first in a camera pass whose sky is `drawn` or has haze: one
   full-screen triangle through the sky pipeline, timed as the span `sky`.
 - `light_blockers.c` — `voe_render_light_blockers_mask`, declared in `render/device.h`: the boxes
@@ -111,7 +121,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `point_shadow_faces.c` — those three calls: a box-centred sphere, its move under a world matrix,
   and the face mask against one light's widened pyramids; plain arithmetic, no state.
 - `texture.c` — pixels to a sampled image: the staging copy, the layout transitions round it, a mip
-  chain for a SMOOTH texture, the three samplers, and the slot table the ids name.
+  chain for a SMOOTH texture, the three samplers, and the slot table the ids name, a target's slots
+  written as its frame slot's colour, depth copy or clouds image.
 - `texture_given.c` — a SMOOTH texture whose levels the caller gives (0470), uploaded as they are
   from one staging buffer with one region per level, no chain built.
 - `texture_blocks.c` — a SMOOTH texture of BC7 or BC5 blocks whose levels the caller gives (0477),
@@ -129,21 +140,25 @@ which file to open — what each one owns, and where the seams between them run.
   again on every resize. Nothing draws into them; they are a blit's destination.
   It is also where a requested present mode becomes the one in force, and where
   the fallback to fifo happens.
-- `frame_internal.h` — the calls frame.c, pass.c, depth_copy.c, draw.c, present.c, point_shadow.c,
-  bounce_capture.c and bounce_shadow.c make across one another; included by those eight only.
+- `frame_internal.h` — the calls frame.c, pass.c, depth_copy.c, clouds_draw.c, draw.c, present.c,
+  point_shadow.c, bounce_capture.c and bounce_shadow.c make across one another; included by those
+  nine only.
 - `frame.c` — one frame: wait for the slot and open a recording, read the GPU time it measured and
   its passes through `pass_timing.c`, rebuild on resize, end, submit and present, both ends under
   the device's guard.
 - `pass.c` — a pass: one rendering block onto the window or a target, its camera block with probe
   volume, point lights, light blockers and further lights, the clear colour, the
   first-clears-later-load rule, the one Y flip, and each pass's name, timed by `pass_timing.c`.
-- `pass_sky.c` — a camera pass's sky and exposure placed into its block, checked, and the nine
-  harmonics of its backdrop at strength 1 when its sky is drawn.
+- `pass_sky.c` — a camera pass's sky, exposure and clouds placed into its block, checked, with no
+  clouds image yet, and the nine harmonics of its backdrop at strength 1 when its sky is drawn.
 - `pass_timing.c` — every pass timed and labelled by its name: a timestamp pair per pass in the
   slot's pool, read after the fence into the breakdown `voe_render_frame_pass_times` copies out.
 - `depth_copy.c` — the depth copy (ADR-0305): a camera pass's block split in two round a copy of
   its depth into the sampled copy beside it, the second block loading, and the copy's slot written
   into the pass's block.
+- `clouds_draw.c` — a camera pass's clouds over the world: the depth copy if missing, the block
+  split round a half-size march into the target's clouds image, then the composite, timed as the
+  span `clouds`.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, one
   instance per cube face reached in the point-shadow pass, a frame's instance records and the
   instanced draw of copies they place, bounce sun maps included, and the sides a draw shows.

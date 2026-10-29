@@ -29,7 +29,9 @@
 // voe_render_frame_copy_depth in pass.c and shown through one texture slot per
 // target, the window's claimed by the first build here. The copy rests in
 // SHADER_READ_ONLY_OPTIMAL from the moment it is made, so every descriptor naming
-// it agrees with its image.
+// it agrees with its image. Beside it is the clouds image (ADR-0492 point 5), half
+// the size, built, settled and torn down with it and shown through a slot of its
+// own the same way.
 //
 // The targets of a caller's own are target_own.c's and the read back into an
 // arena is target_read.c's; both build on the image helpers here.
@@ -206,7 +208,30 @@ static bool build_one(voe_render_device *device,
 		return false;
 
 	return voe_render_target_depth_copy_build(device, &target->depth_copy,
-						  extent, "depth copy");
+						  extent, "depth copy") &&
+	       voe_render_target_clouds_build(device, &target->clouds, extent,
+					      "clouds");
+}
+
+bool voe_render_target_clouds_build(voe_render_device *device,
+				    struct voe_render_allocated_image *out,
+				    VkExtent2D extent, const char *what)
+{
+	// Rounded up, so an odd side keeps its last column and a side of 1 is 1.
+	const VkExtent2D half = { (extent.width + 1) / 2,
+				  (extent.height + 1) / 2 };
+
+	VOE_BASE_DEBUG_ASSERT(device != NULL, "building a clouds image on no device");
+	VOE_BASE_DEBUG_ASSERT(half.width > 0 && half.height > 0,
+			      "building a clouds image of no pixels");
+
+	// RGBA16F is required of every implementation as a colour attachment and
+	// a sampled image, so there is nothing to ask the card.
+	return voe_render_target_image_build(device, out, half,
+					     VK_FORMAT_R16G16B16A16_SFLOAT,
+					     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+						     VK_IMAGE_USAGE_SAMPLED_BIT,
+					     VK_IMAGE_ASPECT_COLOR_BIT, what);
 }
 
 bool voe_render_target_depth_copy_build(voe_render_device *device,
@@ -246,6 +271,17 @@ VkImageMemoryBarrier2 voe_render_target_settle_copy(VkImage image)
 
 	VOE_BASE_DEBUG_ASSERT(image != VK_NULL_HANDLE, "settling no depth copy");
 	VOE_BASE_DEBUG_ASSERT(barrier.image == image, "settling the wrong image");
+	return barrier;
+}
+
+VkImageMemoryBarrier2 voe_render_target_settle_clouds(VkImage image)
+{
+	VkImageMemoryBarrier2 barrier = voe_render_target_settle_copy(image);
+
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	VOE_BASE_DEBUG_ASSERT(barrier.newLayout ==
+				      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			      "a clouds image resting anywhere but shader-read");
 	return barrier;
 }
 
@@ -372,46 +408,53 @@ bool voe_render_target_settle_cleared(voe_render_device *device,
 }
 
 uint32_t voe_render_target_free_texture(const voe_render_device *device,
-					uint32_t skip)
+					uint32_t after)
 {
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "searching no device's textures");
 	VOE_BASE_DEBUG_ASSERT(device->textures[0].live,
 			      "searching textures before the white default exists");
 
-	// From 1, the search voe_render_texture_create makes: slot 0 is white.
-	for (uint32_t i = 1; i < VOE_RENDER_MAX_TEXTURES; i++)
-		if (!device->textures[i].live && i != skip)
+	// From 1 at the least, the search voe_render_texture_create makes: slot
+	// 0 is white.
+	for (uint32_t i = after + 1; i < VOE_RENDER_MAX_TEXTURES; i++)
+		if (!device->textures[i].live)
 			return i;
 	return 0;
 }
 
-// The window's copy slot, claimed once: it names each frame slot's own copy, so
-// a rebuild only rewrites the descriptors. False with a line if none is free.
-static bool claim_window_depth_texture(voe_render_device *device)
+// One of the window's two slots, its depth copy's or its clouds image's,
+// claimed once into `claimed`: it names each frame slot's own image, so a
+// rebuild only rewrites the descriptors. False with a line if none is free.
+static bool claim_window_texture(voe_render_device *device, uint32_t *claimed,
+				 bool clouds)
 {
 	struct voe_render_texture_slot *texture;
 	uint32_t index;
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "claiming a slot on no device");
-	if (device->window_depth_texture != 0)
+	VOE_BASE_DEBUG_ASSERT(claimed != NULL, "claiming a slot into nothing");
+	if (*claimed != 0)
 		return true;
 
 	index = voe_render_target_free_texture(device, 0);
 	if (index == 0) {
 		VOE_BASE_ERROR("render",
-			       "all %d texture slots are taken, and the window's depth copy needs one",
-			       VOE_RENDER_MAX_TEXTURES);
+			       "all %d texture slots are taken, and the window's %s needs one",
+			       VOE_RENDER_MAX_TEXTURES,
+			       clouds ? "clouds image" : "depth copy");
 		return false;
 	}
 	texture = &device->textures[index];
 	VOE_BASE_DEBUG_ASSERT(!texture->live, "claiming a live texture slot");
 	texture->sampling = VOE_RENDER_SAMPLING_SHARP;
 	texture->is_target = true;
-	texture->depth = true;
-	texture->target = VOE_RENDER_WINDOW_DEPTH;
+	texture->depth = !clouds;
+	texture->clouds = clouds;
+	texture->target = clouds ? VOE_RENDER_WINDOW_CLOUDS :
+				   VOE_RENDER_WINDOW_DEPTH;
 	texture->generation++;
 	texture->live = true;
-	device->window_depth_texture = index;
+	*claimed = index;
 	return true;
 }
 
@@ -448,6 +491,7 @@ void voe_render_target_teardown(voe_render_device *device)
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++) {
 		struct voe_render_target *target = &device->frames[i].target;
 
+		voe_render_target_image_teardown(device, &target->clouds);
 		voe_render_target_image_teardown(device, &target->depth_copy);
 		voe_render_target_image_teardown(device, &target->depth);
 		voe_render_target_image_teardown(device, &target->colour);
@@ -460,26 +504,29 @@ void voe_render_target_teardown(voe_render_device *device)
 	device->frame_ended = false;
 }
 
-// The window's copy slot named in every frame slot's set: its own copy, or white
-// while there is none. Idle already, because teardown waited.
+// The window's two slots named in every frame slot's set: its own images, or
+// white while there are none. Idle already, because teardown waited.
 static void write_window_descriptors(voe_render_device *device)
 {
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "writing no device's descriptors");
-	VOE_BASE_DEBUG_ASSERT(device->window_depth_texture != 0,
-			      "writing descriptors before the window's copy slot");
+	VOE_BASE_DEBUG_ASSERT(device->window_depth_texture != 0 &&
+				      device->window_clouds_texture != 0,
+			      "writing descriptors before the window's slots");
 	for (uint32_t i = 0; i < VOE_RENDER_FRAMES_IN_FLIGHT; i++)
 		voe_render_texture_write_descriptors(device, i);
 }
 
 bool voe_render_target_build(voe_render_device *device, voe_platform_size size)
 {
-	VkImageMemoryBarrier2 settles[VOE_RENDER_FRAMES_IN_FLIGHT];
+	VkImageMemoryBarrier2 settles[2 * VOE_RENDER_FRAMES_IN_FLIGHT];
 	VkExtent2D extent;
 
 	VOE_BASE_DEBUG_ASSERT(device != NULL, "building a target for nothing");
 
 	voe_render_target_teardown(device);
-	if (!claim_window_depth_texture(device))
+	if (!claim_window_texture(device, &device->window_depth_texture,
+				  false) ||
+	    !claim_window_texture(device, &device->window_clouds_texture, true))
 		return false;
 
 	// A window with no area is a window nothing can be drawn for, and it is
@@ -502,9 +549,12 @@ bool voe_render_target_build(voe_render_device *device, voe_platform_size size)
 		}
 		settles[i] = voe_render_target_settle_copy(
 			device->frames[i].target.depth_copy.image);
+		settles[VOE_RENDER_FRAMES_IN_FLIGHT + i] =
+			voe_render_target_settle_clouds(
+				device->frames[i].target.clouds.image);
 	}
 	if (!voe_render_target_settle(device, settles,
-				      VOE_RENDER_FRAMES_IN_FLIGHT)) {
+				      2 * VOE_RENDER_FRAMES_IN_FLIGHT)) {
 		voe_render_target_teardown(device);
 		write_window_descriptors(device);
 		return false;

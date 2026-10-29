@@ -46,9 +46,9 @@ carries it out.
   untitled, written back as the last project unless capturing, and the descriptions line.
 - `startup.c` — the three tried in order, what each failure says, and the last-project write.
 - `world_step.h` — the world's step once a frame, the transforms remembered first for the bounce's
-  stale spheres, `game`'s step whose order is now `game`'s, why the editor runs no move but runs emitters by the frame's seconds, and why placed copies are
+  stale spheres, `game`'s step whose order is now `game`'s, why it runs no move but runs emitters, water and the clouds' drift by the frame's seconds, and why placed copies are
   expanded after it.
-- `world_step.c` — the remember, the one call to `voe_game_world_step`, the emitters' and the water's runs by the
+- `world_step.c` — the remember, the one call to `voe_game_world_step`, the emitters', the water's and the clouds' runs by the
   seconds, the point lights' replaces with none, then the expansion.
 - `prefabs.h` — what the editor does with prefabs: every placed copy expanded from its file in
   ascending id, a load, with deterministic ids and a file that will not read said in the notice;
@@ -369,8 +369,8 @@ carries it out.
   targets, the focus set to the world camera's position, the world's first light row and the
   selection's outline colour, dimmed for a gizmo handle at rest and fainter still for a blocker's box.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
-  passes, lit by every light, with the world, its models and foliage, the selection's outline,
-  collider and gizmo, blockers' boxes, the markers, the brush, each picture's counts, and the capacities.
+  passes, lit by every light, with sky and clouds from its own eye, the world, models, foliage,
+  outline, collider, gizmo, blockers' boxes, markers, brush, each picture's counts, and the capacities.
 - `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, foliage
   gathered after the lights, kept out of the blockers, every place marked and blocker lined,
   stopping at the first refused pass, the shadows, their parts and gathers timed, counts recorded.

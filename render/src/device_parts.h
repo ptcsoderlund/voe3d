@@ -76,6 +76,11 @@
 // cosine-convolved harmonics of the sky's backdrop at strength 1 (ADR-0424
 // point 4), no glow and no disc, filled by pass_sky.c when the sky is `drawn`,
 // zero otherwise; only a rough metal's reflection reads them.
+//
+// `clouds` ARE THE CAMERA'S voe_render_clouds (ADR-0492 point 3), zeroed as the
+// sky is. `clouds_image` IS THE PASS TARGET'S CLOUDS IMAGE TEXTURE SLOT, render's
+// own: VOE_RENDER_NO_CLOUDS_IMAGE until voe_render_frame_draw_clouds names it.
+// Three reserved words round it to sixteen bytes.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;
@@ -105,6 +110,9 @@ struct voe_render_frame_block {
 	voe_render_sky sky;
 	voe_render_exposure exposure;
 	voe_math_float4 sky_harmonics[9];
+	voe_render_clouds clouds;
+	uint32_t clouds_image;
+	uint32_t clouds_reserved[3];
 };
 
 // One pass's region at binding 11 (ADR-0347 point 3): its light blockers as
@@ -124,6 +132,7 @@ struct voe_render_frame_blockers {
 #define VOE_RENDER_NO_DEPTH_COPY (~0u)
 #define VOE_RENDER_NO_BOUNCE (~0u)
 #define VOE_RENDER_NO_SUN_LAYER (~0u)
+#define VOE_RENDER_NO_CLOUDS_IMAGE (~0u)
 
 // A buffer and the memory under it, which in this engine are always made and
 // thrown away together. One allocation per buffer, exactly as target.c makes one
@@ -273,9 +282,12 @@ struct voe_render_texture_slot {
 	// slot's. See voe_render_texture_write_descriptors.
 	//
 	// `depth` says the slot shows the target's depth copy instead of its
-	// colour, and `target` is then VOE_RENDER_WINDOW_DEPTH for the window's.
+	// colour, and `target` is then VOE_RENDER_WINDOW_DEPTH for the window's;
+	// `clouds` that it shows the target's clouds image, `target` then
+	// VOE_RENDER_WINDOW_CLOUDS for the window's.
 	bool is_target;
 	bool depth;
+	bool clouds;
 	uint32_t target;
 	// A landscape's heights (texture_heights.c): R32F, one level, the one
 	// kind voe_render_texture_write_heights takes. `width` × `height` texels
@@ -291,6 +303,7 @@ struct voe_render_texture_slot {
 };
 
 #define VOE_RENDER_WINDOW_DEPTH UINT32_MAX
+#define VOE_RENDER_WINDOW_CLOUDS UINT32_MAX
 
 // One swapchain image and the two things that belong to it for its whole life.
 //
@@ -336,10 +349,16 @@ struct voe_render_allocated_image {
 // `depth_copy` IS WHAT A PASS COPIES DEPTH INTO (ADR-0305): D32, sampled through
 // a depth-aspect view, resting in SHADER_READ_ONLY_OPTIMAL from its build on and
 // moved to TRANSFER_DST only for voe_render_frame_copy_depth's copy.
+//
+// `clouds` IS WHAT THE CLOUDS ARE MARCHED INTO (ADR-0492 point 5): RGBA16F, half
+// the target's size rounded up and at least 1 × 1, premultiplied light in RGB and
+// transmittance in A, resting in SHADER_READ_ONLY_OPTIMAL outside the clouds' own
+// march.
 struct voe_render_target {
 	struct voe_render_allocated_image colour;
 	struct voe_render_allocated_image depth;
 	struct voe_render_allocated_image depth_copy;
+	struct voe_render_allocated_image clouds;
 };
 
 // One frame slot's shadow map, shadow.c's: one D32 image of
@@ -518,10 +537,11 @@ struct voe_render_target_slot {
 	// the next frame, which builds `wanted` and makes the two agree.
 	VkExtent2D extent;
 	VkExtent2D wanted;
-	// Which of device->textures shows this target, and which its depth
-	// copy. Neither changes.
+	// Which of device->textures shows this target, which its depth copy
+	// and which its clouds image. None changes.
 	uint32_t texture;
 	uint32_t depth_texture;
+	uint32_t clouds_texture;
 	// The target's probe volumes (0389 point 1), each built on the first
 	// begin onto it, kept through a resize.
 	struct voe_render_bounce_volume volume[VOE_RENDER_BOUNCE_VOLUMES];

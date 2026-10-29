@@ -451,6 +451,14 @@ static void close_down(voe_render_device *device)
 		// Before the layout below, which it shares.
 		voe_render_element_shutdown(device);
 
+		if (device->pipeline_clouds_composite != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_clouds_composite,
+						       NULL);
+		if (device->pipeline_clouds_march != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_clouds_march,
+						       NULL);
 		if (device->pipeline_sky != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline_sky, NULL);
@@ -489,6 +497,7 @@ static void close_down(voe_render_device *device)
 		voe_render_geometry_shutdown(device);
 		voe_render_shading_shutdown(device);
 		voe_render_descriptors_teardown(device);
+		voe_render_clouds_textures_teardown(device);
 		voe_render_shadow_shutdown(device);
 		voe_render_point_shadow_shutdown(device);
 		voe_render_bounce_capture_shutdown(device);
@@ -664,6 +673,10 @@ static voe_render_device *open_device(voe_base_arena *arena,
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 	if (!voe_render_bounce_capture_startup(device) ||
 	    !voe_render_bounce_shadow_startup(device))
+		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
+	// The cloud field too: uploaded through the command pool and named by
+	// every set as the descriptors are built, so it is made between the two.
+	if (!voe_render_clouds_textures_build(device))
 		return open_failed(device, error, VOE_BASE_ERROR_REFUSED);
 
 	if (!voe_render_descriptors_build(device))

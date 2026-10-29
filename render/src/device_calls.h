@@ -21,8 +21,9 @@
 void voe_render_swapchain_teardown(voe_render_device *device);
 
 // target.c. The offscreen images — colour and depth both, one pair per frame
-// slot, all built at size. Same contract as the pair above: safe on a device
-// that never had any, and idle before anything is taken away.
+// slot, all built at size, with each slot's depth copy and clouds image. Same
+// contract as the pair above: safe on a device that never had any, and idle
+// before anything is taken away.
 [[nodiscard]] bool voe_render_target_build(voe_render_device *device,
 					   voe_platform_size size);
 void voe_render_target_teardown(voe_render_device *device);
@@ -41,20 +42,29 @@ void voe_render_target_image_teardown(voe_render_device *device,
 				      struct voe_render_allocated_image *image);
 
 // target.c, for target_own.c too. _depth_copy_build makes one D32 sampled copy
-// image (transfer-dst, depth-aspect view). _settle submits `count` barriers in a
-// one-shot command buffer and waits idle; _settle_copy is the barrier that moves
-// a copy from UNDEFINED to SHADER_READ_ONLY_OPTIMAL, where it rests. _free_texture
-// is the lowest unclaimed texture slot from 1 that is not `skip`, or 0 if none.
+// image (transfer-dst, depth-aspect view); _clouds_build one RGBA16F clouds image
+// (colour attachment and sampled) at half `extent` rounded up, at least 1 × 1.
+// _settle submits `count` barriers in a one-shot command buffer and waits idle;
+// _settle_copy is the barrier that moves a copy from UNDEFINED to
+// SHADER_READ_ONLY_OPTIMAL, where it rests, and _settle_clouds the same for a
+// clouds image. _free_texture is the lowest unclaimed texture slot above `after`,
+// from 1, or 0 if none.
 [[nodiscard]] bool
 voe_render_target_depth_copy_build(voe_render_device *device,
 				   struct voe_render_allocated_image *out,
 				   VkExtent2D extent, const char *what);
+[[nodiscard]] bool
+voe_render_target_clouds_build(voe_render_device *device,
+			       struct voe_render_allocated_image *out,
+			       VkExtent2D extent, const char *what);
 [[nodiscard]] bool voe_render_target_settle(voe_render_device *device,
 					    const VkImageMemoryBarrier2 *barriers,
 					    uint32_t count);
 [[nodiscard]] VkImageMemoryBarrier2 voe_render_target_settle_copy(VkImage image);
+[[nodiscard]] VkImageMemoryBarrier2
+voe_render_target_settle_clouds(VkImage image);
 [[nodiscard]] uint32_t
-voe_render_target_free_texture(const voe_render_device *device, uint32_t skip);
+voe_render_target_free_texture(const voe_render_device *device, uint32_t after);
 
 // target.c: _settle's one-shot submit, then each of `clears` cleared to nought
 // in GENERAL, and idle. False with a message.
@@ -201,7 +211,7 @@ voe_render_target_at(voe_render_device *device, voe_render_target target);
 // in the engine — read the comment above it in pass.c before touching it.
 VkViewport voe_render_frame_viewport(VkExtent2D extent);
 
-// pass_sky.c. A camera pass's sky into its block, checked, then the nine
+// pass_sky.c. A camera pass's sky, exposure and clouds into its block, checked, then the nine
 // harmonics of its backdrop when its sky is drawn; voe_render_pass_begin calls
 // both, in that order, after the block's lights.
 void voe_render_pass_place_sky(const voe_render_pass_camera *camera,
@@ -360,6 +370,14 @@ void voe_render_buffer_teardown(voe_render_device *device,
 					  const struct voe_render_buffer *source,
 					  VkDeviceSize size);
 
+// clouds_textures.c. The cloud field's detail and weather images and their
+// sampler, made and filled at open after the frame objects, whose pool uploads
+// them, and before the descriptors, which name them; idles once. False with a
+// message. _teardown is safe on a device that never built them, or part of
+// them, and leaves them zeroed.
+[[nodiscard]] bool voe_render_clouds_textures_build(voe_render_device *device);
+void voe_render_clouds_textures_teardown(voe_render_device *device);
+
 // descriptors.c. Everything the shader reads that a resize does not touch: the
 // descriptor set layout, the pool, and one set, one mapped uniform buffer and
 // one mapped object buffer per frame slot. Startup's, and the counterpart tears
@@ -433,7 +451,8 @@ void voe_render_element_shutdown(voe_render_device *device);
 void voe_render_texture_shutdown(voe_render_device *device);
 
 // texture.c. Point one frame slot's descriptor set at every texture in the
-// table. Called when a slot's set is built and again whenever the table changes.
+// table, a target's slot at that frame slot's colour, depth copy or clouds
+// image. Called when a slot's set is built and again whenever the table changes.
 //
 // IT TAKES THE FRAME SLOT AND NOT THE SET, because a texture slot that shows a
 // target names a different image in every frame slot — that frame slot's own —

@@ -106,6 +106,15 @@ by reading the offscreen colour image back.
 - `haze_sky.c` — the sky seen through the haze: dense haze the whole sky and the sun's disc, thin
   haze the horizon most, clear above the layer, and without a drawn sky the clear colour veiled.
   Headless.
+- `clouds.c` — clouds drawn over the world, looking straight up: kind none the same bytes and no
+  span, Volumetric and Flat at coverage 1 changing the centre with `<pass>: clouds` listed,
+  coverage 0 as none, a quad under them kept, and an eye inside the layer. Headless.
+- `cloud_shadows.c` — clouds shadowing a lit floor: strength 1 darker, 0 the same bytes as none,
+  0.5 between, a floor facing away lit by its fill alone unchanged, clouds below it nothing, and
+  water darker under them. Headless.
+- `cloud_reflections.c` — clouds in what mirrors the sky, seen at a slant: a smooth metal floor
+  changed by Flat clouds of coverage 1, the same within 1/255 at coverage 0, and a water plane
+  changed too. Headless.
 - `sky_light.c` — the sky lighting nothing: a cube's face the same with the sky or without, a
   non-metal quad unchanged, a metal one the sky along R times the light on it, none indoors or
   unlit, no brighter than the sky head-on, the same at sky strength 0 and 1. Headless.
@@ -154,6 +163,9 @@ by reading the offscreen colour image back.
 - `sky_model.c` — the backdrop, glow and irradiance, with no card: colours as authored, the
   horizon band, strength scaling the backdrop, each light's disc at 2c, a light not shown leaving
   the backdrop, glow in a black sky, and the harmonics within 5% of a brute-force sum.
+- `clouds_noise.c` — the cloud field's baked textures, with no card: the weather and the detail
+  each the same bytes made twice, each tiling across every axis's wrap, and each darkest under 64
+  and brightest over 192.
 - `light_blockers.c` — which boxes hold a point, with no card: a box's centre and face and not
   past it, a turned box's diagonal, two boxes both bits, blocker 31 bit 31, none mask 0, and
   inside the sphere but outside the box 0, the call reached through `render/device.h`.

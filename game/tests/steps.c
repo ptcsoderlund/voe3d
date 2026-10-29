@@ -8,7 +8,8 @@
 // sound on a thing, a WAV the test writes in its working directory, plays
 // through a mixer on that folder after two steps, and one step advances a
 // water's clock, added by the step before, by the step, and a point light's
-// replace, as game code fading it sends, takes in one step.
+// replace, as game code fading it sends, takes in one step, and clouds blowing
+// towards +X at 6 m/s have drifted 6 m on x after 60 steps.
 // Needs no window, no graphics card and no sound device: nothing is shaped,
 // so the shapes are zeros, and the mixer is never pumped.
 #include <game/steps.h>
@@ -33,6 +34,7 @@
 #include <platform/file.h>
 #include <platform/folder.h>
 
+#include <scene/clouds_system.h>
 #include <scene/point_light_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
@@ -301,6 +303,31 @@ static void a_point_light_replace_takes(voe_ecs_world *world,
 	VOE_TEST_CHECK_FLOAT(row->falloff, 3.0f, 0.0f);
 }
 
+// A Clouds row blowing towards +X (90) at 6 m/s: 60 steps, a second, later
+// its drift reads x 6 and z 0.
+static void clouds_drift(voe_ecs_world *world, const voe_3d_shapes *shapes)
+{
+	voe_game_steps steps = { 0 };
+	voe_scene_clouds clouds = *(const voe_scene_clouds *)voe_ecs_component_default(
+		world, voe_ecs_component_type(world, &voe_scene_clouds_key));
+	voe_ecs_entity entity = { 0 };
+	const voe_scene_clouds_drift *drift;
+
+	clouds.wind_direction = 90.0f;
+	clouds.wind_speed = 6.0f;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_clouds_add(world, entity, clouds));
+	for (int i = 0; i < 60; i++)
+		(void)voe_game_steps_run(&steps, world, NULL, NULL, NULL, shapes,
+					 VOE_GAME_STEP_SECONDS, systems, after_move);
+	drift = voe_scene_clouds_drift_get(world, entity);
+	VOE_TEST_CHECK(drift != NULL);
+	if (drift == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT((float)drift->x, 6.0f, 1e-4f);
+	VOE_TEST_CHECK_FLOAT((float)drift->z, 0.0f, 1e-4f);
+}
+
 static void put_le(uint8_t *at, uint32_t value, uint32_t bytes)
 {
 	for (uint32_t i = 0; i < bytes; i++)
@@ -376,6 +403,7 @@ int main(void)
 	a_sound_plays(world, &shapes);
 	a_water_keeps_time(world, &shapes);
 	a_point_light_replace_takes(world, &shapes);
+	clouds_drift(world, &shapes);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

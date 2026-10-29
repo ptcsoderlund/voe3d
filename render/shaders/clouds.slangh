@@ -1,0 +1,338 @@
+// The cloud field read by the shaders (ADR-0492 points 4, 6, 7 and 8): how
+// dense it is at a point, where a view first meets its layer, how much of a
+// light reaches a point through it, the light a unit of cloud sends, the march
+// along a view and the one sample a reflection takes. A part (ADR-0308):
+// included by lighting.slangh after bindings.slangh, whose frame block, cloud
+// textures (bindings 13 and 14) and lights it reads; includes sky.slangh for
+// which lights are shown; never compiled alone.
+//
+//     float d = voe_render_clouds_density(at, true);
+//     float t = voe_render_clouds_entry(direction);
+//     float s = voe_render_clouds_transmittance(at, to_light);
+//     voe_render_clouds_marched m = voe_render_clouds_march(direction, reach, j);
+//     float4 r = voe_render_clouds_reflected(direction);
+//
+// EVERYTHING IS IN EYE-RELATIVE METRES, +Y up, the layer [bottom, bottom +
+// thickness] above the eye as the pass's `clouds` hold it; a field point is
+// `origin` + at.xz, which repeats every VOE_RENDER_CLOUDS_PERIOD, so a float
+// keeps its precision. A direction is unit length, `view` points from the cloud
+// towards whoever sees it. Kind none: density 0, entry infinite, transmittance
+// 1, nothing marched or mirrored; the old picture.
+//
+// THE SHAPE: the weather at the field point taken by `coverage` to a base
+// density, 0 nowhere at coverage 0 and 1 everywhere at coverage 1. Volumetric
+// keeps a column where a rounded height profile over the layer passes 1 −
+// base, so thick weather domes; `detail` erodes it by the 64³ volume at the
+// field point over 256 m. Flat is the base itself, an opacity, meant only at
+// the plane y = bottom.
+//
+// ONE FIELD FOR THE MARCH, THE SHADOWS AND THE REFLECTIONS (ADR-0480 point
+// 2): all three read voe_render_clouds_density, so a shadow falls where a cloud
+// is seen and a mirror shows the same cloud. Shadows and the light towards a
+// light take the shape without detail; only the march erodes it.
+//
+// THE SKY LIGHTS NOTHING (ADR-0411): voe_render_clouds_light is each shown
+// directional light's colour × intensity through a forward-leaning
+// Henyey–Greenstein phase, attenuated towards light 0 by three samples of the
+// shape and towards the others by the cloud's depth below the layer's top
+// (Flat: none), plus a share scattered many times inside and every light's
+// fill as the shade. A low orange sun colours both sides; its far side is
+// darker.
+//
+// THE MARCH, Volumetric: the view's crossing of the layer within `reach` and
+// VOE_RENDER_CLOUDS_FAR, at most VOE_RENDER_CLOUDS_STEPS steps, the first
+// offset by `jitter` of a step, stopping under VOE_RENDER_CLOUDS_ENOUGH
+// transmittance; each step's light weighted by what it removes. Flat: one
+// sample where the view meets the plane. The light is premultiplied.
+//
+// COSTS IN READS: density 1 weather, plus 1 detail when `detail` and the shape
+// is not empty. Transmittance 4 weather (Flat 1). Light 3 weather (Flat 0).
+// A march step up to 5, so a Volumetric march at most 320; Flat 1. A
+// reflection 4 (Flat 1).
+#pragma once
+
+#include "sky.slangh"
+
+// Metres over which the detail volume repeats (render/src/clouds_noise.h).
+static const float VOE_RENDER_CLOUDS_DETAIL_PERIOD = 256.0;
+// How sharply the weather's edge turns into cloud: the base's slope.
+static const float VOE_RENDER_CLOUDS_EDGE = 4.0;
+// The most the detail takes from the shape, where it is darkest.
+static const float VOE_RENDER_CLOUDS_EROSION = 0.4;
+// Extinction per metre of density 1.
+static const float VOE_RENDER_CLOUDS_EXTINCTION = 0.02;
+// The march's ceilings (ADR-0492 point 5).
+static const float VOE_RENDER_CLOUDS_FAR = 40000.0;
+static const uint VOE_RENDER_CLOUDS_STEPS = 64;
+static const float VOE_RENDER_CLOUDS_ENOUGH = 0.01;
+// The shortest march step, so a thin crossing takes fewer than STEPS.
+static const float VOE_RENDER_CLOUDS_STEP_LEAST = 16.0;
+// The length of each of the three steps towards light 0.
+static const float VOE_RENDER_CLOUDS_LIGHT_STEP = 80.0;
+// The phase's lean: 0 even, towards 1 all forward.
+static const float VOE_RENDER_CLOUDS_FORWARD = 0.5;
+// The share of a light scattered many times inside, as a white surface's 1/π.
+static const float VOE_RENDER_CLOUDS_SCATTERED = 0.8;
+// The least |y| a slanted path is divided by, so one along the layer is long,
+// not infinite.
+static const float VOE_RENDER_CLOUDS_SLANT = 0.05;
+
+// The infinity voe_render_clouds_entry answers when a view never meets it.
+static const float VOE_RENDER_CLOUDS_NEVER = asfloat(0x7f800000u);
+
+// The march's answer: premultiplied light, transmittance, and the distance
+// along the view the light came from, weighted by what each step gave.
+struct voe_render_clouds_marched {
+	float3 light;
+	float transmittance;
+	float distance;
+};
+
+// The layer's top: bottom + thickness Volumetric, the plane Flat.
+float voe_render_clouds_top(voe_render_clouds clouds)
+{
+	if (clouds.kind == VOE_RENDER_CLOUDS_VOLUMETRIC)
+		return clouds.bottom + max(clouds.thickness, 0.0);
+	return clouds.bottom;
+}
+
+// Where a ray from height `from` along `direction` is between `low` and
+// `high`: (near, far), near ≥ 0; near > far when it never is.
+float2 voe_render_clouds_crossing(float from, float3 direction, float low,
+				  float high)
+{
+	if (direction.y == 0.0)
+		return from >= low && from <= high ?
+			       float2(0.0, VOE_RENDER_CLOUDS_NEVER) :
+			       float2(VOE_RENDER_CLOUDS_NEVER, 0.0);
+	float a = (low - from) / direction.y;
+	float b = (high - from) / direction.y;
+	float near = max(min(a, b), 0.0);
+	float far = max(a, b);
+
+	return far < near ? float2(VOE_RENDER_CLOUDS_NEVER, 0.0) :
+			    float2(near, far);
+}
+
+// The cloud's density at `at`, 0 to 1. See the header's shape paragraph.
+float voe_render_clouds_density(float3 at, bool detail)
+{
+	voe_render_clouds clouds = voe_render_frame.clouds;
+
+	if (clouds.kind == VOE_RENDER_CLOUDS_NONE)
+		return 0.0;
+	float2 field = clouds.origin + at.xz;
+	float weather = voe_render_clouds_weather
+				.SampleLevel(field / VOE_RENDER_CLOUDS_PERIOD, 0.0)
+				.r;
+	float base = saturate((weather - 1.0 + clouds.coverage) *
+				      VOE_RENDER_CLOUDS_EDGE +
+			      clouds.coverage);
+
+	if (clouds.kind != VOE_RENDER_CLOUDS_VOLUMETRIC)
+		return base;
+	if (!(clouds.thickness > 0.0))
+		return 0.0;
+	float h = (at.y - clouds.bottom) / clouds.thickness;
+
+	if (h <= 0.0 || h >= 1.0)
+		return 0.0;
+	// A half circle over the layer: round at the bottom and the top.
+	float profile = sqrt(4.0 * h * (1.0 - h));
+	float density = saturate(base + profile - 1.0);
+
+	if (!detail || density <= 0.0)
+		return density;
+	float3 cell = float3(field.x, at.y - clouds.bottom, field.y) /
+		      VOE_RENDER_CLOUDS_DETAIL_PERIOD;
+	float erosion = (1.0 - voe_render_clouds_detail.SampleLevel(cell, 0.0).r) *
+			VOE_RENDER_CLOUDS_EROSION;
+
+	return saturate((density - erosion) / (1.0 - erosion));
+}
+
+// The distance along `direction` at which the view from the eye first meets
+// the layer, 0 inside it, VOE_RENDER_CLOUDS_NEVER when it never does.
+float voe_render_clouds_entry(float3 direction)
+{
+	voe_render_clouds clouds = voe_render_frame.clouds;
+
+	if (clouds.kind == VOE_RENDER_CLOUDS_NONE)
+		return VOE_RENDER_CLOUDS_NEVER;
+	float2 span = voe_render_clouds_crossing(0.0, direction, clouds.bottom,
+						 voe_render_clouds_top(clouds));
+
+	return span.x <= span.y ? span.x : VOE_RENDER_CLOUDS_NEVER;
+}
+
+// How much of a light along `to_light` reaches `at` through the shape without
+// detail: four samples over the crossing Volumetric, 1 − the plane's opacity
+// Flat; 1 above the layer, with none, or with the light at or below the
+// horizon (ADR-0492 point 7).
+float voe_render_clouds_transmittance(float3 at, float3 to_light)
+{
+	voe_render_clouds clouds = voe_render_frame.clouds;
+	float top = voe_render_clouds_top(clouds);
+
+	if (clouds.kind == VOE_RENDER_CLOUDS_NONE || to_light.y <= 0.0 ||
+	    at.y >= top)
+		return 1.0;
+	if (clouds.kind != VOE_RENDER_CLOUDS_VOLUMETRIC)
+		return 1.0 - voe_render_clouds_density(
+				     at + to_light * ((clouds.bottom - at.y) /
+						      to_light.y),
+				     false);
+	float2 span = voe_render_clouds_crossing(at.y, to_light, clouds.bottom, top);
+	float far = min(span.y, span.x + VOE_RENDER_CLOUDS_FAR);
+	float step = (far - span.x) / 4.0;
+	float optical = 0.0;
+
+	for (uint k = 0; k < 4; k++)
+		optical += voe_render_clouds_density(
+			at + to_light * (span.x + step * (float(k) + 0.5)), false);
+	return exp(-optical * VOE_RENDER_CLOUDS_EXTINCTION * step);
+}
+
+// How much of a light along `to_light` reaches `at` inside the cloud: three
+// steps of the shape without detail towards it.
+float voe_render_clouds_towards(float3 at, float3 to_light)
+{
+	float optical = 0.0;
+
+	for (uint k = 0; k < 3; k++)
+		optical += voe_render_clouds_density(
+			at + to_light * (VOE_RENDER_CLOUDS_LIGHT_STEP * (float(k) + 0.5)),
+			false);
+	return exp(-optical * VOE_RENDER_CLOUDS_EXTINCTION *
+		   VOE_RENDER_CLOUDS_LIGHT_STEP);
+}
+
+// Henyey–Greenstein at the cosine between where the light travels and where
+// it leaves, leaning forward by VOE_RENDER_CLOUDS_FORWARD.
+float voe_render_clouds_phase(float cosine)
+{
+	float g = VOE_RENDER_CLOUDS_FORWARD;
+	float g2 = g * g;
+
+	return (1.0 - g2) /
+	       (4.0 * VOE_RENDER_SKY_PI * pow(1.0 + g2 - 2.0 * g * cosine, 1.5));
+}
+
+// The light a unit of cloud of `density` at `at` sends along `view`, never the
+// sky (ADR-0492 point 6). See the header's lighting paragraph.
+float3 voe_render_clouds_light(float3 at, float3 view, float density)
+{
+	voe_render_clouds clouds = voe_render_frame.clouds;
+	float depth = max(voe_render_clouds_top(clouds) - at.y, 0.0);
+	uint count = 1 + min(voe_render_frame.more_count,
+			     VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
+	float3 sum = float3(0.0, 0.0, 0.0);
+
+	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
+		if (i >= count)
+			break;
+		voe_render_light light = voe_render_sky_light(i);
+
+		sum += light.fill;
+		if (!voe_render_sky_shown(light))
+			continue;
+		float3 travels = normalize(light.direction);
+		float t = 1.0;
+
+		if (clouds.kind == VOE_RENDER_CLOUDS_VOLUMETRIC && i == 0)
+			t = voe_render_clouds_towards(at, -travels);
+		else if (clouds.kind == VOE_RENDER_CLOUDS_VOLUMETRIC)
+			t = exp(-density * VOE_RENDER_CLOUDS_EXTINCTION * depth /
+				max(-travels.y, VOE_RENDER_CLOUDS_SLANT));
+		sum += light.colour * light.intensity *
+		       (voe_render_clouds_phase(dot(travels, view)) * t +
+			VOE_RENDER_CLOUDS_SCATTERED * pow(t, 0.25) /
+				VOE_RENDER_SKY_PI);
+	}
+	return sum;
+}
+
+// The clouds along `direction` from the eye, no farther than `reach`. See the
+// header's march paragraph.
+voe_render_clouds_marched voe_render_clouds_march(float3 direction, float reach,
+						  float jitter)
+{
+	voe_render_clouds clouds = voe_render_frame.clouds;
+	voe_render_clouds_marched marched;
+
+	marched.light = float3(0.0, 0.0, 0.0);
+	marched.transmittance = 1.0;
+	marched.distance = 0.0;
+	if (clouds.kind == VOE_RENDER_CLOUDS_NONE)
+		return marched;
+	float2 span = voe_render_clouds_crossing(0.0, direction, clouds.bottom,
+						 voe_render_clouds_top(clouds));
+	float near = span.x;
+	float far = min(span.y, min(reach, VOE_RENDER_CLOUDS_FAR));
+
+	if (!(near <= far))
+		return marched;
+	if (clouds.kind != VOE_RENDER_CLOUDS_VOLUMETRIC) {
+		float3 at = direction * near;
+		float d = voe_render_clouds_density(at, false);
+
+		marched.light = voe_render_clouds_light(at, -direction, d) * d;
+		marched.transmittance = 1.0 - d;
+		marched.distance = near;
+		return marched;
+	}
+	float step = max((far - near) / float(VOE_RENDER_CLOUDS_STEPS),
+			 VOE_RENDER_CLOUDS_STEP_LEAST);
+	float given = 0.0;
+	float weighted = 0.0;
+
+	for (uint i = 0; i < VOE_RENDER_CLOUDS_STEPS; i++) {
+		float t = near + step * (float(i) + jitter);
+
+		if (t >= far)
+			break;
+		float3 at = direction * t;
+		float d = voe_render_clouds_density(at, true);
+
+		if (d <= 0.0)
+			continue;
+		float a = 1.0 - exp(-d * VOE_RENDER_CLOUDS_EXTINCTION * step);
+		float w = marched.transmittance * a;
+
+		marched.light += w * voe_render_clouds_light(at, -direction, d);
+		given += w;
+		weighted += w * t;
+		marched.transmittance *= 1.0 - a;
+		if (marched.transmittance < VOE_RENDER_CLOUDS_ENOUGH)
+			break;
+	}
+	marched.distance = given > 0.0 ? weighted / given : near;
+	return marched;
+}
+
+// The clouds a mirror shows along `direction` (ADR-0492 point 8):
+// premultiplied light and opacity of one sample where it meets the layer's
+// middle, without detail, lit as voe_render_clouds_light; never veiled. A
+// Volumetric sample's opacity is its density over the layer's slanted depth.
+float4 voe_render_clouds_reflected(float3 direction)
+{
+	voe_render_clouds clouds = voe_render_frame.clouds;
+
+	if (clouds.kind == VOE_RENDER_CLOUDS_NONE || direction.y == 0.0)
+		return float4(0.0, 0.0, 0.0, 0.0);
+	float middle = (clouds.bottom + voe_render_clouds_top(clouds)) * 0.5;
+	float t = middle / direction.y;
+
+	if (!(t > 0.0) || t > VOE_RENDER_CLOUDS_FAR)
+		return float4(0.0, 0.0, 0.0, 0.0);
+	float3 at = direction * t;
+	float d = voe_render_clouds_density(at, false);
+	float opacity = d;
+
+	if (clouds.kind == VOE_RENDER_CLOUDS_VOLUMETRIC)
+		opacity = 1.0 - exp(-d * VOE_RENDER_CLOUDS_EXTINCTION *
+				    max(clouds.thickness, 0.0) /
+				    max(abs(direction.y), VOE_RENDER_CLOUDS_SLANT));
+	return float4(voe_render_clouds_light(at, -direction, d) * opacity,
+		      opacity);
+}

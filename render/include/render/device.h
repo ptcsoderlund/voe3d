@@ -814,7 +814,8 @@ typedef struct {
 	// frequency is a whole multiple of 2π/60 and so seconds 0 and 60 are the
 	// same picture, while a float clock counting up for hours loses the
 	// precision the waves need. `sky` is a linear rgb the surface reflects
-	// toward at a grazing angle; w is reserved.
+	// toward at a grazing angle, the pass's clouds along the reflected view
+	// showing in it, unveiled (ADR-0492 point 8); w is reserved.
 	voe_math_float4 waves;
 	voe_math_float4 sky;
 	// Read only when `heights` is not nought. `terrain` is the node's corner
@@ -1073,8 +1074,9 @@ typedef enum {
 } voe_render_prepare;
 
 // Each call builds the next thing this device still lacks, in the order solid,
-// blended, shadow, sky, point shadow and capture pipelines (the last two only on a
-// card with shaderOutputLayer), then the relight's startup. PREPARING while
+// blended, shadow, sky, clouds march, clouds composite, point shadow and capture
+// pipelines (the last two only on a card with shaderOutputLayer), then the
+// relight's startup. PREPARING while
 // something is left, PREPARED once nothing is (and on every later call).
 // PREPARE_FAILED, with a line on stderr, when a step failed, and on every later
 // call; the device still draws elements.
@@ -1091,9 +1093,10 @@ typedef enum {
 voe_render_prepare voe_render_device_prepare(voe_render_device *device);
 
 // How many steps voe_render_device_prepare takes on this card from an unprepared
-// device: the solid, blended, shadow and sky pipelines, and with
-// shaderOutputLayer the point shadow and capture ones and the relight's
-// startup. So a caller can show "2/7" as the steps are taken.
+// device: the solid, blended, shadow, sky, clouds march and clouds composite
+// pipelines, six, and with shaderOutputLayer the point shadow and capture ones
+// and the relight's startup, nine. So a caller can show "2/9" as the steps are
+// taken.
 uint32_t voe_render_device_prepare_steps(const voe_render_device *device);
 
 // THE PIPELINE CACHE, AS BYTES OUT AND IN (ADR-0370 point 6). Every mesh
@@ -1661,10 +1664,11 @@ typedef struct {
 //
 // THE SKY LIGHTS NOTHING (ADR-0411 point 1): lights alone light, the same with
 // a sky or without. With `drawn` the sky's reflection, sharp on a smooth
-// surface and the backdrop's irradiance on a rough one, occluded, shows on
-// metal only, times the surface's metalness (0412 point 5), and nowhere whose
-// blocker mask holds an Indoors or Room bit; a non-metal reads the same bytes
-// as with no sky.
+// surface, the pass's clouds along the reflected view showing in it unveiled
+// (ADR-0492 point 8), and the backdrop's irradiance on a rough one, occluded,
+// shows on metal only, times the surface's metalness (0412 point 5), and
+// nowhere whose blocker mask holds an Indoors or Room bit; a non-metal reads
+// the same bytes as with no sky.
 typedef struct {
 	voe_math_float3 zenith;
 	float horizon_height;
@@ -1701,6 +1705,45 @@ typedef struct {
 static_assert(sizeof(voe_render_exposure) == 16,
 	      "voe_render_exposure is the 16 bytes bindings.slangh reads");
 
+// voe_render_clouds' `kind`, and the metres after which the cloud field repeats
+// on x and on z (ADR-0492 point 3).
+#define VOE_RENDER_CLOUDS_NONE 0u
+#define VOE_RENDER_CLOUDS_FLAT 1u
+#define VOE_RENDER_CLOUDS_VOLUMETRIC 2u
+#define VOE_RENDER_CLOUDS_PERIOD 8192.0f
+
+// A pass's clouds (ADR-0492 point 3), in voe_render_pass_camera after its
+// exposure, 32 bytes. ZEROED IS NONE, THE OLD PICTURE, BYTE FOR BYTE.
+//
+// `kind` is a VOE_RENDER_CLOUDS_*: none, flat at one plane, or volumetric.
+// `coverage`, 0 to 1, is how much of the layer is cloud, 0 none anywhere and 1
+// cloud over every point. `bottom`, any finite, is the layer's bottom in metres
+// above the eye: the Clouds row's height − the eye's world y, above the eye as
+// voe_render_sky's `haze_top` is. `thickness`, at least 0, is the layer's depth
+// in metres, read by volumetric alone. `origin`, each component 0 to
+// VOE_RENDER_CLOUDS_PERIOD, is the eye's place in a field that repeats every
+// PERIOD on x and z: eye x − drift x and eye z − drift z, wrapped by the caller
+// in double, so a float keeps its precision however far the eye or the wind
+// goes. `shadow_strength`, 0 to 1, is how dark a cloud's shadow is, 0 none:
+// each directional light's direct light on every lit surface, water included,
+// is multiplied by 1 − shadow_strength × (1 − what the clouds let through
+// towards that light) (ADR-0492 point 7); the fill, the objects' shadows and
+// the bounce are not. They are drawn over the world, not behind it with the
+// sky, by voe_render_frame_draw_clouds; what is mirrored is said by the calls
+// that do it.
+typedef struct {
+	uint32_t kind;
+	float coverage;
+	float bottom;
+	float thickness;
+	voe_math_float2 origin;
+	float shadow_strength;
+	uint32_t reserved;
+} voe_render_clouds;
+
+static_assert(sizeof(voe_render_clouds) == 32,
+	      "voe_render_clouds is the 32 bytes bindings.slangh reads");
+
 // The camera, the sun, the sun's shadow and the point lights one pass draws with.
 // Handed over together because the shader reads them for the whole pass, and a
 // pass that has one has all of them; a zeroed `shadow` is none.
@@ -1727,6 +1770,8 @@ static_assert(sizeof(voe_render_exposure) == 16,
 // `sky` IS THE PASS'S SKY AND `exposure` ITS PICTURE (ADR-0406 points 1 and 4);
 // either zeroed is the old picture, byte for byte, and each works without the
 // other.
+//
+// `clouds` ARE THE PASS'S CLOUDS (ADR-0492 point 3); zeroed is none.
 typedef struct {
 	voe_render_view view;
 	voe_render_light light;
@@ -1736,6 +1781,7 @@ typedef struct {
 	voe_render_directional_lights more;
 	voe_render_sky sky;
 	voe_render_exposure exposure;
+	voe_render_clouds clouds;
 } voe_render_pass_camera;
 
 // Opens a pass onto `target`, drawn with `camera` — which may be NULL for a pass
@@ -1756,7 +1802,10 @@ typedef struct {
 // finite or a sky field outside its range (voe_render_sky above): a colour,
 // `strength`, `haze` or `haze_start` below 0, a `horizon_height` or `glow_size` past 0 to 1,
 // a `disc_size` past 0 to 10 degrees, a `haze_top` not finite; an `exposure`
-// past ±16, or a `tone` past VOE_RENDER_TONE_SOFT.
+// past ±16, or a `tone` past VOE_RENDER_TONE_SOFT; or whose `clouds` hold a
+// `kind` past VOLUMETRIC, a `coverage` or `shadow_strength` outside 0 to 1, a
+// `thickness` below 0, a `bottom` not finite, or an `origin` outside 0 to
+// VOE_RENDER_CLOUDS_PERIOD.
 //
 // THE CAMERA MAY BE NULL, BECAUSE NOT EVERY PASS LOOKS AT A WORLD. A pass that
 // draws only elements — an interface filling the window — has no eye and no sun,
@@ -2139,6 +2188,23 @@ void voe_render_frame_clear_depth(voe_render_device *device);
 // CALLING IT AT MOST ONCE A PASS IS THE CALLER'S BUSINESS. Nothing stops a
 // second call, and each call costs a full copy of the depth image.
 [[nodiscard]] bool voe_render_frame_copy_depth(voe_render_device *device);
+
+// Draws the open camera pass's clouds (ADR-0492 point 5) over what the pass
+// holds: marched at half size into the target's clouds image, then composited
+// over the world, a surface nearer than the layer keeping its colour. Called
+// after the world's blended draws and before the overlay's
+// voe_render_frame_clear_depth, once a pass.
+//
+// IT COPIES DEPTH FIRST when the pass has not, as voe_render_frame_copy_depth
+// does, splitting the pass's rendering block; everything drawn before stays.
+//
+// A PASS WHOSE CLOUDS KIND IS NONE RECORDS NOTHING AND IS TRUE. Otherwise it is
+// timed as the span `<pass>: clouds`. False only when the depth copy is.
+//
+// Calling it with no pass open, in a pass opened with no camera, or in a
+// shadow, point-shadow or capture pass is the caller's bug and asserts, as the
+// depth clear does.
+[[nodiscard]] bool voe_render_frame_draw_clouds(voe_render_device *device);
 
 // Whether a frame is open for drawing: true from a _begin whose `drawing` came
 // back true until its _end. Not a way to ask whether to begin a frame: the loop
