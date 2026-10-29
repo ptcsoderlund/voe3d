@@ -62,6 +62,7 @@
 #include "blockers.slangh"
 #include "bounce_read.slangh"
 #include "sky.slangh"
+#include "clouds.slangh"
 
 static const float VOE_PI = 3.14159265358979;
 

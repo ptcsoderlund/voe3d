@@ -21,6 +21,9 @@ shader and never compiled alone.
   Clip or Soft; a `plain` draw as authored; the sky's veil along a view below the haze's top.
 - `sky.slangh` — whether a light is shown, the sky's backdrop and its radiance along a view, that
   backdrop plus each of the frame's shown lights' glow then disc, twin of `src/sky.h`.
+- `clouds.slangh` — the cloud field read by the shaders: density, where a view meets the layer,
+  a light's transmittance, the light a unit of cloud sends, the march and a reflection's sample,
+  all one field, in eye-relative metres.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector and the clip position on
   it; draw and lookup share it.
 - `blockers.slangh` — which light blockers hold a point and whether a segment passes them, twin of
