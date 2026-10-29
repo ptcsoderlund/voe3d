@@ -70,6 +70,9 @@ again, or to find where a claim that has started failing is written down.
   picture skips without a graphics card.
 - `light_blockers.c` — that a blocker's box follows its transform, a frame records it with its
   block's bit and the sun's mask, and the editor lines it in the selected or rest colour.
+- `fog_volumes.c` — that fog volumes are zeroed with no table or row, a box's rows hold it about
+  the eye, the density is squared, the fields wrap less the drift, off, thin and ninth rows are
+  left out, and the shape is the scaled size. Needs no graphics card.
 - `directional_lights.c` — that one light frames no more, a moon after a sun rides in `more_lights`
   with its light, bounces and strength, five lights keep three more, a Room about the moon sets its
   mask and not the sun's, and the pass camera carries `more`. Needs no graphics card.

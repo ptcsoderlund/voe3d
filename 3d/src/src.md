@@ -133,6 +133,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   off owner's and those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
 - `light_blocker.c` — a blocker's row and transform into a box: the world place at the lag, its
   rotation, and |scale| × size / 2 per axis.
+- `fog_volume.c` — a fog volume's box as a blocker's is, and the table into render's records: each
+  kept box's rows about the eye, the squared density, and the patches and change wrapped in double.
 - `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
   the eye with its rows and sphere, flat ones, an off owner's and those past 32 left out, the Direct and Fill bits,
   the sun's mask, and light rows 2 to 4 each masked at its place.
