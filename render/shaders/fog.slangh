@@ -1,0 +1,279 @@
+// The fog volumes read by the shaders (ADR-0493 points 4 and 6): where a view
+// crosses a volume's box, how dense the fog is at a point, the light a unit of
+// it sends and the march along a view. A part (ADR-0308): included by
+// draw.slang after lighting.slangh and tone.slangh, reading the frame block's
+// `fog`, the clouds' detail volume (binding 13), the first light's cascades and
+// the clouds' shadow; never compiled alone.
+//
+//     float2 span = voe_render_fog_crossing(volume, direction);
+//     float2 d = voe_render_fog_density(at);   // density, godrays
+//     float3 l = voe_render_fog_light(at, view, d.y);
+//     voe_render_fog_marched m = voe_render_fog_march(direction, reach, j);
+//
+// EVERYTHING IS IN EYE-RELATIVE METRES, as the records' rows take a position;
+// a direction is unit length, `view` points from the fog towards whoever sees
+// it. Count 0: every crossing empty, density 0, nothing marched.
+//
+// THE SHAPE IS THE CLOUDS' DETAIL VOLUME READ TWICE, NO TEXTURE OF ITS OWN:
+// the patches at (patches + at) / VOE_RENDER_FOG_PATCHES, eroded by the
+// change at (change + at) / VOE_RENDER_FOG_CHANGE, remapped so 0 is clear air
+// between patches and 1 inside. The volume is already bound and its noise is
+// already the right kind, so the fog adds no memory and no binding; the change
+// drifting at another speed makes the shapes change rather than slide. Density
+// is `density` × the edge fade × lerp(1, patch, patchiness); the edge fade
+// falls smoothly from 1 at 60% of the half size to 0 at each face, so the
+// corners round off. Overlapping volumes add; godrays is their
+// density-weighted mean.
+//
+// THE FIRST LIGHT ALONE CASTS BEAMS: its colour × intensity × a phase half
+// isotropic and half Henyey–Greenstein at VOE_RENDER_FOG_FORWARD, times
+// lerp(1, S, godrays), S one compare in its cascades (voe_render_sunlight_at)
+// × the clouds' shadow. A lerp towards the shadowed light, not a gain on it, so
+// the fog stays where its beams fade: godrays 0 is fog lit evenly. One light
+// keeps a step to one cascade compare. Every shown light's fill is added as a
+// white surface's floor takes it, the shade; the sky lights nothing (0411).
+// Light blockers do not gate the fog: buildings shadow it through the cascades.
+//
+// THE MARCH steps the union of the view's crossings of every volume within
+// `reach`, at most VOE_RENDER_FOG_STEPS steps shared by its length, the first
+// offset by `jitter` of a step, stopping under VOE_RENDER_FOG_ENOUGH
+// transmittance; each step's light weighted by what it removes, premultiplied.
+// The union is sorted by insertion, at most VOE_RENDER_FOG_VOLUMES spans.
+//
+// COSTS IN READS: density 2 detail a volume holding the point (none at
+// patchiness 0). Light 1 cascade compare, and the clouds' transmittance (4
+// weather Volumetric, 1 Flat), none at godrays 0. A march step at most 16
+// detail + 1 compare + 4 weather, so a march at most 32 of them.
+#pragma once
+
+// The fall of the patches' noise into clear air and full patch.
+static const float VOE_RENDER_FOG_PATCH_LOW = 0.3;
+static const float VOE_RENDER_FOG_PATCH_HIGH = 0.7;
+// The most the change takes from the patches, where it is darkest.
+static const float VOE_RENDER_FOG_EROSION = 0.5;
+// Where the edge fade starts, a share of the half size.
+static const float VOE_RENDER_FOG_EDGE = 0.6;
+// The forward lobe's lean, Henyey–Greenstein's g.
+static const float VOE_RENDER_FOG_FORWARD = 0.6;
+// The march's ceilings (ADR-0493 point 5).
+static const uint VOE_RENDER_FOG_STEPS = 32;
+static const float VOE_RENDER_FOG_ENOUGH = 0.01;
+
+// The march's answer: premultiplied light, transmittance, and the distance
+// along the view the light came from, weighted by what each step gave.
+struct voe_render_fog_marched {
+	float3 light;
+	float transmittance;
+	float distance;
+};
+
+// The volumes the pass carries, at most VOE_RENDER_FOG_VOLUMES.
+uint voe_render_fog_count()
+{
+	return min(voe_render_frame.fog.count, VOE_RENDER_FOG_VOLUMES);
+}
+
+// Where a view from the eye along unit `direction` is inside `volume`'s box:
+// (near, far) by the rows' slabs in unit space, near ≥ 0; (infinity, 0) when
+// it misses or the box is behind the eye.
+float2 voe_render_fog_crossing(voe_render_fog_volume volume, float3 direction)
+{
+	float2 empty = float2(VOE_RENDER_CLOUDS_NEVER, 0.0);
+	float near = 0.0;
+	float far = VOE_RENDER_CLOUDS_NEVER;
+
+	for (uint r = 0; r < 3; r++) {
+		float4 row = volume.rows[r];
+		float step = dot(row.xyz, direction);
+
+		if (step == 0.0) {
+			if (!(abs(row.w) <= 1.0))
+				return empty;
+			continue;
+		}
+		float t0 = (-1.0 - row.w) / step;
+		float t1 = (1.0 - row.w) / step;
+
+		near = max(near, min(t0, t1));
+		far = min(far, max(t0, t1));
+	}
+	return near <= far ? float2(near, far) : empty;
+}
+
+// The fog at `at`: x the density summed over the volumes holding it, extinction
+// per metre; y their godrays, weighted by each one's density, 0 where there is
+// none. See the header's shape paragraph.
+float2 voe_render_fog_density(float3 at)
+{
+	uint count = voe_render_fog_count();
+	float sum = 0.0;
+	float godrays = 0.0;
+
+	for (uint i = 0; i < VOE_RENDER_FOG_VOLUMES; i++) {
+		if (i >= count)
+			break;
+		voe_render_fog_volume volume = voe_render_frame.fog.volumes[i];
+		float fade = 1.0;
+
+		for (uint r = 0; r < 3; r++) {
+			float u = abs(dot(volume.rows[r].xyz, at) + volume.rows[r].w);
+
+			fade *= 1.0 - smoothstep(VOE_RENDER_FOG_EDGE, 1.0, u);
+		}
+		if (!(fade > 0.0) || !(volume.density > 0.0))
+			continue;
+		float patch = 1.0;
+
+		if (volume.patchiness > 0.0) {
+			float base = voe_render_clouds_detail
+					     .SampleLevel((volume.patches + at) /
+								  VOE_RENDER_FOG_PATCHES,
+							  0.0)
+					     .r;
+			float change = voe_render_clouds_detail
+					       .SampleLevel((volume.change + at) /
+								    VOE_RENDER_FOG_CHANGE,
+							    0.0)
+					       .r;
+			float erosion = (1.0 - change) * VOE_RENDER_FOG_EROSION;
+			float eroded = saturate((base - erosion) / (1.0 - erosion));
+
+			patch = smoothstep(VOE_RENDER_FOG_PATCH_LOW,
+					   VOE_RENDER_FOG_PATCH_HIGH, eroded);
+		}
+		float d = volume.density * fade *
+			  lerp(1.0, patch, saturate(volume.patchiness));
+
+		sum += d;
+		godrays += d * volume.godrays;
+	}
+	return float2(sum, sum > 0.0 ? godrays / sum : 0.0);
+}
+
+// Half isotropic, half Henyey–Greenstein at VOE_RENDER_FOG_FORWARD, at the
+// cosine between where the light travels and where it leaves.
+float voe_render_fog_phase(float cosine)
+{
+	float g = VOE_RENDER_FOG_FORWARD;
+	float g2 = g * g;
+	float forward = (1.0 - g2) / (4.0 * VOE_RENDER_SKY_PI *
+				      pow(1.0 + g2 - 2.0 * g * cosine, 1.5));
+
+	return 0.5 / (4.0 * VOE_RENDER_SKY_PI) + 0.5 * forward;
+}
+
+// The light a unit of fog at `at` sends along `view`, its beams by `godrays`,
+// never the sky. See the header's lighting paragraph.
+float3 voe_render_fog_light(float3 at, float3 view, float godrays)
+{
+	uint count = 1 + min(voe_render_frame.more_count,
+			     VOE_RENDER_DIRECTIONAL_LIGHTS - 1);
+	float3 sum = float3(0.0, 0.0, 0.0);
+
+	for (uint i = 0; i < VOE_RENDER_DIRECTIONAL_LIGHTS; i++) {
+		if (i >= count)
+			break;
+		voe_render_light light = voe_render_sky_light(i);
+
+		if (!voe_render_sky_shown(light))
+			continue;
+		sum += light.fill;
+		if (i != 0)
+			continue;
+		float shadowed = 1.0;
+
+		if (godrays > 0.0) {
+			float3 world = at + voe_render_frame.camera.eye;
+
+			shadowed = voe_render_sunlight_at(voe_render_frame.shadow,
+							  world) *
+				   voe_render_cloud_shadow(light, world);
+		}
+		sum += light.colour * light.intensity *
+		       voe_render_fog_phase(dot(normalize(light.direction), view)) *
+		       lerp(1.0, shadowed, saturate(godrays));
+	}
+	return sum;
+}
+
+// The fog along `direction` from the eye, no farther than `reach`. See the
+// header's march paragraph.
+voe_render_fog_marched voe_render_fog_march(float3 direction, float reach,
+					    float jitter)
+{
+	uint count = voe_render_fog_count();
+	voe_render_fog_marched marched;
+	float2 spans[VOE_RENDER_FOG_VOLUMES];
+	uint n = 0;
+
+	marched.light = float3(0.0, 0.0, 0.0);
+	marched.transmittance = 1.0;
+	marched.distance = 0.0;
+	// Each crossing within the reach, kept sorted by where it enters.
+	for (uint i = 0; i < VOE_RENDER_FOG_VOLUMES; i++) {
+		if (i >= count)
+			break;
+		float2 span = voe_render_fog_crossing(voe_render_frame.fog.volumes[i],
+						      direction);
+
+		span.y = min(span.y, reach);
+		if (!(span.x < span.y))
+			continue;
+		uint k = n;
+
+		while (k > 0 && spans[k - 1].x > span.x) {
+			spans[k] = spans[k - 1];
+			k--;
+		}
+		spans[k] = span;
+		n++;
+	}
+	if (n == 0)
+		return marched;
+	// The union: overlapping spans merged in place, then its length.
+	uint merged = 1;
+	float total = 0.0;
+
+	for (uint k = 1; k < n; k++) {
+		if (spans[k].x <= spans[merged - 1].y)
+			spans[merged - 1].y = max(spans[merged - 1].y, spans[k].y);
+		else
+			spans[merged++] = spans[k];
+	}
+	for (uint k = 0; k < merged; k++)
+		total += spans[k].y - spans[k].x;
+	float step = total / float(VOE_RENDER_FOG_STEPS);
+	float given = 0.0;
+	float weighted = 0.0;
+	uint span_at = 0;
+	float before = 0.0;
+
+	for (uint s = 0; s < VOE_RENDER_FOG_STEPS; s++) {
+		float along = step * (float(s) + jitter);
+
+		if (along >= total)
+			break;
+		while (span_at + 1 < merged &&
+		       along >= before + spans[span_at].y - spans[span_at].x) {
+			before += spans[span_at].y - spans[span_at].x;
+			span_at++;
+		}
+		float t = spans[span_at].x + along - before;
+		float3 at = direction * t;
+		float2 fog = voe_render_fog_density(at);
+
+		if (fog.x <= 0.0)
+			continue;
+		float a = 1.0 - exp(-fog.x * step);
+		float w = marched.transmittance * a;
+
+		marched.light += w * voe_render_fog_light(at, -direction, fog.y);
+		given += w;
+		weighted += w * t;
+		marched.transmittance *= 1.0 - a;
+		if (marched.transmittance < VOE_RENDER_FOG_ENOUGH)
+			break;
+	}
+	marched.distance = given > 0.0 ? weighted / given : spans[0].x;
+	return marched;
+}

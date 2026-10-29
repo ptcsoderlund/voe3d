@@ -11,7 +11,7 @@ shader and never compiled alone.
   world matrix, normal matrix and dither, the record's own when it names no instances.
 - `draw.slang` — the mesh pipelines' nine entry points, the capture's, the sky's and the clouds' in
   its parts below: placing, maps, a painted landscape's layers, a ground record's blend, alpha and
-  dither, the lit and unlit exits hazed, exposed and tone mapped, and the point-shadow vertex stage.
+  dither, exits hazed, exposed and toned, the point-shadow vertex stage; includes the fog's part.
 - `draw_capture.slangh` — the part `draw.slang` includes at its end: the bounce capture pass's two
   entry points, a mesh on a probe's faces as albedo and normal with distance.
 - `draw_sky.slangh` — the part `draw.slang` includes last: the sky's two full-screen entry points,
@@ -28,16 +28,19 @@ shader and never compiled alone.
 - `clouds.slangh` — the cloud field read by the shaders: density, where a view meets the layer,
   a light's transmittance, the light a unit of cloud sends, the march and a reflection's sample,
   all one field, in eye-relative metres.
+- `fog.slangh` — the fog volumes read by the shaders: where a view crosses a box, the density of
+  the drifting patches, the light a unit of fog sends, beams by the first light's cascades, and the
+  march over the union of crossings, in eye-relative metres.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector and the clip position on
   it; draw and lookup share it.
 - `blockers.slangh` — which light blockers hold a point and whether a segment passes them, twin of
   `src/light_blockers.c`.
 - `bounce_read.slangh` — the bounce's one read: E(n) from a probe volume's eight nearest probes,
   weighted and normalised.
-- `lighting.slangh` — the directional lights, their shadows and fills, the clouds dimming each
-  one's direct term, the bounce and the binned point lights, each gated by the light blockers; the
-  sky lights nothing, and a metal mirrors it, the clouds along the reflected view over its sharp
-  sky, only as bright as the light on it.
+- `lighting.slangh` — the directional lights, their shadows and fills, one cascade compare in the
+  air, the clouds dimming each one's direct term, the bounce and the binned point lights, each gated
+  by the light blockers; the sky lights nothing, and a metal mirrors it under the clouds, as bright
+  as the light on it.
 - `terrain.slangh` — a landscape node's vertex: the grid point morphed by distance, its height and
   normal from the height map.
 - `terrain_layers.slangh` — a painted landscape's surface: the paint's weights, up to eight layers

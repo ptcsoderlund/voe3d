@@ -50,8 +50,9 @@
 // agree and the picture comes out the right way up. The flip everyone adds is
 // OpenGL's, whose texture origin is at the bottom.
 //
-// THIRTEEN PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
+// FOURTEEN PARTS ARE INCLUDED, IN THE ORDER THEY DEPEND ON EACH OTHER (ADR-0308).
 // tone.slangh, after lighting.slangh, hazes, exposes and tone maps every exit;
+// fog.slangh, after both, the fog volumes' density, light and march (ADR-0493);
 // lighting.slangh includes sky.slangh, the sky's radiance, twin of src/sky.c.
 // bindings.slangh first: the frame block, the records and the bindings both
 // stages read; instances.slangh, a copy's place (ADR-0442). lighting.slangh: the sun, its cascades, the fill, the BRDF
@@ -212,6 +213,7 @@
 #include "instances.slangh"
 #include "lighting.slangh"
 #include "tone.slangh"
+#include "fog.slangh"
 
 // The locations are stated rather than left to declaration order, because the C
 // side names the same four numbers in its VkVertexInputAttributeDescription and
