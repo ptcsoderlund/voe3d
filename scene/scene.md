@@ -82,6 +82,14 @@ space is.
 - `include/scene/clouds_system.h` — the whole-row intent as its replace, the
   direct call that creates one, and the run that drains it and moves the drift
   by the wind. Its header says what is refused and where it runs.
+- `include/scene/fog_volume_component.h` — a box of fog placed, turned and
+  scaled by its transform: size, thickness, patchiness, wind and godrays
+  strength as a described field list, the runtime-only drift and the reads.
+  Its header says fog is only inside and each field's bounds.
+- `include/scene/fog_volume_system.h` — the whole-row intent as its replace,
+  the direct call that creates one, the transform it needs, and the run that
+  drains it and moves the drift by the wind. Its header says what is refused
+  and where it runs.
 - `include/scene/picture_component.h` — the whole picture's exposure in stops
   and its tone, Clip or Soft, named, as a described field list, and the reads.
   Its header says why it is not a camera's and that no row is x1 and Clip.

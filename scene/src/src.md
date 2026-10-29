@@ -47,6 +47,11 @@ it. Nothing here names a GPU resource, a file or a graphics API.
 - `clouds_system.c` — registration with 0492's default row and the runtime-only
   drift, creation, and the run that applies whole clouds or keeps the row over
   one it refuses, adds and drops drifts and moves them by the wind.
+- `fog_volume_component.c` — the two keys and the reads.
+- `fog_volume_system.c` — registration with 0493's default row, the transform
+  needed and the runtime-only drift, creation, and the run that applies whole
+  rows or keeps the row over one it refuses, adds and drops drifts and moves
+  them by the wind.
 - `picture_component.c` — the key, the tone names Clip and Soft, and the reads.
 - `picture_system.c` — registration with 0406's default row, creation, and the
   run that applies a whole picture or keeps it over an exposure not finite or

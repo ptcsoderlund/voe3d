@@ -45,6 +45,11 @@ stays on `scene/scene.md`.
   thickness, wind and their own shadow strength, and how far they have drifted.
 - `clouds_system.h` — the replace intent, the direct call that creates one,
   and the run that drains it and moves the drift by the wind.
+- `fog_volume_component.h` — a fog volume: a box placed by its transform with
+  size, thickness, patchiness, wind and godrays strength, and how far its
+  patches have drifted.
+- `fog_volume_system.h` — the replace intent, the direct call that creates
+  one, and the run that drains it and moves the drift by the wind.
 - `picture_component.h` — the picture: how the whole drawn image is exposed and
   toned, exposure in stops and tone, Clip or Soft.
 - `picture_system.h` — the replace intent, the direct call that creates one,
