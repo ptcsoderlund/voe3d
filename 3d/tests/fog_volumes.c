@@ -1,10 +1,11 @@
 // A world's fog volumes become a pass's records (0493 points 1 to 3), through
-// voe_3d_fog_volume_shape and voe_3d_fog_volumes. Needs no graphics card:
-// neither takes a device. Its worlds hold the transform, parent, identity and
-// fog volume tables; an entity is switched off as 3d/tests/clouds.c switches
-// one.
+// voe_3d_fog_volume_shape and voe_3d_fog_volumes, and a frame carries them.
+// Needs no graphics card: none of it takes a device. Its worlds hold the
+// transform, parent, identity and fog volume tables, the frame's a camera,
+// light and previous transform table too; an entity is switched off as
+// 3d/tests/clouds.c switches one.
 //
-// It claims eight things.
+// It claims nine things.
 // 1. No fog volume table, and the table with no row, give the zeroed record.
 // 2. A row at (10, 2, −30), size (20, 4, 20), scale 1, seen from the origin is
 //    one record whose rows hold the centre at unit place 0 and the point 10 m
@@ -15,14 +16,20 @@
 // 6. An off row and a thickness-0 row are left out.
 // 7. Nine rows give eight records.
 // 8. The shape's half is |scale| × size / 2; no transform is no shape.
+// 9. voe_3d_draw_system_frame carries voe_3d_fog_volumes at its eye and lag,
+//    a moved row differing at lag 0, and voe_3d_draw_system_camera hands it on.
+#include <3d/draw_system.h>
 #include <3d/fog_volume.h>
 #include <base/arena.h>
 #include <ecs/world.h>
 #include <physics/collider_component.h>
+#include <scene/camera_component.h>
+#include <scene/camera_system.h>
 #include <scene/fog_volume_component.h>
 #include <scene/fog_volume_system.h>
 #include <scene/identity_component.h>
 #include <scene/identity_system.h>
+#include <scene/light_system.h>
 #include <scene/parent_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
@@ -239,6 +246,55 @@ static void the_shape_is_the_scaled_size(voe_base_arena *arena)
 	VOE_TEST_CHECK_FLOAT(shape.half.x, 99.0f, 0.0f);
 }
 
+// A row remembered at x 10 and moved to x 14, framed at lag 0.5 by a camera
+// far enough out that the fields wrap.
+static void the_frame_carries_the_fog(voe_base_arena *arena)
+{
+	voe_ecs_world *world = a_world(arena, true);
+	voe_math_double3 eye = { 300.0, 5.0, 40.0 };
+	voe_ecs_entity camera = { 0 };
+	voe_ecs_entity row;
+	voe_render_fog want;
+	voe_render_fog now;
+	voe_3d_frame frame;
+	voe_render_pass_camera pass;
+
+	voe_scene_camera_register(world, 1);
+	voe_scene_light_register(world, 1);
+	voe_scene_transform_previous_register(world, ROOM);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &camera));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, camera,
+		(voe_scene_transform){ .position = eye,
+				       .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_camera_add(
+		world, camera,
+		(voe_scene_camera){ .fov_y = 1.0471976f,
+				    .near_plane = 0.1f,
+				    .far_plane = 100.0f }));
+	row = a_placed_row(world, FOG, (voe_math_double3){ 10.0, 2.0, -30.0 });
+	voe_scene_transform_remember(world);
+	VOE_TEST_CHECK(voe_scene_transform_submit(
+		world,
+		(voe_scene_transform_intent){
+			.entity = row,
+			.transform = { .position = { 14.0, 2.0, -30.0 },
+				       .rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
+				       .scale = { 1.0f, 1.0f, 1.0f } } }));
+	voe_scene_transform_system_run(world);
+
+	frame = voe_3d_draw_system_frame(world, (voe_platform_size){ 640, 480 },
+					 0.5f);
+	want = voe_3d_fog_volumes(world, eye, 0.5f);
+	now = voe_3d_fog_volumes(world, eye, 0.0f);
+	pass = voe_3d_draw_system_camera(&frame);
+	VOE_TEST_CHECK_INT(want.count, 1);
+	VOE_TEST_CHECK(memcmp(&now, &want, sizeof(want)) != 0);
+	VOE_TEST_CHECK(memcmp(&frame.fog, &want, sizeof(want)) == 0);
+	VOE_TEST_CHECK(memcmp(&pass.fog, &want, sizeof(want)) == 0);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -249,6 +305,7 @@ int main(void)
 	the_left_out_are_left_out(arena);
 	nine_rows_give_eight(arena);
 	the_shape_is_the_scaled_size(arena);
+	the_frame_carries_the_fog(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

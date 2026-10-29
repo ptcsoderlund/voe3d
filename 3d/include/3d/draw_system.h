@@ -385,6 +385,10 @@ typedef struct {
 	// voe_3d_draw_system_clouds, and the loop hands it to the pass camera
 	// beside `exposure`.
 	voe_render_clouds clouds;
+	// The pass's fog volumes (0493 point 3); zero is none. _frame fills it
+	// with voe_3d_fog_volumes at its eye and lag, and the loop hands it to
+	// the pass camera beside `clouds`.
+	voe_render_fog fog;
 	// The directional lights after the first (0357 point 1), `more_count`
 	// of them; none is NULL and 0. _frame leaves them zeroed,
 	// voe_3d_draw_system_lights fills them, and voe_3d_draw_system_shadows
@@ -543,9 +547,9 @@ typedef struct {
 #define VOE_3D_POINT_SHADOW_TEXELS 256u
 
 
-// The camera, the sun, the sky, the exposure and the clouds (`sky` from the first sky and
-// Haze rows, `exposure` from the first picture row and `clouds` from the first
-// Clouds row, each zeroed with none) out of the tables, for the frame about to begin. `size`
+// The camera, the sun, the sky, the exposure, the clouds and the fog (`sky` from the first sky and
+// Haze rows, `exposure` from the first picture row, `clouds` from the first
+// Clouds row and `fog` from the Fog volume rows, each zeroed with none) out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
@@ -765,7 +769,7 @@ voe_render_clouds voe_3d_draw_system_clouds(const voe_ecs_world *world,
 					      voe_base_arena *arena);
 
 // The pass camera of `frame`: its view, light, shadow, point lights, blockers,
-// sky, exposure, clouds and the lights after the first as `more`.
+// sky, exposure, clouds, fog and the lights after the first as `more`.
 voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 
 // The directional lights' shadow passes for `frame`, opened between the frame's
@@ -973,7 +977,9 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // halves. THE PASS'S CLOUDS ARE DRAWN BETWEEN THEM (0492 point 5): one
 // voe_render_frame_draw_clouds after the world's blended draws and before the
 // overlay's depth clear, so they cover the world and never the overlay; a
-// refused one is said on stderr and the run goes on. An overlay object keeps a real position in metres and is seen through
+// refused one is said on stderr and the run goes on. THE PASS'S FOG RIGHT
+// AFTER THEM (0493 point 5): one voe_render_frame_draw_fog, a refused one said
+// on stderr as the clouds' is. An overlay object keeps a real position in metres and is seen through
 // the same camera: this layer is "always on top" and is not screen space. The one
 // orthographic projection in this engine is the sun's cascades' (ADR-0258).
 //

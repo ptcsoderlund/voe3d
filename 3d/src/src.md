@@ -99,8 +99,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
 - `draw_system.c` — the camera's view, the first light, the first on sky, Haze and picture rows,
-  the frame's Clouds row, its pass camera, and each drawable's draw into the frame the loop opened,
-  foliage after the landscapes, the clouds after the world's blended draws, the unseen skipped.
+  the frame's Clouds and Fog volume rows, its pass camera, and each drawable's draw, foliage
+  after the landscapes, the clouds then the fog after the world's blended draws, the unseen skipped.
 - `draw_clouds.c` — the first Clouds row that is on, as render's record: its kind mapped, its bottom above
   the eye and the eye less the drift wrapped into the period, both in double.
 - `draw_models.h` — the model rows' walk, taking the frame's grounds, its part count for the
