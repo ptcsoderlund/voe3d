@@ -2,10 +2,10 @@
 // descriptor set layout, the pool, and per frame slot one set, one mapped
 // uniform buffer holding a camera, a sun and a shadow record for every pass,
 // mapped buffers of per-object and instance records, element records, point lights and their
-// bins and light blockers, and the slot's shadow maps; and the probe volumes'
-// two samplers.
+// bins and light blockers, and the slot's shadow maps; the probe volumes' two
+// samplers; and the cloud field's two images, named in every set.
 //
-// THIRTEEN BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
+// FIFTEEN BINDINGS, AND THE SPLIT IS BY HOW OFTEN EACH CHANGES:
 //
 //   0  the camera, the sun and its shadow record, one block per pass in one
 //      uniform buffer per frame slot, written as each pass opens. A DYNAMIC
@@ -39,12 +39,13 @@
 //      buffer per frame slot, one region per pass, written as each pass opens
 //  12  the instance records (ADR-0442 point 6): a storage buffer per frame
 //      slot, read by the vertex stage, written by voe_render_frame_instances
+//  13  the cloud field's detail and 14 its weather (ADR-0492 point 4), combined
+//      image samplers for the fragment stage through clouds_textures.c's one
+//      repeating sampler, written once at startup
 //
-// BINDING 4 IS IN THE SAME LAYOUT THOUGH draw.slang DOES NOT READ IT, AND THAT
-// IS THE POINT. shaders/elements.slang reads it and shares this layout, so the
-// descriptor set bound as a pass opens serves both. A second layout would be a
-// second set, a second pool entry and a rebind between every mesh draw and
-// every element draw. Vulkan lets a shader leave out bindings of its layout.
+// BINDING 4 IS IN THE LAYOUT THOUGH draw.slang DOES NOT READ IT: elements.slang
+// does and shares this layout, so the set bound as a pass opens serves both; a
+// second layout would be a second set and a rebind between mesh and element draws.
 //
 // Push constants: a mesh draw's object number, the element surface transform (device.c).
 //
@@ -52,10 +53,9 @@
 // are allocated once at startup and freed by destroying the pool; no set is
 // destroyed on its own anywhere in this folder.
 //
-// WRITING THEM IS SAFE BECAUSE OF THE FENCE AT THE TOP OF THE FRAME. The cameras,
-// the suns, the object records and the element records a frame writes are in this
-// slot's own buffers, which the GPU may have been reading until that fence was
-// signalled — and the fence is waited on before anything here is touched.
+// WRITING THEM IS SAFE BECAUSE OF THE FENCE AT THE TOP OF THE FRAME: what a frame
+// writes is in this slot's own buffers, which the GPU may read until that fence
+// is signalled, and it is waited on before anything here is touched.
 //
 // The layout asserts on the records these bindings hold are in records_layout.c.
 #include "device_internal.h"
@@ -69,7 +69,7 @@ static bool build_layout(voe_render_device *device)
 	const uint32_t moment_entries =
 		(device->capacities.targets + 1) * VOE_RENDER_BOUNCE_VOLUMES;
 	const uint32_t grid_entries = moment_entries * 4;
-	VkDescriptorSetLayoutBinding bindings[13] = {
+	VkDescriptorSetLayoutBinding bindings[15] = {
 		{
 			.binding = 0,
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
@@ -168,23 +168,37 @@ static bool build_layout(voe_render_device *device)
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
 		},
+		{
+			.binding = 13,
+			.descriptorType =
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		},
+		{
+			.binding = 14,
+			.descriptorType =
+				VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		},
 	};
 	// A volume not built is never written, or names images since freed, so
 	// bindings 6 and 10 are partially bound: only the volume a pass names
 	// has to be valid.
-	const VkDescriptorBindingFlags flags[13] = {
+	const VkDescriptorBindingFlags flags[15] = {
 		[6] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
 		[10] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
 	};
 	VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-		.bindingCount = 13,
+		.bindingCount = 15,
 		.pBindingFlags = flags,
 	};
 	VkDescriptorSetLayoutCreateInfo info = {
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
 		.pNext = &binding_flags,
-		.bindingCount = 13,
+		.bindingCount = 15,
 		.pBindings = bindings,
 	};
 	VkDescriptorPoolSize sizes[3] = {
@@ -194,11 +208,12 @@ static bool build_layout(voe_render_device *device)
 		},
 		{
 			// The texture array, the shadow maps, the volumes' sums,
-			// the point shadow maps and the volumes' moments.
+			// the point shadow maps, the volumes' moments and the
+			// cloud field's two.
 			.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 			.descriptorCount = VOE_RENDER_FRAMES_IN_FLIGHT *
 					   (VOE_RENDER_MAX_TEXTURES + 1 +
-					    grid_entries + 1 + moment_entries),
+					    grid_entries + 1 + moment_entries + 2),
 		},
 		{
 			// Seven per set: the objects, the shadings, the
@@ -359,6 +374,16 @@ static bool build_slots(voe_render_device *device)
 			.imageView = frame->point_shadow.sampled,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
+		VkDescriptorImageInfo clouds_detail = {
+			.sampler = device->clouds_sampler,
+			.imageView = device->clouds_detail.view,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+		VkDescriptorImageInfo clouds_weather = {
+			.sampler = device->clouds_sampler,
+			.imageView = device->clouds_weather.view,
+			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
 		// One region per pass in each, region = the pass's number.
 		VkDescriptorBufferInfo lights = {
 			.offset = 0,
@@ -384,7 +409,7 @@ static bool build_slots(voe_render_device *device)
 							1) *
 				 sizeof(voe_render_instance),
 		};
-		VkWriteDescriptorSet writes[9] = {
+		VkWriteDescriptorSet writes[11] = {
 			{
 				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 				.dstBinding = 0,
@@ -457,6 +482,22 @@ static bool build_slots(voe_render_device *device)
 					VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
 				.pBufferInfo = &instances,
 			},
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstBinding = 13,
+				.descriptorCount = 1,
+				.descriptorType =
+					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &clouds_detail,
+			},
+			{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstBinding = 14,
+				.descriptorCount = 1,
+				.descriptorType =
+					VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.pImageInfo = &clouds_weather,
+			},
 		};
 
 		frame->uniforms_mapped = build_mapped(
@@ -505,9 +546,9 @@ static bool build_slots(voe_render_device *device)
 		bins.buffer = frame->light_bins.buffer;
 		blockers.buffer = frame->light_blockers.buffer;
 		instances.buffer = frame->instances.buffer;
-		for (uint32_t w = 0; w < 9; w++)
+		for (uint32_t w = 0; w < 11; w++)
 			writes[w].dstSet = frame->descriptor;
-		voe_render_vk.update_descriptor_sets(device->device, 9, writes,
+		voe_render_vk.update_descriptor_sets(device->device, 11, writes,
 						     0, NULL);
 	}
 

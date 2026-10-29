@@ -23,8 +23,8 @@ which file to open — what each one owns, and where the seams between them run.
   one-frame record and a pass's blocker region with its kinds; included only through
   `device_internal.h`.
 - `device.c` — opening, and the one place its order is: the surface, the logical device, the
-  format, frame objects, the layout and element pipeline but no mesh
-  pipeline, the guard's take and give, and close-down, plus the headless device the tests run on.
+  format, frame objects, the cloud field before the descriptors, the layout and element pipeline
+  but no mesh pipeline, the guard's take and give, and close-down, plus the headless device.
 - `startup.h` — the startup steps that live beside device.c, why open_device calls them in the
   order it does, and the card facts and ranking a test can call with no card.
 - `pacing.c` — the card's clock and the present modes learnt at startup, the present mode set and
@@ -44,7 +44,8 @@ which file to open — what each one owns, and where the seams between them run.
   cache, then the relight, a step a call, and the count of those steps.
 - `pipeline_cache.c` — the device's pipeline cache: made empty at open, seeded from a caller's bytes
   before the first prepare step, and handed out behind render's own header.
-- `descriptors.c` — everything the shader reads and the one layout that describes it.
+- `descriptors.c` — everything the shader reads and the one layout that describes it, fifteen
+  bindings, the cloud field's detail and weather at 13 and 14.
 - `records_layout.c` — the build-time proof that the C and Slang layouts of every record a shader
   reads agree, by size and member offset; no code.
 - `buffer.c` — a named buffer with the memory under it, the staging upload
@@ -107,6 +108,8 @@ which file to open — what each one owns, and where the seams between them run.
   machine. Pure CPU.
 - `clouds_noise.c` — those two calls: Perlin fBm and inverted Worley fBm in integer arithmetic,
   the weather stretched over the whole byte, the detail over its greatest sum.
+- `clouds_textures.c` — those bytes made at open into a 64³ and a 256² R8 image through one
+  staging upload, resting shader-readable, and their one repeating linear sampler; 320 KiB.
 - `sky_draw.c` — the sky drawn first in a camera pass whose sky is `drawn` or has haze: one
   full-screen triangle through the sky pipeline, timed as the span `sky`.
 - `light_blockers.c` — `voe_render_light_blockers_mask`, declared in `render/device.h`: the boxes

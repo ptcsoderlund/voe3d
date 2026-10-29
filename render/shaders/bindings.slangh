@@ -266,6 +266,17 @@ Sampler3D voe_render_bounce_grids[];
 [[vk::binding(10, 0)]]
 Sampler2D voe_render_bounce_moments[];
 
+// Set 0, binding 13: the cloud field's detail (ADR-0492 point 4), 64³ R8 texels
+// of inverted Worley fBm repeating every 256 m, through a linear sampler that
+// repeats on every axis (render/src/clouds_textures.c).
+[[vk::binding(13, 0)]]
+Sampler3D voe_render_clouds_detail;
+
+// Set 0, binding 14: the cloud field's weather, 256² R8 texels of Perlin fBm over
+// one VOE_RENDER_CLOUDS_PERIOD, the clouds' shapes, through binding 13's sampler.
+[[vk::binding(14, 0)]]
+Sampler2D voe_render_clouds_weather;
+
 // Set 0, binding 1: every texture at once, indexed by a number out of a shading
 // record.
 //

@@ -360,6 +360,14 @@ void voe_render_buffer_teardown(voe_render_device *device,
 					  const struct voe_render_buffer *source,
 					  VkDeviceSize size);
 
+// clouds_textures.c. The cloud field's detail and weather images and their
+// sampler, made and filled at open after the frame objects, whose pool uploads
+// them, and before the descriptors, which name them; idles once. False with a
+// message. _teardown is safe on a device that never built them, or part of
+// them, and leaves them zeroed.
+[[nodiscard]] bool voe_render_clouds_textures_build(voe_render_device *device);
+void voe_render_clouds_textures_teardown(voe_render_device *device);
+
 // descriptors.c. Everything the shader reads that a resize does not touch: the
 // descriptor set layout, the pool, and one set, one mapped uniform buffer and
 // one mapped object buffer per frame slot. Startup's, and the counterpart tears

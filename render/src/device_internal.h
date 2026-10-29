@@ -282,6 +282,13 @@ struct voe_render_device {
 	// (ADR-0326). descriptors.c makes and destroys both.
 	VkSampler bounce_sampler;
 	VkSampler moments_sampler;
+	// The cloud field (ADR-0492 point 4): the 64³ detail at binding 13 and the
+	// 256² weather at 14, both R8_UNORM in SHADER_READ_ONLY_OPTIMAL, and the
+	// linear sampler repeating on every axis both are read through.
+	// clouds_textures.c makes and destroys all three.
+	struct voe_render_allocated_image clouds_detail;
+	struct voe_render_allocated_image clouds_weather;
+	VkSampler clouds_sampler;
 
 	VkDescriptorSetLayout descriptor_layout;
 	VkDescriptorPool descriptor_pool;
