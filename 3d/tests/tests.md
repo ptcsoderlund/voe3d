@@ -110,6 +110,9 @@ again, or to find where a claim that has started failing is written down.
 - `sky.c` — that a frame's sky and picture are zeroed with no table or row and are the first rows,
   the haze and its top the Haze row's, each light's disc and glow carried, and a sky shows behind
   a lit slab. The picture skips without a graphics card.
+- `clouds.c` — that a frame's clouds are zeroed with no table, row or row on, each kind is render's,
+  the bottom is above the eye, the origin is the eye less the drift wrapped, and the pass camera
+  carries them. Needs no graphics card.
 - `camera_switched_off.c` — that a camera off, itself or through a parent, frames from the
   origin with the table's default row and no lag, and as itself when on (0441). Needs no
   graphics card.

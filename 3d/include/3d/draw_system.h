@@ -381,6 +381,10 @@ typedef struct {
 	// old picture. _frame fills it with voe_3d_draw_system_picture, and the
 	// loop hands it to the pass camera beside `sky`.
 	voe_render_exposure exposure;
+	// The pass's clouds (0492 point 3); zero is none. _frame fills it with
+	// voe_3d_draw_system_clouds, and the loop hands it to the pass camera
+	// beside `exposure`.
+	voe_render_clouds clouds;
 	// The directional lights after the first (0357 point 1), `more_count`
 	// of them; none is NULL and 0. _frame leaves them zeroed,
 	// voe_3d_draw_system_lights fills them, and voe_3d_draw_system_shadows
@@ -539,9 +543,9 @@ typedef struct {
 #define VOE_3D_POINT_SHADOW_TEXELS 256u
 
 
-// The camera, the sun, the sky and the exposure (`sky` from the first sky and
-// Haze rows and `exposure` from the first picture row, each zeroed with none) out of the
-// tables, for the frame about to begin. `size`
+// The camera, the sun, the sky, the exposure and the clouds (`sky` from the first sky and
+// Haze rows, `exposure` from the first picture row and `clouds` from the first
+// Clouds row, each zeroed with none) out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
@@ -634,6 +638,17 @@ voe_render_sky voe_3d_draw_system_sky(const voe_ecs_world *world,
 // x1 and Clip, with no picture table or no row, an off row, itself or through a
 // parent, being as no row (0440). Public for the same reason as _sky.
 voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world);
+
+// The world's first Clouds row whose entity is on as a pass takes it (0492
+// point 3); zeroed, no clouds, with no Clouds table, no row, or an off row,
+// itself or through a parent, being as no row (0440). `kind` Flat or
+// Volumetric as render's; `coverage`, `thickness` and `shadow_strength` as
+// authored; `bottom` its `height` − `eye.y` in double; `origin` `eye.x` − the
+// drift's x and `eye.z` − its z, each wrapped into 0 to VOE_RENDER_CLOUDS_PERIOD
+// in double, a row with no drift row read as moved nowhere. Public so a view
+// with its own eye carries the same clouds as _frame, as with _sky.
+voe_render_clouds voe_3d_draw_system_clouds(const voe_ecs_world *world,
+					    voe_math_double3 eye);
 
 // Fills `frame->points` from every point light whose entity has a transform
 // (0320 point 6): its world place at `frame->lag`, about `frame->eye` in float
@@ -750,7 +765,7 @@ voe_render_exposure voe_3d_draw_system_picture(const voe_ecs_world *world);
 					      voe_base_arena *arena);
 
 // The pass camera of `frame`: its view, light, shadow, point lights, blockers,
-// sky, exposure and the lights after the first as `more`.
+// sky, exposure, clouds and the lights after the first as `more`.
 voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 
 // The directional lights' shadow passes for `frame`, opened between the frame's
@@ -955,7 +970,10 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // then the overlay is drawn — its own two passes, in the same order, by the same
 // rules. So there are four groups and one depth clear between the second and the
 // third, and nothing about blending, the sort or shading differs between the
-// halves. An overlay object keeps a real position in metres and is seen through
+// halves. THE PASS'S CLOUDS ARE DRAWN BETWEEN THEM (0492 point 5): one
+// voe_render_frame_draw_clouds after the world's blended draws and before the
+// overlay's depth clear, so they cover the world and never the overlay; a
+// refused one is said on stderr and the run goes on. An overlay object keeps a real position in metres and is seen through
 // the same camera: this layer is "always on top" and is not screen space. The one
 // orthographic projection in this engine is the sun's cascades' (ADR-0258).
 //

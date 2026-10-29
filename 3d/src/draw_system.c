@@ -2,7 +2,8 @@
 // the first light, the first on sky row and Haze
 // row, the first on picture row, the pass camera a frame opens with, the matrices each object is drawn with, and one draw per drawable into
 // the frame the loop has opened. The sky carries each light's disc and glow and
-// the haze's top above the eye.
+// the haze's top above the eye; the frame's clouds, draw_clouds.c's, go to the
+// pass camera and are drawn over the world before the overlay's depth clear.
 //
 // IT WALKS THE MESH, MODEL AND PANEL TABLES AND LOOKS THE OTHER COMPONENTS UP
 // BY ENTITY; the model rows are draw_models.c's, the particles
@@ -219,6 +220,7 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame)
 		.blockers = frame->blockers,
 		.sky = frame->sky,
 		.exposure = frame->exposure,
+		.clouds = frame->clouds,
 		.more ={ .lights = frame->more_lights,
 			  .count = frame->more_count },
 	};
@@ -290,6 +292,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	// the haze's top above the eye just set (0419).
 	frame.sky = voe_3d_draw_system_sky(world, frame.eye);
 	frame.exposure = voe_3d_draw_system_picture(world);
+	// The first on Clouds row about the eye just set, zeroed with none (0492).
+	frame.clouds = voe_3d_draw_system_clouds(world, frame.eye);
 	// No light after the first until voe_3d_draw_system_lights (0357).
 	frame.more_lights = NULL;
 	frame.more_count = 0;
@@ -728,6 +732,10 @@ voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
 	// render has said why on stderr.
 	if (waters == 0 || voe_render_frame_copy_depth(device))
 		(void)voe_3d_draw_group_draw(device, &world_blended);
+	// The clouds over the finished world and under the overlay, once, with
+	// no span of this file's open: render times its own (0492 point 5).
+	if (!voe_render_frame_draw_clouds(device))
+		VOE_BASE_ERROR("3d", "the clouds were refused; the frame goes on without them");
 
 	// The world is finished and the overlay starts on an empty depth buffer,
 	// which is the whole of what a layer is. The colour the world was drawn
