@@ -509,22 +509,17 @@ static float shown_at(const voe_3d_model_entry *model, uint32_t k, float s)
 	return (bound - s) / (bound - low);
 }
 
-voe_3d_model_level_choice
-voe_3d_model_level_choose(const voe_3d_model_entry *model,
-			  const voe_scene_transform *placed,
-			  voe_math_double3 eye, const voe_render_view *view)
+float voe_3d_model_level_size(const voe_3d_model_entry *model,
+			      const voe_scene_transform *placed,
+			      voe_math_double3 eye, const voe_render_view *view)
 {
-	const voe_3d_model_level_choice whole = { 0, 1.0f };
 	voe_math_float3 scale;
 	voe_math_float3 centre;
 	voe_math_float4 clip;
 	float radius;
-	float s;
 
 	VOE_BASE_ASSERT(model != NULL && placed != NULL && view != NULL,
-			"choosing a level of nothing");
-	VOE_BASE_ASSERT(model->level_count <= VOE_3D_MODEL_LEVELS,
-			"a model with more levels than it can hold");
+			"the size of nothing");
 
 	scale = placed->scale;
 	radius = model->radius *
@@ -534,27 +529,43 @@ voe_3d_model_level_choose(const voe_3d_model_entry *model,
 	clip = voe_math_float4x4_mul_float4(
 		voe_math_float4x4_mul(view->projection, view->view),
 		(voe_math_float4){ centre.x, centre.y, centre.z, 1.0f });
-	if (model->level_count <= 1 || clip.w <= 0.0f ||
-	    voe_math_float3_length(centre) <= radius)
-		return whole;
+	if (clip.w <= 0.0f || voe_math_float3_length(centre) <= radius)
+		return INFINITY;
+	return radius * fabsf(view->projection.m[1][1]) / clip.w;
+}
 
-	s = radius * fabsf(view->projection.m[1][1]) / clip.w;
-	for (uint32_t k = model->level_count - 1; k > 0; k--)
+uint32_t voe_3d_model_level_at(const voe_3d_model_entry *model, float s)
+{
+	VOE_BASE_ASSERT(model != NULL, "a level of nothing");
+	VOE_BASE_ASSERT(model->level_count <= VOE_3D_MODEL_LEVELS,
+			"a model with more levels than it can hold");
+
+	for (uint32_t k = model->level_count; k-- > 1;)
 		if (model->levels[k].bound > s)
-			return (voe_3d_model_level_choice){
-				k, shown_at(model, k, s)
-			};
-	return whole;
+			return k;
+	return 0;
+}
+
+voe_3d_model_level_choice
+voe_3d_model_level_choose(const voe_3d_model_entry *model,
+			  const voe_scene_transform *placed,
+			  voe_math_double3 eye, const voe_render_view *view)
+{
+	const float s = voe_3d_model_level_size(model, placed, eye, view);
+	const uint32_t level = voe_3d_model_level_at(model, s);
+	const float shown = shown_at(model, level, s);
+
+	return (voe_3d_model_level_choice){
+		.level = level,
+		.from = shown < 1.0f ? level - 1 : level,
+		.shown = shown,
+	};
 }
 
 uint32_t voe_3d_model_level(const voe_3d_model_entry *model,
 			    const voe_scene_transform *placed,
 			    voe_math_double3 eye, const voe_render_view *view)
 {
-	const voe_3d_model_level_choice choice =
-		voe_3d_model_level_choose(model, placed, eye, view);
-
-	VOE_BASE_ASSERT(choice.shown > 0.0f && choice.shown <= 1.0f,
-			"a share outside (0, 1]");
-	return choice.level;
+	return voe_3d_model_level_at(
+		model, voe_3d_model_level_size(model, placed, eye, view));
 }

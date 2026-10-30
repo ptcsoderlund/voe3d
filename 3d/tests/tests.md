@@ -212,6 +212,9 @@ again, or to find where a claim that has started failing is written down.
   its own levels measured,
   going stale when its `.glb` or version changes, its levels summarised, a view's level and share
   chosen, bounds capped and spread, and a bound's metres; needs no graphics card.
+- `lods_kept.c` — a view's kept LODs: first sight, creeping back, swapping back 10% nearer, the
+  quarter-second dissolve, a frame unseen, two chooses agreeing, no memory, and the keys. Needs no
+  graphics card.
 - `model_cooked.c` — that a prepared sphere written and read back keeps its bake, levels, sphere,
   flags, edges and given BC7 and BC5 blocks, a picture's kind is its first use, and the key comes
   back, another version refused. Needs no graphics card.

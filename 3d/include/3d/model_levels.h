@@ -179,21 +179,35 @@ float voe_3d_model_level_metres(float radius, float bound, float fov_y);
 
 // A view's choice of a model's level.
 typedef struct {
-	// The level, as voe_3d_model_level answers.
+	// The level drawing `shown` of the model's pixels.
 	uint32_t level;
-	// In (0, 1]: the share of the model's pixels `level` draws, `level` − 1
-	// drawing the rest when under 1; 1 for level 0.
+	// The level drawing the pixels `level` does not; `level` when settled.
+	uint32_t from;
+	// In [0, 1]: the share of the pixels `level` draws, `from` drawing the
+	// rest; 1 when settled.
 	float shown;
 } voe_3d_model_level_choice;
 
-// The level `view` draws of `model` placed at `placed`, the view about `eye`
-// (eye-relative, 0250), and its share, as the paragraph above says.
+// `s` of `model` placed at `placed`, seen by `view` about `eye` (eye-relative,
+// 0250), as the paragraph above defines it; INFINITY when the eye is inside
+// the world sphere or the centre's clip w is not above nought.
+float voe_3d_model_level_size(const voe_3d_model_entry *model,
+			      const voe_scene_transform *placed,
+			      voe_math_double3 eye, const voe_render_view *view);
+
+// The largest k below `model->level_count` whose `levels[k].bound` is above
+// `s`, else 0.
+uint32_t voe_3d_model_level_at(const voe_3d_model_entry *model, float s);
+
+// The level `view` draws of `model` placed at `placed`, the view about `eye`,
+// and its share in its band, as the paragraph above says; `from` is `level` −
+// 1 while in the band, else `level`.
 voe_3d_model_level_choice
 voe_3d_model_level_choose(const voe_3d_model_entry *model,
 			  const voe_scene_transform *placed,
 			  voe_math_double3 eye, const voe_render_view *view);
 
-// voe_3d_model_level_choose's level.
+// voe_3d_model_level_at of voe_3d_model_level_size: the choice's level.
 uint32_t voe_3d_model_level(const voe_3d_model_entry *model,
 			    const voe_scene_transform *placed,
 			    voe_math_double3 eye, const voe_render_view *view);

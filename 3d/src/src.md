@@ -232,6 +232,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `model_levels.c` — a `.glb`'s levels file made with no picture decoded (simplified level by
   level, or own levels measured), read back with stale fields refused, its swaps patched in
   place; each level's triangles, the bounds capped and spread, and a bound's metres.
+- `lods_kept.c` — a view's kept LODs: two stamped tables probed from a mixed key, this frame's
+  filled and last frame's read, the swap rule over model_levels.c's size and level, and the keys.
 - `measure.h` — how far apart two bakes are, both ways, vertex to nearest triangle, for an own
   level's error; internal.
 - `measure.c` — each way's triangles in a grid of about one a cell, searched ring by ring out
