@@ -256,7 +256,7 @@ struct voe_ui_node_record {
 	// root. The one link that runs upwards, written when the node is
 	// pushed: emission is a flat walk in paint order with no stack of its
 	// own, and a label there has to be able to ask what it sits inside —
-	// see widgets.c on the ink of a label in an inverted control.
+	// see label.c on the ink of a label in an inverted control.
 	uint32_t parent;
 
 	bool leaf;
@@ -548,7 +548,7 @@ uint32_t voe_ui_paint_order(const voe_ui_context *ui, uint32_t position);
 // exactly what it did before clipping existed.
 //
 // LAYOUT'S RULE AND NOT A SECOND COPY OF IT. voe_ui_node_visible is this applied
-// to the node's own rectangle; widgets.c applies it to a record whose rectangle
+// to the node's own rectangle; label.c applies it to a record whose rectangle
 // is not the node's — a glyph — so the two cannot drift apart.
 voe_ui_rect voe_ui_limit(const voe_ui_context *ui, uint32_t node,
 			 voe_ui_rect rect);
@@ -572,11 +572,12 @@ void voe_ui_widgets_init(voe_ui_context *ui, voe_base_arena *arena);
 void voe_ui_widgets_frame_begin(voe_ui_context *ui, voe_base_arena *arena);
 void voe_ui_widgets_frame_end(voe_ui_context *ui, bool laid_out);
 
-// What widgets.c offers button.c, field.c, scroll.c and colour.c, which is
+// What widgets.c offers button.c, field.c, scroll.c, colour.c and label.c, which is
 // everything every widget is made of: a key claimed for a call site, whether a
 // key was claimed this frame, the theme in force, whether a point is in a
 // rectangle, and the records — one element as it stands, a rectangle in the
-// shape a record's `bounds` and `clip` are, a solid over `at` or
+// shape a record's `bounds` and `clip` are, a record's clip by `node`'s
+// clipping ancestors (false when nothing is left), a solid over `at` or
 // over `node`'s own rectangle clipped by `node`'s clipping ancestors, and the
 // hairline border with a fill inside it.
 uint64_t voe_ui_widget_claim(voe_ui_context *ui, const char *name,
@@ -586,12 +587,18 @@ const voe_ui_theme *voe_ui_theme_current(const voe_ui_context *ui);
 bool voe_ui_inside(voe_ui_rect rect, voe_math_float2 at);
 void voe_ui_push_element(voe_ui_context *ui, voe_render_element element);
 voe_math_float4 voe_ui_bounds_of(voe_ui_rect rect);
+bool voe_ui_clip_of(const voe_ui_context *ui, uint32_t node,
+		    voe_math_float4 bounds, voe_math_float4 *clip);
 void voe_ui_push_solid(voe_ui_context *ui, uint32_t node, voe_ui_rect at,
 		       voe_math_float4 colour);
 void voe_ui_push_rect(voe_ui_context *ui, uint32_t node,
 		      voe_math_float4 colour);
 void voe_ui_push_bordered(voe_ui_context *ui, uint32_t node,
 			  voe_math_float4 fill, voe_math_float4 border);
+
+// What label.c offers widgets.c: a label's records, one glyph per character
+// that draws, which emit calls in paint order.
+void voe_ui_push_label(voe_ui_context *ui, uint32_t node);
 
 // What button.c offers widgets.c: what the pointer comes to on every widget,
 // run from frame_end before anything is emitted; the caller's own content of a
@@ -609,7 +616,7 @@ void voe_ui_number_emit(voe_ui_context *ui, uint32_t node);
 // was not called and moved by a press, both from button.c's resolve; this
 // frame's editing, run after that and before emission; the buffer seeded with a
 // number box's value, for one opened by Tab; whether a label is the selected
-// text of a field or of an open number box, which is what widgets.c inks in
+// text of a field or of an open number box, which is what label.c inks in
 // `inverse_ink` over the `inverse` behind it; and the records of a field, of a
 // number box open for typing, and of the caret after a label's own glyphs.
 void voe_ui_field_forget(voe_ui_context *ui);
