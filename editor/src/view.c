@@ -103,18 +103,22 @@ static void orbit_place(voe_editor_view *view)
 			  voe_math_float3_scale(forward, -view->distance));
 }
 
-bool voe_editor_views_create(voe_editor_views *views, voe_render_device *gpu,
-			     voe_base_error *error)
+bool voe_editor_views_create(voe_editor_views *views, voe_base_arena *arena,
+			     voe_render_device *gpu, voe_base_error *error)
 {
 	VOE_BASE_ASSERT(views != NULL, "creating no views");
+	VOE_BASE_ASSERT(arena != NULL, "creating views' kept LODs on no arena");
 	VOE_BASE_ASSERT(gpu != NULL, "creating views on no device");
 
 	*views = (voe_editor_views){ .count = VOE_EDITOR_VIEWS_IN_USE,
 				     .captured = VOE_EDITOR_VIEW_NONE,
 				     .flying = VOE_EDITOR_VIEW_NONE };
 
-	for (uint32_t i = 0; i < VOE_EDITOR_VIEWS; i++)
+	for (uint32_t i = 0; i < VOE_EDITOR_VIEWS; i++) {
 		views->views[i].image = VOE_UI_NODE_NONE;
+		views->views[i].lods = voe_3d_lods_kept_create(arena);
+	}
+	views->preview_lods = voe_3d_lods_kept_create(arena);
 
 	for (uint32_t i = 0; i < views->count; i++) {
 		voe_editor_view *view = &views->views[i];

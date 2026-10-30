@@ -365,7 +365,7 @@ carries it out.
   and why names and only authored ones.
 - `entity_field.c` — the identity table sorted by id into the choices, and a name or "None" as the
   label.
-- `view.h` — a scene view: its orbit, target, remembered casters and input, the fly's speed the
+- `view.h` — a scene view: its orbit, target, remembered casters, kept LODs and input, the fly's speed the
   wheel sets and a middle press resets, the glide to a focus,
   the view under the pointer, its colours, the preview of what the world's camera sees, and each
   picture's counts.
@@ -375,9 +375,9 @@ carries it out.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
   passes, lit by every light, sky, clouds and fog from its own eye, the world, models, foliage,
   outline, collider, gizmo, blockers' and fog volumes' boxes, markers, brush, counts, capacities.
-- `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, foliage
-  gathered after the lights, kept out of the blockers, every place marked, blocker and fog volume lined,
-  stopping at the first refused pass, the shadows, their parts and gathers timed, counts recorded.
+- `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, each with
+  its own LOD memory, foliage after the lights, kept out of the blockers, places marked, blockers
+  and fog volumes lined, stopping at the first refused pass, shadows and gathers timed, counts kept.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or on asking, emptied on a different project, a broken file in the notice, where landscapes and
   materials are edited, models given parts, and maps compressed on the GPU between frames.

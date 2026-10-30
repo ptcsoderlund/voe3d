@@ -24,7 +24,8 @@
 // its own target, the view's or the preview's, so its bounce is that target's
 // probe volume, begun, captured and relit by that call, and no view reads a
 // volume another view moved (0326 point 8); each target's frame carries its
-// own remembered casters too (0394). That volume stands on the view's
+// own remembered casters too (0394), and its own kept LODs, begun on the
+// wall clock before its shadows (0501 points 1 and 2). That volume stands on the view's
 // eye, so turning never moves it, and its relight shadows the sun by a sun
 // map of its own, never the view's cascades (0329 points 1 and 2). Every
 // shadow call is handed the platform clock and timed, with its parts, into
@@ -185,6 +186,8 @@ bool voe_editor_view_passes_preview(voe_render_device *gpu,
 	frame.models = models;
 	frame.target = views->preview_target;
 	frame.casters = &views->preview_casters;
+	voe_3d_lods_kept_begin(views->preview_lods, voe_platform_clock_now());
+	frame.lods = views->preview_lods;
 	frame.clock = voe_platform_clock_now;
 
 	foliage = voe_base_arena_mark(arena);
@@ -268,6 +271,7 @@ bool voe_editor_view_passes_draw(
 		// This view's own view and eye first: its cascades are fitted
 		// to them before its pass opens.
 		camera = voe_editor_view_pass_camera(view, light);
+		voe_3d_lods_kept_begin(view->lods, voe_platform_clock_now());
 		frame = (voe_3d_frame){ .view = camera.view,
 					.light = camera.light,
 					.sky = voe_3d_draw_system_sky(world, view->eye),
@@ -281,6 +285,7 @@ bool voe_editor_view_passes_draw(
 					.models = models,
 					.target = view->target,
 					.casters = &view->casters,
+					.lods = view->lods,
 					.clock = voe_platform_clock_now };
 		// The points come before the shadows, whose point-shadow pass
 		// reads their slots (0325), and so do the blockers, whose bounce
