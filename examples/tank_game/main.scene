@@ -118,11 +118,11 @@ off = false
 [14.voe_3d_water]
 width = 1000
 length = 1000
-wave_height = 5
-wave_length = 20
+wave_height = 2
+wave_length = 50
 deep = 10
-colour = [0.12706402, 0.72608745, 0.9782101]
-sky = [0.45237142, 0.52699345, 0.53262705]
+colour = [0.108407475, 0.9363635, 1]
+sky = [0.38496932, 0.94788754, 1]
 [14.voe_scene_transform]
 position = [1.755543053150177e-07, -0.11231513880193233, -4.544854164123535e-07]
 rotation = [0, 0, 0, 1]
