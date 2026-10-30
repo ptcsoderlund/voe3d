@@ -56,4 +56,4 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - 0425, 0427–0430, 0432–0438, 0441, 0482 — LODs by error on screen, dissolved; off switch; snap.
 - 0442–0445, 0449–0450, 0452–0454, 0469–0471, 0473–0475 — Foliage; import errors; brushes; grown.
 - 0455, 0457, 0458, 0462, 0463, 0465–0467, 0477–0481 — Sizes; hitches; cull; BC; clouds; blend.
-- 0483–0485, 0489, 0490, 0494–0497 — Effort; GPU BC; workers; maps; errors; ranges; LODs; folds.
+- 0483–0485, 0489, 0490, 0494–0499 — Effort; GPU BC; workers; maps; ranges; LODs; folds; fog.

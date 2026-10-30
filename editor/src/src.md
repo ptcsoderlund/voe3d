@@ -345,8 +345,9 @@ carries it out.
 - `inspector_edit.h` — the calls that turn what the pointer did to the Inspector's controls into
   replace intents and scene.h's commands, and the rules for when each open list closes.
 - `inspector_edit.c` — a dragged or typed number or a moved slider submitted as the component's
-  replace intent, a rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
-  bytes, and the picker's colour and the open list's choice submitted the same way.
+  replace intent, a rotation's edit as the difference about a world axis, a committed text field
+  as the row's CHAR bytes, and the picker's colour and the open list's choice submitted the same
+  way.
 - `inspector_buttons.c` — the fired buttons, Enabled's switch among them, carried out through scene.h and entities.h, and the
   open dropdown and Add component's lists and submenus opened, closed and placed each frame; none
   on a prefab's part.

@@ -165,9 +165,10 @@ again, or to find where a claim that has started failing is written down.
 - `shape.c` — the shape table's description, default row, intents and runs, each kind's own
   geometry, the changes table and the upload's material records. The table and geometry half needs
   no graphics card; the upload half skips without one.
-- `model_component.c` — the model component's fields, the blend height's range of 0.05 to 10 m
-  and fade's 0 to 1, its default with blend with ground off at 0.5 m, and intents with fade or a blend read back after a run, a dead entity's intent dropped
-  and a long path cut. Needs no graphics card.
+- `model_component.c` — the model component's fields, blend height's range of 0.05 to 10 m
+  and fade's 0 to 1, its default with blend with ground off at 0.5 m, and intents with fade or a
+  blend read back after a run, a dead entity's intent dropped and a long path cut. Needs no
+  graphics card.
 - `emitter_component.c` — an added emitter's fields read back, the default row as 0298 says,
   the particles runtime-only, both submits taken, and both alphas' range of 0 to 1. Needs no
   graphics card.
