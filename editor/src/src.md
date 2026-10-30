@@ -323,8 +323,8 @@ carries it out.
   read: a tick or Density asks the layer's growth, a fired row chooses PAINT with its layer or
   none, each row's rectangle kept.
 - `inspector_foliage.h` — the Inspector's Foliage section under Layers: Scatter and Erase, a row per
-  kind toggling it picked with its Base size, Cast shadows, Blend with ground, Blend height and
-  spread controls, the add row a dropped `.glb` lands on, and the brush's Density slider.
+  kind toggling it picked with its Base size, Cast shadows, Blend with ground, Blend height in
+  metres and spread controls, the add row a dropped `.glb` lands on, and the brush's Density slider.
 - `inspector_foliage.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: a fired button chooses its kind or none, a fired row flips its pick, Density clamped,
   a kind's slider, Cast shadows or Blend with ground asks its look with that field changed.
