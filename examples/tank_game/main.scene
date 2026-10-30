@@ -36,7 +36,7 @@ name = "Sun"
 folded = false
 off = false
 [3.voe_scene_light]
-colour = [1, 0.8031822, 0.6199921]
+colour = [0.95334625, 0.8723143, 0.7902738]
 intensity = 3.14
 fill_colour = [1, 0.3966965, 0.24429816]
 fill_intensity = 0.10823958
@@ -284,7 +284,7 @@ scale = [1, 1, 1]
 
 [64]
 name = "static_meshes"
-folded = true
+folded = false
 off = false
 [64.voe_scene_transform]
 position = [0, 0, 0]
@@ -383,7 +383,7 @@ name = "Haze"
 folded = false
 off = false
 [124.voe_scene_haze]
-haze = 100
+haze = 50
 start = 5
 height = 1000
 [124.voe_scene_parent]
@@ -394,15 +394,15 @@ name = "Fog"
 folded = false
 off = false
 [125.voe_scene_fog_volume]
-size = [20, 10, 60]
+size = [20, 20, 60]
 thickness = 1
-patchiness = 0
+patchiness = 0.6242828
 wind_direction = 21.90358
-wind_speed = 1
-godrays_strength = 0.5144577
+wind_speed = 5
+godrays_strength = 0.7492943
 [125.voe_scene_parent]
 parent = 122
 [125.voe_scene_transform]
-position = [-22.51814187504351, 4.656013509258628, -16.993189226835966]
+position = [-22.518143167719245, 1.2894900180399418, -16.993189070373774]
 rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]
