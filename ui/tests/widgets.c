@@ -608,6 +608,49 @@ static void a_label_emits_its_letters_after_the_panel(voe_ui_context *ui,
 		       voe_ui_element(ui, 0).bounds.y);
 }
 
+// A HEADING IS THE SAME STRING AT VOE_UI_HEADING_SCALE TIMES THE SIZE, IN
+// text_primary (ADR-0503). A column with no background holds the string as a
+// NORMAL label and then as a HEADING, so every record the frame emits is a
+// letter of one of the two, and every one of them is text_primary.
+static void a_heading_is_bigger_and_primary(voe_ui_context *ui,
+					    voe_base_arena *arena)
+{
+	voe_ui_node normal;
+	voe_ui_node heading;
+	voe_ui_rect normal_rect;
+	voe_ui_rect heading_rect;
+
+	voe_ui_frame_begin(ui, arena);
+	voe_ui_column_begin(ui, (voe_ui_container){ 0 });
+	normal = voe_ui_label(ui, "Heading");
+	heading = voe_ui_label_role(ui, "Heading", VOE_UI_TEXT_ROLE_HEADING);
+	voe_ui_end(ui);
+	VOE_TEST_CHECK(voe_ui_frame_end(ui));
+
+	normal_rect = voe_ui_node_rect(ui, normal);
+	heading_rect = voe_ui_node_rect(ui, heading);
+
+	VOE_TEST_CHECK(normal_rect.size.x > 0.0f);
+	VOE_TEST_CHECK_FLOAT(heading_rect.size.x,
+			     normal_rect.size.x * VOE_UI_HEADING_SCALE, 0.001f);
+	VOE_TEST_CHECK_FLOAT(heading_rect.size.y,
+			     normal_rect.size.y * VOE_UI_HEADING_SCALE, 0.001f);
+
+	// Seven letters each, all of them drawn.
+	VOE_TEST_CHECK_INT((int)voe_ui_element_count(ui), 14);
+	for (uint32_t i = 0; i < voe_ui_element_count(ui); i++) {
+		voe_render_element e = voe_ui_element(ui, i);
+
+		VOE_TEST_CHECK_INT((int)e.kind, (int)VOE_RENDER_ELEMENT_GLYPH);
+		VOE_TEST_CHECK_FLOAT(e.colour.x, TEST_THEME.text_primary.x,
+				     0.001f);
+		VOE_TEST_CHECK_FLOAT(e.colour.y, TEST_THEME.text_primary.y,
+				     0.001f);
+		VOE_TEST_CHECK_FLOAT(e.colour.z, TEST_THEME.text_primary.z,
+				     0.001f);
+	}
+}
+
 // A LABEL WHOLLY CLIPPED EMITS NOTHING. A panel 40 by 10 clipping both holds a
 // spacer 30 tall and then a label, which begins 20 below the panel's bottom edge.
 // Unclipped the same tree emits the panel's border and fill and the label's
@@ -671,8 +714,8 @@ static int the_theme_size(voe_base_arena *arena)
 			// ADR-0106: a skip names what went unchecked, not only
 			// why it did.
 			printf("skip: no graphics driver — the text-size, "
-			       "label-emission and clipped-label checks did "
-			       "not run\n");
+			       "label-emission, clipped-label and heading "
+			       "checks did not run\n");
 			return 0;
 		}
 		VOE_TEST_CHECK(device != NULL);
@@ -696,6 +739,7 @@ static int the_theme_size(voe_base_arena *arena)
 	a_bigger_theme_grows_the_row_and_not_the_gaps(ui, arena);
 	a_label_emits_its_letters_after_the_panel(ui, arena);
 	a_wholly_clipped_label_emits_nothing(ui, arena);
+	a_heading_is_bigger_and_primary(ui, arena);
 
 	voe_text_font_destroy(font);
 	voe_render_device_destroy(device);

@@ -27,7 +27,7 @@ pointer and the keyboard are values it is given.
 - `include/ui/theme.h` — `voe_ui_theme_inputs` (the five authored values),
   `voe_ui_theme` (the derived palette of roles and the `spacing` that scales
   widget pads and gaps), `voe_ui_theme_default_inputs` and `voe_ui_theme_derive`, which turns the one into the other in OKLab.
-- `include/ui/widgets.h` — the theme set on the context or pushed over a
-  subtree, the panel, the label, the button, the choice, the number box, the
-  text field, the image, the scroll area and a node centred in it, the pointer
-  and keyboard they are given, and the element records read back.
+- `include/ui/widgets.h` — the theme in force, the panel, the label and its
+  heading role, the button, the choice, the number box, the text field, the
+  image, the scroll area and a node centred in it, the pointer and keyboard
+  they are given, and the element records read back.

@@ -18,6 +18,13 @@
 #include <text/font.h>
 #include <text/utf8.h>
 
+// What a role multiplies the theme's text_size by: a heading is bigger, every
+// other role is the theme's own size (ADR-0503).
+static float role_scale(voe_ui_text_role role)
+{
+	return role == VOE_UI_TEXT_ROLE_HEADING ? VOE_UI_HEADING_SCALE : 1.0f;
+}
+
 voe_ui_node voe_ui_label_role(voe_ui_context *ui, const char *text,
 			      voe_ui_text_role role)
 {
@@ -40,7 +47,7 @@ voe_ui_node voe_ui_label_role(voe_ui_context *ui, const char *text,
 	// above this call. The theme's own text_size is applied HERE, before
 	// the number becomes a natural size, so that everything layout does
 	// afterwards is ordinary layout in ordinary millimetres.
-	em = theme->text_size;
+	em = theme->text_size * role_scale(role);
 	measured = voe_text_font_measure(ui->font, text);
 
 	node = voe_ui_box(ui,
@@ -149,8 +156,8 @@ void voe_ui_push_label(voe_ui_context *ui, uint32_t node)
 	// The SAME theme this label read at the call that made it, so what is
 	// drawn here can never disagree with what was measured then — see
 	// context.h on why the theme is copied onto the node rather than
-	// looked up again.
-	float em = w->theme->text_size;
+	// looked up again. Scaled by the role, as it was at the measure.
+	float em = w->theme->text_size * role_scale(w->text_role);
 	voe_math_float4 ink = label_ink(ui, node);
 	float line = voe_text_font_line_height(ui->font) * em;
 	float pen = rect.min.x;

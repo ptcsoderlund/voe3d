@@ -223,14 +223,22 @@ voe_ui_node voe_ui_panel_begin(voe_ui_context *ui, const char *name,
 			       uint32_t index, voe_ui_surface surface,
 			       voe_ui_container container);
 
-// The two text lightnesses a label may ask for: text_primary, or
-// text_secondary — the one a number box says "not a number" in. There is no
-// role here for the ink of a label on an inverted control: that is the
-// control's own doing, whatever role the label asked for (ADR-0196).
+// What a label asks to be drawn as. A role names a lightness, and for a
+// heading a size as well: NORMAL is text_primary, SECONDARY text_secondary —
+// the one a number box says "not a number" in — and HEADING is text_primary at
+// the theme's `text_size` times VOE_UI_HEADING_SCALE, so a section's title
+// stands out from the rows under it (ADR-0503). No palette role is added for
+// it; a heading differs by size alone. There is no role here for the ink of a
+// label on an inverted control: that is the control's own doing, and it wins
+// over whatever role the label asked for (ADR-0196).
 typedef enum {
 	VOE_UI_TEXT_ROLE_NORMAL = 0,
 	VOE_UI_TEXT_ROLE_SECONDARY,
+	VOE_UI_TEXT_ROLE_HEADING,
 } voe_ui_text_role;
+
+// How much bigger a heading's text is than the theme's `text_size`.
+#define VOE_UI_HEADING_SCALE 1.25f
 
 // A string. Its natural size is the font's measurement of it times the theme in
 // force's own `text_size`, so a row containing one grows to fit it; it takes no
@@ -258,6 +266,9 @@ typedef enum {
 // INSIDE those millimetres, on one kind of content, and the two compose by the
 // caller's own division happening before either of them is in the picture —
 // there is never a conversion between them to get wrong.
+//
+// A HEADING'S NATURAL SIZE IS MEASURED AT THE HEADING SIZE, `text_size` times
+// VOE_UI_HEADING_SCALE, and its letters are drawn at that size too.
 voe_ui_node voe_ui_label_role(voe_ui_context *ui, const char *text,
 			      voe_ui_text_role role);
 
