@@ -1,8 +1,9 @@
 // The batch of game/src/models_batch.h: its files' phases as tasks, each phase
 // up to baking one burst (platform/burst.h, 0487 point 3) finished before the
 // next, cooking a loop on the caller, their put one at a time, the times and
-// their line; and the levels file of a `.glb`, read on its arena or made and
-// written, which the public prepare shares. A task touches only its own
+// their line; the stamp test reading and the watch share; and the levels file
+// of a `.glb`, read on its arena or made and written, which the public
+// prepare shares. A task touches only its own
 // file's or picture's record and arena, pushes its own subject on its worker
 // and, failing, carries its first error there for the put (0490). A file's
 // state moves only forward, set by the task of its phase or between phases: a
@@ -393,21 +394,36 @@ static void copy_take(voe_game_models_batch *batch, struct batch_file *file)
 		file->phase = "Preparing models";
 }
 
-// Reading: the stamp, then, unless the stamp is the known one and the file
-// not forced, a `.glb`'s copy or the bytes on the file's own arena.
+bool voe_game_models_stamp_changed(const char *full, uint64_t known,
+				   uint64_t *stamp, bool *stamped)
+{
+	VOE_BASE_ASSERT(full != NULL, "stamping no file");
+	VOE_BASE_ASSERT(stamp != NULL && stamped != NULL, "no stamp or stamped");
+	*stamped = voe_platform_file_stamp(full, stamp);
+	if (!*stamped)
+		*stamp = 0;
+	return *stamp != known;
+}
+
+// Reading: the stamp, then, unless it is unchanged and the file not forced, a
+// `.glb`'s copy or the bytes on the file's own arena.
 static void read_task(void *context, uint32_t index)
 {
 	voe_game_models_batch *batch = context;
 	struct batch_file *file = &batch->files[index];
+	bool stamped;
+	bool changed;
 
 	VOE_BASE_ASSERT(index < batch->count, "reading a file past the batch");
 	VOE_BASE_ASSERT(file->state == FILE_ADDED, "reading a file twice");
 	voe_base_report_error_clear();
 	voe_base_report_subject_push(file->path);
-	if (!voe_platform_file_stamp(file->full, &file->stamp)) {
+	changed = voe_game_models_stamp_changed(file->full, file->known,
+						&file->stamp, &stamped);
+	if (!stamped) {
 		file->state = FILE_UNSTAMPED;
 		file->error = VOE_BASE_ERROR_UNAVAILABLE;
-	} else if (!file->forced && file->stamp == file->known) {
+	} else if (!file->forced && !changed) {
 		file->state = FILE_KNOWN;
 	} else {
 		file->arena = voe_base_arena_new(FILE_BLOCK);
