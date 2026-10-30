@@ -11,13 +11,15 @@
 // draw_terrain.c's nodes. A row whose sphere the camera cannot see is skipped
 // and counted (0464 points 2 and 5).
 //
-// A ROW IN A LEVEL'S BAND DISSOLVES (0432 point 3): a part drawn now is drawn
-// twice, the chosen level on `shown` of its pixels through the object's
-// `dither` and the level before on the rest through −`shown`, each skipped
-// where its level lacks the part. Only these at-once draws dissolve (0432
-// point 4): a held part is drawn whole at the chosen level, so the held
-// groups, sized for one entry a part, keep their size, and two blended
-// levels would need a sort between them that dither does without.
+// A ROW DISSOLVES FOR 0.25 S AT A SWAP (0500 point 1), its LOD chosen through
+// the frame's memory (lods_kept.h): a part drawn now is drawn twice, `level`
+// on `shown` of its pixels through the object's `dither` and `from` on the
+// rest through −`shown`, each skipped where its LOD lacks the part; the
+// swap's first frame, `shown` 0, draws `from` alone whole. A settled row draws
+// `level` whole. Only these at-once draws dissolve (0432 point 4): a held part
+// is drawn whole at `level`, so the held groups, sized for one entry a part,
+// keep their size, and two blended LODs would need a sort between them that
+// dither does without.
 //
 // A ROW BLENDING WITH THE GROUND (0481 points 2, 3 and 5): one with
 // `blend_with_ground` and a ground (draw_ground.h) under its world origin about
@@ -26,14 +28,15 @@
 // drawn after every other row's, inside one `ground blend` span, opened only
 // when there is one, so their cost is read apart.
 //
-// It holds nothing between frames: every row's entry is looked up in the
-// store each frame, and a held part is the group's, given back by _run's
-// rewind. The walk is linear in the model table, as every walk in
+// The LODs rows keep between frames are the caller's memory, `frame->lods`;
+// this walk holds nothing: every row's entry is looked up in the store each
+// frame, and a held part is the group's, given back by _run's rewind. The walk is linear in the model table, as every walk in
 // draw_system.c is; with a blending row it walks the table twice, the second
 // time looking again only at the blending rows.
 #include "draw_models.h"
 #include "models_store.h"
 
+#include <3d/lods_kept.h>
 #include <3d/model_component.h>
 #include <3d/model_levels.h>
 #include <base/assert.h>
@@ -206,8 +209,10 @@ static bool row_of(const voe_ecs_world *world, const voe_3d_frame *frame,
 	}
 	if (counts != NULL)
 		counts->drawn++;
-	out->choice = voe_3d_model_level_choose(out->model, &out->drawn,
-						frame->eye, &frame->view);
+	out->choice = voe_3d_lods_kept_choose(frame->lods,
+					      voe_3d_lods_kept_row_key(owner),
+					      out->model, &out->drawn,
+					      frame->eye, &frame->view);
 	// The ground under its world origin about the eye (0481 point 3).
 	out->ground = placed->blend_with_ground ?
 			      voe_3d_draw_ground_under(
@@ -218,9 +223,11 @@ static bool row_of(const voe_ecs_world *world, const voe_3d_frame *frame,
 					      (voe_math_float3){ 0 })) :
 			      NULL;
 	out->reach = placed->blend_height;
-	VOE_BASE_ASSERT(out->fading || out->choice.shown >= 1.0f ||
-				out->choice.level >= 1,
-			"level 0 dissolving into no level before it");
+	VOE_BASE_ASSERT(out->choice.level < out->model->level_count &&
+				out->choice.from < out->model->level_count &&
+				(out->choice.shown >= 1.0f ||
+				 out->choice.from != out->choice.level),
+			"a LOD past the model's, or dissolving into itself");
 	return true;
 }
 
@@ -234,6 +241,9 @@ static bool draw_row(voe_render_device *device, const voe_3d_frame *frame,
 {
 	const bool dissolving = !row->fading && row->choice.shown < 1.0f;
 	const float shown = dissolving ? row->choice.shown : 0.0f;
+	// Dither 0 draws whole, so `level` on no pixel is not drawn at all.
+	const bool level_drawn = !dissolving || shown > 0.0f;
+	const float from_dither = level_drawn ? -shown : 0.0f;
 
 	VOE_BASE_ASSERT(row->model != NULL && waiting != NULL,
 			"drawing no row or waiting on nothing");
@@ -266,12 +276,13 @@ static bool draw_row(voe_render_device *device, const voe_3d_frame *frame,
 			*waiting = true;
 			continue;
 		}
-		if (!draw_part_now(device, frame, row, part, row->choice.level,
+		if (level_drawn &&
+		    !draw_part_now(device, frame, row, part, row->choice.level,
 				   shown))
 			return false;
 		if (dissolving &&
-		    !draw_part_now(device, frame, row, part,
-				   row->choice.level - 1, -shown))
+		    !draw_part_now(device, frame, row, part, row->choice.from,
+				   from_dither))
 			return false;
 	}
 	return true;

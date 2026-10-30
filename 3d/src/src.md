@@ -105,8 +105,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the eye and the eye less the drift wrapped into the period, both in double.
 - `draw_models.h` — the model rows' walk, taking the frame's grounds, its part count for the
   blended group's room and the entry and landscape test the landscape walk shares; internal.
-- `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
-  the level before, blended or fading ones held, unseen rows counted, and a row blending with the
+- `draw_models.c` — each model row's parts at the LOD the frame's memory keeps, solid drawn now,
+  dissolving from the LOD before a swap, blended or fading ones held, unseen rows counted, and a row blending with the
   ground filled with it, its solid parts last in the `ground blend` span.
 - `draw_ground.h` — a frame's painted grounds, the one under a point and a part's record filled
   with one; internal.

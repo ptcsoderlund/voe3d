@@ -65,6 +65,7 @@
 #include "models_store.h"
 
 #include <3d/draw_system.h>
+#include <3d/lods_kept.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
@@ -213,10 +214,14 @@ static bool draw_model_casters(voe_ecs_world *world, voe_render_device *device,
 		if (!caster_counted(world, device, frame, owners[row],
 				    (voe_render_geometry){ 0 }, model, cull, counts))
 			continue;
-		// The camera's level, or the bounce's last (0425 point 5).
+		// The LOD the row keeps, whole, or the bounce's last (0500
+		// point 1); with no memory the camera's stateless level.
 		level = coarsest ? model->level_count - 1 :
-				   voe_3d_model_level(model, &drawn, frame->eye,
-						      &frame->view);
+				   voe_3d_lods_kept_choose(
+					   frame->lods,
+					   voe_3d_lods_kept_row_key(owners[row]),
+					   model, &drawn, frame->eye, &frame->view)
+					   .level;
 		for (uint32_t part = 0; part < model->part_count; part++) {
 			voe_3d_model_part piece = voe_3d_draw_group_part_worn(
 				frame->models, model, part, level);

@@ -66,6 +66,7 @@
 #include <3d/gizmo.h>
 #include <3d/gizmo_rings.h>
 #include <3d/gizmo_scales.h>
+#include <3d/lods_kept.h>
 #include <3d/models.h>
 #include <3d/outline.h>
 #include <3d/place_marker.h>
@@ -531,6 +532,10 @@ typedef struct {
 	// marks there (0394), NULL for none. _frame leaves it NULL; the caller
 	// sets it per target, and only the shadows call writes it.
 	voe_3d_bounce_casters *casters;
+	// This target's kept LODs (0501 point 1), NULL for none: each model
+	// row's LOD chosen through it. _frame leaves it NULL; the caller
+	// begins it and sets it each frame, and only the draws write it.
+	voe_3d_lods_kept *lods;
 	// This view's foliage groups, `foliage_count` of them; none is NULL and
 	// 0. _frame leaves them so, voe_3d_draw_system_foliage fills them.
 	const voe_3d_foliage_group *foliage;
@@ -802,7 +807,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // CASTERS ARE WORLD-LAYER, LIT, OPAQUE OR CUTOUT MESHES WITH A TRANSFORM, the
 // frame's `hidden` and switched-off owners left out (0428); a cutout casts as
 // solid, and panels and marks cast nothing. A model part in `frame->models` casts under the same rule, its
-// material the part's. A mesh whose shape, or a model whose row, has
+// material the part's, at the LOD its row keeps in `frame->lods`, whole (0500
+// point 1), the bounce's at the last. A mesh whose shape, or a model whose row, has
 // `cast_shadows` false is no caster, though still drawn and shadowed; nor is a
 // model row with `fade` at or above 1, and a fading one casts as ever (0336).
 // A CASTER IS DRAWN INTO A CASCADE ONLY WHEN ITS SPHERE IS INSIDE THE
@@ -915,7 +921,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // whole reason an interface is one draw command. A MODEL ROW WITH A TRANSFORM
 // WHOSE ENTRY IN `frame.models` IS LOADED draws each part (0277 point 3): in the
 // world layer, white in its object record, solid or blended by the part's
-// material. An empty path, a path the store lacks, a failed entry and a NULL
+// material, at the LOD its row keeps in `frame.lods`, a solid part dissolving
+// for 0.25 s at a swap (0500 point 1). An empty path, a path the store lacks, a failed entry and a NULL
 // store draw nothing. A ROW'S `fade` (0336 point 3): at or above 1 the model
 // is gone and not drawn; above 0 and below 1 every part is blended at 1 − fade
 // with its part's twin, `faded`, sorted with the world's blended group; at or

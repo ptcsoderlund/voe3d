@@ -49,8 +49,8 @@ again, or to find where a claim that has started failing is written down.
 - `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
   and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
 - `draw_levels.c` — that a levelled sphere 400 m away draws under a quarter of the triangles it
-  draws 3 m away, one loaded without levels draws whole, and in level 1's band it dissolves into
-  level 0 unless fading. Skips without a graphics card.
+  draws 3 m away, one without levels draws whole, and a memory's swap dissolves unless fading,
+  settles, and swaps back only 10% nearer. Skips without a card.
 - `draw_foliage.c` — that a landscape's copies gather into groups, none without the row, kind or
   room, that their shadow shows, that copies behind the camera count skipped but shadow, and
   that a blending kind's groups name the painted ground. Skips without a card.

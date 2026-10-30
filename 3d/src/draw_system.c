@@ -321,6 +321,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.models = NULL;
 	frame.target = VOE_RENDER_TARGET_WINDOW;
 	frame.casters = NULL;
+	frame.lods = NULL;
 	frame.foliage = NULL;
 	frame.foliage_count = 0;
 	// Nothing timed unless the caller hands a clock (0461 point 2).
