@@ -60,8 +60,9 @@ header.
 - `arguments_wayland.c` — main's `argv`, handed back as it is.
 - `arguments_win32.c` — GetCommandLineW and CommandLineToArgvW, each entry made UTF-8 into the
   arena, and `argv` as the fallback when the split fails.
-- `burst.c` — a burst on C11 threads for both systems: an atomic next index, an atomic count of
-  ended tasks, workers joined at finish, and the tasks on the caller when no worker starts.
+- `burst.c` — the standing workers and bursts on C11 threads for both systems: one lock, a queue of
+  live bursts served oldest first, an atomic next index and count of ended tasks per burst,
+  sleeping on condition variables, and the tasks on the caller when no worker stands.
 - `burst_wayland.c` — the core count from sysconf's online processors, asked once and kept.
 - `burst_win32.c` — the core count from GetActiveProcessorCount over every processor group, kept.
 - `keymap.h` — the XKB keymap reader: an evdev-code, four-level table and an AltGr flag per code,

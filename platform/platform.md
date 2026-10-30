@@ -46,9 +46,9 @@ arguments, the environment, the sound device, and work in bursts.
   hands back `argv` and Windows reads the wide command line instead.
 - `include/platform/environment.h` — one environment variable's value as UTF-8 on an arena, NULL when
   unset and `""` when empty. Its header says why the environment is platform's.
-- `include/platform/burst.h` — the core count, kept, the workers a burst gets, and a burst: tasks
-  by index on workers started for it, a look at whether it is done, and a finish that joins. Its
-  header says why bursts and not a pool, and why the caller runs no task.
+- `include/platform/burst.h` — the core count, kept, the workers a burst gets, opening and closing
+  the standing workers, and a burst: tasks by index on them, a look and a finish. Its header says
+  why workers stand and are not made per burst, and why the caller runs no task.
 - `protocol/xdg-shell.xml` — the Wayland shell protocol, vendored.
   `wayland-scanner` turns every XML here into C at build time; nothing generated
   is committed.
