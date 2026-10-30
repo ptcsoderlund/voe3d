@@ -33,8 +33,7 @@
 // voe_game_models_landscapes and a row wearing it under the sun; its nodes
 // are drawn into every pass and both frames come back true (0396 point 4).
 //
-// THE INTERFACE CASE: a label laid out as tests/interface.c does, drawn over
-// the world: the frame comes back true, its records fitting VOE_GAME_CAPACITIES.
+// THE INTERFACE CASE: a label over the world: true, fitting VOE_GAME_CAPACITIES.
 //
 // THE BLOCKER CASE: a camera four metres over a grey ground under a sun and a
 // 1 m light blocker, grown to 2 m between the frames and read back: the game
@@ -52,9 +51,10 @@
 // THE MODEL CASE: a thing whose model an empty store lacks draws as nothing.
 // THE COUNTS CASE: a cube before the camera and one behind: drawn 1, skipped 1.
 //
-// THE HAZE AND CLOUDS CASES: a Haze row's replace reaches the sky record with
-// no sky drawn, its top above the origin's eye; a Volumetric Clouds row at 1500
-// reaches the clouds record, its bottom 1500 over that eye. No device.
+// THE HAZE, CLOUDS AND FOG CASES: a Haze row's replace reaches the sky record
+// with no sky drawn, its top above the origin's eye; a Volumetric Clouds row at
+// 1500 reaches the clouds record, its bottom 1500 over that eye; a fog volume of
+// thickness 1 is one record of density 0.1, none when off. No device.
 //
 // Each draw case writes one file into the working directory, checks it and
 // removes it, pass or fail. A machine with no usable Vulkan skips and says so.
@@ -78,7 +78,9 @@
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
 #include <scene/clouds_system.h>
+#include <scene/fog_volume_system.h>
 #include <scene/haze_system.h>
+#include <scene/identity_system.h>
 #include <scene/light_blocker_system.h>
 #include <scene/light_system.h>
 #include <scene/picture_system.h>
@@ -86,6 +88,7 @@
 #include <scene/sky_system.h>
 #include <scene/transform_system.h>
 
+#include <3d/fog_volume.h>
 #include <3d/model_component.h>
 #include <3d/models.h>
 #include <3d/shape_component.h>
@@ -668,6 +671,44 @@ static void clouds_case(void)
 	voe_base_arena_destroy(arena);
 }
 
+// A world with only a fog volume of thickness 1 on an identified, placed
+// entity: voe_3d_fog_volumes, its eye the origin, reads one record of density
+// 0.1; with the entity switched off through its identity, none (0493 point 3).
+static void fog_case(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(1 << 20);
+	voe_ecs_world *world = voe_game_world_new(arena);
+	const voe_math_double3 origin = { 0.0, 0.0, 0.0 };
+	voe_scene_fog_volume row =
+		*(const voe_scene_fog_volume *)voe_ecs_component_default(
+			world,
+			voe_ecs_component_type(world, &voe_scene_fog_volume_key));
+	voe_scene_identity identity = { 0 };
+	voe_ecs_entity valley;
+	voe_render_fog fog;
+
+	row.thickness = 1.0f;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &valley));
+	identity.id = valley.index + 1;
+	VOE_TEST_CHECK(voe_scene_identity_add(world, valley, identity));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, valley,
+					       placed(0.0f, 0.0f, 0.0f)));
+	VOE_TEST_CHECK(voe_scene_fog_volume_add(world, valley, row));
+	fog = voe_3d_fog_volumes(world, origin, 0.0f);
+	VOE_TEST_CHECK_INT(fog.count, 1);
+	VOE_TEST_CHECK_FLOAT(fog.volumes[0].density, 0.1f, 1e-6f);
+
+	identity.off = true;
+	VOE_TEST_CHECK(voe_scene_identity_submit(
+		world, (voe_scene_identity_intent){ .entity = valley,
+						    .identity = identity }));
+	voe_scene_identity_system_run(world);
+	fog = voe_3d_fog_volumes(world, origin, 0.0f);
+	VOE_TEST_CHECK_INT(fog.count, 0);
+
+	voe_base_arena_destroy(arena);
+}
+
 // The unlit world with a second cube behind the camera, two frames, the second
 // handed a counts record: the cube in front drawn, the one behind skipped.
 static void counts_case(voe_app *app, voe_base_arena *arena,
@@ -741,7 +782,8 @@ int main(void)
 
 	haze_case();
 	clouds_case();
-	app = voe_app_new_headless(arena, scratch, settings, &error);
+	fog_case();
+	app =voe_app_new_headless(arena, scratch, settings, &error);
 	if (app == NULL) {
 		if (error == VOE_BASE_ERROR_UNAVAILABLE ||
 		    error == VOE_BASE_ERROR_UNSUPPORTED)

@@ -4,9 +4,9 @@
 `prefabs.h`, `landscapes.h` and `materials.h`, which a project's cooked C
 defines, and `models.h`, which has two and an internal batch.
 
-- `world.c` — the twenty-nine registrations and nineteen intent queues, the emitter, its particles, the sound, its voice row, the water, its waves, the point light, the light blocker, the sky, the haze, the picture and the clouds among them, their capacities and the room for a project's types.
+- `world.c` — the thirty-one registrations and twenty intent queues, the emitter, the sound, its voice row, the water, its waves, the point light, the light blocker, the sky, the haze, the picture, the clouds and the fog volumes among them, their capacities and the room for a project's types.
 - `frame.c` — the world step's drains in order and the frame: that step, the blockers and lights, the foliage gathered after them, the shadow passes, then the window pass lit by them, its counts handed back, with the interface over the world.
-- `steps.c` — one fixed step's calls in order (systems, world step, move, transforms, after-the-move systems, world step again, emitters, point lights, waters, clouds, sounds with the window's aspect), the mixer in each step, and the bank.
+- `steps.c` — one fixed step's calls in order (systems, world step, move, transforms, after-the-move systems, world step again, emitters, point lights, waters, clouds, fog, sounds with the window's aspect), the mixer in each step, and the bank.
 - `project.c` — the 32 replace keys, a project type's registration and the drain of its replaces; a prefab spawned by name and a tree removed, both queued.
 - `interface.c` — the interface made once, the surface's millimetres, and a frame begun with the pointer divided into them and the asks put in.
 - `starting.c` — the window polled without the app's pace, the line laid out on a ground panel, plain or over the splash's edge colour and centred picture, and drawn in one element-only pass; the wait's worker thread, frame loop and timed "Loaded in" hold; the shaders step.

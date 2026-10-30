@@ -4,7 +4,8 @@
 // the transforms' previous step (0254), sound and its voice row (0304), water
 // and its waves (0305), point light (0320, 0321), light blocker (0347), the
 // shape changes (0389 point 8), sky (0405), picture (0406), haze (0416),
-// clouds and their drift (0492), registered once on
+// clouds and their drift (0492), fog volumes and their drift (0493),
+// registered once on
 // a fresh world. The shape
 // changes table is runtime-only and only the shape system writes it.
 //
@@ -93,9 +94,16 @@ static_assert(VOE_GAME_WORLD_LIGHT_BLOCKERS <= VOE_RENDER_LIGHT_BLOCKERS,
 // clouds are the whole world's sky layer, and the draw reads only the first row.
 #define VOE_GAME_WORLD_CLOUDS 1
 
-// How many types the engine registers here; a project's come after them.
-#define VOE_GAME_WORLD_TYPES 29
+// How many fog volumes, and so drifts, a world holds (0493 point 3). As many
+// as a pass carries: past VOE_RENDER_FOG_VOLUMES the rest would be left out,
+// so room for them would be room for fog that never shows.
+#define VOE_GAME_WORLD_FOG_VOLUMES 8
+static_assert(VOE_GAME_WORLD_FOG_VOLUMES <= VOE_RENDER_FOG_VOLUMES,
+	      "a world holds more fog volumes than a pass carries");
 
-// A fresh world with the twenty-nine types registered and nothing in it. Never NULL:
+// How many types the engine registers here; a project's come after them.
+#define VOE_GAME_WORLD_TYPES 31
+
+// A fresh world with the thirty-one types registered and nothing in it. Never NULL:
 // the arena aborts rather than failing.
 voe_ecs_world *voe_game_world_new(voe_base_arena *arena);

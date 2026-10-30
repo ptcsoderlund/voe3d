@@ -16,11 +16,12 @@
 // the same step, the world step again, the emitter system a step on
 // (3d/emitter_system.h), the point light system's replaces
 // (scene/point_light_system.h), the water system a step on (3d/water_system.h),
-// the clouds system a step on (scene/clouds_system.h), then, with a mixer, the
+// the clouds system a step on (scene/clouds_system.h), the fog volume system a
+// step on (scene/fog_volume_system.h), then, with a mixer, the
 // sound system (audio/sound_system.h). The second world
 // step drains what `after_move` submitted in this step, before the next
 // remember, so a follow is drawn at the bodies' lag and not a step behind
-// (0257); the emitters, point lights, waters, clouds and sounds run last, so a burst,
+// (0257); the emitters, point lights, waters, clouds, fog and sounds run last, so a burst,
 // an edit or a play either slot sent takes in the same step.
 //
 // WHY FIXED: a body's move and a project's gravity integrate by the step, so a

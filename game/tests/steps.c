@@ -9,7 +9,8 @@
 // through a mixer on that folder after two steps, and one step advances a
 // water's clock, added by the step before, by the step, and a point light's
 // replace, as game code fading it sends, takes in one step, and clouds blowing
-// towards +X at 6 m/s have drifted 6 m on x after 60 steps.
+// towards +X at 6 m/s have drifted 6 m on x after 60 steps, and a fog volume
+// at 3 m/s 3 m.
 // Needs no window, no graphics card and no sound device: nothing is shaped,
 // so the shapes are zeros, and the mixer is never pumped.
 #include <game/steps.h>
@@ -35,6 +36,7 @@
 #include <platform/folder.h>
 
 #include <scene/clouds_system.h>
+#include <scene/fog_volume_system.h>
 #include <scene/point_light_system.h>
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
@@ -328,6 +330,37 @@ static void clouds_drift(voe_ecs_world *world, const voe_3d_shapes *shapes)
 	VOE_TEST_CHECK_FLOAT((float)drift->z, 0.0f, 1e-4f);
 }
 
+// A Fog volume on a thing at the origin blowing towards +X (90) at 3 m/s: 60
+// steps, a second, later its drift reads x 3 and z 0.
+static void fog_drifts(voe_ecs_world *world, const voe_3d_shapes *shapes)
+{
+	voe_game_steps steps = { 0 };
+	voe_scene_fog_volume fog =
+		*(const voe_scene_fog_volume *)voe_ecs_component_default(
+			world,
+			voe_ecs_component_type(world, &voe_scene_fog_volume_key));
+	voe_ecs_entity entity = { 0 };
+	const voe_scene_fog_volume_drift *drift;
+
+	fog.wind_direction = 90.0f;
+	fog.wind_speed = 3.0f;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &entity));
+	VOE_TEST_CHECK(voe_scene_transform_add(
+		world, entity,
+		(voe_scene_transform){ .rotation = { 0, 0, 0, 1 },
+				       .scale = { 1.0f, 1.0f, 1.0f } }));
+	VOE_TEST_CHECK(voe_scene_fog_volume_add(world, entity, fog));
+	for (int i = 0; i < 60; i++)
+		(void)voe_game_steps_run(&steps, world, NULL, NULL, NULL, shapes,
+					 VOE_GAME_STEP_SECONDS, systems, after_move);
+	drift = voe_scene_fog_volume_drift_get(world, entity);
+	VOE_TEST_CHECK(drift != NULL);
+	if (drift == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT((float)drift->x, 3.0f, 1e-4f);
+	VOE_TEST_CHECK_FLOAT((float)drift->z, 0.0f, 1e-4f);
+}
+
 static void put_le(uint8_t *at, uint32_t value, uint32_t bytes)
 {
 	for (uint32_t i = 0; i < bytes; i++)
@@ -404,6 +437,7 @@ int main(void)
 	a_water_keeps_time(world, &shapes);
 	a_point_light_replace_takes(world, &shapes);
 	clouds_drift(world, &shapes);
+	fog_drifts(world, &shapes);
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }
