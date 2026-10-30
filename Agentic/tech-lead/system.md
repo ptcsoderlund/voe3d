@@ -19,7 +19,7 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — meshes, model LODs, materials, landscapes, foliage, shapes, particles, water, fog; picks.
+- **3d** — meshes, model LODs kept per view, materials, landscapes, foliage, shapes, particles, water, fog; picks.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file, hitches.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash worker.
@@ -56,4 +56,4 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - 0425, 0427–0430, 0432–0438, 0441, 0482 — LODs by error on screen, dissolved; off switch; snap.
 - 0442–0445, 0449–0450, 0452–0454, 0469–0471, 0473–0475 — Foliage; import errors; brushes; grown.
 - 0455, 0457, 0458, 0462, 0463, 0465–0467, 0477–0481 — Sizes; hitches; cull; BC; clouds; blend.
-- 0483–0485, 0489, 0490, 0494–0499 — Effort; GPU BC; workers; maps; ranges; LODs; folds; fog.
+- 0483–0485, 0489, 0490, 0494–0501 — Effort; GPU BC; workers; maps; ranges; LODs; folds; fog; kept LODs.
