@@ -26,6 +26,7 @@
 #include <math/float3.h>
 #include <math/quat.h>
 
+#include <ui/slider.h>
 #include <ui/widgets.h>
 
 #include <math.h>
@@ -281,6 +282,21 @@ void voe_editor_inspector_edits_read(voe_editor_inspector *inspector,
 		if (control->writes == VOE_BASE_FIELD_BOOL) {
 			if (voe_ui_button_action(ui, control->node).fired) {
 				apply(world, inspector->entity, control, 0.0);
+				inspector->replaced++;
+			}
+			continue;
+		}
+
+		// A slider is a number box over its range: its value goes out
+		// on `changed` as a dragged number's does, live while held.
+		if (control->range != NULL) {
+			voe_ui_slider_result slid = voe_ui_slider_action(
+				ui, control->node, control->range->least,
+				control->range->greatest);
+
+			if (slid.changed) {
+				apply(world, inspector->entity, control,
+				      slid.value);
 				inspector->replaced++;
 			}
 			continue;

@@ -1,10 +1,12 @@
 [1]
 name = "Ground"
 folded = false
+off = false
 [1.voe_3d_shape]
 kind = 1
 colour = [0.31996205, 0.31996205, 0.31996205]
 cast_shadows = true
+material = ""
 [1.voe_physics_collider]
 kind = 1
 size = [1, 1, 1]
@@ -19,6 +21,7 @@ scale = [60, 0.1, 80]
 [2]
 name = "Camera"
 folded = false
+off = false
 [2.voe_scene_camera]
 fov_y = 1.0471976
 near_plane = 0.1
@@ -31,14 +34,17 @@ scale = [1, 1, 1]
 [3]
 name = "Sun"
 folded = false
+off = false
 [3.voe_scene_light]
-colour = [1, 0.6759507, 0.4082015]
+colour = [0.95334625, 0.8723143, 0.7902738]
 intensity = 3.14
 fill_colour = [1, 0.3966965, 0.24429816]
 fill_intensity = 0.10823958
 bounces = 1
 cast_shadows = true
 bounce_strength = 0.5
+disc_size = 1.5
+glow_size = 0.3
 [3.voe_scene_parent]
 parent = 19
 [3.voe_scene_transform]
@@ -49,6 +55,7 @@ scale = [1, 1, 1]
 [4]
 name = "tank_body"
 folded = true
+off = false
 [4.voe_scene_prefab]
 path = "Assets/tank_body.prefab"
 [4.voe_scene_transform]
@@ -59,6 +66,7 @@ scale = [1, 1, 1]
 [6]
 name = "Spawner"
 folded = false
+off = false
 [6.tank_spawner]
 prefab = "enemy_tank"
 every = 4
@@ -76,6 +84,7 @@ scale = [1, 1, 1]
 [8]
 name = "Particles"
 folded = false
+off = false
 [8.voe_3d_emitter]
 playing = true
 rate = 2
@@ -105,13 +114,14 @@ scale = [2, 2, 2]
 [14]
 name = "Water"
 folded = false
+off = false
 [14.voe_3d_water]
 width = 1000
 length = 1000
 wave_height = 5
 wave_length = 20
 deep = 10
-colour = [0.02816211, 0.19784218, 0.2430466]
+colour = [0.12706402, 0.72608745, 0.9782101]
 sky = [0.45237142, 0.52699345, 0.53262705]
 [14.voe_scene_transform]
 position = [1.755543053150177e-07, -0.11231513880193233, -4.544854164123535e-07]
@@ -121,10 +131,12 @@ scale = [1, 1, 1]
 [16]
 name = "Obstacle"
 folded = false
+off = false
 [16.voe_3d_shape]
 kind = 1
 colour = [0.44778705, 0.13911381, 0.49138713]
 cast_shadows = true
+material = ""
 [16.voe_scene_parent]
 parent = 64
 [16.voe_scene_transform]
@@ -135,10 +147,12 @@ scale = [2, 10, 1]
 [17]
 name = "Obstacle 2"
 folded = false
+off = false
 [17.voe_3d_shape]
 kind = 1
 colour = [0.5003842, 0.5003842, 0.5003842]
 cast_shadows = true
+material = ""
 [17.voe_scene_parent]
 parent = 64
 [17.voe_scene_transform]
@@ -149,10 +163,12 @@ scale = [2, 10, 1]
 [19]
 name = "Lights"
 folded = false
+off = false
 
 [20]
 name = "Point1"
 folded = false
+off = false
 [20.voe_scene_parent]
 parent = 19
 [20.voe_scene_point_light]
@@ -171,6 +187,7 @@ scale = [1, 1, 1]
 [22]
 name = "Point1 2"
 folded = false
+off = false
 [22.voe_scene_parent]
 parent = 19
 [22.voe_scene_point_light]
@@ -189,6 +206,7 @@ scale = [1, 1, 1]
 [23]
 name = "Point1 3"
 folded = false
+off = false
 [23.voe_scene_parent]
 parent = 19
 [23.voe_scene_point_light]
@@ -207,6 +225,7 @@ scale = [1, 1, 1]
 [25]
 name = "House"
 folded = true
+off = false
 [25.voe_scene_parent]
 parent = 64
 [25.voe_scene_prefab]
@@ -219,10 +238,12 @@ scale = [1, 1, 1]
 [34]
 name = "Obstacle 3"
 folded = false
+off = false
 [34.voe_3d_shape]
 kind = 1
 colour = [0.5003842, 0.5003842, 0.5003842]
 cast_shadows = true
+material = ""
 [34.voe_scene_parent]
 parent = 64
 [34.voe_scene_transform]
@@ -233,6 +254,7 @@ scale = [2, 10, 1]
 [36]
 name = "House 2"
 folded = false
+off = false
 [36.voe_scene_parent]
 parent = 64
 [36.voe_scene_prefab]
@@ -245,6 +267,7 @@ scale = [1, 1, 1]
 [50]
 name = "Spawner2"
 folded = false
+off = false
 [50.tank_spawner]
 prefab = "enemy_tank"
 every = 8
@@ -261,7 +284,8 @@ scale = [1, 1, 1]
 
 [64]
 name = "static_meshes"
-folded = true
+folded = false
+off = false
 [64.voe_scene_transform]
 position = [0, 0, 0]
 rotation = [0, 0, 0, 1]
@@ -270,10 +294,12 @@ scale = [1, 1, 1]
 [78]
 name = "Spawners"
 folded = true
+off = false
 
 [79]
 name = "Spawner2 2"
 folded = false
+off = false
 [79.tank_spawner]
 prefab = "enemy_tank"
 every = 4
@@ -291,6 +317,7 @@ scale = [1, 1, 1]
 [80]
 name = "End"
 folded = false
+off = false
 [80.tank_goal]
 points = 1000
 [80.voe_scene_transform]
@@ -301,6 +328,7 @@ scale = [1, 1, 1]
 [94]
 name = "HouseLightBlock"
 folded = false
+off = false
 [94.voe_scene_light_blocker]
 size = [1, 1, 1]
 block = 0
@@ -314,6 +342,7 @@ scale = [4.216355, 3.3486884, 3.8493636]
 [108]
 name = "Moon"
 folded = false
+off = false
 [108.voe_scene_light]
 colour = [0.16122088, 0.3686375, 1]
 intensity = 0.3
@@ -322,9 +351,58 @@ fill_intensity = 0
 bounces = 1
 cast_shadows = false
 bounce_strength = 0.5
+disc_size = 1.5
+glow_size = 0.3
 [108.voe_scene_parent]
 parent = 19
 [108.voe_scene_transform]
 position = [0.0734074842184782, 1.813296902924776, -41.349000244401395]
 rotation = [0.04545277, -0.94106156, -0.30425906, -0.14058366]
+scale = [1, 1, 1]
+
+[122]
+name = "Atmosphere"
+folded = false
+off = false
+
+[123]
+name = "Sky"
+folded = false
+off = false
+[123.voe_scene_parent]
+parent = 122
+[123.voe_scene_sky]
+zenith = [0.15, 0.35, 0.8]
+horizon = [0.6, 0.75, 0.9]
+ground = [0.2, 0.18, 0.16]
+horizon_height = 0.25
+strength = 1
+
+[124]
+name = "Haze"
+folded = false
+off = false
+[124.voe_scene_haze]
+haze = 50
+start = 5
+height = 1000
+[124.voe_scene_parent]
+parent = 122
+
+[125]
+name = "Fog"
+folded = false
+off = false
+[125.voe_scene_fog_volume]
+size = [20, 20, 60]
+thickness = 1
+patchiness = 0.6242828
+wind_direction = 21.90358
+wind_speed = 5
+godrays_strength = 0.7492943
+[125.voe_scene_parent]
+parent = 122
+[125.voe_scene_transform]
+position = [-22.518143167719245, 1.2894900180399418, -16.993189070373774]
+rotation = [0, 0, 0, 1]
 scale = [1, 1, 1]

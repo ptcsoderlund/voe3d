@@ -8,6 +8,12 @@
 // A CHAR field of rank 1 is one text field; of rank 2 it is one text field per
 // string, "Materials 1" to "Materials 8", each writing only its own string. A
 // field shown read-only is the same rows as labels.
+//
+// A REAL FIELD WITH A RANGE IS A SLIDER WITH ITS FIGURE (ADR-0494, 0498). A
+// FLOAT32 or FLOAT64 of rank 0 whose struct gives it a range is its title, a
+// 40 mm slider over that range and the value at two decimals with the range's
+// unit; the range and the unit are the description's, so this file names no
+// field. Shown read-only it is the title and the figure.
 #pragma once
 
 #include "inspector.h"

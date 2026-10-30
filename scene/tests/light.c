@@ -5,7 +5,8 @@
 // and refused negative.
 // Cast shadows is off by default, on in the unsaid row, and lands either way.
 // Disc size 1.5 and glow size 0.3 are in both rows; disc 11 or -1, glow 1.5 or
-// NaN are refused, and a disc and glow of 0 land.
+// NaN are refused, and a disc and glow of 0 land. Disc size's range is 0 to
+// VOE_SCENE_LIGHT_DISC_SIZE_MAX °, glow size's 0 to 1, and intensity has none.
 //
 // THE CONVERSIONS ARE THE CLAIM WORTH MOST. Everything that draws the sun reads
 // its direction through voe_scene_light_direction, and a sign wrong there lights
@@ -348,6 +349,35 @@ static void check_description(const voe_base_struct_description *description)
 		    offsetof(voe_scene_light, glow_size), sizeof(float));
 }
 
+static void check_range(const voe_base_struct_description *description,
+			const char *field, double least, double greatest,
+			const char *unit)
+{
+	const voe_base_field_range *range =
+		voe_base_ranges_find(description, field);
+
+	VOE_TEST_CHECK(range != NULL);
+	if (range == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT(range->least, least, 0.0);
+	VOE_TEST_CHECK_FLOAT(range->greatest, greatest, 0.0);
+	VOE_TEST_CHECK(strcmp(range->unit, unit) == 0);
+}
+
+// The disc and glow carry their ranges; intensity does not, and the bounces
+// names are still there beside them.
+static void the_bounded_fields_say_their_ranges(void)
+{
+	const voe_base_struct_description *description =
+		voe_scene_light_description();
+
+	check_range(description, "disc_size", 0.0,
+		    VOE_SCENE_LIGHT_DISC_SIZE_MAX, "°");
+	check_range(description, "glow_size", 0.0, 1.0, "");
+	VOE_TEST_CHECK(voe_base_ranges_find(description, "intensity") == NULL);
+	VOE_TEST_CHECK(voe_base_names_find(description, "bounces") != NULL);
+}
+
 // What a tool sees: the replace, the default row (0190: white of strength one,
 // a white fill of nought, no bounces at a bounce strength of one, no shadows,
 // a disc of 1.5 and a glow of 0.3), the unsaid row (0324: the
@@ -452,6 +482,7 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 
 	registration_says_what_a_light_is(arena);
+	the_bounded_fields_say_their_ranges();
 	a_light_arrives_as_given(arena);
 	an_intent_lands_only_when_the_system_runs(arena);
 	a_refused_intent_keeps_the_row(arena);

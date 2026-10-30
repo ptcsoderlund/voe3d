@@ -5,7 +5,8 @@
 // false lands and ones with fade 0.5 or blending at 2 read back after a run,
 // that a row added and then given a new
 // path by an intent reads that path back after a run, that a dead entity's
-// intent is dropped, and that a path with no end is cut to 127 bytes. Needs no
+// intent is dropped, and that a path with no end is cut to 127 bytes. The blend
+// height's range is 0.05 to 10 m, fade's 0 to 1, cast_shadows none. Needs no
 // graphics card.
 //
 // THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID, for the reason
@@ -94,6 +95,33 @@ static void the_description_is_a_path_cast_shadows_fade_and_blend(void)
 	VOE_TEST_CHECK_INT(description->fields[4].kind, VOE_BASE_FIELD_FLOAT32);
 	VOE_TEST_CHECK_INT((long long)description->fields[4].offset,
 			   (long long)offsetof(voe_3d_model, blend_height));
+}
+
+// The blend height carries 0.05 to 10 m and fade 0 to 1 for a tool;
+// cast_shadows no range.
+static void blend_height_and_fade_say_their_ranges(void)
+{
+	const voe_base_struct_description *description =
+		voe_3d_model_description();
+	const voe_base_field_range *height =
+		voe_base_ranges_find(description, "blend_height");
+	const voe_base_field_range *fade =
+		voe_base_ranges_find(description, "fade");
+
+	VOE_TEST_CHECK(height != NULL);
+	if (height != NULL) {
+		VOE_TEST_CHECK_FLOAT(height->least, 0.05, 1e-6);
+		VOE_TEST_CHECK_FLOAT(height->greatest, 10.0, 0.0);
+		VOE_TEST_CHECK(strcmp(height->unit, "m") == 0);
+	}
+	VOE_TEST_CHECK(fade != NULL);
+	if (fade != NULL) {
+		VOE_TEST_CHECK_FLOAT(fade->least, 0.0, 0.0);
+		VOE_TEST_CHECK_FLOAT(fade->greatest, 1.0, 0.0);
+		VOE_TEST_CHECK(strcmp(fade->unit, "") == 0);
+	}
+	VOE_TEST_CHECK(voe_base_ranges_find(description, "cast_shadows") ==
+		       NULL);
 }
 
 // The default row is the empty path, casting, unfaded, not blending, at a
@@ -211,6 +239,7 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 
 	the_description_is_a_path_cast_shadows_fade_and_blend();
+	blend_height_and_fade_say_their_ranges();
 	the_default_casts_and_an_intent_turns_it_off(arena);
 	a_submitted_fade_reads_back(arena);
 	a_submitted_blend_reads_back(arena);

@@ -221,6 +221,11 @@ typedef struct {
 	// An ENTITY field's button is the same with `names` NULL and `writes`
 	// ENTITY, its list the authored entities (entity_field.h).
 	const voe_base_field_names *names;
+	// A ranged field's range (base/describe.h), NULL for every control but
+	// a slider. Set, the control is a slider over `least..greatest`, read
+	// through voe_ui_slider_action over that range, and `writes` is the
+	// field's FLOAT32 or FLOAT64. A static table's row, outliving frames.
+	const voe_base_field_range *range;
 } voe_editor_inspector_control;
 
 // A button that acts on one component type: a section's Remove.

@@ -20,6 +20,9 @@
 //              number.
 // Overlays and the interface are untouched by both.
 //
+// EXPOSURE CARRIES ITS RANGE, IN STOPS, FOR A TOOL, which draws it as a slider
+// (0498 point 5).
+//
 // BLOOM AND COLOUR GRADING WOULD JOIN THIS ROW LATER, as fields here.
 //
 // THE STRUCT IS WRITTEN AS THE LIST OF ITS FIELDS (base/describe.h), so a
@@ -56,8 +59,14 @@ extern VOE_BASE_IMPORTED const char
 
 #define VOE_SCENE_PICTURE_NAMES(N) N(tone, voe_scene_picture_tone_names)
 
-VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_scene_picture, VOE_SCENE_PICTURE_FIELDS,
-			       VOE_SCENE_PICTURE_NAMES)
+#define VOE_SCENE_PICTURE_RANGES(R)                       \
+	R(exposure, -VOE_SCENE_PICTURE_EXPOSURE_MAX,       \
+	  VOE_SCENE_PICTURE_EXPOSURE_MAX, "stops")
+
+VOE_BASE_DESCRIBE_STRUCT_NAMED_RANGED(voe_scene_picture,
+				      VOE_SCENE_PICTURE_FIELDS,
+				      VOE_SCENE_PICTURE_NAMES,
+				      VOE_SCENE_PICTURE_RANGES)
 
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_picture_key;

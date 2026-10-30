@@ -34,8 +34,12 @@
 // BLEND WITH GROUND TAKES ON THE PAINTED GROUND NEAR WHERE THE MODEL MEETS IT,
 // fading into its own material `blend_height` metres up (0481 points 1, 3).
 // Off by default, in a file without it and in a literal. The height is 0.5 in
-// the default row and a file without it; a literal's 0 blends nothing. The draw
-// clamps it to 0.05-10 m.
+// the default row and a file without it; a literal's 0 blends nothing.
+//
+// BLEND HEIGHT AND FADE CARRY THEIR RANGES for a tool's slider (0494, 0498):
+// fade 0-1, the height VOE_3D_MODEL_BLEND_HEIGHT_LEAST to _GREATEST metres, the
+// range the draw clamps it to, so the slider and the draw agree. A foliage
+// kind's Blend height is shown over this same range (0494 point 2, 0498 point 3).
 //
 // A PART'S MATERIAL IS THE MODEL'S, NEVER THE ROW'S (0404): the store gives
 // each part the `.material` its model's parts file names (3d/models.h), so
@@ -71,7 +75,17 @@
 	F(bool, blend_with_ground, BOOL)       \
 	F(float, blend_height, FLOAT32)
 
-VOE_BASE_DESCRIBE_STRUCT(voe_3d_model, VOE_3D_MODEL_FIELDS)
+// A blend height's ends, metres: what the draw clamps to and its range says.
+#define VOE_3D_MODEL_BLEND_HEIGHT_LEAST 0.05f
+#define VOE_3D_MODEL_BLEND_HEIGHT_GREATEST 10.0f
+
+#define VOE_3D_MODEL_RANGES(R)                                        \
+	R(fade, 0.0, 1.0, "")                                         \
+	R(blend_height, VOE_3D_MODEL_BLEND_HEIGHT_LEAST,              \
+	  VOE_3D_MODEL_BLEND_HEIGHT_GREATEST, "m")
+
+VOE_BASE_DESCRIBE_STRUCT_RANGED(voe_3d_model, VOE_3D_MODEL_FIELDS,
+				VOE_3D_MODEL_RANGES)
 
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_3d_model_key;

@@ -18,29 +18,31 @@ module's promises from outside. None of them needs a window or a graphics card.
   inverse with roll kept and none when scaled to nothing, and that a whole-lens
   intent applies a good lens and keeps the row over a bad one.
 - `light.c` — the sun's registration, intents, bounces, bounce strength, cast
-  shadows, disc and glow sizes, and the conversions between a rotation and the direction it shines.
+  shadows, disc and glow sizes and their ranges (disc 0 to 10 °, glow 0 to 1),
+  and the conversions between a rotation and the direction it shines.
 - `point_light.c` — the point light's registration, refused and accepted
-  replaces, falloff bounds, cast shadows, bounces and bounce strength.
+  replaces, falloff bounds and its range (0.25 to 4), cast shadows, bounces and
+  bounce strength.
 - `light_blocker.c` — the blocker's registration with a Block All default, the
   names All, Fill, Direct and the former name "kind", a row read back, a
   replace to Direct landing on a run, refused negative, infinite and NaN sizes
   and a Block past Direct, and a dead entity.
 - `sky.c` — the sky's registration, its default row of strength 1 and five
-  fields, a row read back, a horizon replace landing on a run, a refused NaN
+  fields, horizon height's range 0 to 1, a row read back, a horizon replace landing on a run, a refused NaN
   zenith, negative ground, horizon height 1.5, strength -1 and infinite, and a
   dead entity.
 - `haze.c` — the haze's registration, its default row of haze 1000, start 100
   and height 1000 and three fields, a row read back, a haze replace landing on
   a run, height -50 taken, a refused NaN haze, haze -1, start -1, infinite
   start, NaN height and infinite height, and a dead entity.
-- `clouds.c` — the clouds' registration, default row, seven fields and kind
-  names, the drift runtime-only, a row read back, a coverage replace landing on
-  a run, each refusal keeping the row, the drift added at 0 and moved by the
-  wind, dropped with its row, and a dead entity.
-- `fog_volumes.c` — the fog volume's registration, transform needed, default
-  row and six fields, the drift runtime-only, a row read back, a thickness
-  replace landing on a run, each refusal keeping the row, the drift added at 0
-  and moved by the wind, dropped with its row, and a dead entity.
+- `clouds.c` — the clouds' registration, fields, kind names and ranges
+  (coverage, shadow strength 0 to 1, wind direction 0 to 360 °), the drift
+  runtime-only, a row read back, a replace landing on a run, each refusal
+  keeping the row, the drift moved by the wind and dropped with its row.
+- `fog_volumes.c` — the fog volume's registration, fields and ranges
+  (thickness, patchiness, godrays strength 0 to 1, wind direction 0 to 360 °),
+  a row read back, a replace landing on a run, each refusal keeping the row,
+  the drift moved by the wind and dropped with its row.
 - `picture.c` — the picture's registration, its exposure 0 and Soft default,
-  the tone names Clip and Soft, a row read back, an exposure replace landing on
+  the tone names Clip and Soft, exposure's range -16 to 16 stops, a row read back, an exposure replace landing on
   a run, a refused NaN exposure, exposure 17 and tone 2, and a dead entity.

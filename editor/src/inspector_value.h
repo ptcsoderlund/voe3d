@@ -51,6 +51,11 @@ const char *heading(voe_base_arena *arena, const voe_ecs_world *world,
 		    voe_ecs_type type);
 const char *title(voe_base_arena *arena, const char *name);
 
+// A ranged value's figure, the one formatter for it (ADR-0498 point 3): two
+// decimals, then a space and `unit` unless it is "" — "0.50 m", "0.35". Into
+// `out`, cut to `size` with its terminator.
+void figure(char *out, size_t size, double value, const char *unit);
+
 float real32_at(const uint8_t *bytes, uint32_t lane);
 double real64_at(const uint8_t *bytes, uint32_t lane);
 int64_t whole_signed(voe_base_field_kind kind, const uint8_t *bytes);

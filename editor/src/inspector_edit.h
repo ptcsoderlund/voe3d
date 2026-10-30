@@ -20,7 +20,10 @@
 // string: on `committed` with text that differs from the row, the text is
 // copied into the recorded string's bytes, truncated to leave room for its
 // terminating zero, and submitted the same way. Tab walks the fields and boxes
-// in the order they are drawn — the name, then each number.
+// in the order they are drawn — the name, then each number. A ranged field's
+// slider is read through voe_ui_slider_action over its range and goes out the
+// same way; a stored value outside the range was drawn clamped and is not
+// written until the slider moves.
 //
 // A COMPONENT WITH NO REPLACE INTENT IS SHOWN AND NOT EDITED, which is what
 // ecs/component.h says such a type is for. Its fields are labels, because the

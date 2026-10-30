@@ -33,10 +33,6 @@ static_assert(VOE_ASSETS_LANDSCAPE_LAYERS ==
 		      sizeof(((struct voe_3d_ground *)0)->layers) / sizeof(uint32_t),
 	      "a ground names every layer a landscape holds");
 
-// The reach's bounds, metres (0481 point 4).
-#define LEAST_REACH 0.05f
-#define MOST_REACH 10.0f
-
 // `entry`'s paint and each layer's shading record into `ground`, asked of the
 // store now as draw_terrain.c asks them (0402 point 4): a layer whose material
 // is not loaded takes the part's own record, layers past the count repeat
@@ -176,7 +172,9 @@ void voe_3d_draw_ground_fill(const struct voe_3d_ground *ground, float reach,
 	if (!(reach > 0.0f))
 		return;
 	object->ground = ground->heights;
-	object->ground_reach = fminf(fmaxf(reach, LEAST_REACH), MOST_REACH);
+	object->ground_reach =
+		fminf(fmaxf(reach, VOE_3D_MODEL_BLEND_HEIGHT_LEAST),
+		      VOE_3D_MODEL_BLEND_HEIGHT_GREATEST);
 	object->paint[0] = ground->paint[0];
 	object->paint[1] = ground->paint[1];
 	for (uint32_t i = 0; i < VOE_ASSETS_LANDSCAPE_LAYERS; i++)
@@ -184,7 +182,8 @@ void voe_3d_draw_ground_fill(const struct voe_3d_ground *ground, float reach,
 	for (uint32_t r = 0; r < 3; r++)
 		object->ground_rows[r] = ground->rows[r];
 	object->terrain.w = ground->side;
-	VOE_BASE_ASSERT(object->ground_reach >= LEAST_REACH &&
-				object->ground_reach <= MOST_REACH,
+	VOE_BASE_ASSERT(object->ground_reach >= VOE_3D_MODEL_BLEND_HEIGHT_LEAST &&
+				object->ground_reach <=
+					VOE_3D_MODEL_BLEND_HEIGHT_GREATEST,
 			"a reach outside its bounds");
 }

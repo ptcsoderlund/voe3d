@@ -15,6 +15,9 @@
 // rise along world up and drag, and size, colour and alpha from birth to death,
 // with a glow. It sits at "Rendering / Particle emitter" and needs a transform.
 //
+// ALPHA IS AN OPACITY FROM 0 TO 1, and both alphas carry that range for a
+// tool's slider (0498).
+//
 // THE DEFAULT ROW PLAYS: 20 a second, 1.5 s, 1 m/s, 20 degrees about +Y, 0.3 to
 // 0.6 m, white, alpha 1 to 0, no burst, rise, drag or glow. It plays at once so
 // an emitter added in the editor is seen live, with no step to start it.
@@ -68,7 +71,12 @@
 	F(float, glow, FLOAT32)                      \
 	F(char, texture, CHAR, VOE_3D_EMITTER_TEXTURE)
 
-VOE_BASE_DESCRIBE_STRUCT(voe_3d_emitter, VOE_3D_EMITTER_FIELDS)
+#define VOE_3D_EMITTER_RANGES(R)      \
+	R(alpha_start, 0.0, 1.0, "") \
+	R(alpha_end, 0.0, 1.0, "")
+
+VOE_BASE_DESCRIBE_STRUCT_RANGED(voe_3d_emitter, VOE_3D_EMITTER_FIELDS,
+				VOE_3D_EMITTER_RANGES)
 
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_3d_emitter_key;

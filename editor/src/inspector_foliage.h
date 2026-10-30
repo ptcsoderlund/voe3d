@@ -3,7 +3,7 @@
 // with the chosen one drawn chosen, one row per kind of the landscape's grid
 // by its model's file name, the picked ones drawn chosen, each followed by its
 // Base size slider, a Cast shadows button drawn chosen while the kind casts,
-// a Blend with ground button drawn chosen while it blends, its Blend height cm
+// a Blend with ground button drawn chosen while it blends, its Blend height
 // slider, and its Size ±%, Turn ±° and Tilt with slope % sliders, then "Drop a
 // model to add a kind" while it holds fewer than sixteen, and the brush's one
 // slider, Density (0476 point 1). Radius and Softness are the Brush section's
@@ -16,7 +16,9 @@
 //
 // THE BLEND IS THE KIND'S LOOK TOO (0481 point 4), off by default, each change
 // one undo step: Blend with ground's at the press, Blend height's when it lets
-// go. Its cost shows as `foliage blend` in the frame breakdown.
+// go. Blend height is the model's slider and range, 0.05 to 10.00 m (0494
+// point 2), stored in the look as whole centimetres. Its cost shows as
+// `foliage blend` in the frame breakdown.
 //
 // A KIND'S BASE SIZE (0469), 0.10× to 10.00×, is part of its look: it resizes
 // that kind's copies already painted as well as later ones, live while

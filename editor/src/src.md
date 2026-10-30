@@ -296,9 +296,11 @@ carries it out.
   component's heading, Remove and "Needs" line, Add component, its menu and open list, a part
   read-only, a landscape's sections, or an open material's section instead.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
-  strings a text field per string, labels when it cannot be edited.
-- `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, and a
-  rank-2 CHAR's numbered rows each recording its string's offset, size, field and index.
+  strings a text field per string, a ranged real a slider with its figure, labels when it cannot be
+  edited.
+- `inspector_rows.c` — each kind's row and each control's record, a rotation's three angles, a
+  ranged field's slider over its clamped value and figure, and a rank-2 CHAR's numbered rows each
+  recording its string's offset, size, field and index.
 - `sculpt.h` — the brush a person holds with its ranges, never saved or undone, its sections'
   nodes with a kind's blend controls, whether a thing wears a landscape, the held drag that
   sculpts, paints, scatters or erases as one undo step, a kind's look edit and a layer's grow edit.
@@ -321,8 +323,8 @@ carries it out.
   read: a tick or Density asks the layer's growth, a fired row chooses PAINT with its layer or
   none, each row's rectangle kept.
 - `inspector_foliage.h` — the Inspector's Foliage section under Layers: Scatter and Erase, a row per
-  kind toggling it picked with its Base size, Cast shadows, Blend with ground, Blend height and
-  spread controls, the add row a dropped `.glb` lands on, and the brush's Density slider.
+  kind toggling it picked with its Base size, Cast shadows, Blend with ground, Blend height in
+  metres and spread controls, the add row a dropped `.glb` lands on, and the brush's Density slider.
 - `inspector_foliage.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
   the read: a fired button chooses its kind or none, a fired row flips its pick, Density clamped,
   a kind's slider, Cast shadows or Blend with ground asks its look with that field changed.
@@ -342,8 +344,8 @@ carries it out.
   the way the open dropdown's is.
 - `inspector_edit.h` — the calls that turn what the pointer did to the Inspector's controls into
   replace intents and scene.h's commands, and the rules for when each open list closes.
-- `inspector_edit.c` — a dragged or typed number submitted as the component's replace intent, a
-  rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
+- `inspector_edit.c` — a dragged or typed number or a moved slider submitted as the component's
+  replace intent, a rotation's edit as the difference about a world axis, a committed text field as the row's CHAR
   bytes, and the picker's colour and the open list's choice submitted the same way.
 - `inspector_buttons.c` — the fired buttons, Enabled's switch among them, carried out through scene.h and entities.h, and the
   open dropdown and Add component's lists and submenus opened, closed and placed each frame; none
@@ -353,7 +355,7 @@ carries it out.
 - `inspector_place.c` — a list fitted below, above or capped on the roomier side, under its button
   or beside its row, in the content column's space.
 - `inspector_value.h` — what a field's bytes say: a kind and an offset in, a number, three shown
-  angles or the one string a label is given out.
+  angles or the one string a label is given out, and a ranged value's figure with its unit.
 - `inspector_value.c` — a number read out of a field's bytes whatever its width, the Z-Y-X
   decomposition of a rotation, a type's heading from its key, a name's title, a field or one of a
   list's strings as one string, and how many

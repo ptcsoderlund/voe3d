@@ -1,6 +1,7 @@
 // The sky: what registration tells a tool (the menu path, no needed type, the
 // default row with strength 1, and the five fields in order, strength last,
-// the colours COLOUR), that a row arrives as given, that a replace changes the
+// the colours COLOUR), horizon_height's range 0 to 1 with no unit and none on
+// strength, that a row arrives as given, that a replace changes the
 // horizon only when the system runs, that a NaN zenith, a negative ground
 // channel, a horizon height of 1.5, a strength of -1 and an infinite strength
 // are each refused and keep the row, and that adding to a dead entity is false.
@@ -113,6 +114,22 @@ static void registration_says_what_a_sky_is(voe_base_arena *arena)
 		    VOE_BASE_FIELD_FLOAT32);
 }
 
+static void horizon_height_says_its_range(void)
+{
+	const voe_base_struct_description *description =
+		voe_scene_sky_description();
+	const voe_base_field_range *range =
+		voe_base_ranges_find(description, "horizon_height");
+
+	VOE_TEST_CHECK(voe_base_ranges_find(description, "strength") == NULL);
+	VOE_TEST_CHECK(range != NULL);
+	if (range == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT(range->least, 0.0, 0.0);
+	VOE_TEST_CHECK_FLOAT(range->greatest, 1.0, 0.0);
+	VOE_TEST_CHECK(strcmp(range->unit, "") == 0);
+}
+
 static void a_sky_arrives_as_given(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
@@ -185,6 +202,7 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 
 	registration_says_what_a_sky_is(arena);
+	horizon_height_says_its_range();
 	a_sky_arrives_as_given(arena);
 	a_replace_lands_when_the_system_runs(arena);
 	a_refused_sky_keeps_the_row(arena);

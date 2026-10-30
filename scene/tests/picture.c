@@ -1,6 +1,7 @@
 // The picture: what registration tells a tool (the menu path, no needed type,
 // the default row of exposure 0 and Soft, the two fields and the tone names
-// "Clip" and "Soft"), that a row arrives as given, that a replace changes the
+// "Clip" and "Soft"), exposure's range -16 to 16 stops and none on tone, that
+// a row arrives as given, that a replace changes the
 // exposure only when the system runs, that a NaN exposure, an exposure of 17
 // and a tone of 2 are each refused and keep the row, and that adding to a dead
 // entity is false.
@@ -101,6 +102,26 @@ static void registration_says_what_a_picture_is(voe_base_arena *arena)
 			      "Soft") == 0);
 }
 
+// Exposure carries its range either way; tone does not, and its names are
+// still there beside it.
+static void exposure_says_its_range(void)
+{
+	const voe_base_struct_description *description =
+		voe_scene_picture_description();
+	const voe_base_field_range *range =
+		voe_base_ranges_find(description, "exposure");
+
+	VOE_TEST_CHECK(voe_base_ranges_find(description, "tone") == NULL);
+	VOE_TEST_CHECK(voe_base_names_find(description, "tone") != NULL);
+	VOE_TEST_CHECK(range != NULL);
+	if (range == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT(range->least, -VOE_SCENE_PICTURE_EXPOSURE_MAX, 0.0);
+	VOE_TEST_CHECK_FLOAT(range->greatest, VOE_SCENE_PICTURE_EXPOSURE_MAX,
+			     0.0);
+	VOE_TEST_CHECK(strcmp(range->unit, "stops") == 0);
+}
+
 static void a_picture_arrives_as_given(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
@@ -172,6 +193,7 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(64 * 1024);
 
 	registration_says_what_a_picture_is(arena);
+	exposure_says_its_range();
 	a_picture_arrives_as_given(arena);
 	a_replace_lands_when_the_system_runs(arena);
 	a_refused_picture_keeps_the_row(arena);

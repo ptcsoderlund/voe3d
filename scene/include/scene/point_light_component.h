@@ -18,7 +18,8 @@
 // point 1): d metres off it lights by saturate(1 - (d/range)^(2/falloff))^2.
 // 1 is the default and 0320's look; low is an even pool with a soft rim, high a
 // bright core. It lies within LEAST..MOST. A scene saved before it reads 1, and
-// its two flash keys are ignored with a warning (0322 point 4).
+// its two flash keys are ignored with a warning (0322 point 4). It carries that
+// range for a tool, which draws it as a slider (0498 point 5).
 //
 // IT DOES NOT FLASH (0321 point 2): it shines at its intensity. Game code that
 // wants a flash fades the intensity through the replace.
@@ -50,6 +51,11 @@
 
 #include <stdint.h>
 
+// The bounds a falloff lies within, both accepted (0322 point 2): exponents 8
+// to 0.5. Past them the pool is a ring or a dot.
+#define VOE_SCENE_POINT_LIGHT_FALLOFF_LEAST 0.25f
+#define VOE_SCENE_POINT_LIGHT_FALLOFF_MOST 4.0f
+
 // The colour a linear multiplier, (1, 1, 1) white; intensity not negative,
 // range above nought, falloff within LEAST..MOST, cast_shadows off unless said,
 // bounces at most the sun's maximum, bounce_strength not negative — see the
@@ -66,14 +72,14 @@
 // The sun's names, so the Inspector offers the same dropdown.
 #define VOE_SCENE_POINT_LIGHT_NAMES(N) N(bounces, voe_scene_light_bounces_names)
 
-VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_scene_point_light,
-			       VOE_SCENE_POINT_LIGHT_FIELDS,
-			       VOE_SCENE_POINT_LIGHT_NAMES)
+#define VOE_SCENE_POINT_LIGHT_RANGES(R)                \
+	R(falloff, VOE_SCENE_POINT_LIGHT_FALLOFF_LEAST, \
+	  VOE_SCENE_POINT_LIGHT_FALLOFF_MOST, "")
 
-// The bounds a falloff lies within, both accepted (0322 point 2): exponents 8
-// to 0.5. Past them the pool is a ring or a dot.
-#define VOE_SCENE_POINT_LIGHT_FALLOFF_LEAST 0.25f
-#define VOE_SCENE_POINT_LIGHT_FALLOFF_MOST 4.0f
+VOE_BASE_DESCRIBE_STRUCT_NAMED_RANGED(voe_scene_point_light,
+				      VOE_SCENE_POINT_LIGHT_FIELDS,
+				      VOE_SCENE_POINT_LIGHT_NAMES,
+				      VOE_SCENE_POINT_LIGHT_RANGES)
 
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_point_light_key;

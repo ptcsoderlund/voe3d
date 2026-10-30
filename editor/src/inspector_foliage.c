@@ -9,13 +9,16 @@
 // shows kind i's base size as a factor; its read asks for kind i's look as
 // drawn with the size in thousandths, which sculpt.c sets. Under it kind i's
 // Cast shadows button, drawn chosen while the look casts, its Blend with
-// ground button, chosen while it blends, and Blend height cm slider, and
-// spread slider i, s, spread s of kind i in the look's whole units, each
-// asked the same way.
+// ground button, chosen while it blends, and Blend height slider in metres
+// over the model's range, asked in whole centimetres, and spread slider i, s,
+// spread s of kind i in the look's whole units, each asked the same way.
 #include "inspector_foliage.h"
 
 #include "inspector_layers.h"
+#include "inspector_value.h"
 #include "themes.h"
+
+#include <3d/model_component.h>
 
 #include <assets/landscape.h>
 
@@ -141,11 +144,12 @@ static void kind_slider_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
 }
 
 // Kind `i`'s Blend with ground button, drawn chosen while the look blends,
-// then its Blend height cm row of name, slider and figure, drawn either way.
+// then its Blend height row as a model's (0498 point 3): name, slider over the
+// model's range in metres and figure, drawn either way.
 static void kind_blend_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
 			    uint32_t i)
 {
-	const unsigned height = blend_height_of(&sculpt->kind_looks[i]);
+	const double metres = blend_height_of(&sculpt->kind_looks[i]) / 100.0;
 
 	VOE_BASE_ASSERT(i < VOE_ASSETS_LANDSCAPE_KINDS, "a blend for no kind");
 	sculpt->kind_blends[i] = voe_ui_choice_begin(
@@ -155,13 +159,13 @@ static void kind_blend_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
 	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
 						 .gap = ROW_GAP,
 						 .wrap = true });
-	voe_ui_label(ui, "Blend height cm");
+	voe_ui_label(ui, "Blend height");
 	sculpt->blend_sliders[i] = voe_ui_slider(
-		ui, "kind blend height", i, height,
-		VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN,
-		VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MAX, SLIDER_WIDE);
-	snprintf(sculpt->blend_figures[i], sizeof sculpt->blend_figures[i],
-		 "%u", height);
+		ui, "kind blend height", i, metres,
+		VOE_3D_MODEL_BLEND_HEIGHT_LEAST,
+		VOE_3D_MODEL_BLEND_HEIGHT_GREATEST, SLIDER_WIDE);
+	figure(sculpt->blend_figures[i], sizeof sculpt->blend_figures[i],
+	       metres, "m");
 	voe_ui_label(ui, sculpt->blend_figures[i]);
 	voe_ui_end(ui);
 	VOE_BASE_ASSERT(sculpt->blend_sliders[i] != VOE_UI_NODE_NONE,
@@ -312,9 +316,10 @@ static void kind_size_read(const voe_ui_context *ui, voe_editor_sculpt *sculpt,
 				   to);
 }
 
-// Kind `i`'s Blend with ground and Blend height cm: a fired button asks the
-// look with `blends` flipped and never holds, one step at once; the slider is
-// held and asked as the Base size slider is, in whole centimetres.
+// Kind `i`'s Blend with ground and Blend height: a fired button asks the look
+// with `blends` flipped and never holds, one step at once; the slider, in
+// metres over the model's range, is held and asked as the Base size slider
+// is, its metres turned to the look's whole centimetres.
 static void kind_blend_read(const voe_ui_context *ui, voe_editor_sculpt *sculpt,
 			    uint32_t i)
 {
@@ -329,12 +334,12 @@ static void kind_blend_read(const voe_ui_context *ui, voe_editor_sculpt *sculpt,
 	if (sculpt->blend_sliders[i] == VOE_UI_NODE_NONE)
 		return;
 	height = voe_ui_slider_action(ui, sculpt->blend_sliders[i],
-				      VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN,
-				      VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MAX);
+				      VOE_3D_MODEL_BLEND_HEIGHT_LEAST,
+				      VOE_3D_MODEL_BLEND_HEIGHT_GREATEST);
 	sculpt->look_held = sculpt->look_held || height.held;
 	if (!height.changed)
 		return;
-	to = lround(height.value);
+	to = lround(height.value * 100.0);
 	look_ask(sculpt, i)->blend_height =
 		(uint16_t)(to < VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN ?
 				   VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN :
