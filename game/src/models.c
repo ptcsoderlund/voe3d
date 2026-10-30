@@ -24,8 +24,8 @@
 // for the store to copy,
 // its paint widened to both planes in scratch too. The public prepare reads
 // its `.glb` and levels file on scratch, rewound, then prepares a batch of
-// its one file to cook the copy, put nowhere; the triangle counts of a
-// `.glb`'s levels are read for the LODs panel, nothing made or written.
+// its one file to cook the copy, put nowhere; a `.glb`'s levels are
+// summarised for the LODs panel, nothing made or written.
 #include <game/models.h>
 
 #include "models_batch.h"
@@ -46,10 +46,9 @@
 #include <stddef.h>
 #include <string.h>
 
-uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
-					  voe_base_arena *scratch,
-					  uint32_t triangles[VOE_3D_MODEL_LEVELS],
-					  bool *own, bool *fresh)
+void voe_game_models_levels_summarise(const char *folder, const char *path,
+				      voe_base_arena *scratch,
+				      voe_3d_model_levels_summary *out)
 {
 	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 	const uint8_t *glb;
@@ -57,14 +56,11 @@ uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
 	const char *file;
 	size_t glb_size = 0;
 	size_t size = 0;
-	uint32_t count = 0;
 
 	VOE_BASE_ASSERT(folder != NULL && path != NULL && scratch != NULL,
 			"no folder, path or scratch");
-	VOE_BASE_ASSERT(triangles != NULL && own != NULL && fresh != NULL,
-			"no triangles, own or fresh");
-	*own = false;
-	*fresh = false;
+	VOE_BASE_ASSERT(out != NULL, "summarising into nothing");
+	*out = (voe_3d_model_levels_summary){ 0 };
 	voe_base_report_subject_push(path);
 	glb = voe_platform_file_read(voe_platform_path_join(scratch, folder,
 							    path),
@@ -75,12 +71,10 @@ uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
 	if (glb != NULL && voe_platform_file_exists(file))
 		levels = voe_platform_file_read(file, scratch, &size, NULL);
 	if (glb != NULL)
-		count = voe_3d_model_levels_triangles(scratch, glb, glb_size,
-						      levels, size, triangles,
-						      own, fresh);
+		voe_3d_model_levels_summarise(scratch, glb, glb_size, levels,
+					      size, out);
 	voe_base_report_subject_pop();
 	voe_base_arena_rewind(scratch, mark);
-	return count;
 }
 
 // The cooked copy of `folder`'s `path` made by a batch of it alone, prepared

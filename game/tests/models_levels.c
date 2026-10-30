@@ -18,11 +18,12 @@
 // THE SWAPS PATCHED: the grid prepared with the defaults, then `swap1=4`
 // prepared without remake makes only the cooked copy, the levels file on disk
 // at swap 1 4 with the same index counts; on a third world and store, the grid updated at ×4, then
-// `swap1=0.5` reloaded, holds a level 1 bound 8 times what it was.
+// `swap1=0.5` reloaded, holds a level 1 bound 8 times what it was, capped at 1
+// (0500 point 5).
 //
-// THE TRIANGLES: the grid prepared with the defaults counts its file's levels,
-// made and fresh, level 0 its 128 triangles and each level fewer; a missing
-// `.glb` counts none.
+// THE SUMMARY: the grid prepared with the defaults summarises its file's
+// levels, made and fresh, level 0 its 128 triangles and each level fewer,
+// level 1's error and the radius above nought; a missing `.glb` counts none.
 //
 // THE REFUSED MAKE: `bad.glb`, bytes no `.glb` has, named by a row and
 // updated, is failed at the file's stamp, no levels file is in the Cache, and
@@ -288,54 +289,53 @@ static void check_swaps_patched(voe_ecs_world *world,
 	VOE_TEST_CHECK(memcmp(after.index_counts, before.index_counts,
 			      sizeof(before.index_counts)) == 0);
 
-	// ---- updated at ×4, then `swap1=0.5` reloaded: the bound 8 times
+	// ---- updated at ×4, then `swap1=0.5` reloaded: the bound 8 times, capped
+	// at 1 (0500 point 5); level 1 follows only level 0's infinite bound, so
+	// no spread moves it, and below 1 at ×4 it was not capped then
 	wear(world, GRID);
 	failures = voe_game_models_update(world, models, device, FOLDER, scratch,
 					  NULL);
 	VOE_TEST_CHECK_INT(failures.count, 0);
 	bound = grid_bound(models);
-	VOE_TEST_CHECK(bound > 0.0f && isfinite(bound));
+	VOE_TEST_CHECK(bound > 0.0f && bound < 1.0f);
 	grid_parts_write("[Parts]\n[Levels]\nswap1=0.5\n");
 	VOE_TEST_CHECK(voe_game_models_reload(models, device, FOLDER, GRID,
 					      scratch, &error));
-	VOE_TEST_CHECK(fabsf(grid_bound(models) - bound * 8.0f) <=
-		       bound * 8.0f * 1e-5f);
+	VOE_TEST_CHECK(fabsf(grid_bound(models) - fminf(bound * 8.0f, 1.0f)) <=
+		       fminf(bound * 8.0f, 1.0f) * 1e-5f);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);
 }
 
-// The grid's triangles per level as its fresh file has them; a missing
-// `.glb`, none.
-static void check_triangles(voe_render_device *device,
-			    voe_base_arena *scratch)
+// The grid's levels summarised as its fresh file has them; a missing `.glb`,
+// none.
+static void check_summary(voe_render_device *device, voe_base_arena *scratch)
 {
 	static uint8_t grid[4096];
 	uint32_t size = grid_build(grid, sizeof(grid));
-	uint32_t triangles[VOE_3D_MODEL_LEVELS] = { 0 };
-	bool own = true;
-	bool fresh = false;
-	uint32_t count;
+	voe_3d_model_levels_summary summary = { .own = true };
 
 	VOE_TEST_CHECK(voe_platform_file_write(GRID_ON_DISK, grid, size, NULL));
 	remove(GRID_PARTS_ON_DISK);
 	VOE_TEST_CHECK(grid_prepared(device, scratch, grid, size, NULL) >= 3);
 
-	// ---- the file's level count, level 0 whole, each level fewer
-	count = voe_game_models_levels_triangles(FOLDER, GRID, scratch,
-						 triangles, &own, &fresh);
-	VOE_TEST_CHECK_INT(count, grid_read(scratch, grid, size).level_count);
-	VOE_TEST_CHECK(!own);
-	VOE_TEST_CHECK(fresh);
-	VOE_TEST_CHECK_INT(triangles[0], GRID_INDICES / 3);
-	for (uint32_t k = 1; k < count; k++)
-		VOE_TEST_CHECK(triangles[k] < triangles[k - 1]);
+	// ---- the file's level count, level 0 whole, each level fewer, level
+	// 1's error and the radius above nought
+	voe_game_models_levels_summarise(FOLDER, GRID, scratch, &summary);
+	VOE_TEST_CHECK_INT(summary.count,
+			   grid_read(scratch, grid, size).level_count);
+	VOE_TEST_CHECK(!summary.own);
+	VOE_TEST_CHECK(summary.fresh);
+	VOE_TEST_CHECK_INT(summary.triangles[0], GRID_INDICES / 3);
+	for (uint32_t k = 1; k < summary.count; k++)
+		VOE_TEST_CHECK(summary.triangles[k] < summary.triangles[k - 1]);
+	VOE_TEST_CHECK(summary.errors[1] > 0.0f);
+	VOE_TEST_CHECK(summary.radius > 0.0f);
 
 	// ---- a missing `.glb`: none
-	VOE_TEST_CHECK_INT(voe_game_models_levels_triangles(FOLDER, MISSING,
-							    scratch, triangles,
-							    &own, &fresh),
-			   0);
+	voe_game_models_levels_summarise(FOLDER, MISSING, scratch, &summary);
+	VOE_TEST_CHECK_INT(summary.count, 0);
 }
 
 // A `.glb` its levels make refuses is kept failed at its stamp, with no
@@ -521,7 +521,7 @@ int main(void)
 	check_levels(voe_game_world_new(arena), device, scratch, glb, length);
 	check_reload(voe_game_world_new(arena), device, scratch);
 	check_swaps_patched(voe_game_world_new(arena), device, scratch);
-	check_triangles(device, scratch);
+	check_summary(device, scratch);
 	check_refused_make(voe_game_world_new(arena), device, scratch);
 	remove_files();
 	voe_render_device_destroy(device);
