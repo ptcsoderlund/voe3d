@@ -127,6 +127,17 @@ typedef struct {
 	uint32_t value_count;
 } voe_base_field_names;
 
+// The least and greatest value one field is meant to take, for a tool to offer
+// that span and show the unit after the value.
+typedef struct {
+	// The field this range belongs to, as it is spelled in the struct.
+	const char *field;
+	double least;
+	double greatest;
+	// A literal: "m", "°", "stops"; "" for none.
+	const char *unit;
+} voe_base_field_range;
+
 typedef struct {
 	const char *name;
 	// In declaration order, which is layout order.
@@ -136,6 +147,10 @@ typedef struct {
 	// names — which is every struct that does not ask for them.
 	const voe_base_field_names *names;
 	uint32_t names_count;
+	// One row per ranged field, or NULL and 0 for a struct described without
+	// ranges, as names are.
+	const voe_base_field_range *ranges;
+	uint32_t ranges_count;
 } voe_base_struct_description;
 
 // The names for `field`, or NULL when it has none. A handful of rows at most, so
@@ -149,6 +164,20 @@ voe_base_names_find(const voe_base_struct_description *description,
 	for (uint32_t i = 0; i < description->names_count; i++)
 		if (strcmp(description->names[i].field, field) == 0)
 			return &description->names[i];
+	return NULL;
+}
+
+// The range for `field`, or NULL when it has none. A scan and a strcmp, as
+// voe_base_names_find is, for the same handful of rows.
+static inline const voe_base_field_range *
+voe_base_ranges_find(const voe_base_struct_description *description,
+		     const char *field)
+{
+	if (!description || !description->ranges || !field)
+		return NULL;
+	for (uint32_t i = 0; i < description->ranges_count; i++)
+		if (strcmp(description->ranges[i].field, field) == 0)
+			return &description->ranges[i];
 	return NULL;
 }
 
@@ -228,6 +257,39 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 			   VOE_BASE_DESCRIBE_MEMBER_)                         \
 	} struct_name;                                                        \
 	VOE_BASE_DESCRIBE_TABLE_NAMED_(struct_name, field_list, names_list)   \
+	field_list(VOE_BASE_DESCRIBE_CHECK_, VOE_BASE_DESCRIBE_CHECK_)
+
+// A RANGE IS A NOTE TO A TOOL TOO, AND READ-ONLY LIKE NAMES. A ranges list
+// invokes its one parameter once per ranged field as R(field, least, greatest,
+// unit) — #define VOE_3D_MODEL_RANGES(R) R(blend_height, 0.05, 10.0, "m") — with
+// the ends as constant doubles and the unit a string literal, the word or symbol
+// a tool shows after the value, "" for none. THE FIELD'S KIND AND ITS SCENE TEXT
+// DO NOT CHANGE, and nothing clamps the value to the range. It is meant for a
+// FLOAT32 or FLOAT64 field of rank 0, and a tool ignores it on any other. What a
+// tool draws for a ranged field — a slider — is the tool's business (ADR-0494,
+// ADR-0498). A row holds only constants, so it sits in a static const table.
+// A FIELD THE STRUCT DOES NOT HAVE FAILS THE BUILD, but only where the table is
+// compiled in: the check is a member access inside the accessor, the one place
+// that can name the struct for every row.
+//
+// The same struct, the same checks and the same field table, plus the ranges;
+// the second also with the same names table as the NAMED macro.
+#define VOE_BASE_DESCRIBE_STRUCT_RANGED(struct_name, field_list, ranges_list) \
+	typedef struct {                                                      \
+		field_list(VOE_BASE_DESCRIBE_MEMBER_,                         \
+			   VOE_BASE_DESCRIBE_MEMBER_)                         \
+	} struct_name;                                                        \
+	VOE_BASE_DESCRIBE_TABLE_RANGED_(struct_name, field_list, ranges_list) \
+	field_list(VOE_BASE_DESCRIBE_CHECK_, VOE_BASE_DESCRIBE_CHECK_)
+
+#define VOE_BASE_DESCRIBE_STRUCT_NAMED_RANGED(struct_name, field_list,       \
+					      names_list, ranges_list)       \
+	typedef struct {                                                      \
+		field_list(VOE_BASE_DESCRIBE_MEMBER_,                         \
+			   VOE_BASE_DESCRIBE_MEMBER_)                         \
+	} struct_name;                                                        \
+	VOE_BASE_DESCRIBE_TABLE_NAMED_RANGED_(struct_name, field_list,        \
+					      names_list, ranges_list)        \
 	field_list(VOE_BASE_DESCRIBE_CHECK_, VOE_BASE_DESCRIBE_CHECK_)
 
 // Everything from here down is the expansion, and not for use on its own.
@@ -316,15 +378,20 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 #define VOE_BASE_DESCRIBE_ROW_READ_ONLY_(type, field, KIND, ...)             \
 	VOE_BASE_DESCRIBE_ROW_IMPL_(type, field, KIND, true, __VA_ARGS__)
 
+// The opening every accessor shares: the struct's name for the rows to take
+// offsetof on, and the field table.
+#define VOE_BASE_DESCRIBE_ROWS_(struct_name, field_list)                      \
+	typedef struct_name voe_base_describe_self_;                          \
+	static const voe_base_field_description rows[] = {                    \
+		field_list(VOE_BASE_DESCRIBE_ROW_,                            \
+			   VOE_BASE_DESCRIBE_ROW_READ_ONLY_)                  \
+	};
+
 #define VOE_BASE_DESCRIBE_TABLE_(struct_name, field_list)                     \
 	static inline const voe_base_struct_description *                     \
 		struct_name##_description(void)                               \
 	{                                                                     \
-		typedef struct_name voe_base_describe_self_;                  \
-		static const voe_base_field_description rows[] = {            \
-			field_list(VOE_BASE_DESCRIBE_ROW_,                    \
-				   VOE_BASE_DESCRIBE_ROW_READ_ONLY_)          \
-		};                                                            \
+		VOE_BASE_DESCRIBE_ROWS_(struct_name, field_list)              \
 		static const voe_base_struct_description description = {      \
 			.name = #struct_name,                                 \
 			.fields = rows,                                       \
@@ -357,18 +424,21 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 // static initialiser naming it does not compile (ADR-0245, ADR-0284). `named` is
 // therefore static and not const, and every call writes the same pointers into
 // it again; the accessor is called from one thread at a time.
+#define VOE_BASE_DESCRIBE_NAMES_TABLE_(names_list)                            \
+	static voe_base_field_names named[] = {                               \
+		names_list(VOE_BASE_DESCRIBE_NAMES_ROW_)                      \
+	};
+
+#define VOE_BASE_DESCRIBE_NAMES_STORE_ALL_(names_list) \
+	uint32_t voe_base_describe_names_row_ = 0;     \
+	names_list(VOE_BASE_DESCRIBE_NAMES_STORE_)
+
 #define VOE_BASE_DESCRIBE_TABLE_NAMED_(struct_name, field_list, names_list)   \
 	static inline const voe_base_struct_description *                     \
 		struct_name##_description(void)                               \
 	{                                                                     \
-		typedef struct_name voe_base_describe_self_;                  \
-		static const voe_base_field_description rows[] = {            \
-			field_list(VOE_BASE_DESCRIBE_ROW_,                    \
-				   VOE_BASE_DESCRIBE_ROW_READ_ONLY_)          \
-		};                                                            \
-		static voe_base_field_names named[] = {                       \
-			names_list(VOE_BASE_DESCRIBE_NAMES_ROW_)              \
-		};                                                            \
+		VOE_BASE_DESCRIBE_ROWS_(struct_name, field_list)              \
+		VOE_BASE_DESCRIBE_NAMES_TABLE_(names_list)                    \
 		static const voe_base_struct_description description = {      \
 			.name = #struct_name,                                 \
 			.fields = rows,                                       \
@@ -376,8 +446,67 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 			.names = named,                                       \
 			.names_count = sizeof(named) / sizeof(named[0]),      \
 		};                                                            \
-		uint32_t voe_base_describe_names_row_ = 0;                    \
-		names_list(VOE_BASE_DESCRIBE_NAMES_STORE_)                    \
+		VOE_BASE_DESCRIBE_NAMES_STORE_ALL_(names_list)                \
+		return &description;                                          \
+	}
+
+// `"" unit_` refuses a unit that is not a string literal.
+#define VOE_BASE_DESCRIBE_RANGE_ROW_(field_, least_, greatest_, unit_)       \
+	{                                                                     \
+		.field = #field_,                                             \
+		.least = (least_),                                            \
+		.greatest = (greatest_),                                      \
+		.unit = "" unit_,                                             \
+	},
+
+// A member access on the struct, so a ranged field it does not have is a
+// build error.
+#define VOE_BASE_DESCRIBE_RANGE_CHECK_(field_, least_, greatest_, unit_)     \
+	static_assert(sizeof(((voe_base_describe_self_ *)0)->field_) > 0,     \
+		      #field_ ": a range names a field the struct lacks");
+
+#define VOE_BASE_DESCRIBE_RANGES_TABLE_(ranges_list)                          \
+	static const voe_base_field_range ranged[] = {                        \
+		ranges_list(VOE_BASE_DESCRIBE_RANGE_ROW_)                     \
+	};                                                                    \
+	ranges_list(VOE_BASE_DESCRIBE_RANGE_CHECK_)
+
+// Their own table macros for the reason the NAMED one has its own: no empty
+// initialiser for the table a struct does not ask for.
+#define VOE_BASE_DESCRIBE_TABLE_RANGED_(struct_name, field_list, ranges_list) \
+	static inline const voe_base_struct_description *                     \
+		struct_name##_description(void)                               \
+	{                                                                     \
+		VOE_BASE_DESCRIBE_ROWS_(struct_name, field_list)              \
+		VOE_BASE_DESCRIBE_RANGES_TABLE_(ranges_list)                  \
+		static const voe_base_struct_description description = {      \
+			.name = #struct_name,                                 \
+			.fields = rows,                                       \
+			.field_count = sizeof(rows) / sizeof(rows[0]),        \
+			.ranges = ranged,                                     \
+			.ranges_count = sizeof(ranged) / sizeof(ranged[0]),   \
+		};                                                            \
+		return &description;                                          \
+	}
+
+#define VOE_BASE_DESCRIBE_TABLE_NAMED_RANGED_(struct_name, field_list,       \
+					      names_list, ranges_list)       \
+	static inline const voe_base_struct_description *                     \
+		struct_name##_description(void)                               \
+	{                                                                     \
+		VOE_BASE_DESCRIBE_ROWS_(struct_name, field_list)              \
+		VOE_BASE_DESCRIBE_NAMES_TABLE_(names_list)                    \
+		VOE_BASE_DESCRIBE_RANGES_TABLE_(ranges_list)                  \
+		static const voe_base_struct_description description = {      \
+			.name = #struct_name,                                 \
+			.fields = rows,                                       \
+			.field_count = sizeof(rows) / sizeof(rows[0]),        \
+			.names = named,                                       \
+			.names_count = sizeof(named) / sizeof(named[0]),      \
+			.ranges = ranged,                                     \
+			.ranges_count = sizeof(ranged) / sizeof(ranged[0]),   \
+		};                                                            \
+		VOE_BASE_DESCRIBE_NAMES_STORE_ALL_(names_list)                \
 		return &description;                                          \
 	}
 
@@ -385,5 +514,8 @@ static_assert(sizeof(voe_base_field_kind) == VOE_BASE_FIELD_SIZE_ENUM,
 
 #define VOE_BASE_DESCRIBE_TABLE_(struct_name, field_list)
 #define VOE_BASE_DESCRIBE_TABLE_NAMED_(struct_name, field_list, names_list)
+#define VOE_BASE_DESCRIBE_TABLE_RANGED_(struct_name, field_list, ranges_list)
+#define VOE_BASE_DESCRIBE_TABLE_NAMED_RANGED_(struct_name, field_list, \
+					      names_list, ranges_list)
 
 #endif

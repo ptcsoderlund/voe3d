@@ -9,8 +9,8 @@ module's promises from outside.
   the test.
 - `describe.c` — that a table's offsets, kind, shape and count are the
   compiler's own, on a struct padded so that any worked out by hand would be
-  wrong, and on a second struct proving every rank from 0 to 7. Its header says
-  why the switch is turned on inside the test.
+  wrong and on one of every rank, and that names and ranges come back as they
+  went in. Its header says why the switch is on.
 - `report.c` — each level's word, the line's shape with and without subjects,
   the kept first error and the keep, and the cut exactly at the capacity; its header says
   why the boundary is the test.

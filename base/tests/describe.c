@@ -33,6 +33,12 @@
 // is the same: sizeof still sees the array's bound, but its value is a load, so
 // a table that put it in a static initialiser would not compile here either.
 //
+// A RANGED FIELD IS A ROW BESIDE THE FIELDS, AS A NAMED ONE IS. `gauge` ranges
+// two of its three fields and `knob` both names one field and ranges another, so
+// the claims are that each range comes back with its ends and unit, that an
+// unranged field and a struct with no ranges answer NULL, and that ranging a
+// struct does not cost it its names.
+//
 // THE SWITCH IS TURNED ON HERE, WHATEVER THE BUILD SAID. A build that has not
 // asked for descriptions has no table, and check.cmake builds that way, so a test
 // that followed the build would test nothing on the one run that gates a card.
@@ -165,6 +171,27 @@ static const char *const (*lever_names)[3] = &lever_position_names;
 
 VOE_BASE_DESCRIBE_STRUCT_NAMED(lever, LEVER_FIELDS, LEVER_NAMES)
 
+#define GAUGE_FIELDS(F, F_READ_ONLY)   \
+	F(float, height, FLOAT32)      \
+	F(double, share, FLOAT64)      \
+	F(float, spare, FLOAT32)
+#define GAUGE_RANGES(R)                    \
+	R(height, 0.05, 10.0, "m")         \
+	R(share, 0.0, 1.0, "")
+
+VOE_BASE_DESCRIBE_STRUCT_RANGED(gauge, GAUGE_FIELDS, GAUGE_RANGES)
+
+static const char *const knob_mode_names[] = { "Off", "On" };
+
+#define KNOB_FIELDS(F, F_READ_ONLY)    \
+	F(uint32_t, mode, UINT32)      \
+	F(float, angle, FLOAT32)
+#define KNOB_NAMES(N) N(mode, knob_mode_names)
+#define KNOB_RANGES(R) R(angle, -360.0, 360.0, "°")
+
+VOE_BASE_DESCRIBE_STRUCT_NAMED_RANGED(knob, KNOB_FIELDS, KNOB_NAMES,
+				      KNOB_RANGES)
+
 static void check_name(const char *actual, const char *expected)
 {
 	VOE_TEST_CHECK(strcmp(actual, expected) == 0);
@@ -215,6 +242,55 @@ static void check_names_bound_at_run_time(void)
 	VOE_TEST_CHECK(lever_description() == lever_desc);
 	VOE_TEST_CHECK(voe_base_names_find(lever_description(), "position")
 				       ->values == lever_position_names);
+}
+
+// The ends are compared exactly: they are the same constants on both sides.
+static void check_range(const voe_base_field_range *actual, const char *field,
+			double least, double greatest, const char *unit)
+{
+	VOE_TEST_CHECK(actual != NULL);
+	if (!actual)
+		return;
+	check_name(actual->field, field);
+	VOE_TEST_CHECK(actual->least == least);
+	VOE_TEST_CHECK(actual->greatest == greatest);
+	check_name(actual->unit, unit);
+}
+
+// Ranges come back with their ends and units, an unranged field or struct has
+// none, and a struct both named and ranged keeps its names.
+static void check_ranges(void)
+{
+	const voe_base_struct_description *gauge_desc = gauge_description();
+	const voe_base_struct_description *knob_desc = knob_description();
+
+	VOE_TEST_CHECK_INT(gauge_desc->field_count, 3);
+	VOE_TEST_CHECK_INT(gauge_desc->ranges_count, 2);
+	VOE_TEST_CHECK(gauge_desc->names == NULL);
+	check_range(voe_base_ranges_find(gauge_desc, "height"), "height", 0.05,
+		    10.0, "m");
+	check_range(voe_base_ranges_find(gauge_desc, "share"), "share", 0.0, 1.0,
+		    "");
+	VOE_TEST_CHECK(voe_base_ranges_find(gauge_desc, "spare") == NULL);
+	VOE_TEST_CHECK(voe_base_ranges_find(thing_description(), "flags") ==
+		       NULL);
+	VOE_TEST_CHECK(thing_description()->ranges == NULL);
+	VOE_TEST_CHECK_INT(thing_description()->ranges_count, 0);
+	VOE_TEST_CHECK(voe_base_ranges_find(dial_description(), "mode") == NULL);
+
+	VOE_TEST_CHECK_INT(knob_desc->field_count, 2);
+	VOE_TEST_CHECK_INT(knob_desc->ranges_count, 1);
+	check_range(voe_base_ranges_find(knob_desc, "angle"), "angle", -360.0,
+		    360.0, "°");
+	VOE_TEST_CHECK(voe_base_ranges_find(knob_desc, "mode") == NULL);
+
+	const voe_base_field_names *mode_names =
+		voe_base_names_find(knob_desc, "mode");
+	VOE_TEST_CHECK(mode_names != NULL);
+	if (!mode_names)
+		return;
+	VOE_TEST_CHECK_INT(mode_names->value_count, 2);
+	check_name(mode_names->values[1], "On");
 }
 
 int main(void)
@@ -315,6 +391,7 @@ int main(void)
 	VOE_TEST_CHECK(voe_base_names_find(thing_desc, "flags") == NULL);
 
 	check_names_bound_at_run_time();
+	check_ranges();
 
 	return voe_test_result();
 }

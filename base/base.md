@@ -25,6 +25,6 @@ an operating system.
   and not a sliding window, and why `worst` presumes a direction.
 - `include/base/describe.h` — a struct written once as the list of its fields,
   and the table that says what each one is and where it lives, with a field's
-  values optionally named for a tool. Its header says why the declaring folder
-  supplies the type and what the switch leaves out.
+  values named or its range and unit given for a tool. Its header says why the
+  declaring folder supplies the type and what the switch drops.
 - `include/base/version.h` — the placeholder that proves the folder builds.
