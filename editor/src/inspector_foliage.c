@@ -32,10 +32,7 @@
 #include <math.h>
 #include <stdio.h>
 
-// As inspector_sculpt.c's section: inside its edges, between its rows, and
-// between the things on one row. Millimetres.
-#define SECTION_PAD (2.0f * VOE_EDITOR_SPACING)
-#define SECTION_GAP (1.5f * VOE_EDITOR_SPACING)
+// As inspector_sculpt.c's: between the things on one row. Millimetres.
 #define ROW_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // A slider's track, as the Sculpt section's. Millimetres.
@@ -226,14 +223,18 @@ static void density_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt)
 
 void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
 				       voe_editor_sculpt *sculpt,
+				       voe_editor_folds *folds,
 				       const voe_3d_models *store,
 				       const voe_ecs_world *world,
 				       voe_ecs_entity entity)
 {
 	const voe_assets_landscape *land;
+	char name[VOE_EDITOR_FOLD_NAME];
+	bool open;
 
 	VOE_BASE_ASSERT(ui != NULL, "drawing a Foliage section into no interface");
-	VOE_BASE_ASSERT(sculpt != NULL, "drawing no Foliage section");
+	VOE_BASE_ASSERT(sculpt != NULL && folds != NULL,
+			"drawing no Foliage section or with no folds");
 
 	land = voe_editor_inspector_layers_grid(store, world, entity).grid;
 	if (land == NULL)
@@ -241,13 +242,14 @@ void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(land->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
 			"a grid with more kinds than it holds");
 
-	voe_ui_panel_begin(ui, "foliage", 0, VOE_UI_SURFACE_RAISED,
-			   (voe_ui_container){
-				   .across = VOE_UI_ACROSS_FILL,
-				   .gap = SECTION_GAP,
-				   .pad = { SECTION_PAD, SECTION_PAD, SECTION_PAD,
-					    SECTION_PAD } });
-	voe_ui_label(ui, "Foliage");
+	voe_editor_folds_section_name(name, sizeof name, "foliage");
+	open = voe_editor_folds_begin(ui, folds, name, "foliage", 0);
+	voe_ui_label_role(ui, "Foliage", VOE_UI_TEXT_ROLE_HEADING);
+	voe_ui_end(ui);
+	if (!open) {
+		voe_ui_end(ui);
+		return;
+	}
 
 	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
 						 .gap = ROW_GAP,

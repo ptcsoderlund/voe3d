@@ -1,5 +1,5 @@
 // The Enabled switch's row, the walk over the world's component types, each
-// component's panel with a row per described field (inspector_rows.h), Add
+// component's folding section with a row per described field (inspector_rows.h), Add
 // component and the open list. See
 // the header for why this file names no component; the replace intent a moved
 // control becomes is inspector_edit.c's. A thing wearing a landscape gets the
@@ -53,12 +53,8 @@
 static_assert(sizeof(voe_3d_model_intent) <= VOE_EDITOR_INSPECTOR_INTENT,
 	      "a model's replace intent is wider than VOE_EDITOR_INSPECTOR_INTENT");
 
-// A component's fields sit on the theme's RAISED surface, a shade above the
-// panel's own SURFACE, so that two components read as two blocks.
-
-// Inside a component's four edges and between its rows; between the things on
-// one row is inspector_rows.h's ROW_GAP. Millimetres.
-#define COMPONENT_PAD (2.0f * VOE_EDITOR_SPACING)
+// Between the Enabled row's things and the Duplicate and Delete buttons; a
+// component's own pad and gap are its section's (ui/widgets.h). Millimetres.
 #define COMPONENT_GAP (1.5f * VOE_EDITOR_SPACING)
 
 // Round the open list's rows and between them. Millimetres.
@@ -82,32 +78,31 @@ static_assert(sizeof(voe_3d_model_intent) <= VOE_EDITOR_INSPECTOR_INTENT,
 
 // ---------------------------------------------------------- what it draws
 
-// One component: its heading with a Remove button beside it — none for a
-// kept type — the line saying what it needs when the entity lacks that, and a row
-// per described field. A panel and not a column because the key is what makes
-// every widget beneath it unique — two components with a field of the same name
-// would otherwise be one widget sharing one highlight (ui/widgets.h).
+// One component as a folding section: its heading with a Remove button after
+// it on the header line — none for a kept type — then, while open, the line
+// saying what it needs when the entity lacks that, and a row per described
+// field. Its fold is named by the component's key (0502 point 1), so it folds
+// on every entity. The section's box is keyed by the type because the key is
+// what makes every widget beneath it unique — two components with a field of
+// the same name would otherwise be one widget sharing one highlight
+// (ui/widgets.h).
 static void component_panel(voe_ui_context *ui,
 			    voe_editor_inspector *inspector,
-			    voe_ecs_world *world, uint32_t index,
+			    voe_editor_folds *folds, voe_ecs_world *world,
 			    voe_ecs_type type, bool removable, bool part,
 			    const uint8_t *row)
 {
 	const voe_base_struct_description *description;
 	bool editable = !part && voe_ecs_component_replace(world, type).set;
+	char name[VOE_EDITOR_FOLD_NAME];
 	voe_ecs_type needed;
+	bool open;
 
-	voe_ui_panel_begin(ui, "component", index, VOE_UI_SURFACE_RAISED,
-			   (voe_ui_container){
-				   .across = VOE_UI_ACROSS_FILL,
-				   .gap = COMPONENT_GAP,
-				   .pad = { COMPONENT_PAD, COMPONENT_PAD,
-					    COMPONENT_PAD, COMPONENT_PAD } });
-
-	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
-						 .gap = ROW_GAP,
-						 .wrap = true });
-	voe_ui_label(ui, heading(inspector->arena, world, type));
+	voe_editor_folds_section_name(name, sizeof name,
+				      voe_ecs_component_key(world, type)->name);
+	open = voe_editor_folds_begin(ui, folds, name, "component", type.value);
+	voe_ui_label_role(ui, heading(inspector->arena, world, type),
+			  VOE_UI_TEXT_ROLE_HEADING);
 	if (removable && !part &&
 	    inspector->remove_count < VOE_EDITOR_INSPECTOR_SECTIONS) {
 		voe_ui_node node = voe_ui_button_begin(ui, "remove", 0);
@@ -120,6 +115,10 @@ static void component_panel(voe_ui_context *ui,
 	}
 	voe_ui_end(ui);
 
+	if (!open) {
+		voe_ui_end(ui);
+		return;
+	}
 	if (voe_ecs_component_needs(world, type, &needed) &&
 	    voe_ecs_component_get(world, needed, inspector->entity) == NULL)
 		voe_ui_label(ui, text(inspector->arena, "Needs %s",
@@ -374,6 +373,7 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_ecs_world *world, voe_ecs_entity selected,
 			       const voe_ecs_type *kept, uint32_t kept_count,
 			       voe_editor_sculpt *sculpt,
+			       voe_editor_folds *folds,
 			       const voe_3d_models *store,
 			       const voe_editor_views *views,
 			       const char *material_open,
@@ -391,8 +391,9 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(world != NULL, "drawing an inspector on no world");
 	VOE_BASE_ASSERT(kept != NULL || kept_count == 0,
 			"kept types counted but not handed in");
-	VOE_BASE_ASSERT(sculpt != NULL && store != NULL && views != NULL,
-			"drawing an inspector with no brush, store or views");
+	VOE_BASE_ASSERT(sculpt != NULL && folds != NULL && store != NULL &&
+				views != NULL,
+			"drawing an inspector with no brush, folds, store or views");
 	VOE_BASE_ASSERT(material_open != NULL && material != NULL &&
 				controls != NULL,
 			"drawing an inspector with no material slot");
@@ -479,20 +480,20 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			removable = removable && type.value != kept[k].value;
 		removable = removable && !needed_by_another(world, selected, type);
 
-		component_panel(ui, inspector, world, i, type, removable, part,
-				(const uint8_t *)row);
+		component_panel(ui, inspector, folds, world, type, removable,
+				part, (const uint8_t *)row);
 	}
 
 	if (voe_editor_sculpt_wears(world, selected)) {
-		voe_editor_inspector_sculpt_draw(ui, sculpt);
-		voe_editor_inspector_layers_draw(ui, sculpt, store, world,
+		voe_editor_inspector_sculpt_draw(ui, sculpt, folds);
+		voe_editor_inspector_layers_draw(ui, sculpt, folds, store, world,
 						 selected);
-		voe_editor_inspector_foliage_draw(ui, sculpt, store, world,
-						  selected);
-		voe_editor_inspector_brush_draw(ui, sculpt);
+		voe_editor_inspector_foliage_draw(ui, sculpt, folds, store,
+						  world, selected);
+		voe_editor_inspector_brush_draw(ui, sculpt, folds);
 	}
-	voe_editor_inspector_level_draw(ui, &inspector->level, store, world,
-					selected, views);
+	voe_editor_inspector_level_draw(ui, &inspector->level, folds, store,
+					world, selected, views);
 
 	if (part) {
 		voe_ui_end(ui);

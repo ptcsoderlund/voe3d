@@ -463,8 +463,18 @@
 // ghost is the one counted above, one drag going on at a time, and "Frame
 // breakdown", its longest name, is within the 64 characters counted. No
 // scroll area: nine stands.
-#define VOE_EDITOR_INTERFACE_NODES 2768
-#define VOE_EDITOR_INTERFACE_ELEMENTS 55045
+//
+// THE INSPECTOR'S FOLDING SECTIONS (inspector.h, 0496, 0503) ADD 180 NODES:
+// every section is now ui's folding section, four nodes apiece — its box, the
+// header row, the fold button and its "+" or "-" — counted whole on top though
+// the box and row take the place of a panel and row counted above, for the
+// forty component sections and Sculpt, Layers, Foliage, Brush and LOD, 45 × 4.
+// 2768 + 180 = 2948 nodes. AND 225 ELEMENTS, five apiece: the box's border and
+// fill, the button's and its one character, 45 × 5. A heading is bigger
+// letters, not more of them. 55045 + 225 = 55270 elements. No scroll area:
+// nine stands.
+#define VOE_EDITOR_INTERFACE_NODES 2948
+#define VOE_EDITOR_INTERFACE_ELEMENTS 55270
 #define VOE_EDITOR_INTERFACE_SCROLLS 9
 
 // Makes the context the interface is built in, once, drawing in `theme` and

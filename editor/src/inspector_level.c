@@ -5,8 +5,6 @@
 // model without levels reads "LOD 1 of 1" and the farthest of six "LOD 6 of 6".
 #include "inspector_level.h"
 
-#include "themes.h"
-
 #include <3d/lods_kept.h>
 #include <3d/model_component.h>
 #include <3d/model_levels.h>
@@ -19,11 +17,6 @@
 
 #include <stdio.h>
 #include <string.h>
-
-// As inspector_layers.c's section: inside its edges, between its rows.
-// Millimetres.
-#define SECTION_PAD (2.0f * VOE_EDITOR_SPACING)
-#define SECTION_GAP (1.5f * VOE_EDITOR_SPACING)
 
 // The loaded model `entity`'s row names, NULL when it has none, its path is
 // unterminated, or the entry is not loaded or is a picture, landscape or
@@ -47,6 +40,7 @@ static const voe_3d_model_entry *worn_model(const voe_3d_models *store,
 
 void voe_editor_inspector_level_draw(voe_ui_context *ui,
 				     voe_editor_inspector_level *level,
+				     voe_editor_folds *folds,
 				     const voe_3d_models *store,
 				     const voe_ecs_world *world,
 				     voe_ecs_entity entity,
@@ -54,11 +48,14 @@ void voe_editor_inspector_level_draw(voe_ui_context *ui,
 {
 	const voe_3d_model_entry *model;
 	voe_scene_transform placed;
+	char name[VOE_EDITOR_FOLD_NAME];
+	bool open;
 
 	VOE_BASE_ASSERT(ui != NULL, "drawing a Level section into no interface");
-	VOE_BASE_ASSERT(level != NULL && store != NULL && world != NULL &&
-				views != NULL,
-			"drawing a Level section with no labels, store, world or views");
+	VOE_BASE_ASSERT(level != NULL && folds != NULL && store != NULL &&
+				world != NULL && views != NULL,
+			"drawing a Level section with no labels, folds, store, "
+			"world or views");
 	VOE_BASE_ASSERT(views->count <= VOE_EDITOR_VIEWS,
 			"more views in use than the editor has room for");
 
@@ -70,13 +67,14 @@ void voe_editor_inspector_level_draw(voe_ui_context *ui,
 			"a loaded model with no levels or too many");
 	placed = voe_scene_transform_world(world, entity);
 
-	voe_ui_panel_begin(ui, "level", 0, VOE_UI_SURFACE_RAISED,
-			   (voe_ui_container){
-				   .across = VOE_UI_ACROSS_FILL,
-				   .gap = SECTION_GAP,
-				   .pad = { SECTION_PAD, SECTION_PAD, SECTION_PAD,
-					    SECTION_PAD } });
-	voe_ui_label(ui, "LOD");
+	voe_editor_folds_section_name(name, sizeof name, "lod");
+	open = voe_editor_folds_begin(ui, folds, name, "level", 0);
+	voe_ui_label_role(ui, "LOD", VOE_UI_TEXT_ROLE_HEADING);
+	voe_ui_end(ui);
+	if (!open) {
+		voe_ui_end(ui);
+		return;
+	}
 
 	for (uint32_t v = 0; v < views->count; v++) {
 		const voe_editor_view *view = &views->views[v];

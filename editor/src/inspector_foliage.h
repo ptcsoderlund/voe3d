@@ -31,8 +31,11 @@
 // picked kinds are scattered or erased. A `.glb` dropped on a kind row
 // replaces that kind's model, on the last row adds one (assets_drag.h).
 //
+// THE SECTION FOLDS by its fold button, named `section foliage` (folds.h,
+// 0502); folded, only its header is drawn and nothing is recorded.
+//
 //     voe_editor_inspector_foliage_forget(&scene->sculpt);       // frame opened
-//     voe_editor_inspector_foliage_draw(ui, &scene->sculpt, store,
+//     voe_editor_inspector_foliage_draw(ui, &scene->sculpt, folds, store,
 //                                       world, selected);        // inspector.c
 //     ...voe_ui_frame_end...
 //     voe_editor_inspector_foliage_read(ui, &scene->sculpt);     // interface_read.c
@@ -46,6 +49,7 @@
 // points into the store's grid, which stands until voe_ui_frame_end.
 #pragma once
 
+#include "folds.h"
 #include "sculpt.h"
 
 #include <3d/models.h>
@@ -58,10 +62,11 @@
 // rectangles. Called when the frame opens.
 void voe_editor_inspector_foliage_forget(voe_editor_sculpt *sculpt);
 
-// Puts the Foliage section for `entity`'s loaded grid on the panel, recording
-// its nodes in `sculpt`; nothing when it wears none.
+// Puts the Foliage section for `entity`'s loaded grid on the panel, open as
+// `folds` says, recording its nodes in `sculpt`; nothing when it wears none.
 void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
 				       voe_editor_sculpt *sculpt,
+				       voe_editor_folds *folds,
 				       const voe_3d_models *store,
 				       const voe_ecs_world *world,
 				       voe_ecs_entity entity);

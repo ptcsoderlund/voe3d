@@ -16,8 +16,11 @@
 // where the paint is strong; each tick and each density is one undo step,
 // asked of sculpt.h's grow edit.
 //
+// THE SECTION FOLDS by its fold button, named `section layers` (folds.h,
+// 0502); folded, only its header is drawn and no row is recorded.
+//
 //     voe_editor_inspector_layers_forget(&scene->sculpt);        // frame opened
-//     voe_editor_inspector_layers_draw(ui, &scene->sculpt, store,
+//     voe_editor_inspector_layers_draw(ui, &scene->sculpt, folds, store,
 //                                      world, selected);         // inspector.c
 //     ...voe_ui_frame_end...
 //     voe_editor_inspector_layers_read(ui, &scene->sculpt);      // interface_read.c
@@ -34,6 +37,7 @@
 // points into the store's grid, which stands until voe_ui_frame_end.
 #pragma once
 
+#include "folds.h"
 #include "sculpt.h"
 
 #include <3d/models.h>
@@ -62,10 +66,11 @@ voe_editor_inspector_layers_worn voe_editor_inspector_layers_grid(
 // opens.
 void voe_editor_inspector_layers_forget(voe_editor_sculpt *sculpt);
 
-// Puts the Layers section for `entity`'s loaded grid on the panel, recording
-// its rows in `sculpt`; nothing when it wears none.
+// Puts the Layers section for `entity`'s loaded grid on the panel, open as
+// `folds` says, recording its rows in `sculpt`; nothing when it wears none.
 void voe_editor_inspector_layers_draw(voe_ui_context *ui,
 				      voe_editor_sculpt *sculpt,
+				      voe_editor_folds *folds,
 				      const voe_3d_models *store,
 				      const voe_ecs_world *world,
 				      voe_ecs_entity entity);

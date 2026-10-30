@@ -297,10 +297,10 @@ carries it out.
   the panels' toggles, the bar's or browser's commands, the covers' reads and Preferences'.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
   one frame of them is recorded in; it holds the shape of the open dropdown, because this panel
-  draws that list and reads what was picked from it; a prefab's part is shown, never edited.
+  draws that list and reads what was picked from it; a part is shown, never edited; sections fold.
 - `inspector.c` — the Enabled row's button, the Duplicate and Delete row, each described
-  component's heading, Remove and "Needs" line, Add component, its menu and open list, a part
-  read-only, a landscape's sections, or an open material's section instead.
+  component's folding section with its heading and Remove, then "Needs" line and fields, Add
+  component, its menu and open list, a part read-only, a landscape's sections, or a material's.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
   strings a text field per string, a ranged real a slider with its figure, labels when it cannot be
   edited.
@@ -313,31 +313,32 @@ carries it out.
 - `sculpt.c` — the defaults, the brush put down, the `.landscape` ending matched, the look and
   grow edits set live and closed as strokes, the ground under the pointer, the press's copy, the stamps
   along the drag, and the release's heights, paint or foliage stroke.
-- `inspector_sculpt.h` — the Inspector's Sculpt section: Raise, Lower, Smooth and Flatten with the
-  chosen one lit, none while painting or brushing foliage, and the Strength slider, read after the
-  frame.
-- `inspector_sculpt.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
-  the read: a fired button chooses its kind or none, the slider's value taken.
-- `inspector_brush.h` — the Inspector's Brush section after Foliage while any brush is chosen:
-  Radius (m) and Softness sliders every brush shares, read after the frame.
-- `inspector_brush.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
-  the read: each drawn slider's value taken into the radius or softness.
-- `inspector_layers.h` — the Inspector's Layers section under Sculpt: a row per layer by its
-  material's file name choosing it to paint, none lit while brushing foliage, the painted layer's
-  grow rows ticking each kind with a Density, and the add row a dropped material lands on.
-- `inspector_layers.c` — the worn loaded grid found, the section's one frame of `ui` calls, and the
-  read: a tick or Density asks the layer's growth, a fired row chooses PAINT with its layer or
-  none, each row's rectangle kept.
-- `inspector_foliage.h` — the Inspector's Foliage section under Layers: Scatter and Erase, a row per
-  kind toggling it picked with its Base size, Cast shadows, Blend with ground, Blend height in
-  metres and spread controls, the add row a dropped `.glb` lands on, and the brush's Density slider.
-- `inspector_foliage.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
-  the read: a fired button chooses its kind or none, a fired row flips its pick, Density clamped,
-  a kind's slider, Cast shadows or Blend with ground asks its look with that field changed.
-- `inspector_level.h` — the Inspector's LOD section after Brush or Foliage: per view in use, the LOD it
-  keeps of a loaded model, as its draws chose it last, else the distance's; of how many, made or own.
-- `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,
-  each view's label formatted into its kept buffer.
+- `inspector_sculpt.h` — the Inspector's Sculpt section, which folds: Raise, Lower, Smooth and
+  Flatten with the chosen one lit, none while painting or brushing foliage, and the Strength slider,
+  read after the frame.
+- `inspector_sculpt.c` — the folding section's one frame of `ui` calls, its nodes forgotten each
+  frame, and the read: a fired button chooses its kind or none, the slider's value taken.
+- `inspector_brush.h` — the Inspector's Brush section, which folds, after Foliage while any brush is
+  chosen: Radius (m) and Softness sliders every brush shares, read after the frame.
+- `inspector_brush.c` — the folding section's one frame of `ui` calls, its nodes forgotten each
+  frame, and the read: each drawn slider's value taken into the radius or softness.
+- `inspector_layers.h` — the Inspector's Layers section, which folds, under Sculpt: a row per layer
+  by its material's file name choosing it to paint, none lit while brushing foliage, the painted
+  layer's grow rows ticking each kind with a Density, and the add row a dropped material lands on.
+- `inspector_layers.c` — the worn loaded grid found, the folding section's one frame of `ui` calls,
+  and the read: a tick or Density asks the layer's growth, a fired row chooses PAINT with its layer
+  or none, each row's rectangle kept.
+- `inspector_foliage.h` — the Inspector's Foliage section, which folds, under Layers: Scatter and
+  Erase, a row per kind toggling it picked with its Base size, Cast shadows, Blend with ground,
+  Blend height in metres and spread controls, the add row a dropped `.glb` lands on, and Density.
+- `inspector_foliage.c` — the folding section's one frame of `ui` calls, its nodes forgotten each
+  frame, and the read: a fired button chooses its kind or none, a fired row flips its pick, Density
+  clamped, a kind's slider, Cast shadows or Blend with ground asks its look with that field changed.
+- `inspector_level.h` — the Inspector's LOD section, which folds, after Brush or Foliage: per view in
+  use, the LOD it keeps of a loaded model, as its draws chose it last, else the distance's; of how
+  many, made or own.
+- `inspector_level.c` — the worn loaded model found, the folding LOD section's one frame of `ui`
+  calls, each view's label formatted into its kept buffer.
 - `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour and Emission
   swatches, Strength clamped 0–1000, Roughness and Metal sliders (greyed and unread while ORMmap is
   set), Repeat clamped 0.01–1000, Cutout, One side and Both sides, and the four map rows with ×.

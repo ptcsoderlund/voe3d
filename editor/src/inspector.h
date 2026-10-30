@@ -24,11 +24,14 @@
 // add_menu.h's tree, drawn and placed as the open dropdown's is, and a group
 // row opens its children beside it, to any depth; a second click, a type
 // picked, a press outside every list, Escape or another entity drawn closes it.
-// A section whose type needs another
-// (`voe_ecs_component_needs`) the entity lacks says "Needs <Heading>". Both go to
-// entities.h after the frame, and each success counts one in the scene's
-// `structural`, a refusal setting its `full` — Delete's and Duplicate's two
-// fields (scene.h).
+// A section whose type needs another (`voe_ecs_component_needs`) the entity
+// lacks says "Needs <Heading>". Both go to entities.h after the frame, and each
+// success counts one in the scene's `structural`, a refusal setting its `full`
+// — Delete's and Duplicate's two fields (scene.h).
+//
+// EVERY SECTION FOLDS BY ITS FOLD BUTTON (0496, 0503 point 4), named as 0502
+// says, `section <component key>` (folds.h), so it folds on every entity that
+// shows it; a title's click does nothing. Remove sits on the header line.
 //
 // THE CONTROLS OUTLIVE THE CALL THAT DREW THEM, WHICH IS WHY THIS IS A STRUCT.
 // A `ui` widget answers what the pointer did to it only after voe_ui_frame_end
@@ -61,6 +64,7 @@
 #include <base/describe.h>
 
 #include "add_menu.h"
+#include "folds.h"
 #include "inspector_level.h"
 #include "inspector_material.h"
 #include "sculpt.h"
@@ -368,7 +372,8 @@ bool voe_editor_inspector_is_part(const voe_ecs_world *world,
 // the Brush section while a brush is chosen (inspector_brush.h); after
 // those, a thing whose model is loaded in `store`
 // gets the LOD section, the level each of `views` draws
-// (inspector_level.h). While `material_open` is not "", `material`'s section
+// (inspector_level.h). Every section opens on `folds` and its body is drawn
+// only while open. While `material_open` is not "", `material`'s section
 // is drawn in place of all of it into `controls` (inspector_material.h), and
 // no entity is recorded, so no entity's edit is read.
 void voe_editor_inspector_draw(voe_ui_context *ui,
@@ -376,6 +381,7 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_ecs_world *world, voe_ecs_entity selected,
 			       const voe_ecs_type *kept, uint32_t kept_count,
 			       voe_editor_sculpt *sculpt,
+			       voe_editor_folds *folds,
 			       const voe_3d_models *store,
 			       const voe_editor_views *views,
 			       const char *material_open,

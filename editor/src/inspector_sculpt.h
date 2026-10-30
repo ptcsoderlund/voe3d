@@ -20,10 +20,14 @@
 // is taken every frame, clamped into its range by `ui`; PAINT strokes with
 // Strength too.
 //
+// THE SECTION FOLDS by its fold button, named `section sculpt` (folds.h, 0502);
+// folded, only its header is drawn and no button or slider is recorded.
+//
 // Constraints: draw, forget and read are called in one frame's window, read
 // before the frame's arena is rewound; nothing here allocates.
 #pragma once
 
+#include "folds.h"
 #include "sculpt.h"
 
 #include <ui/layout.h>
@@ -31,9 +35,11 @@
 // Forgets last frame's buttons and slider. Called when the frame opens.
 void voe_editor_inspector_sculpt_forget(voe_editor_sculpt *sculpt);
 
-// Puts the Sculpt section on the panel, recording its nodes in `sculpt`.
+// Puts the Sculpt section on the panel, open as `folds` says, recording its
+// nodes in `sculpt`.
 void voe_editor_inspector_sculpt_draw(voe_ui_context *ui,
-				      voe_editor_sculpt *sculpt);
+				      voe_editor_sculpt *sculpt,
+				      voe_editor_folds *folds);
 
 // After voe_ui_frame_end: a fired button chooses its kind, or none when it
 // was the chosen one; a drawn slider's value taken.
