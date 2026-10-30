@@ -17,6 +17,9 @@
 // level, in [0, π/2]. The default row is a step of 0.3, a slope of 0.8, still
 // and not on the floor. A body needs a collider, so colliders are registered
 // first; the move is physics/body_system.h's.
+//
+// THE SLOPE LIMIT CARRIES ITS RANGE for a tool, which draws it as a slider
+// (0494, 0498); `step_height` has no top and stays a number box.
 #pragma once
 
 #include <base/describe.h>
@@ -35,7 +38,14 @@
 	F_READ_ONLY(voe_math_float3, velocity, FLOAT3)     \
 	F_READ_ONLY(bool, on_floor, BOOL)
 
-VOE_BASE_DESCRIBE_STRUCT(voe_physics_body, VOE_PHYSICS_BODY_FIELDS)
+// π/2: the steepest slope limit, a wall.
+#define VOE_PHYSICS_BODY_SLOPE_LIMIT_MAX 1.57079632679489661923
+
+#define VOE_PHYSICS_BODY_RANGES(R) \
+	R(slope_limit, 0.0, VOE_PHYSICS_BODY_SLOPE_LIMIT_MAX, "rad")
+
+VOE_BASE_DESCRIBE_STRUCT_RANGED(voe_physics_body, VOE_PHYSICS_BODY_FIELDS,
+				VOE_PHYSICS_BODY_RANGES)
 
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_physics_body_key;

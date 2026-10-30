@@ -2,6 +2,7 @@
 // type needs, a row replaced whole when the system runs, each bad field
 // keeping the row, and the move: resting, walls, ramps, a ledge and a gap, a
 // floor switched off fallen through and a body switched off not moved (0428).
+// The slope limit's range is 0 to π/2 rad; the step height has none.
 //
 // THE REFUSED ROWS ARE REPORTED ON stderr. Those lines are expected output, not
 // a failure; the checks are on the row.
@@ -75,6 +76,25 @@ static void registration_tells_a_tool(voe_base_arena *arena)
 				   .value);
 	VOE_TEST_CHECK(strcmp(voe_ecs_component_menu(world, type),
 			      "Physics / Kinematic Body") == 0);
+}
+
+// The slope limit carries 0 to π/2 rad for a tool; the step height no range.
+static void the_slope_limit_says_its_range(void)
+{
+	const voe_base_struct_description *description =
+		voe_physics_body_description();
+	const voe_base_field_range *range =
+		voe_base_ranges_find(description, "slope_limit");
+
+	VOE_TEST_CHECK(range != NULL);
+	if (range != NULL) {
+		VOE_TEST_CHECK_FLOAT(range->least, 0.0, 0.0);
+		VOE_TEST_CHECK_FLOAT(range->greatest, 1.57079632679489661923,
+				     0.0);
+		VOE_TEST_CHECK(strcmp(range->unit, "rad") == 0);
+	}
+	VOE_TEST_CHECK(voe_base_ranges_find(description, "step_height") ==
+		       NULL);
 }
 
 // Submits `body` for `entity` and runs the drain.
@@ -405,6 +425,7 @@ int main(void)
 	const voe_math_double3 far = { 100000.0, 0.0, 100000.0 };
 
 	registration_tells_a_tool(arena);
+	the_slope_limit_says_its_range();
 	a_row_is_replaced_whole_and_kept(arena);
 	for (uint32_t i = 0; i < sizeof scenes / sizeof scenes[0]; i++) {
 		voe_math_double3 near_end = scenes[i](arena, (voe_math_double3){ 0 });

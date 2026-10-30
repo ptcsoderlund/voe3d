@@ -8,7 +8,7 @@ read a transform, and `3d` draws them, so collision is neither folder's (0253).
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
 - `include/physics/body_component.h` — a kinematic body's step height, slope
   limit, velocity (wanted in, moved out) and whether it is on the floor, as a
-  described field list.
+  described field list; the slope limit carries its range, 0 to π/2 rad.
 - `include/physics/body_system.h` — the whole-row intent registered as the
   body's replace, the call that creates one, the drain that keeps a row over
   a bad step, slope or velocity, and the move that slides and steps.

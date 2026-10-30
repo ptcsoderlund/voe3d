@@ -3,8 +3,8 @@
 One plain C program per `physics` module, found by the build. None needs a
 window or a graphics card.
 
-- `body.c` — the default row, a row replaced whole and kept over bad fields,
-  and the move resting, at walls, on ramps, onto a ledge, off an edge, through
+- `body.c` — the default row, the slope limit's range of 0 to π/2 rad, a row
+  replaced whole and kept over bad fields, and the move resting, at walls, on ramps, onto a ledge, off an edge, through
   a switched-off floor, and a switched-off body not moved.
 - `collider.c` — registration, the kind as a named UINT32, a replace landing
   when the system runs and a negative size keeping the row, the shape of a
