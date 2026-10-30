@@ -32,7 +32,6 @@
 // THE LANDSCAPE CASE: a 64-cell, 512 m flat landscape table loaded with
 // voe_game_models_landscapes and a row wearing it under the sun; its nodes
 // are drawn into every pass and both frames come back true (0396 point 4).
-//
 // THE INTERFACE CASE: a label over the world: true, fitting VOE_GAME_CAPACITIES.
 //
 // THE BLOCKER CASE: a camera four metres over a grey ground under a sun and a
@@ -48,7 +47,8 @@
 // cube's centre; neither row leaves the clear colour; a picture row at -4 and
 // no sky darkens the cube against no row (0405, 0406).
 //
-// THE MODEL CASE: a thing whose model an empty store lacks draws as nothing.
+// THE MODEL CASE: a thing whose model an empty store lacks draws as nothing;
+// glb_build.h's triangle drawn twice through a window's LOD memory is in it.
 // THE COUNTS CASE: a cube before the camera and one behind: drawn 1, skipped 1.
 //
 // THE HAZE, CLOUDS AND FOG CASES: a Haze row's replace reaches the sky record
@@ -100,6 +100,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "glb_build.h"
 
 #define WIDTH 128
 #define HEIGHT 72
@@ -174,14 +176,14 @@ static void draw_case(voe_app *app, voe_base_arena *arena,
 	FILE *file;
 
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	VOE_TEST_CHECK(voe_physics_collider_submit(
 		world, (voe_physics_collider_intent){
 			       .entity = cube,
 			       .collider = { .kind = VOE_PHYSICS_COLLIDER_BOX,
 					     .size = { 2.0f, 1.0f, 1.0f } } }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	collider = voe_physics_collider_get(world, cube);
 	VOE_TEST_CHECK(collider != NULL && collider->size.x == 2.0f);
 
@@ -220,9 +222,9 @@ static void shadow_case(voe_app *app, voe_base_arena *arena,
 				.colour = VOE_3D_SHAPE_GREY,
 				.cast_shadows = true }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 }
 
 // A light at the origin facing `toward`, casting and bouncing once.
@@ -266,7 +268,7 @@ static void sun_and_moon_case(voe_app *app, voe_base_arena *arena,
 				.cast_shadows = true }));
 	for (int frame = 0; frame < 3; frame++)
 		VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch,
-					      size, 0.0f, NULL, NULL, NULL));
+					      size, 0.0f, NULL, NULL, NULL, NULL));
 }
 
 // A fresh lit world with a floor under the cube and a casting lamp beside
@@ -299,9 +301,9 @@ static void lamp_case(voe_app *app, voe_base_arena *arena,
 					 .falloff = 1.0f,
 					 .cast_shadows = true }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 }
 
 // A flat 64-cell landscape, (64 + 1)² heights of nought.
@@ -337,9 +339,9 @@ static void landscape_case(voe_app *app, voe_base_arena *arena,
 					(voe_3d_model){ .path = LAND_PATH,
 							.cast_shadows = true }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	voe_3d_models_clear(models, voe_app_device(app));
 	voe_3d_models_destroy(models);
 }
@@ -424,13 +426,13 @@ static void blocker_case(voe_app *app, voe_base_arena *arena,
 	const voe_scene_light_blocker *row;
 
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	VOE_TEST_CHECK(voe_scene_light_blocker_submit(
 		world, (voe_scene_light_blocker_intent){
 			       .entity = blocker,
 			       .blocker = { .size = { 2.0f, 2.0f, 2.0f } } }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	row = voe_scene_light_blocker_get(world, blocker);
 	VOE_TEST_CHECK(row != NULL && row->size.x == 2.0f);
 
@@ -481,9 +483,9 @@ static void direct_case(voe_app *app, voe_base_arena *arena,
 					   .block = VOE_SCENE_LIGHT_BLOCKER_DIRECT },
 		1.0f);
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	picture = read_window(app, scratch);
 	if (picture.pixels == NULL)
 		return;
@@ -539,7 +541,7 @@ static sky_read sky_case(voe_app *app, voe_base_arena *arena,
 	if (lit)
 		VOE_TEST_CHECK(voe_scene_picture_add(world, settings, look));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	if (lit && exposure != 0.0f) {
 		voe_scene_picture darker = look;
 
@@ -549,7 +551,7 @@ static sky_read sky_case(voe_app *app, voe_base_arena *arena,
 							   .picture = darker }));
 	}
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	if (lit) {
 		const voe_scene_picture *got =
 			voe_scene_picture_get(world, settings);
@@ -608,10 +610,46 @@ static void model_case(voe_app *app, voe_base_arena *arena,
 	VOE_TEST_CHECK(voe_3d_model_add(
 		world, hull, (voe_3d_model){ .path = "Assets/hull.glb" }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	VOE_TEST_CHECK(voe_3d_models_count(models) == 0);
+	voe_3d_models_destroy(models);
+}
+
+// A fresh lit world with a thing at the origin wearing glb_build.h's triangle,
+// loaded into a store, two frames drawn through one memory as run.c keeps for
+// its window: the thing's row is chosen, so its key is in the memory (0501).
+static void a_window_memory_keeps_the_row_lod(voe_app *app,
+					      voe_base_arena *arena,
+					      voe_base_arena *scratch,
+					      const voe_3d_shapes *shapes)
+{
+	voe_platform_size size = { WIDTH, HEIGHT };
+	voe_ecs_world *world = voe_game_world_new(arena);
+	voe_3d_models *models = voe_3d_models_new();
+	voe_3d_lods_kept *lods = voe_3d_lods_kept_create(arena);
+	voe_base_error error = VOE_BASE_OK;
+	voe_3d_model_level_choice choice;
+	voe_3d_model row = { 0 };
+	voe_ecs_entity thing;
+	uint8_t glb[512];
+	uint32_t length = glb_build(glb, sizeof(glb));
+
+	VOE_TEST_CHECK(voe_3d_models_load(models, voe_app_device(app),
+					  "Assets/triangle.glb", 1, glb, length,
+					  &error));
+	(void)build(world, true);
+	thing = place(world);
+	snprintf(row.path, sizeof row.path, "%s", "Assets/triangle.glb");
+	VOE_TEST_CHECK(voe_3d_model_add(world, thing, row));
+	for (int frame = 0; frame < 2; frame++)
+		VOE_TEST_CHECK(voe_game_frame(app, world, shapes, models, scratch,
+					      size, 0.0f, NULL, lods, NULL,
+					      NULL));
+	VOE_TEST_CHECK(voe_3d_lods_kept_find(
+		lods, voe_3d_lods_kept_row_key(thing), &choice));
+	voe_3d_models_clear(models, voe_app_device(app));
 	voe_3d_models_destroy(models);
 }
 
@@ -728,9 +766,9 @@ static void counts_case(voe_app *app, voe_base_arena *arena,
 		(voe_3d_shape){ .kind = VOE_3D_SHAPE_CUBE,
 				.colour = VOE_3D_SHAPE_GREY }));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, NULL));
+				      0.0f, NULL, NULL, NULL, NULL));
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size,
-				      0.0f, NULL, NULL, &counts));
+				      0.0f, NULL, NULL, NULL, &counts));
 	VOE_TEST_CHECK_INT(counts.drawn, 1);
 	VOE_TEST_CHECK_INT(counts.skipped, 1);
 }
@@ -764,7 +802,8 @@ static void interface_case(voe_app *app, voe_base_arena *arena,
 	VOE_TEST_CHECK(voe_ui_element_count(
 			       voe_game_interface_context(interface)) > 0);
 	VOE_TEST_CHECK(voe_game_frame(app, world, shapes, NULL, scratch, size, 0.0f,
-				      NULL, voe_game_interface_context(interface), NULL));
+				      NULL, NULL,
+				      voe_game_interface_context(interface), NULL));
 	voe_game_interface_destroy(interface);
 }
 
@@ -811,6 +850,7 @@ int main(void)
 	sky_cases(app, arena, scratch, &shapes);
 	interface_case(app, arena, scratch, &shapes);
 	model_case(app, arena, scratch, &shapes);
+	a_window_memory_keeps_the_row_lod(app, arena, scratch, &shapes);
 	counts_case(app, arena, scratch, &shapes);
 
 	voe_app_destroy(app);

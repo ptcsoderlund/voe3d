@@ -9,7 +9,7 @@
 //             break;
 //     if (!frame.minimised &&
 //         !voe_game_frame(app, world, &shapes, models, scratch, frame.size, lag,
-//                         casters, voe_game_interface_context(interface),
+//                         casters, lods, voe_game_interface_context(interface),
 //                         NULL))
 //             ...                        // the device stopped answering
 //
@@ -34,7 +34,10 @@
 // `models` is the store the model rows are drawn and shadowed from; NULL
 // draws no model (0277 point 3). `casters` is the window's bounce memory
 // (3d/bounce_casters.h, 0394 point 4), one the caller keeps per window; NULL
-// keeps none, and a removed caster then marks nothing. No outline, gizmo or
+// keeps none, and a removed caster then marks nothing. `lods` is the window's
+// LOD memory (3d/lods_kept.h, 0501 point 1), kept the same way and begun on the
+// wall clock each frame drawn, so a paused Play still ends a dissolve; NULL
+// draws one LOD whole with no dissolve. No outline, gizmo or
 // marker: those are the editor's, and the frame comes back with them zeroed.
 //
 // Constraints: the world is one voe_game_world_new made, with exactly one
@@ -49,6 +52,7 @@
 #include <3d/bounce_casters.h>
 #include <3d/draw_system.h>
 #include <3d/emitter_component.h>
+#include <3d/lods_kept.h>
 #include <3d/models.h>
 #include <3d/shadow_cascades.h>
 #include <3d/shape_system.h>
@@ -132,7 +136,8 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes);
 // Runs the world step and draws the world at `size`, `lag` of a step back,
 // its model rows from `models` (NULL for none), its bounce remembering its
 // casters in `casters`, the caller's one for this window (NULL for none: a
-// removed caster then marks nothing),
+// removed caster then marks nothing), its copies keeping their LODs in `lods`,
+// the caller's one for this window (NULL for none: one LOD whole, no dissolve),
 // then `ui`'s element records over it; NULL, or no records, draws none.
 // `counts`, NULL for none, is given what the view and its shadows drew and
 // skipped (voe_3d_draw_system_run, 0464 point 5), written only when the world
@@ -148,5 +153,6 @@ void voe_game_world_step(voe_ecs_world *world, const voe_3d_shapes *shapes);
 				  voe_base_arena *scratch,
 				  voe_platform_size size, float lag,
 				  voe_3d_bounce_casters *casters,
+				  voe_3d_lods_kept *lods,
 				  const voe_ui_context *ui,
 				  voe_3d_view_counts *counts);
