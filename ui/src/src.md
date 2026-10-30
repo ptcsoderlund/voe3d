@@ -31,6 +31,8 @@ pointer and the keyboard have been at it. Nothing here is included from outside 
   bars over its content against the pointer and into the records, and every way
   an offset moves — a thumb dragged, a track pressed, the pointer's scroll
   passed outward, a node centred by a program.
+- `section.c` — the folding section: a bordered box and its header row with the fold button
+  first, reading `-` open and `+` folded, holding no fold of its own.
 - `slider.c` — the slider: a number box holding a fixed-width track with the
   thumb anchored at the value's place in the range, the clamp that keeps a
   drag from taking the value out of it, and the shown slider, the same track

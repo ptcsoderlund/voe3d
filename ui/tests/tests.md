@@ -24,6 +24,9 @@ this folder computes is arithmetic checked against numbers worked out by hand.
 - `scroll.c` — that a scroll area remembers its offset and clamps it, forgets it when it is not
   called, passes outward what it cannot take, centres a node a program names, and draws a bar
   only when it has to, whose thumb drags, pages and stands in front of a button.
+- `section.c` — that a section's header row sits above its body inside its box, a folded one is
+  its header and its pad, the fold button and a title choice fire apart, sections nest, and one
+  name under two indexes is two sections.
 - `slider.c` — that the thumb sits where the value puts it across the range, that a drag moves
   the value, and that a shown slider takes no input.
 - `theme.c` — that OKLab round-trips, that both modes are legible at both ends of both scalars, that

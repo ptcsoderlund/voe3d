@@ -363,6 +363,55 @@ voe_ui_action voe_ui_button_action(const voe_ui_context *ui,
 voe_ui_node voe_ui_choice_begin(voe_ui_context *ui, const char *name,
 				uint32_t index, bool selected);
 
+// ----------------------------------------------------------- the section
+
+// What voe_ui_section_begin hands back: the box, for its rectangle, and the
+// fold button, for voe_ui_button_action.
+typedef struct {
+	voe_ui_node box;
+	voe_ui_node fold;
+} voe_ui_section;
+
+// A box with a header row whose fold button folds its body away and brings it
+// back (ADR-0496, ADR-0503).
+//
+//     voe_ui_section s = voe_ui_section_begin(ui, "light", 0, light_open);
+//     voe_ui_label_role(ui, "Light", VOE_UI_TEXT_ROLE_HEADING);
+//     voe_ui_end(ui);                              // the header row
+//     if (light_open) {
+//             ...                                  // the body's rows
+//     }
+//     voe_ui_end(ui);                              // the box
+//     ...
+//     if (voe_ui_button_action(ui, s.fold).fired)
+//             light_open = !light_open;
+//
+// THE CALL OPENS THE BOX AND, INSIDE IT, THE HEADER ROW, with the fold button
+// first, reading `-` while open and `+` while folded. The caller composes the
+// title into the header row — a HEADING label, or a choice holding one —
+// closes the row with voe_ui_end, puts the body's rows in only while open,
+// and closes the box with voe_ui_end.
+//
+// THE CALLER HOLDS WHETHER IT IS OPEN and flips that when the fold button
+// fires. Nothing here remembers a fold, so the caller saves it wherever it
+// saves things.
+//
+// THE BOX IS A PANEL ON `surface` WITH ITS HAIRLINE BORDER, its pad and gap
+// scaled by the theme's `spacing` as a button's are, so where one section
+// ends and the next begins is plain. It fits its content's height; across, it
+// fills its children to its own width, and is stretched to its parent's width
+// by its parent's FILL, as any column child is — so a section in a section's
+// body takes the outer box's width. Sections nest.
+//
+// THE BOX IS KEYED AS A PANEL IS, by `name` and `index`. The fold button is
+// keyed inside it as "fold" and nought, a name a title choice may not take.
+//
+// IT COSTS FOUR NODES — the box, the row, the button and the button's label —
+// and five element records: the box two, the button two, the label one. It
+// needs a theme and a font in force, as a panel and a label do.
+voe_ui_section voe_ui_section_begin(voe_ui_context *ui, const char *name,
+				    uint32_t index, bool open);
+
 // ---------------------------------------------------------- the number box
 
 // How far the pointer moves before a drag begins, in millimetres, and what the
