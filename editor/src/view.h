@@ -128,8 +128,8 @@ typedef struct {
 	// Where the casters of this view's last bounce stood, feeding the bounce
 	// of `target` alone; only 3d writes it (0394).
 	voe_3d_bounce_casters casters;
-	// This view's kept LODs (0501 point 1), made by voe_editor_views_create
-	// and written only by 3d's draws.
+	// This view's kept LODs (0501 point 1), made and begun once by
+	// voe_editor_views_create, then written only by 3d's draws.
 	voe_3d_lods_kept *lods;
 	// The size the target was last asked to be, in pixels, which is the size
 	// its picture is drawn at and the aspect ratio's source.

@@ -329,7 +329,7 @@ carries it out.
   the read: a fired button chooses its kind or none, a fired row flips its pick, Density clamped,
   a kind's slider, Cast shadows or Blend with ground asks its look with that field changed.
 - `inspector_level.h` — the Inspector's LOD section after Brush or Foliage: per view in use, the LOD it
-  draws of a loaded model, of how many, made or own, asked with the draws' own function.
+  keeps of a loaded model, as its draws chose it last, else the distance's; of how many, made or own.
 - `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,
   each view's label formatted into its kept buffer.
 - `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour and Emission

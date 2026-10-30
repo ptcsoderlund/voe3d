@@ -21,6 +21,8 @@
 
 #include <math/quat.h>
 
+#include <platform/clock.h>
+
 #include <scene/light_component.h>
 #include <scene/transform_component.h>
 
@@ -117,6 +119,10 @@ bool voe_editor_views_create(voe_editor_views *views, voe_base_arena *arena,
 	for (uint32_t i = 0; i < VOE_EDITOR_VIEWS; i++) {
 		views->views[i].image = VOE_UI_NODE_NONE;
 		views->views[i].lods = voe_3d_lods_kept_create(arena);
+		// Begun once here so the Inspector may ask a view never drawn,
+		// which finds nothing (lods_kept_find asserts before a _begin).
+		voe_3d_lods_kept_begin(views->views[i].lods,
+				       voe_platform_clock_now());
 	}
 	views->preview_lods = voe_3d_lods_kept_create(arena);
 

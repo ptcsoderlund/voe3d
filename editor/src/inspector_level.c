@@ -1,5 +1,5 @@
 // The LOD section's one frame of `ui` calls. See the header for what each row
-// says and why it asks the draws' own function.
+// says and why it asks the view's kept LODs first.
 //
 // A row's LOD is shown counted from one, the full model LOD 1 (0434), so a
 // model without levels reads "LOD 1 of 1" and the farthest of six "LOD 6 of 6".
@@ -7,6 +7,7 @@
 
 #include "themes.h"
 
+#include <3d/lods_kept.h>
 #include <3d/model_component.h>
 #include <3d/model_levels.h>
 
@@ -82,8 +83,16 @@ void voe_editor_inspector_level_draw(voe_ui_context *ui,
 		const voe_render_view seen =
 			voe_editor_view_pass_camera(view, (voe_render_light){ 0 })
 				.view;
+		voe_3d_model_level_choice kept;
 		const uint32_t k =
-			voe_3d_model_level(model, &placed, view->eye, &seen);
+			view->lods != NULL &&
+					voe_3d_lods_kept_find(
+						view->lods,
+						voe_3d_lods_kept_row_key(entity),
+						&kept) ?
+				kept.level :
+				voe_3d_model_level(model, &placed, view->eye,
+						   &seen);
 		int written;
 
 		if (model->level_count == 1)
