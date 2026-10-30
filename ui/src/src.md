@@ -17,6 +17,8 @@ pointer and the keyboard have been at it. Nothing here is included from outside 
   press takes it, Tab order, what this frame's keys type, commit and cancel,
   typing into an open number box, and the caret, the selection and the text they
   draw.
+- `label.c` — the label: a string measured by the font into a box, and one glyph record per
+  character, inked by its role or inverted with the control or selection it sits in.
 - `layout.c` — the tree, and the sweeps over it, one axis at a time: natural
   sizes, the X pass, the wraps, the Y pass, the corrective sweep, the clamped
   scroll offsets, the clips and the paint order.
@@ -29,6 +31,8 @@ pointer and the keyboard have been at it. Nothing here is included from outside 
   bars over its content against the pointer and into the records, and every way
   an offset moves — a thumb dragged, a track pressed, the pointer's scroll
   passed outward, a node centred by a program.
+- `section.c` — the folding section: a bordered box and its header row with the fold button
+  first, reading `-` open and `+` folded, holding no fold of its own.
 - `slider.c` — the slider: a number box holding a fixed-width track with the
   thumb anchored at the value's place in the range, the clamp that keeps a
   drag from taking the value out of it, and the shown slider, the same track
@@ -38,4 +42,4 @@ pointer and the keyboard have been at it. Nothing here is included from outside 
   control is drawn in.
 - `widgets.c` — what a node means and the records that come out, and everything every widget shares:
   the hashed keys, the theme in force, the pointer and the keyboard, the walk that emits records in
-  paint order, and the widgets that answer nothing.
+  paint order, and the panel and the image, the widgets that answer nothing but the label.

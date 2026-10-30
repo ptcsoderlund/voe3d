@@ -20,9 +20,10 @@
 //   row marked dragged (assets_panel.h) enters no folder on the release.
 // - A `.glb` over the Foliage section's rows of a thing wearing a loaded
 //   landscape (inspector_foliage.h, 0442 point 3): over a kind row, that kind
-//   through voe_editor_models_kind_set; over the add row, a kind added;
-//   unsaved as a layer drop, no undo step. With sixteen kinds there is no add
-//   row. The kind's model loads at the next update.
+//   through voe_editor_models_kind_set; over the add row, a kind added, any
+//   fold kept for its index cleared so its box starts open (folds.h, 0502
+//   point 2); unsaved as a layer drop, no undo step. With sixteen kinds there
+//   is no add row. The kind's model loads at the next update.
 // - A model over a scene view: a new thing named after the file, wearing it,
 //   at the point below, selected, one undo step and unsaved as Add entity is;
 //   over the Inspector while the selected thing has a model, its path replaced

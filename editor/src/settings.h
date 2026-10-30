@@ -19,7 +19,8 @@
 // `%.3f`. The file is named for the editor's settings and later settings join
 // it, so each write keeps every line with another key, in its order, and only
 // replaces its own: the panel write keeps the four snap lines, the snap write
-// the nine panel lines, and both the dock layout's (settings_layout.h).
+// the nine panel lines, and both the dock layout's (settings_layout.h) and the
+// `fold` lines, which are the folds' (folds.h).
 //
 // A FIRST START IS NOT A FAILURE. A missing settings folder or file, a line
 // that does not parse, a number out of range or a flag that is not exactly
@@ -92,7 +93,7 @@ voe_editor_snap voe_editor_settings_snap_read(void);
 // voe_editor_settings_write does. False on any failure, reported at the site.
 [[nodiscard]] bool voe_editor_settings_snap_write(const voe_editor_snap *snap);
 
-// --- settings.c's and settings_layout.c's own, not for other callers ---
+// --- settings.c's, settings_layout.c's and folds.c's own, not for others ---
 //
 // Hands `take` each line of the file, its newline cut: `into` and the line.
 // Nothing when there is no file.

@@ -18,10 +18,14 @@
 // voe_ui_frame_end. Each frame forgets them first, and the read comes after
 // Foliage's (point 4).
 //
+// THE SECTION FOLDS by its fold button, named `section brush` (folds.h, 0502);
+// folded, only its header is drawn and no slider is recorded.
+//
 // Constraints: draw, forget and read are called in one frame's window, read
 // before the frame's arena is rewound; nothing here allocates.
 #pragma once
 
+#include "folds.h"
 #include "sculpt.h"
 
 #include <ui/layout.h>
@@ -29,10 +33,11 @@
 // Forgets last frame's sliders. Called when the frame opens.
 void voe_editor_inspector_brush_forget(voe_editor_sculpt *sculpt);
 
-// Puts the Brush section on the panel, recording its nodes in `sculpt`;
-// nothing while no brush is chosen.
+// Puts the Brush section on the panel, open as `folds` says, recording its
+// nodes in `sculpt`; nothing while no brush is chosen.
 void voe_editor_inspector_brush_draw(voe_ui_context *ui,
-				     voe_editor_sculpt *sculpt);
+				     voe_editor_sculpt *sculpt,
+				     voe_editor_folds *folds);
 
 // After voe_ui_frame_end: each drawn slider's value taken into `radius` or
 // `softness`, clamped into its range by `ui`.

@@ -37,6 +37,7 @@
 #include "assets_menu.h"
 #include "browser.h"
 #include "drag_ghost.h"
+#include "folds.h"
 #include "inspector.h"
 #include "inspector_brush.h"
 #include "inspector_edit.h"
@@ -283,6 +284,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		// so it is opened here beside the frame and not inside the walk.
 		voe_editor_inspector_frame_begin(&scene->inspector, arena,
 						 &scene->dropdown);
+		voe_editor_folds_forget(&scene->folds, arena);
 		voe_editor_inspector_sculpt_forget(&scene->sculpt);
 		voe_editor_inspector_layers_forget(&scene->sculpt);
 		voe_editor_inspector_foliage_forget(&scene->sculpt);

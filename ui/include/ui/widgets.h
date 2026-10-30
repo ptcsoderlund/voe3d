@@ -223,14 +223,22 @@ voe_ui_node voe_ui_panel_begin(voe_ui_context *ui, const char *name,
 			       uint32_t index, voe_ui_surface surface,
 			       voe_ui_container container);
 
-// The two text lightnesses a label may ask for: text_primary, or
-// text_secondary — the one a number box says "not a number" in. There is no
-// role here for the ink of a label on an inverted control: that is the
-// control's own doing, whatever role the label asked for (ADR-0196).
+// What a label asks to be drawn as. A role names a lightness, and for a
+// heading a size as well: NORMAL is text_primary, SECONDARY text_secondary —
+// the one a number box says "not a number" in — and HEADING is text_primary at
+// the theme's `text_size` times VOE_UI_HEADING_SCALE, so a section's title
+// stands out from the rows under it (ADR-0503). No palette role is added for
+// it; a heading differs by size alone. There is no role here for the ink of a
+// label on an inverted control: that is the control's own doing, and it wins
+// over whatever role the label asked for (ADR-0196).
 typedef enum {
 	VOE_UI_TEXT_ROLE_NORMAL = 0,
 	VOE_UI_TEXT_ROLE_SECONDARY,
+	VOE_UI_TEXT_ROLE_HEADING,
 } voe_ui_text_role;
+
+// How much bigger a heading's text is than the theme's `text_size`.
+#define VOE_UI_HEADING_SCALE 1.25f
 
 // A string. Its natural size is the font's measurement of it times the theme in
 // force's own `text_size`, so a row containing one grows to fit it; it takes no
@@ -258,6 +266,9 @@ typedef enum {
 // INSIDE those millimetres, on one kind of content, and the two compose by the
 // caller's own division happening before either of them is in the picture —
 // there is never a conversion between them to get wrong.
+//
+// A HEADING'S NATURAL SIZE IS MEASURED AT THE HEADING SIZE, `text_size` times
+// VOE_UI_HEADING_SCALE, and its letters are drawn at that size too.
 voe_ui_node voe_ui_label_role(voe_ui_context *ui, const char *text,
 			      voe_ui_text_role role);
 
@@ -351,6 +362,55 @@ voe_ui_action voe_ui_button_action(const voe_ui_context *ui,
 // Closed by voe_ui_end, like any other container.
 voe_ui_node voe_ui_choice_begin(voe_ui_context *ui, const char *name,
 				uint32_t index, bool selected);
+
+// ----------------------------------------------------------- the section
+
+// What voe_ui_section_begin hands back: the box, for its rectangle, and the
+// fold button, for voe_ui_button_action.
+typedef struct {
+	voe_ui_node box;
+	voe_ui_node fold;
+} voe_ui_section;
+
+// A box with a header row whose fold button folds its body away and brings it
+// back (ADR-0496, ADR-0503).
+//
+//     voe_ui_section s = voe_ui_section_begin(ui, "light", 0, light_open);
+//     voe_ui_label_role(ui, "Light", VOE_UI_TEXT_ROLE_HEADING);
+//     voe_ui_end(ui);                              // the header row
+//     if (light_open) {
+//             ...                                  // the body's rows
+//     }
+//     voe_ui_end(ui);                              // the box
+//     ...
+//     if (voe_ui_button_action(ui, s.fold).fired)
+//             light_open = !light_open;
+//
+// THE CALL OPENS THE BOX AND, INSIDE IT, THE HEADER ROW, with the fold button
+// first, reading `-` while open and `+` while folded. The caller composes the
+// title into the header row — a HEADING label, or a choice holding one —
+// closes the row with voe_ui_end, puts the body's rows in only while open,
+// and closes the box with voe_ui_end.
+//
+// THE CALLER HOLDS WHETHER IT IS OPEN and flips that when the fold button
+// fires. Nothing here remembers a fold, so the caller saves it wherever it
+// saves things.
+//
+// THE BOX IS A PANEL ON `surface` WITH ITS HAIRLINE BORDER, its pad and gap
+// scaled by the theme's `spacing` as a button's are, so where one section
+// ends and the next begins is plain. It fits its content's height; across, it
+// fills its children to its own width, and is stretched to its parent's width
+// by its parent's FILL, as any column child is — so a section in a section's
+// body takes the outer box's width. Sections nest.
+//
+// THE BOX IS KEYED AS A PANEL IS, by `name` and `index`. The fold button is
+// keyed inside it as "fold" and nought, a name a title choice may not take.
+//
+// IT COSTS FOUR NODES — the box, the row, the button and the button's label —
+// and five element records: the box two, the button two, the label one. It
+// needs a theme and a font in force, as a panel and a label do.
+voe_ui_section voe_ui_section_begin(voe_ui_context *ui, const char *name,
+				    uint32_t index, bool open);
 
 // ---------------------------------------------------------- the number box
 

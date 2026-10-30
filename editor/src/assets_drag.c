@@ -456,12 +456,25 @@ static void drop(const voe_editor_assets_drag *drag,
 		voe_editor_session_edited(session);
 		return;
 	}
-	// A kind set likewise; its model loads at the next update.
+	// A kind set likewise; its model loads at the next update. A kind added
+	// on the add row starts open (0502 point 2); a replaced one keeps its fold.
 	if (out.kind == OUTCOME_MODEL_ONTO_KIND) {
-		voe_editor_models_kind_set(
-			models,
-			voe_3d_model_get(scene->world, swap.entity)->path,
-			out.index, drag->path);
+		const voe_editor_inspector_layers_worn worn =
+			voe_editor_inspector_layers_grid(
+				voe_editor_models_store(models), scene->world,
+				swap.entity);
+		bool added;
+		char name[VOE_EDITOR_FOLD_NAME];
+
+		VOE_BASE_ASSERT(worn.grid != NULL, "a kind dropped on no grid");
+		added = out.index == worn.grid->kind_count;
+		voe_editor_models_kind_set(models, worn.path, out.index,
+					   drag->path);
+		if (added) {
+			voe_editor_folds_kind_name(name, sizeof name, worn.path,
+						   out.index);
+			voe_editor_folds_clear(&scene->folds, name);
+		}
 		voe_editor_session_edited(session);
 		return;
 	}

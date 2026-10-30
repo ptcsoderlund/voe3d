@@ -19,7 +19,7 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — meshes, model LODs kept per view, materials, landscapes, foliage, shapes, particles, water, fog; picks.
+- **3d** — meshes, kept LODs, materials, landscapes, foliage, shapes, particles, water, fog; picks.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file, hitches.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash worker.
@@ -30,7 +30,7 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **engine_assets** — the human's logo and input material; not code; agents read, link, never write.
 
 ## Decisions in force
-- 0001, 0004, 0005, 0008, 0021, 0023, 0026, 0028, 0031, 0042, 0047, 0213 — Static CMake folders; CTest.
+- 0001, 0004, 0005, 0008, 0021, 0023, 0026, 0028, 0031, 0042, 0047, 0213 — Static CMake; CTest.
 - 0007, 0011, 0013, 0017 — The scene is an ECS; a component and its system are one module.
 - 0014, 0029, 0032, 0034, 0041 — Naming carries the namespace; memory is arenas; failure is a value.
 - 0022, 0121, 0135, 0151, 0174–0177, 0208–0211 — The folder map; leaves; new folders register.
@@ -56,4 +56,4 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - 0425, 0427–0430, 0432–0438, 0441, 0482 — LODs by error on screen, dissolved; off switch; snap.
 - 0442–0445, 0449–0450, 0452–0454, 0469–0471, 0473–0475 — Foliage; import errors; brushes; grown.
 - 0455, 0457, 0458, 0462, 0463, 0465–0467, 0477–0481 — Sizes; hitches; cull; BC; clouds; blend.
-- 0483–0485, 0489, 0490, 0494–0501 — Effort; GPU BC; workers; maps; ranges; LODs; folds; fog; kept LODs.
+- 0483–0485, 0489, 0490, 0494–0501 — Effort; GPU BC; workers; maps; ranges; kept LODs; folds; fog.

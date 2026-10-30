@@ -400,6 +400,7 @@ int main(int argc, char *argv[])
 	scene.world = session.project->world;
 	voe_editor_sculpt_start(&scene.sculpt);
 	scene.snap = voe_editor_settings_snap_read();
+	voe_editor_folds_load(&scene.folds);
 
 	// The views open where the scene's camera is, not at the origin (0255).
 	voe_editor_views_focus_camera(&views, scene.world);

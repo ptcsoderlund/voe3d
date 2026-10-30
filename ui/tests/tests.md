@@ -24,11 +24,14 @@ this folder computes is arithmetic checked against numbers worked out by hand.
 - `scroll.c` — that a scroll area remembers its offset and clamps it, forgets it when it is not
   called, passes outward what it cannot take, centres a node a program names, and draws a bar
   only when it has to, whose thumb drags, pages and stands in front of a button.
+- `section.c` — that a section's header row sits above its body inside its box, a folded one is
+  its header and its pad, the fold button and a title choice fire apart, sections nest, and one
+  name under two indexes is two sections.
 - `slider.c` — that the thumb sits where the value puts it across the range, that a drag moves
   the value, and that a shown slider takes no input.
 - `theme.c` — that OKLab round-trips, that both modes are legible at both ends of both scalars, that
   every role shares the authored hue and a grey hue leaves no chroma, that each input moves what it
   names and nothing else, and that dark mode clamps chroma harder.
-- `widgets.c` — that a duplicate key refuses the frame and the same name under two panels is two
-  widgets, that a known tree is emitted as a known list in order, that a transparent panel emits
-  nothing, that the nearest theme wins, and that a label is what the theme and the font say.
+- `widgets.c` — that a duplicate key refuses the frame, a known tree is a known list in order, a
+  transparent panel emits nothing, the nearest theme wins, a label is what the theme and the font
+  say, and a heading is that label bigger by the heading scale.

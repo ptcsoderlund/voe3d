@@ -515,7 +515,7 @@ static void inspector_panel(voe_ui_context *ui, voe_editor_scene *scene,
 	voe_editor_inspector_draw(ui, &scene->inspector, scene->world,
 				  voe_editor_scene_selected(scene), kept,
 				  sizeof(kept) / sizeof(kept[0]), &scene->sculpt,
-				  store, views, scene->material_open,
+				  &scene->folds, store, views, scene->material_open,
 				  &scene->material,
 				  &scene->material_controls);
 }

@@ -2,11 +2,13 @@
 // rows and sliders afterwards. See the header for what a press and a drop do
 // and why the nodes live in the sculpt state.
 //
-// Button i is brush kind SCATTER + i, so Scatter then Erase. Row i is kind i,
-// so a row's index is the picked bit it flips and the kind a drop replaces;
-// the add row sits at the grid's kind count, the index a drop there adds at.
-// The Density slider holds sculpt.h's own number. Kind slider i, under row i,
-// shows kind i's base size as a factor; its read asks for kind i's look as
+// Button i is brush kind SCATTER + i, so Scatter then Erase. Row i is the
+// title of kind i's box, so a row's index is the picked bit it flips and the
+// kind a drop replaces; the add row sits at the grid's kind count, the index a
+// drop there adds at. A folded box's controls stay VOE_UI_NODE_NONE and the
+// read skips them. The Density slider holds sculpt.h's own number. Kind
+// slider i, in box i, shows kind i's base size as a factor; its read asks for
+// kind i's look as
 // drawn with the size in thousandths, which sculpt.c sets. Under it kind i's
 // Cast shadows button, drawn chosen while the look casts, its Blend with
 // ground button, chosen while it blends, and Blend height slider in metres
@@ -32,10 +34,7 @@
 #include <math.h>
 #include <stdio.h>
 
-// As inspector_sculpt.c's section: inside its edges, between its rows, and
-// between the things on one row. Millimetres.
-#define SECTION_PAD (2.0f * VOE_EDITOR_SPACING)
-#define SECTION_GAP (1.5f * VOE_EDITOR_SPACING)
+// As inspector_sculpt.c's: between the things on one row. Millimetres.
 #define ROW_GAP (2.0f * VOE_EDITOR_SPACING)
 
 // A slider's track, as the Sculpt section's. Millimetres.
@@ -205,6 +204,34 @@ static void kind_spreads_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
 			"a Cast shadows button not drawn");
 }
 
+// Kind `i`'s folding box, its fold named by the landscape's path and `i`
+// (0502 point 2): the title its choice row picking it, a HEADING label of the
+// model's file name, and only while open its settings.
+static void kind_box_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt,
+			  voe_editor_folds *folds,
+			  voe_editor_inspector_layers_worn worn, uint32_t i)
+{
+	char name[VOE_EDITOR_FOLD_NAME];
+	bool open;
+
+	VOE_BASE_ASSERT(worn.grid != NULL && worn.path != NULL,
+			"a kind's box on no landscape");
+	VOE_BASE_ASSERT(i < worn.grid->kind_count, "a box for no kind");
+	voe_editor_folds_kind_name(name, sizeof name, worn.path, i);
+	open = voe_editor_folds_begin(ui, folds, name, "kind", i);
+	sculpt->kind_rows[i] = voe_ui_choice_begin(
+		ui, "kind", i, (sculpt->picked >> i & 1u) != 0);
+	voe_ui_label_role(ui, voe_platform_path_name(worn.grid->kinds[i]),
+			  VOE_UI_TEXT_ROLE_HEADING);
+	voe_ui_end(ui);
+	voe_ui_end(ui);
+	if (open) {
+		kind_slider_draw(ui, sculpt, worn.grid, i);
+		kind_spreads_draw(ui, sculpt, i);
+	}
+	voe_ui_end(ui);
+}
+
 // Density, a row of name, slider and figure.
 static void density_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt)
 {
@@ -226,28 +253,35 @@ static void density_draw(voe_ui_context *ui, voe_editor_sculpt *sculpt)
 
 void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
 				       voe_editor_sculpt *sculpt,
+				       voe_editor_folds *folds,
 				       const voe_3d_models *store,
 				       const voe_ecs_world *world,
 				       voe_ecs_entity entity)
 {
+	voe_editor_inspector_layers_worn worn;
 	const voe_assets_landscape *land;
+	char name[VOE_EDITOR_FOLD_NAME];
+	bool open;
 
 	VOE_BASE_ASSERT(ui != NULL, "drawing a Foliage section into no interface");
-	VOE_BASE_ASSERT(sculpt != NULL, "drawing no Foliage section");
+	VOE_BASE_ASSERT(sculpt != NULL && folds != NULL,
+			"drawing no Foliage section or with no folds");
 
-	land = voe_editor_inspector_layers_grid(store, world, entity).grid;
+	worn = voe_editor_inspector_layers_grid(store, world, entity);
+	land = worn.grid;
 	if (land == NULL)
 		return;
 	VOE_BASE_ASSERT(land->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
 			"a grid with more kinds than it holds");
 
-	voe_ui_panel_begin(ui, "foliage", 0, VOE_UI_SURFACE_RAISED,
-			   (voe_ui_container){
-				   .across = VOE_UI_ACROSS_FILL,
-				   .gap = SECTION_GAP,
-				   .pad = { SECTION_PAD, SECTION_PAD, SECTION_PAD,
-					    SECTION_PAD } });
-	voe_ui_label(ui, "Foliage");
+	voe_editor_folds_section_name(name, sizeof name, "foliage");
+	open = voe_editor_folds_begin(ui, folds, name, "foliage", 0);
+	voe_ui_label_role(ui, "Foliage", VOE_UI_TEXT_ROLE_HEADING);
+	voe_ui_end(ui);
+	if (!open) {
+		voe_ui_end(ui);
+		return;
+	}
 
 	voe_ui_row_begin(ui, (voe_ui_container){ .across = VOE_UI_ACROSS_CENTER,
 						 .gap = ROW_GAP,
@@ -260,14 +294,8 @@ void voe_editor_inspector_foliage_draw(voe_ui_context *ui,
 	}
 	voe_ui_end(ui);
 
-	for (uint32_t i = 0; i < land->kind_count; i++) {
-		sculpt->kind_rows[i] = voe_ui_choice_begin(
-			ui, "kind", i, (sculpt->picked >> i & 1u) != 0);
-		voe_ui_label(ui, voe_platform_path_name(land->kinds[i]));
-		voe_ui_end(ui);
-		kind_slider_draw(ui, sculpt, land, i);
-		kind_spreads_draw(ui, sculpt, i);
-	}
+	for (uint32_t i = 0; i < land->kind_count; i++)
+		kind_box_draw(ui, sculpt, folds, worn, i);
 	sculpt->kinds_drawn = land->kind_count;
 
 	if (land->kind_count < VOE_ASSETS_LANDSCAPE_KINDS) {
