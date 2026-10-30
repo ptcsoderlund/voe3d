@@ -211,7 +211,8 @@ static void split_take(line_cursor *c, voe_editor_dock_node *node)
 	node->fraction = take_number(c);
 	node->first = take_index(c);
 	node->second = take_index(c);
-	VOE_BASE_ASSERT(node->axis < AXIS_COUNT, "a split's axis read past its words");
+	VOE_BASE_ASSERT((uint32_t)node->axis < AXIS_COUNT,
+			"a split's axis read past its words");
 }
 
 // A `dock_node` line's words into its node, the count grown to hold it. False,

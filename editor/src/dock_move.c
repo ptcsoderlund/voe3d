@@ -139,7 +139,7 @@ static bool over_float(const voe_editor_dock_root *root, voe_ui_rect area,
 		       voe_editor_closable dragged, voe_math_float2 p)
 {
 	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++)
-		if (c != dragged && root->floats[c].floating &&
+		if (c != (uint32_t)dragged && root->floats[c].floating &&
 		    !root->closed[c] &&
 		    rect_holds(voe_editor_dock_float_shown(&root->floats[c],
 							   area),
@@ -327,7 +327,7 @@ void voe_editor_dock_move(voe_editor_dock_root *root, voe_ui_rect area,
 
 	if (target->kind == VOE_EDITOR_DOCK_TARGET_FLOAT) {
 		for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++)
-			if (c != which)
+			if (c != (uint32_t)which)
 				top = root->floats[c].raised > top ?
 					      root->floats[c].raised :
 					      top;
