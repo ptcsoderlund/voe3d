@@ -49,15 +49,14 @@
 // not finite and at least nought, a swap not finite and above nought, bytes
 // cut short or left over: _read says false and the file is made again.
 //
-// THE CHOICE HAS NO STATE (0425 point 3), so every asker gets one answer. `s` =
-// world radius × |P[1][1]| ÷ the centre's clip w, the world radius the model's
-// radius times its largest scale component: the radius as a fraction of half
-// the screen. The level is the largest k below `level_count` whose
-// `levels[k].bound` b_k is above `s`; level 0 when the eye is inside the world
-// sphere, when the w is not above nought, or for an entry with one level. From
-// b_k down to low, the larger of 0.8 × b_k and b_(k+1), is a band (0432 point
-// 3): `shown` = (b_k − s) ÷ (b_k − low), level k − 1 drawing the rest; whole
-// below it, for level 0 and an infinite bound.
+// THE SIZE AND THE LEVEL HAVE NO STATE (0425 point 3): _size, _at and
+// voe_3d_model_level answer alike for every asker. `s` = world radius ×
+// |P[1][1]| ÷ the centre's clip w, the world radius the model's radius times
+// its largest scale component: the radius as a fraction of half the screen.
+// The level is the largest k below `level_count` whose `levels[k].bound` is
+// above `s`; level 0 when the eye is inside the world sphere, when the w is not
+// above nought, or for an entry with one level. A view's kept choice and its
+// dissolve live in lods_kept.h (0500 point 1, 0501).
 #pragma once
 
 #include <3d/models.h>
@@ -177,7 +176,7 @@ void voe_3d_model_levels_bounds(float radius,
 // bound; 0 for an infinite bound.
 float voe_3d_model_level_metres(float radius, float bound, float fov_y);
 
-// A view's choice of a model's level.
+// A view's choice of a model's level, as lods_kept.h keeps and dissolves it.
 typedef struct {
 	// The level drawing `shown` of the model's pixels.
 	uint32_t level;
@@ -199,15 +198,7 @@ float voe_3d_model_level_size(const voe_3d_model_entry *model,
 // `s`, else 0.
 uint32_t voe_3d_model_level_at(const voe_3d_model_entry *model, float s);
 
-// The level `view` draws of `model` placed at `placed`, the view about `eye`,
-// and its share in its band, as the paragraph above says; `from` is `level` −
-// 1 while in the band, else `level`.
-voe_3d_model_level_choice
-voe_3d_model_level_choose(const voe_3d_model_entry *model,
-			  const voe_scene_transform *placed,
-			  voe_math_double3 eye, const voe_render_view *view);
-
-// voe_3d_model_level_at of voe_3d_model_level_size: the choice's level.
+// voe_3d_model_level_at of voe_3d_model_level_size: the level with no memory.
 uint32_t voe_3d_model_level(const voe_3d_model_entry *model,
 			    const voe_scene_transform *placed,
 			    voe_math_double3 eye, const voe_render_view *view);

@@ -300,7 +300,7 @@ typedef struct {
 	const voe_3d_model_part *part;
 	// Its render instances, `first` as voe_render_frame_instances wrote it.
 	uint32_t first, count;
-	// A band's level-before copies, dithered the other way (0432 point 3).
+	// A swap's outgoing LOD, dithered the other way (0500 point 1).
 	bool rest;
 	// Which passes draw it (0464 point 4).
 	voe_3d_foliage_tier tier;
@@ -344,7 +344,7 @@ typedef struct {
 } voe_3d_shadow_times;
 
 // What a view drew and skipped (0464 point 5). A thing is a mesh row, a model
-// row, a landscape node, a foliage copy (a band's `rest` copies not counted), a
+// row, a landscape node, a foliage copy (a swap's `rest` copies not counted), a
 // particle or a water; panels, marks, the outline and the gizmo are none.
 typedef struct {
 	// The camera pass's things drawn, a held one among them, and skipped.
@@ -533,7 +533,7 @@ typedef struct {
 	// sets it per target, and only the shadows call writes it.
 	voe_3d_bounce_casters *casters;
 	// This target's kept LODs (0501 point 1), NULL for none: each model
-	// row's LOD chosen through it. _frame leaves it NULL; the caller
+	// row's and seen or cast foliage copy's LOD chosen through it. _frame leaves it NULL; the caller
 	// begins it and sets it each frame, and only the draws write it.
 	voe_3d_lods_kept *lods;
 	// This view's foliage groups, `foliage_count` of them; none is NULL and
@@ -747,12 +747,14 @@ voe_render_clouds voe_3d_draw_system_clouds(const voe_ecs_world *world,
 // takes, among its first VOE_3D_LANDSCAPES_DRAWN; off, hidden and fading rows
 // are left out, and a blind frame gathers none. Each copy whose kind is a loaded
 // `.glb` in the store (each kind found once a row) is placed at the row's world
-// transform composed with its placed one, given its level and share by
-// voe_3d_model_level_choose with the frame's view and eye, and is one instance
-// per opaque or cut-out part that level has: the top three rows of its matrix
-// about the eye, dithered as a dissolving model row is. Under a whole share it
-// is also one instance of each such part of the level before, with the other
-// dither, in a `rest` group. A group is one (kind, level, part, rest, tier,
+// transform composed with its placed one, sorted into its tier, then given its
+// level with the frame's view and eye: a seen or cast copy's from the frame's
+// memory, `frame->lods` (lods_kept.h), keyed by its row, kind and painted x
+// and z (0501 points 4 and 5), an unseen one's by voe_3d_model_level, whole and
+// with no state. It is one instance per opaque or cut-out part that level has:
+// the top three rows of its matrix about the eye, dithered as a dissolving
+// model row is. While a swap dissolves it is also one instance of each such
+// part of the outgoing LOD, with the other dither, in a `rest` group. A group is one (kind, level, part, rest, tier,
 // casts, ground, reach), shared by every row naming that file; a kind whose
 // look `blends` names its row's painted ground and the look's blend height in
 // metres (0481 point 3), a row with no painted ground none. Each row's grown

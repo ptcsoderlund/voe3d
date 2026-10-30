@@ -14,8 +14,8 @@
 // A GROUP IS ONE (kind, level, part, rest, tier, casts, ground, reach): the
 // kind's loaded `.glb` entry, so two landscape rows naming one file share its
 // groups; the level its copies are drawn at; the level-0 part they wear;
-// whether they are a band's level-before copies, dithered the other way (0432
-// point 3); their tier; whether the row's look of the kind casts; and, for a
+// whether they are the outgoing LOD of a 0.25 s swap, dithered the other way
+// (0500 point 1); their tier; whether the row's look of the kind casts; and, for a
 // kind whose look blends, the painted ground of the row it stands on and the
 // look's blend height in metres (0481 point 3), else NULL and 0. Equal keys are
 // one group, whichever row and copy, hand-painted or grown, filled it.
@@ -37,9 +37,10 @@
 // the group's instances, so a forest of one kind and two parts is two draws a
 // pass however many copies stand in it (0375 point 3).
 //
-// A BAND'S `rest` GROUPS DO NOT CAST. A shadow is drawn at the level the
-// camera chooses (0425 point 5), and the depth-only pass reads no dither, so
-// the level before would cast a second, coarser copy of each dissolving tree.
+// A SWAP'S `rest` GROUPS DO NOT CAST. A shadow is drawn at the LOD the
+// camera keeps (0425 point 5, 0500 point 1), and the depth-only pass reads no
+// dither, so the outgoing LOD of a 0.25 s swap would cast a second copy of
+// each dissolving tree.
 //
 // FOLIAGE IS IN THE BOUNCE SUN MAPS, NOT ITS CAPTURES OR THE POINT SHADOWS
 // (0450, amending 0442 point 5). A sun map is one view like a cascade, so the

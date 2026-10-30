@@ -117,7 +117,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   solid draws, blending ones in a `foliage blend` span, and cast draws, and why rest groups and a
   shadowless kind's do not cast; internal.
 - `draw_foliage.c` — the foliage gathering: each drawn landscape row's own then grown copies given
-  level and tier, a blending kind's keyed by its row's ground, written as instances in one call;
+  tier then a kept or, unseen, stateless level, a blending kind's keyed by its row's ground,
+  written as instances in one call;
   then each group's instanced draw.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended unless outside the pass's planes, and why one eye chooses the same nodes in

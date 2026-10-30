@@ -3,9 +3,9 @@
 // into the file's bytes, or its own
 // levels baked and measured against level 0, and those bytes read back field
 // by field against the `.glb` they were made from; a summary of the levels; the
-// bounds, capped and spread, and the metres one stands for; and a view's level
-// of a loaded model, walked from the top over those bounds, with its share of
-// the pixels in its band.
+// bounds, capped and spread, and the metres one stands for; and a view's size
+// and level of a loaded model, walked from the top over those bounds, with no
+// state.
 //
 // AN OWN LEVEL IS BAKED AND GIVEN BACK ONE AT A TIME, so making the file holds
 // level 0 and one own level at most; its error is measure.h's.
@@ -59,7 +59,7 @@ static_assert(VOE_ASSETS_LEVELS == VOE_3D_MODEL_LEVELS,
 // No bound above the radius filling half the screen height (0500 point 5).
 #define BOUND_CAP 1.0f
 // Each level swaps in at least this many times as far as the one before
-// (0495 point 1, 0500 point 2): the width of a dissolve band.
+// (0495 point 1, 0500 point 2): each LOD's stretch of distance.
 #define BOUND_SPREAD 1.25f
 
 struct writer {
@@ -488,27 +488,6 @@ float voe_3d_model_level_metres(float radius, float bound, float fov_y)
 	return radius / tanf(fov_y * 0.5f) / bound;
 }
 
-// Level k's share of the pixels at `s`, from its band (0432 point 3): the
-// band's floor, 0.8 of the bound, keeps it a fifth of the bound wide, narrow
-// enough that the stipple shows only while a model rests in it.
-static float shown_at(const voe_3d_model_entry *model, uint32_t k, float s)
-{
-	const float BAND_FLOOR = 0.8f;
-	const float bound = model->levels[k].bound;
-	float low;
-
-	VOE_BASE_ASSERT(k < model->level_count, "a share of no level");
-	if (k == 0 || !isfinite(bound))
-		return 1.0f;
-	low = BAND_FLOOR * bound;
-	if (k + 1 < model->level_count)
-		low = fmaxf(low, model->levels[k + 1].bound);
-	if (s < low || bound <= low)
-		return 1.0f;
-	VOE_BASE_ASSERT(s < bound, "a level chosen above its bound");
-	return (bound - s) / (bound - low);
-}
-
 float voe_3d_model_level_size(const voe_3d_model_entry *model,
 			      const voe_scene_transform *placed,
 			      voe_math_double3 eye, const voe_render_view *view)
@@ -544,22 +523,6 @@ uint32_t voe_3d_model_level_at(const voe_3d_model_entry *model, float s)
 		if (model->levels[k].bound > s)
 			return k;
 	return 0;
-}
-
-voe_3d_model_level_choice
-voe_3d_model_level_choose(const voe_3d_model_entry *model,
-			  const voe_scene_transform *placed,
-			  voe_math_double3 eye, const voe_render_view *view)
-{
-	const float s = voe_3d_model_level_size(model, placed, eye, view);
-	const uint32_t level = voe_3d_model_level_at(model, s);
-	const float shown = shown_at(model, level, s);
-
-	return (voe_3d_model_level_choice){
-		.level = level,
-		.from = shown < 1.0f ? level - 1 : level,
-		.shown = shown,
-	};
 }
 
 uint32_t voe_3d_model_level(const voe_3d_model_entry *model,

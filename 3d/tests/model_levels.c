@@ -22,30 +22,26 @@
 //    0.05) on the −z axis of a 60° projection, the distances from its P[1][1]:
 //    0 with the eye inside, 0 at 2 m, 1 where s is 0.1, 2 where s is 0.01, and
 //    below 2 there when scaled by 10.
-// 10. A view's choice on 9's entry, in level 1's band from 0.2 down to 0.16,
-//     where s is about 0.19: level 1 showing 0.25 of its pixels (within 0.01).
-// 11. Where s is about 0.15, below the band: level 1, whole.
-// 12. With the third bound 0.19, narrowing the band, s about 0.195: level 1
-//     showing 0.5 (within 0.05).
-// 13. The eye inside the sphere: level 0, whole.
-// 14. At each of 9's distances, voe_3d_model_level is the choice's level.
-// 15. The sphere made with swaps 1, 2, 0.5, 1, 1, 1: read gives them back; at
+// 10. voe_3d_model_level_at on 9's entry: level 0 at s infinite and at 0.2, a
+//     bound not above itself; 1 just under 0.2 and at 0.05; 2 under 0.05. With
+//     one level, 0 at any s.
+// 11. The sphere made with swaps 1, 2, 0.5, 1, 1, 1: read gives them back; at
 //     the defaults, all 1.
-// 16. 1's sphere, made with VOE_ASSETS_LEVELS_DEFAULT: `level_count` above 4.
-// 17. The defaults' file with swap 3 on level 2 set by _swaps_set: still read,
+// 12. 1's sphere, made with VOE_ASSETS_LEVELS_DEFAULT: `level_count` above 4.
+// 13. The defaults' file with swap 3 on level 2 set by _swaps_set: still read,
 //     `swaps[2]` 3, its indices and errors unchanged.
-// 18. _summarise of 3's sphere: 2 levels, `own`, each's triangles above nought
+// 14. _summarise of 3's sphere: 2 levels, `own`, each's triangles above nought
 //     and level 1's below level 0's; `fresh` false with NULL levels, true
 //     with its file, `errors[1]` then the file's.
-// 19. _summarise of 1's sphere with the defaults' file: its `level_count`,
+// 15. _summarise of 1's sphere with the defaults' file: its `level_count`,
 //     level 0 the sphere's triangles, level k its index counts' sum ÷ 3 and
 //     the file's error, radius above nought, not `own`; with NULL levels or a
 //     stale file, 1 level and all errors nought.
-// 20. _summarise of bytes that are no `.glb`: count 0.
-// 21. _bounds of errors rising per level under swaps 0.2, 0.5, 0.5, 1, 0.8:
+// 16. _summarise of bytes that are no `.glb`: count 0.
+// 17. _bounds of errors rising per level under swaps 0.2, 0.5, 0.5, 1, 0.8:
 //     none above 1, each at most the one before ÷ 1.25 (0495, 0500 point 5);
 //     an error of nought gives 1, capped, not infinity; unmeasured, 2^-k.
-// 22. _metres at a 60° lens: a bound of 1 is radius × √3; infinite, 0.
+// 18. _metres at a 60° lens: a bound of 1 is radius × √3; infinite, 0.
 #include <3d/model_levels.h>
 #include <3d/projection.h>
 
@@ -66,7 +62,7 @@
 #define SEGMENTS 64
 #define TRIANGLES (SEGMENTS * (RINGS - 1) * 2)
 
-// 17 on the defaults' `file`, a copy of it patched.
+// 13 on the defaults' `file`, a copy of it patched.
 static void swaps_patched(voe_base_arena *arena, const uint8_t *file,
 			  size_t size, const uint8_t *glb, size_t glb_size)
 {
@@ -95,7 +91,7 @@ static void swaps_patched(voe_base_arena *arena, const uint8_t *file,
 	}
 }
 
-// 19 on the defaults' `file` and its read `levels`.
+// 15 on the defaults' `file` and its read `levels`.
 static void made_summary(voe_base_arena *arena, const uint8_t *glb,
 			 size_t glb_size, const uint8_t *file, size_t size,
 			 const voe_3d_model_levels *levels)
@@ -155,7 +151,7 @@ static void sphere_levels(voe_base_arena *arena)
 	VOE_TEST_CHECK(!levels.own);
 	VOE_TEST_CHECK_INT(levels.part_count, 1);
 	VOE_TEST_CHECK(levels.level_count >= 3);
-	// 16
+	// 12
 	VOE_TEST_CHECK(levels.level_count > 4);
 	for (uint32_t k = 1; k < levels.level_count; k++) {
 		const uint64_t triangles = levels.index_counts[k][0] / 3;
@@ -234,7 +230,7 @@ static void levels_asked(voe_base_arena *arena)
 		       0.1 * 0.8 * TRIANGLES);
 	VOE_TEST_CHECK(levels.index_counts[2][0] / 3 <= 0.15 * TRIANGLES);
 
-	// 15
+	// 11
 	asked = VOE_ASSETS_LEVELS_DEFAULT;
 	memcpy(asked.swaps, swaps, sizeof(swaps));
 	VOE_TEST_CHECK(sphere_made(arena, asked, &levels));
@@ -266,7 +262,7 @@ static void own_levels(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(levels.level_count, 2);
 	VOE_TEST_CHECK(isfinite(levels.errors[1]) && levels.errors[1] > 0.0f);
 
-	// 18
+	// 14
 	voe_3d_model_levels_summarise(arena, glb, glb_size, NULL, 0, &summary);
 	VOE_TEST_CHECK_INT(summary.count, 2);
 	VOE_TEST_CHECK(summary.own);
@@ -288,7 +284,7 @@ static void not_a_glb(voe_base_arena *arena)
 	size_t size = 0;
 	voe_3d_model_levels_summary summary;
 
-	// 20
+	// 16
 	voe_3d_model_levels_summarise(arena, (const uint8_t *)text,
 				      sizeof(text), NULL, 0, &summary);
 	VOE_TEST_CHECK_INT(summary.count, 0);
@@ -313,50 +309,17 @@ static uint32_t level_at(const voe_3d_model_entry *model,
 	return voe_3d_model_level(model, &placed, (voe_math_double3){ 0 }, view);
 }
 
-static voe_3d_model_level_choice choice_at(const voe_3d_model_entry *model,
-					   const voe_render_view *view,
-					   double distance, float scale)
+// 10 on view_levels' entry; its level count is put back.
+static void level_at_follows_the_bounds(voe_3d_model_entry *model)
 {
-	const voe_scene_transform placed = {
-		.position = { 0.0, 0.0, -distance },
-		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-		.scale = { scale, scale, scale },
-	};
-
-	return voe_3d_model_level_choose(model, &placed, (voe_math_double3){ 0 },
-					 view);
-}
-
-// 10 to 14 on view_levels' entry and view; its third bound is put back.
-static void view_shares(voe_3d_model_entry *model, const voe_render_view *view)
-{
-	const double focal = view->projection.m[1][1];
-	const double distances[] = { 0.5, 2.0, focal / 0.1, focal / 0.01 };
-	voe_3d_model_level_choice choice;
-
-	// 10, 11, 13
-	choice = choice_at(model, view, focal / 0.19, 1.0f);
-	VOE_TEST_CHECK_INT(choice.level, 1);
-	VOE_TEST_CHECK(fabsf(choice.shown - 0.25f) < 0.01f);
-	choice = choice_at(model, view, focal / 0.15, 1.0f);
-	VOE_TEST_CHECK_INT(choice.level, 1);
-	VOE_TEST_CHECK(choice.shown == 1.0f);
-	choice = choice_at(model, view, 0.5, 1.0f);
-	VOE_TEST_CHECK_INT(choice.level, 0);
-	VOE_TEST_CHECK(choice.shown == 1.0f);
-	// 14
-	for (size_t i = 0; i < sizeof(distances) / sizeof(distances[0]); i++)
-		VOE_TEST_CHECK_INT(level_at(model, view, distances[i], 1.0f),
-				   choice_at(model, view, distances[i], 1.0f).level);
-	VOE_TEST_CHECK_INT(level_at(model, view, focal / 0.01, 10.0f),
-			   choice_at(model, view, focal / 0.01, 10.0f).level);
-
-	// 12
-	model->levels[2].bound = 0.19f;
-	choice = choice_at(model, view, focal / 0.195, 1.0f);
-	VOE_TEST_CHECK_INT(choice.level, 1);
-	VOE_TEST_CHECK(fabsf(choice.shown - 0.5f) < 0.05f);
-	model->levels[2].bound = 0.05f;
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, INFINITY), 0);
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, 0.2f), 0);
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, 0.199f), 1);
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, 0.05f), 1);
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, 0.049f), 2);
+	model->level_count = 1;
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, 0.001f), 0);
+	model->level_count = 3;
 }
 
 static void view_levels(void)
@@ -384,10 +347,10 @@ static void view_levels(void)
 	VOE_TEST_CHECK_INT(level_at(&model, &view, focal / 0.1, 1.0f), 1);
 	VOE_TEST_CHECK_INT(level_at(&model, &view, focal / 0.01, 1.0f), 2);
 	VOE_TEST_CHECK(level_at(&model, &view, focal / 0.01, 10.0f) < 2);
-	view_shares(&model, &view);
+	level_at_follows_the_bounds(&model);
 }
 
-// 21
+// 17
 static void bounds_are_capped_and_spread(void)
 {
 	const float errors[VOE_3D_MODEL_LEVELS] = { 0,	   0.001f, 0.002f,
@@ -415,7 +378,7 @@ static void bounds_are_capped_and_spread(void)
 		VOE_TEST_CHECK(bounds[k] == ldexpf(1.0f, -(int)k));
 }
 
-// 22
+// 18
 static void level_metres_follow_the_lens(void)
 {
 	const float fov_y = 1.0471976f; // 60°
