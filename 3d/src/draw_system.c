@@ -317,6 +317,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.brush = (voe_3d_brush_marked){ 0 };
 	frame.collider = (voe_3d_collider_marked){ 0 };
 	frame.light_blockers = (voe_3d_rows_marked){ 0 };
+	frame.fog_volumes = (voe_3d_rows_marked){ 0 };
 	frame.models = NULL;
 	frame.target = VOE_RENDER_TARGET_WINDOW;
 	frame.casters = NULL;
@@ -731,6 +732,7 @@ voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
 	voe_3d_draw_marks_places(world, device, arena, frame);
 	voe_3d_draw_marks_brush(world, device, arena, frame);
 	voe_3d_draw_marks_light_blockers(world, device, arena, frame);
+	voe_3d_draw_marks_fog_volumes(world, device, arena, frame);
 	// The world's solids are all down, so the depth the water fades against
 	// is copied now, once, and only when water is held (0305 point 7). A
 	// refused copy stops the blended group as a refused draw stops its own:
@@ -771,6 +773,7 @@ voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
 	cleared = voe_3d_draw_marks_outline(world, device, arena, frame, cleared);
 	voe_3d_draw_marks_collider(world, device, arena, frame, cleared);
 	voe_3d_draw_marks_light_blocker(world, device, arena, frame, cleared);
+	voe_3d_draw_marks_fog_volume(world, device, arena, frame, cleared);
 	voe_3d_draw_marks_gizmo(world, device, arena, frame);
 
 	// Everything above is this frame's, and the caller's arena is handed

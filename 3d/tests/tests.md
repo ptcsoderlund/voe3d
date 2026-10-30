@@ -38,8 +38,8 @@ again, or to find where a claim that has started failing is written down.
   parts set names, and a double-sided material draws both sides. Skips without a graphics card.
 - `draw_gizmo.c` — that a gizmo's arrows, rings and scales each show through the cube it stands
   in. Skips without a graphics card.
-- `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
-  and a zeroed marker none, and that a ray picks each sun. Skips without a graphics card.
+- `draw_markers.c` — that camera, sun, place and brush markers and fog volume lines each add the
+  draws they should and a zeroed marker or an off volume none, and that a ray picks each sun. Skips without a graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
   none with no store, a glowing one is unlit, and one behind the camera holds none, five skipped.
   Skips without a graphics card.

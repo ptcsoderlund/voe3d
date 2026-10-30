@@ -100,7 +100,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   is the whole of it.
 - `draw_system.c` — the camera's view, the first light, the first on sky, Haze and picture rows,
   the frame's Clouds and Fog volume rows, its pass camera, and each drawable's draw, foliage
-  after the landscapes, the clouds then the fog after the world's blended draws, the unseen skipped.
+  after the landscapes, the clouds then the fog after the blended draws, each mark in turn.
 - `draw_clouds.c` — the first Clouds row that is on, as render's record: its kind mapped, its bottom above
   the eye and the eye less the drift wrapped into the period, both in double.
 - `draw_models.h` — the model rows' walk, taking the frame's grounds, its part count for the
@@ -163,12 +163,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_water.c` — the eye-relative matrix times the turned, scaled quad, the row's colour,
   waves at its clock and sky in the object record, and the quad's sphere tested.
 - `draw_marks.h` — the editor's marks over the world, bare places', the brush's, every
-  blocker's and the gizmo's arrows, rings or scales among them, and why each has its own depth;
-  internal.
-- `draw_marks.c` — the camera's marker, every sun's, lamp's and bare place's, the brush's rings on
-  its landscape, every blocker's lines,
-  the outline, a collider's and the selected blocker's lines, written once, and the gizmo's arrows,
-  rings or scales by its kind, each as transient quads.
+  blocker's and fog volume's and the gizmo's arrows, rings or scales among them, and why each has
+  its own depth; internal.
+- `draw_marks.c` — the camera's, every sun's, lamp's and place's markers, the brush's rings,
+  every blocker's and fog volume's box lines from one builder, the outline, a collider's and the
+  selected box's lines, and the gizmo by its kind, each as transient quads.
 - `model_upload.h` — a read model's pictures and materials uploaded in one call, every id
   listed, shared by the import and the model store; internal.
 - `model_upload.c` — each picture once per colour space wanted, a record per material and

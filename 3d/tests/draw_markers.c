@@ -2,7 +2,8 @@
 // marker is the same as none (0223, 0274). Two suns shown are one draw, one of
 // them selected two, and a ray through each sun's place picks it (0360). Places
 // shown mark the one bare transform, and not once it has a shape (0365). The
-// brush's rings lie 5 cm over the ground and are one draw more (0379).
+// brush's rings lie 5 cm over the ground and are one draw more (0379). Fog
+// volumes shown line the one box, selected or not, and not once it is off (0493).
 //
 // THE DRAW COUNT IS THE MEASUREMENT, BECAUSE A PICTURE SAYS LESS. What is
 // observable is voe_render_frame_draw_count — every mesh drawn is one command —
@@ -14,6 +15,7 @@
 // 3d/tests/import.c gives at length: a box with no Vulkan is the box and not
 // this engine.
 #include <3d/brush_marker.h>
+#include <3d/collider_marker.h>
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
@@ -33,6 +35,10 @@
 #include <render/device.h>
 #include <scene/camera_component.h>
 #include <scene/camera_system.h>
+#include <scene/fog_volume_component.h>
+#include <scene/fog_volume_system.h>
+#include <scene/identity_component.h>
+#include <scene/identity_system.h>
 #include <scene/light_component.h>
 #include <scene/light_system.h>
 #include <scene/transform_component.h>
@@ -48,8 +54,8 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 {
 	voe_ecs_limits limits = {
 		.entities = 16,
-		.component_types = 8,
-		.intent_types = 8,
+		.component_types = 16,
+		.intent_types = 16,
 		// Only for the shaped case: the shape system queues removals
 		// through it (3d/shape_system.h).
 		.structure_requests = 8,
@@ -575,6 +581,106 @@ static void a_frame_with_a_brush_draws(void)
 	voe_base_arena_destroy(arena);
 }
 
+// How many commands one frame comes to with `fog_volumes` set on it and no
+// camera marker or sun shown: draws_with_a_marker's count.
+static uint32_t draws_with_fog_volumes(voe_ecs_world *world,
+				       voe_render_device *device,
+				       voe_base_arena *arena, voe_3d_frame frame,
+				       voe_3d_rows_marked fog_volumes)
+{
+	const voe_3d_camera_marked no_marker = { 0 };
+	const voe_3d_sun_marked no_sun = { 0 };
+
+	VOE_TEST_CHECK(!frame.fog_volumes.shown);
+	frame.fog_volumes = fog_volumes;
+	return draws_with_a_marker(world, device, arena, frame, no_marker,
+				   no_sun);
+}
+
+// A camera and one 2 m fog volume five metres down the line of sight: shown is
+// one draw more than not shown, its box lined; selected it is still one more,
+// drawn alone behind the outline's clear and the rest, empty, drawing none
+// (0493 point 7); switched off and not selected it is none more (0428).
+static void every_fog_volume_is_lined(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(GIZMO_SCRATCH);
+	voe_platform_size size = { GIZMO_SIDE, GIZMO_SIDE };
+	voe_base_error error = VOE_BASE_OK;
+	// Two draws, and room for one box's lines in two ranges.
+	voe_render_capacities capacities = {
+		.vertices = VOE_3D_SHAPES_VERTICES,
+		.indices = VOE_3D_SHAPES_INDICES,
+		.geometries = VOE_3D_SHAPES_GEOMETRIES,
+		.objects = 2,
+		.shadings = VOE_3D_SHAPES_SHADINGS,
+		.transient_vertices = VOE_3D_COLLIDER_MARKER_VERTICES,
+		.transient_indices = VOE_3D_COLLIDER_MARKER_INDICES,
+		.transient_geometries = 2,
+		.passes = 1,
+	};
+	voe_render_device *device =
+		voe_render_device_new_headless(arena, size, capacities, &error);
+	const voe_3d_rows_marked not_shown = { 0 };
+	voe_3d_shapes shapes;
+	voe_ecs_world *world;
+	voe_ecs_entity volume = { 0 };
+	voe_3d_frame frame;
+	voe_3d_rows_marked lined;
+	voe_scene_identity identity;
+	uint32_t without;
+
+	if (device == NULL) {
+		voe_base_arena_destroy(arena);
+		return;
+	}
+	VOE_TEST_CHECK(voe_3d_shapes_upload(device, &shapes, &error));
+
+	world = a_world(arena);
+	voe_scene_identity_register(world, 16);
+	voe_scene_fog_volume_register(world, 2);
+	add_a_camera(world);
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &volume));
+	VOE_TEST_CHECK(voe_scene_identity_add(
+		world, volume, (voe_scene_identity){ .id = volume.index + 1 }));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, volume, at_depth(5.0f)));
+	VOE_TEST_CHECK(voe_scene_fog_volume_add(
+		world, volume,
+		(voe_scene_fog_volume){ .size = { 2.0f, 2.0f, 2.0f },
+					.thickness = 0.4f }));
+	frame = voe_3d_draw_system_frame(world, size, 0.0f);
+	lined = (voe_3d_rows_marked){
+		.shown = true,
+		.material = shapes.outline,
+		.colour = { 1.0f, 0.0f, 1.0f },
+		.selected_colour = { 1.0f, 1.0f, 0.0f },
+		.pixels = 2.0f,
+		.size = size,
+	};
+
+	without = draws_with_fog_volumes(world, device, arena, frame,
+					 not_shown);
+	VOE_TEST_CHECK_INT(draws_with_fog_volumes(world, device, arena, frame,
+						  lined),
+			   without + 1);
+	lined.selected = volume;
+	VOE_TEST_CHECK_INT(draws_with_fog_volumes(world, device, arena, frame,
+						  lined),
+			   without + 1);
+	identity = *voe_scene_identity_get(world, volume);
+	identity.off = true;
+	VOE_TEST_CHECK(voe_scene_identity_submit(
+		world, (voe_scene_identity_intent){ .entity = volume,
+						    .identity = identity }));
+	voe_scene_identity_system_run(world);
+	lined.selected = (voe_ecs_entity){ 0 };
+	VOE_TEST_CHECK_INT(draws_with_fog_volumes(world, device, arena, frame,
+						  lined),
+			   without);
+
+	voe_render_device_destroy(device);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	a_marked_camera_is_one_more_draw();
@@ -582,5 +688,6 @@ int main(void)
 	every_bare_place_is_marked();
 	brush_rings_lie_on_the_ground();
 	a_frame_with_a_brush_draws();
+	every_fog_volume_is_lined();
 	return voe_test_result();
 }
