@@ -90,7 +90,8 @@ carries it out.
   the two folders above it as needed.
 - `settings.h` — the panel sizes, the views' share, the dock panels' open flags and the snap keys
   `snap`, `snap_move`, `snap_rotate`, `snap_scale` a person left, remembered at
-  `<settings>/voe3d/editor_settings`, one `<key> <value>` line each (ADR-0226, 0363, 0482).
+  `<settings>/voe3d/editor_settings`, one `<key> <value>` line each (ADR-0226, 0363, 0482), its
+  `fold` lines folds.h's.
 - `settings.c` — that file read line by line as a key and a number in range, the panel and snap
   keys alike, and written back with every other key's line kept, by making the two folders above
   it as needed.
@@ -98,6 +99,11 @@ carries it out.
   one line in `editor_settings`, read back at start unchecked (0491 point 7).
 - `settings_layout.c` — each line's words taken by a cursor, a node or float kept only when all
   parse, and the root, nodes and floats written through settings.h's keep-other-keys write.
+- `folds.h` — the Inspector sections and foliage kinds a person folded, one `fold <name>` line each
+  in `editor_settings` by section word or landscape and kind index (0502, 0503), written when one
+  flips, never undone, and this frame's fold buttons.
+- `folds.c` — the names kept in order, each fold button's name in the frame's arena, a fired one
+  flipping its name, and the `fold` lines read and written through settings.h's shared calls.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file, the chosen one
   remembered and re-read once a second, each derived at the editor's base text size and spacing.
 - `themes.c` — the folder listed and made, each file read and derived with the one font, the

@@ -31,6 +31,7 @@
 // the same toggle on its root, Landscape's hiding it instead.
 #include "interface_read.h"
 
+#include "folds.h"
 #include "inspector.h"
 #include "inspector_brush.h"
 #include "inspector_edit.h"
@@ -146,6 +147,7 @@ bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 	voe_editor_inspector_buttons_read(&scene->inspector, ui, scene,
 					  root->pointer.down, root->pointer.at);
 	voe_editor_inspector_sculpt_read(ui, &scene->sculpt);
+	voe_editor_folds_read(ui, &scene->folds);
 	voe_editor_inspector_layers_read(ui, &scene->sculpt);
 	voe_editor_inspector_foliage_read(ui, &scene->sculpt);
 	voe_editor_inspector_brush_read(ui, &scene->sculpt);

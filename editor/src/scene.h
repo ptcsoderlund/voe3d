@@ -61,6 +61,7 @@
 #pragma once
 
 #include "assets_panel.h"
+#include "folds.h"
 #include "inspector.h"
 #include "inspector_material.h"
 #include "materials.h"
@@ -223,6 +224,9 @@ typedef struct voe_editor_scene {
 	// Whether a drag snaps and its steps, the person's as `gizmo_kind` is;
 	// read at start by main.c from editor_settings (settings.h).
 	voe_editor_snap snap;
+	// The sections and foliage kinds folded, the person's as `snap` is;
+	// read at start by main.c from editor_settings (folds.h).
+	voe_editor_folds folds;
 	// The sculpting brush, the person's as `gizmo_kind` is (sculpt.h); started
 	// by main.c beside `world`, drawn and read by the Inspector.
 	voe_editor_sculpt sculpt;
