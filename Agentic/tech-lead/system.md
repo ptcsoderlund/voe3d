@@ -10,16 +10,16 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **math** — vectors and matrices spelled as Slang spells them; double3 for a world position.
 - **ecs** — entities, tables, intent and structural queues; a type's menu, unsaid row, former names.
 - **platform** — OS-aware: window, input, pads, files, trash, clock, process, env, sound, bursts.
-- **scene** — transform, parent, prefab, lens, lights, blockers, sky, haze, picture, clouds; on/off.
+- **scene** — transform, parent, prefab, lens, lights, blockers, sky, haze, picture, clouds, fog; on/off.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
 - **assets** — glTF, images, WAV, fonts, landscapes, materials, sectioned text to CPU data; JSON.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
 - **authoring** — scene, prefab and project text read and written, paths followed; cooked to C.
-- **render** — Vulkan: card, mips, GPU BC, heights, timing, light, bounce, sky, haze, clouds, tone.
+- **render** — Vulkan: card, mips, GPU BC, heights, timing, light, bounce, sky, haze, clouds, fog, tone.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
-- **3d** — meshes, models and LODs, materials, landscapes, foliage, shapes, particles, water; picks.
+- **3d** — meshes, models and LODs, materials, landscapes, foliage, shapes, particles, water, fog; picks.
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — a frame loop's parts: paced frame, PNGs, headless start, start log, cache file, hitches.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash worker.
@@ -56,4 +56,4 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - 0425, 0427–0430, 0432–0438, 0441, 0482 — LODs by error on screen, dissolved; off switch; snap.
 - 0442–0445, 0449–0450, 0452–0454, 0469–0471, 0473–0475 — Foliage; import errors; brushes; grown.
 - 0455, 0457, 0458, 0462, 0463, 0465–0467, 0477–0481 — Sizes; hitches; cull; BC; clouds; blend.
-- 0483–0485, 0489, 0490, 0492 — Effort is no reason; GPU BC; bursts; queued maps; errors; clouds.
+- 0483–0485, 0489, 0490, 0494–0497 — Effort; GPU BC; bursts; maps; errors; ranges; LODs; folds; threads.
