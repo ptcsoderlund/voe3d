@@ -17,7 +17,7 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **authoring** — scene, prefab and project text read and written, paths followed; cooked to C.
 - **render** — Vulkan: card, mips, GPU BC, heights, timing, light, bounce, sky, haze, clouds, fog.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
-- **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, overlays, one draw.
+- **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, folds, overlays, one draw.
 - **theme** — a `.theme` file's bytes read into `ui`'s authored inputs; opens no file.
 - **3d** — meshes, kept LODs, materials, landscapes, foliage, shapes, particles, water, fog; picks.
 - **sprite** — a sprite is a plane in the world and hands back a material.
