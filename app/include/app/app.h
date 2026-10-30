@@ -107,8 +107,16 @@ typedef struct {
 // below zero to voe_app_new_headless, where the size is the whole of what gets
 // drawn. voe_app_new_headless needs no title and takes a NULL one.
 //
-// Opens the window, then the device onto it. NULL if either refused, with a line
-// on stderr saying which; `error` may be NULL.
+// EITHER STARTUP OPENS THE PROGRAM'S STANDING WORKERS, AND voe_app_destroy
+// CLOSES THEM (ADR-0497, ADR-0504) — see platform/burst.h. Every program, the
+// editor, the game, dev and a capture alike, opens one app for its whole run,
+// so this is the "once when it opens, once when it closes" those records ask
+// for, and no program has to remember it. A startup that returns NULL has
+// opened none.
+//
+// Opens the window, then the device onto it, then the standing workers. NULL if
+// the window or the device refused, with a line on stderr saying which; `error`
+// may be NULL.
 //
 // A WINDOW THAT WILL NOT OPEN IS VOE_BASE_ERROR_UNAVAILABLE, because that is the
 // only way it fails: there is no compositor, no display, or no session. A device
@@ -119,9 +127,10 @@ typedef struct {
 				   voe_base_error *error);
 
 // The same app with no window at all: the headless device alone, drawing at
-// `settings.width` by `settings.height`. `settings.title` is unused and may be
-// NULL here, because there is nothing to put a title on. NULL if the device
-// refused, with render's own error and its own line on stderr.
+// `settings.width` by `settings.height`, and the standing workers as above.
+// `settings.title` is unused and may be NULL here, because there is nothing to
+// put a title on. NULL if the device refused, with render's own error and its
+// own line on stderr.
 //
 // ONE DRAWING PATH, WITH OR WITHOUT A DISPLAY, AND THAT IS THE WHOLE POINT
 // (ADR-0157). Everything after this call is what a windowed program already
@@ -151,7 +160,9 @@ typedef struct {
 					    voe_base_error *error);
 
 // Closes the device, then the window if there is one — an app opened headless
-// has none to close. The struct itself is the arena's and is not freed here.
+// has none to close — then the standing workers. EVERY BURST STARTED HAS TO BE
+// FINISHED BEFORE THIS: closing the workers asserts it. The struct itself is
+// the arena's and is not freed here.
 void voe_app_destroy(voe_app *app);
 
 // The window and the device, for everything this folder deliberately does not

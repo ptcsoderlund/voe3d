@@ -1,5 +1,6 @@
-// The two startups, the frame's three readings, the two calls that open and
-// close a draw, and the three steps of a capture. Every line of reasoning is in
+// The two startups, which also open the standing workers, the frame's three
+// readings, the two calls that open and close a draw, and the three steps of a
+// capture. Every line of reasoning is in
 // app/include/app/app.h; what is here is the order, which is the part that is
 // easy to get wrong.
 #include <app/app.h>
@@ -9,6 +10,7 @@
 #include <assets/image.h>
 #include <base/assert.h>
 #include <base/report.h>
+#include <platform/burst.h>
 #include <platform/clock.h>
 #include <platform/file.h>
 
@@ -94,6 +96,9 @@ voe_app *voe_app_new(voe_base_arena *arena, voe_base_arena *scratch,
 	}
 
 	app = push_app(arena, window, device, settings);
+	// Last, once nothing can fail any more: a startup that refused has
+	// opened no worker (ADR-0504).
+	voe_platform_workers_open();
 
 	report(error, VOE_BASE_OK);
 	return app;
@@ -121,6 +126,7 @@ voe_app *voe_app_new_headless(voe_base_arena *arena, voe_base_arena *scratch,
 		return NULL;
 
 	app = push_app(arena, NULL, device, settings);
+	voe_platform_workers_open();
 
 	report(error, VOE_BASE_OK);
 	return app;
@@ -134,6 +140,9 @@ void voe_app_destroy(voe_app *app)
 	voe_render_device_destroy(app->device);
 	if (app->window != NULL)
 		voe_platform_window_destroy(app->window);
+	// After both: the workers are the program's last threads, and close
+	// asserts that every burst has been finished.
+	voe_platform_workers_close();
 }
 
 voe_platform_window *voe_app_window(voe_app *app)

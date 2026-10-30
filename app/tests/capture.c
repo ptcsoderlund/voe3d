@@ -28,6 +28,9 @@
 // It writes one file into the working directory and removes it at the end, pass
 // or fail, exactly as platform/tests/file.c does.
 //
+// THE APP OPENS AND CLOSES THE STANDING WORKERS: they stand once the startup
+// returns and none stand after destroy (ADR-0504).
+//
 // A MACHINE WITH NO USABLE VULKAN SKIPS AND SAYS SO.
 #include <app/app.h>
 
@@ -36,6 +39,7 @@
 #include <base/error.h>
 #include <math/float2.h>
 #include <math/float4.h>
+#include <platform/burst.h>
 
 #include <testing/test.h>
 
@@ -310,6 +314,8 @@ int main(void)
 	// ask about a pointer that is not there.
 	VOE_TEST_CHECK(voe_app_window(app) == NULL);
 	VOE_TEST_CHECK(voe_app_device(app) != NULL);
+	// The startup opened the program's standing workers: max(2, cores).
+	VOE_TEST_CHECK(voe_platform_workers_standing() >= 2);
 
 	draw_one_frame(app);
 
@@ -321,6 +327,8 @@ int main(void)
 	a_path_that_cannot_be_opened_is_refused(app, scratch);
 
 	voe_app_destroy(app);
+	// And destroy closed them again.
+	VOE_TEST_CHECK_INT(voe_platform_workers_standing(), 0);
 	voe_base_arena_destroy(scratch);
 	voe_base_arena_destroy(arena);
 

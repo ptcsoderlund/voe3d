@@ -11,10 +11,10 @@ readout, key bindings and the present mode are all the program's.
   `src/src.md`.
 - `tests` — one plain C program per module, found by the build; each is listed on
   `tests/tests.md`.
-- `include/app/app.h` — the whole public surface: the two startups, frame open,
-  draw open and close, a capture, and the window and device to reach past them.
-  Its header shows the loop a program writes and why this folder owns none; the
-  file says what each call reports and a frame's wait.
+- `include/app/app.h` — the whole public surface: the two startups, which also
+  open the standing workers destroy closes, frame open, draw open and close, a
+  capture, and the window and device to reach past them. Its header shows the
+  loop a program writes and why this folder owns none.
 - `include/app/clock.h` — the interval between two frames, as a value. Its
   header says why it takes the reading rather than making one, why `elapsed` and
   `step` are separate numbers and what confusing them costs, and what the first
