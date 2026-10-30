@@ -40,6 +40,10 @@
 //     level 0 the sphere's triangles, level k its index counts' sum ÷ 3, not
 //     `own`; with NULL levels, 1.
 // 20. _triangles of bytes that are no `.glb`: 0.
+// 21. _bounds of errors rising per level under swaps 0.2, 0.5, 0.5, 1, 0.8:
+//     none above 1, each at most the one before ÷ 1.25 (0495, 0500 point 5);
+//     an error of nought gives 1, capped, not infinity; unmeasured, 2^-k.
+// 22. _metres at a 60° lens: a bound of 1 is radius × √3; infinite, 0.
 #include <3d/model_levels.h>
 #include <3d/projection.h>
 
@@ -372,6 +376,44 @@ static void view_levels(void)
 	view_shares(&model, &view);
 }
 
+// 21
+static void bounds_are_capped_and_spread(void)
+{
+	const float errors[VOE_3D_MODEL_LEVELS] = { 0,	   0.001f, 0.002f,
+						    0.004f, 0.008f, 0.016f };
+	const float swaps[VOE_3D_MODEL_LEVELS] = { 1, 0.2f, 0.5f, 0.5f, 1, 0.8f };
+	const float lossless[VOE_3D_MODEL_LEVELS] = { 0, 0, 0, 0, 0, 0 };
+	float bounds[VOE_3D_MODEL_LEVELS];
+
+	voe_3d_model_levels_bounds(1.0f, errors, swaps, VOE_3D_MODEL_LEVELS,
+				   true, bounds);
+	VOE_TEST_CHECK(isinf(bounds[0]));
+	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++) {
+		VOE_TEST_CHECK(bounds[k] > 0.0f && bounds[k] <= 1.0f);
+		VOE_TEST_CHECK(bounds[k] <= bounds[k - 1] / 1.25f);
+	}
+	VOE_TEST_CHECK(bounds[1] == 1.0f);
+	VOE_TEST_CHECK(bounds[2] == 1.0f / 1.25f);
+
+	voe_3d_model_levels_bounds(1.0f, lossless, swaps, 2, true, bounds);
+	VOE_TEST_CHECK(bounds[1] == 1.0f);
+
+	voe_3d_model_levels_bounds(1.0f, NULL, NULL, VOE_3D_MODEL_LEVELS, false,
+				   bounds);
+	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++)
+		VOE_TEST_CHECK(bounds[k] == ldexpf(1.0f, -(int)k));
+}
+
+// 22
+static void level_metres_follow_the_lens(void)
+{
+	const float fov_y = 1.0471976f; // 60°
+	const float metres = voe_3d_model_level_metres(2.0f, 1.0f, fov_y);
+
+	VOE_TEST_CHECK(fabsf(metres - 2.0f * sqrtf(3.0f)) < 1e-4f);
+	VOE_TEST_CHECK(voe_3d_model_level_metres(2.0f, INFINITY, fov_y) == 0.0f);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(4 * 1024 * 1024);
@@ -383,6 +425,8 @@ int main(void)
 	not_a_glb(arena);
 	levels_asked(arena);
 	view_levels();
+	bounds_are_capped_and_spread();
+	level_metres_follow_the_lens();
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

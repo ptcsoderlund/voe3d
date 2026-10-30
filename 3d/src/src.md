@@ -198,7 +198,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and index checked.
 - `models_levels.c` — a `.glb`'s levels beside its parts, as the prepare baked or read them: own
   levels joined by material, or made levels' indices shared over level 0's vertices, each bounded
-  by the file's error and swap; the level-0 mirror and the free.
+  through voe_3d_model_levels_bounds; the level-0 mirror and the free.
 - `models_landscape.c` — a landscape's grid copied with its layers, paint, foliage kinds and
   copies, each placed, its grown copies made, uploaded as heights, paint and a pyramid; brushes
   and puts growing its dirt, placing copies again and remaking the grown; renames following.
@@ -229,10 +229,9 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `simplify.c` — the weld, each vertex's side, the plane sums and a heap of stamped collapses
   popped cheapest first, a seam line's re-pointed by side and a soft position's onto the kept
   vertex, each refused past 90° of turn.
-- `model_levels.c` — a `.glb`'s levels file made with no picture decoded (level 0 baked, each
-  part simplified to its share level by level, no pool, or own levels baked and measured),
-  written and read back with stale fields refused,
-  its swaps patched in place, and each level's triangles.
+- `model_levels.c` — a `.glb`'s levels file made with no picture decoded (simplified level by
+  level, or own levels measured), read back with stale fields refused, its swaps patched in
+  place; each level's triangles, the bounds capped and spread, and a bound's metres.
 - `measure.h` — how far apart two bakes are, both ways, vertex to nearest triangle, for an own
   level's error; internal.
 - `measure.c` — each way's triangles in a grid of about one a cell, searched ring by ring out

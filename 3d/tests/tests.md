@@ -210,8 +210,8 @@ again, or to find where a claim that has started failing is written down.
   cylinder cut along its seam lines at angle 0 and further softened at 180. Needs no graphics card.
 - `model_levels.c` — a sphere's levels file made and read back as asked,
   its own levels measured,
-  going stale when its `.glb` or version changes, each level's triangles counted, and a view's level
-  and pixel share chosen by its screen size; needs no graphics card.
+  going stale when its `.glb` or version changes, its triangles counted, a view's level and share
+  chosen, bounds capped and spread, and a bound's metres; needs no graphics card.
 - `model_cooked.c` — that a prepared sphere written and read back keeps its bake, levels, sphere,
   flags, edges and given BC7 and BC5 blocks, a picture's kind is its first use, and the key comes
   back, another version refused. Needs no graphics card.

@@ -17,31 +17,15 @@
 // way leaves `level_count` covering what was made, and _free finds it; an id
 // never made stays zeroed, generation 0 never being handed out.
 //
-// A LEVEL'S BOUND IS 0.002 × RADIUS ÷ ITS ERROR ÷ ITS SWAP IN THE FILE (0436
-// points 4, 6), infinite for error nought, then made non-increasing: a made
-// level's always, an own level's when the prepare kept the file's measures.
-// Otherwise an own level's bound is 2^-k. The radius is the entry's, set by
-// the put before the levels.
+// THE BOUNDS COME FROM voe_3d_model_levels_bounds (3d/model_levels.h), capped
+// and spread there: measured by the file's errors and swaps for a made level
+// always, for an own level when the prepare kept the file's measures, 2^-k
+// otherwise. The radius is the entry's, set by the put before the levels.
 #include "models_store.h"
 
 #include <3d/model_levels.h>
 #include <3d/models.h>
 #include <base/assert.h>
-
-#include <math.h>
-
-// A level's error kept under this share of half the screen (0425 point 3).
-#define SCREEN_ERROR 0.002f
-
-// Level k's bound from `read`'s error and swap, infinite for error nought.
-static float error_bound(const voe_3d_model_entry *entry,
-			 const voe_3d_model_levels *read, uint32_t k)
-{
-	const float made = read->errors[k];
-
-	return made > 0.0f ? SCREEN_ERROR * entry->radius / made / read->swaps[k] :
-			     INFINITY;
-}
 
 void voe_3d_models_levels_mirror(voe_3d_model_entry *entry)
 {
@@ -100,16 +84,15 @@ static bool upload_own(voe_render_device *device,
 		       const voe_3d_model_prepared *prepared,
 		       voe_3d_model_entry *entry, voe_base_error *error)
 {
-	entry->levels_own = true;
-	for (uint32_t k = 1; k < prepared->own_count; k++) {
-		const float bound = prepared->measured ?
-					    error_bound(entry, &prepared->read,
-							k) :
-					    ldexpf(1.0f, -(int)k);
+	float bounds[VOE_3D_MODEL_LEVELS];
 
+	entry->levels_own = true;
+	voe_3d_model_levels_bounds(entry->radius, prepared->read.errors,
+				   prepared->read.swaps, prepared->own_count,
+				   prepared->measured, bounds);
+	for (uint32_t k = 1; k < prepared->own_count; k++) {
 		entry->level_count = k + 1;
-		entry->levels[k].bound =
-			fminf(bound, entry->levels[k - 1].bound);
+		entry->levels[k].bound = bounds[k];
 		if (!upload_own_level(device, prepared, k, entry, error))
 			return false;
 	}
@@ -124,10 +107,13 @@ static bool upload_made(voe_render_device *device,
 			const voe_3d_model_levels *read,
 			voe_3d_model_entry *entry, voe_base_error *error)
 {
+	float bounds[VOE_3D_MODEL_LEVELS];
+
+	voe_3d_model_levels_bounds(entry->radius, read->errors, read->swaps,
+				   read->level_count, true, bounds);
 	for (uint32_t k = 1; k < read->level_count; k++) {
 		entry->level_count = k + 1;
-		entry->levels[k].bound = fminf(error_bound(entry, read, k),
-					       entry->levels[k - 1].bound);
+		entry->levels[k].bound = bounds[k];
 		for (uint32_t p = 0; p < read->part_count; p++) {
 			if (read->index_counts[k][p] > 0 &&
 			    !voe_render_geometry_create_sharing(

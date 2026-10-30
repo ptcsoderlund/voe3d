@@ -28,9 +28,9 @@
 // its parts', in model metres. A level not below the one before in triangles
 // ends the list: it and the ones after are dropped. Level k swaps in at its own
 // `levels.swaps[k]` times the distance its error allows (0436 point 4), not
-// times the level before's. One that lands at or nearer than the level before
-// is pushed out to it (0435 point 2), and of two at one distance the later is
-// drawn: the earlier never shows. Swaps 1 1 1 2 1 most often skip level 4.
+// times the level before's; then capped at s = 1 and each at least 1.25 times
+// as far as the one before, applied when read and never written back (0500
+// points 2, 4, 5), as voe_3d_model_levels_bounds says.
 //
 // A FILE WITH ITS OWN LEVELS (0435 point 3, 0436 point 6): a node named `_LOD1`
 // to `_LOD5` anywhere makes the file `own`, never simplified, no parts; each
@@ -141,6 +141,24 @@ uint32_t voe_3d_model_levels_triangles(voe_base_arena *arena,
 				       const uint8_t *levels, size_t levels_size,
 				       uint32_t triangles[VOE_3D_MODEL_LEVELS],
 				       bool *own, bool *fresh);
+
+// Each level's bound, the screen size `s` it is drawn under, for a model of
+// `radius` whose levels have `errors` and `swaps`, into `bounds`: every bound
+// the store and the LODs panel use comes from here. `bounds[0]` INFINITY; level
+// k >= 1 is 0.002 × radius ÷ errors[k] ÷ swaps[k] when `measured` (INFINITY for
+// error nought), 2^-k when not (an own file with no measures), neither array
+// then read; then each capped at 1 (0500 point 5); then each at most the one
+// before ÷ 1.25 (0495 point 1). Entries at and past `level_count` unwritten.
+void voe_3d_model_levels_bounds(float radius,
+				const float errors[VOE_3D_MODEL_LEVELS],
+				const float swaps[VOE_3D_MODEL_LEVELS],
+				uint32_t level_count, bool measured,
+				float bounds[VOE_3D_MODEL_LEVELS]);
+
+// The distance in metres at which a model of `radius` at scale 1, seen through
+// a lens of `fov_y` radians, is `bound` on screen: radius ÷ tan(fov_y ÷ 2) ÷
+// bound; 0 for an infinite bound.
+float voe_3d_model_level_metres(float radius, float bound, float fov_y);
 
 // A view's choice of a model's level.
 typedef struct {

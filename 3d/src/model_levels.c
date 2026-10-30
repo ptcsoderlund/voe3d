@@ -2,9 +2,10 @@
 // pictures left encoded, baked at level 0 and simplified by level and part
 // into the file's bytes, or its own
 // levels baked and measured against level 0, and those bytes read back field
-// by field against the `.glb` they were made from; each level's triangles; and
-// a view's level of a loaded model, walked from the top over bounds made
-// non-increasing at load, with its share of the pixels in its band.
+// by field against the `.glb` they were made from; each level's triangles; the
+// bounds, capped and spread, and the metres one stands for; and a view's level
+// of a loaded model, walked from the top over those bounds, with its share of
+// the pixels in its band.
 //
 // AN OWN LEVEL IS BAKED AND GIVEN BACK ONE AT A TIME, so making the file holds
 // level 0 and one own level at most; its error is measure.h's.
@@ -52,6 +53,14 @@ static_assert(VOE_ASSETS_LEVELS == VOE_3D_MODEL_LEVELS,
 // and the bounding radius divided by this is the most a collapse may cost.
 #define SHARED_SIDE_DEGREES 60.0f
 #define COLLAPSE_RADIUS_DIVISOR 4.0f
+
+// A level's error kept under this share of half the screen (0425 point 3).
+#define SCREEN_ERROR 0.002f
+// No bound above the radius filling half the screen height (0500 point 5).
+#define BOUND_CAP 1.0f
+// Each level swaps in at least this many times as far as the one before
+// (0495 point 1, 0500 point 2): the width of a dissolve band.
+#define BOUND_SPREAD 1.25f
 
 struct writer {
 	uint8_t *bytes;
@@ -432,6 +441,44 @@ uint32_t voe_3d_model_levels_triangles(voe_base_arena *arena,
 		triangles[k] = (uint32_t)(indices / 3);
 	}
 	return read.level_count;
+}
+
+void voe_3d_model_levels_bounds(float radius,
+				const float errors[VOE_3D_MODEL_LEVELS],
+				const float swaps[VOE_3D_MODEL_LEVELS],
+				uint32_t level_count, bool measured,
+				float bounds[VOE_3D_MODEL_LEVELS])
+{
+	VOE_BASE_ASSERT(bounds != NULL, "bounds into nothing");
+	VOE_BASE_ASSERT(!measured || (errors != NULL && swaps != NULL),
+			"measured bounds of no errors or swaps");
+	VOE_BASE_ASSERT(level_count <= VOE_3D_MODEL_LEVELS,
+			"bounds of a level count out of range");
+
+	if (level_count > 0)
+		bounds[0] = INFINITY;
+	for (uint32_t k = 1; k < level_count; k++) {
+		float bound = ldexpf(1.0f, -(int)k);
+
+		if (measured)
+			bound = errors[k] > 0.0f ?
+					SCREEN_ERROR * radius / errors[k] / swaps[k] :
+					INFINITY;
+		bounds[k] = fminf(fminf(bound, BOUND_CAP),
+				  bounds[k - 1] / BOUND_SPREAD);
+		VOE_BASE_ASSERT(!(bounds[k] > BOUND_CAP), "a bound past its cap");
+	}
+}
+
+float voe_3d_model_level_metres(float radius, float bound, float fov_y)
+{
+	VOE_BASE_ASSERT(fov_y > 0.0f && fov_y < 3.14159265f,
+			"metres through no lens");
+	VOE_BASE_ASSERT(bound > 0.0f, "metres of no bound");
+
+	if (!isfinite(bound))
+		return 0.0f;
+	return radius / tanf(fov_y * 0.5f) / bound;
 }
 
 // Level k's share of the pixels at `s`, from its band (0432 point 3): the
