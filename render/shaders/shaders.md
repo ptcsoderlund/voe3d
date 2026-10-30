@@ -4,14 +4,14 @@ The engine's shaders and the only files `slangc` runs over: Slang compiled to ro
 build time and `#embed`ded, so nothing is read at run time. A `.slangh` is a part, included by a
 shader and never compiled alone.
 
-- `bindings.slangh` — the part `draw.slang` includes first: the frame block with its clouds, the
+- `bindings.slangh` — the part `draw.slang` includes first: the frame block with its clouds and fog, the
   object and instance records, set 0's bindings with the cloud field at 13 and 14, and the push
   constant, each matching its C side; an object carries paint, layers, dither, instances, a ground.
 - `instances.slangh` — where a mesh draw's copy stands: from the record and the instance index its
   world matrix, normal matrix and dither, the record's own when it names no instances.
-- `draw.slang` — the mesh pipelines' nine entry points, the capture's, the sky's and the clouds' in
+- `draw.slang` — the mesh pipelines' eleven entry points, the capture's, sky's, clouds' and fog's in
   its parts below: placing, maps, a painted landscape's layers, a ground record's blend, alpha and
-  dither, the lit and unlit exits hazed, exposed and tone mapped, and the point-shadow vertex stage.
+  dither, exits hazed, exposed and toned, the point-shadow vertex stage; includes the fog's part.
 - `draw_capture.slangh` — the part `draw.slang` includes at its end: the bounce capture pass's two
   entry points, a mesh on a probe's faces as albedo and normal with distance.
 - `draw_sky.slangh` — the part `draw.slang` includes last: the sky's two full-screen entry points,
@@ -19,6 +19,9 @@ shader and never compiled alone.
 - `draw_clouds.slangh` — the part `draw.slang` includes after `draw_sky.slangh`: the clouds' march
   at half size to the furthest depth, veiled by the haze, and their bilinear composite, skipped
   where a surface is nearer than the layer, both behind the sky's vertex stage.
+- `draw_fog.slangh` — the part `draw.slang` includes after `draw_clouds.slangh`: the fog's march at
+  half size to a checkerboard of nearest and furthest depths, hazed at its mean distance, and its
+  depth-weighted composite, both behind the sky's vertex stage.
 - `tone.slangh` — haze, exposure and tone at every mesh exit: mixed by distance past the haze start
   towards the drawn sky's horizon hue at the lights' brightness, or else their colour, × 2^exposure,
   Clip or Soft; a `plain` draw as authored; the veil along a view below the haze's top, endless or
@@ -28,16 +31,19 @@ shader and never compiled alone.
 - `clouds.slangh` — the cloud field read by the shaders: density, where a view meets the layer,
   a light's transmittance, the light a unit of cloud sends, the march and a reflection's sample,
   all one field, in eye-relative metres.
+- `fog.slangh` — the fog volumes read by the shaders: where a view crosses a box, the density of
+  the drifting patches, the light a unit of fog sends, beams by the first light's cascades, and the
+  march over the union of crossings, in eye-relative metres.
 - `point_shadow.slangh` — a point light's cube faces: the face of a vector and the clip position on
   it; draw and lookup share it.
 - `blockers.slangh` — which light blockers hold a point and whether a segment passes them, twin of
   `src/light_blockers.c`.
 - `bounce_read.slangh` — the bounce's one read: E(n) from a probe volume's eight nearest probes,
   weighted and normalised.
-- `lighting.slangh` — the directional lights, their shadows and fills, the clouds dimming each
-  one's direct term, the bounce and the binned point lights, each gated by the light blockers; the
-  sky lights nothing, and a metal mirrors it, the clouds along the reflected view over its sharp
-  sky, only as bright as the light on it.
+- `lighting.slangh` — the directional lights, their shadows and fills, one cascade compare in the
+  air, the clouds dimming each one's direct term, the bounce and the binned point lights, each gated
+  by the light blockers; the sky lights nothing, and a metal mirrors it under the clouds, as bright
+  as the light on it.
 - `terrain.slangh` — a landscape node's vertex: the grid point morphed by distance, its height and
   normal from the height map.
 - `terrain_layers.slangh` — a painted landscape's surface: the paint's weights, up to eight layers

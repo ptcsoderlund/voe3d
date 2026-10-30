@@ -2,8 +2,9 @@
 // the first light, the first on sky row and Haze
 // row, the first on picture row, the pass camera a frame opens with, the matrices each object is drawn with, and one draw per drawable into
 // the frame the loop has opened. The sky carries each light's disc and glow and
-// the haze's top above the eye; the frame's clouds, draw_clouds.c's, go to the
-// pass camera and are drawn over the world before the overlay's depth clear.
+// the haze's top above the eye; the frame's clouds, draw_clouds.c's, and its fog,
+// fog_volume.c's at the eye and lag, go to the pass camera and are drawn over the
+// world, the fog right after the clouds, before the overlay's depth clear.
 //
 // IT WALKS THE MESH, MODEL AND PANEL TABLES AND LOOKS THE OTHER COMPONENTS UP
 // BY ENTITY; the model rows are draw_models.c's, the particles
@@ -43,6 +44,7 @@
 #include "draw_water.h"
 
 #include <3d/draw_system.h>
+#include <3d/fog_volume.h>
 #include <3d/normal_matrix.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
@@ -221,6 +223,7 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame)
 		.sky = frame->sky,
 		.exposure = frame->exposure,
 		.clouds = frame->clouds,
+		.fog = frame->fog,
 		.more ={ .lights = frame->more_lights,
 			  .count = frame->more_count },
 	};
@@ -294,6 +297,8 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.exposure = voe_3d_draw_system_picture(world);
 	// The first on Clouds row about the eye just set, zeroed with none (0492).
 	frame.clouds = voe_3d_draw_system_clouds(world, frame.eye);
+	// Every on Fog volume row about the eye at the lag, zeroed with none (0493).
+	frame.fog = voe_3d_fog_volumes(world, frame.eye, frame.lag);
 	// No light after the first until voe_3d_draw_system_lights (0357).
 	frame.more_lights = NULL;
 	frame.more_count = 0;
@@ -312,6 +317,7 @@ voe_3d_frame voe_3d_draw_system_frame(const voe_ecs_world *world,
 	frame.brush = (voe_3d_brush_marked){ 0 };
 	frame.collider = (voe_3d_collider_marked){ 0 };
 	frame.light_blockers = (voe_3d_rows_marked){ 0 };
+	frame.fog_volumes = (voe_3d_rows_marked){ 0 };
 	frame.models = NULL;
 	frame.target = VOE_RENDER_TARGET_WINDOW;
 	frame.casters = NULL;
@@ -726,6 +732,7 @@ voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
 	voe_3d_draw_marks_places(world, device, arena, frame);
 	voe_3d_draw_marks_brush(world, device, arena, frame);
 	voe_3d_draw_marks_light_blockers(world, device, arena, frame);
+	voe_3d_draw_marks_fog_volumes(world, device, arena, frame);
 	// The world's solids are all down, so the depth the water fades against
 	// is copied now, once, and only when water is held (0305 point 7). A
 	// refused copy stops the blended group as a refused draw stops its own:
@@ -736,6 +743,9 @@ voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
 	// no span of this file's open: render times its own (0492 point 5).
 	if (!voe_render_frame_draw_clouds(device))
 		VOE_BASE_ERROR("3d", "the clouds were refused; the frame goes on without them");
+	// The fog right after them, as they are drawn (0493 point 5).
+	if (!voe_render_frame_draw_fog(device))
+		VOE_BASE_ERROR("3d", "the fog was refused; the frame goes on without it");
 
 	// The world is finished and the overlay starts on an empty depth buffer,
 	// which is the whole of what a layer is. The colour the world was drawn
@@ -763,6 +773,7 @@ voe_3d_view_counts voe_3d_draw_system_run(voe_ecs_world *world,
 	cleared = voe_3d_draw_marks_outline(world, device, arena, frame, cleared);
 	voe_3d_draw_marks_collider(world, device, arena, frame, cleared);
 	voe_3d_draw_marks_light_blocker(world, device, arena, frame, cleared);
+	voe_3d_draw_marks_fog_volume(world, device, arena, frame, cleared);
 	voe_3d_draw_marks_gizmo(world, device, arena, frame);
 
 	// Everything above is this frame's, and the caller's arena is handed

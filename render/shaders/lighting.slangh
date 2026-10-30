@@ -3,8 +3,8 @@
 // bounce, the fills and the point lights. A part (ADR-0308): included by
 // draw.slang after bindings.slangh, whose frame block it reads; includes
 // point_shadow.slangh, blockers.slangh, bounce_read.slangh, sky.slangh and
-// clouds.slangh; never compiled alone. draw.slang's fragment stage and
-// water.slangh light by it.
+// clouds.slangh; never compiled alone. draw.slang, water.slangh and fog.slangh
+// light by it.
 //
 // SEVERAL DIRECTIONAL LIGHTS, EACH GATED, SHADOWED AND FILLED BY ITS OWN
 // (ADR-0357 point 2). Light 0 is the frame block's `light`, `shadow` and the
@@ -43,6 +43,7 @@
 // EACH LIGHT CASTS THROUGH CASCADED SHADOW MAPS (ADR-0258, 0357 point 3): the
 // first cascade past the view distance, the surface pushed a texel along its
 // normal, 3×3 compares on layer slot × 4 + cascade; past the last, fully lit.
+// voe_render_sunlight_at, a point in the air (0493), is one compare, unpushed.
 //
 // THE SKY LIGHTS NOTHING; A METAL MIRRORS IT (ADR-0411, 0412 point 5), as
 // bright as the light on it, L over F (0423, 0424): voe_render_sky_reflection
@@ -179,6 +180,26 @@ float voe_render_sunlight(voe_render_shadow shadow, float3 world, float3 normal)
 		}
 	}
 	return lit / 9.0;
+}
+
+// How much of the light whose cascades `shadow` holds reaches `world`, a point
+// in the air with no surface to push off: the cascade voe_render_sunlight
+// would choose, one compare, one past the last split or with no cascades.
+float voe_render_sunlight_at(voe_render_shadow shadow, float3 world)
+{
+	float distance = -mul(voe_render_frame.camera.view, float4(world, 1.0)).z;
+	uint cascade = 0;
+
+	while (cascade < shadow.count && distance > shadow.splits[cascade])
+		cascade++;
+	if (cascade >= shadow.count)
+		return 1.0;
+	float4 clip = mul(shadow.cascades[cascade], float4(world, 1.0));
+	float3 ndc = clip.xyz / clip.w;
+	float2 uv = float2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+
+	return voe_render_shadow_maps.SampleCmpLevelZero(
+		float3(uv, float(shadow.slot * 4 + cascade)), ndc.z);
 }
 
 // The pass's blockers, its region at binding 11, as blockers.slangh's list.

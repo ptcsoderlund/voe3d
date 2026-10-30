@@ -81,6 +81,9 @@
 // sky is. `clouds_image` IS THE PASS TARGET'S CLOUDS IMAGE TEXTURE SLOT, render's
 // own: VOE_RENDER_NO_CLOUDS_IMAGE until voe_render_frame_draw_clouds names it.
 // Three reserved words round it to sixteen bytes.
+//
+// `fog` IS THE CAMERA'S voe_render_fog (ADR-0493 point 3), zeroed as the clouds
+// are.
 struct voe_render_frame_bounce {
 	float corner[3];
 	uint32_t grid;
@@ -113,6 +116,7 @@ struct voe_render_frame_block {
 	voe_render_clouds clouds;
 	uint32_t clouds_image;
 	uint32_t clouds_reserved[3];
+	voe_render_fog fog;
 };
 
 // One pass's region at binding 11 (ADR-0347 point 3): its light blockers as
@@ -352,8 +356,8 @@ struct voe_render_allocated_image {
 //
 // `clouds` IS WHAT THE CLOUDS ARE MARCHED INTO (ADR-0492 point 5): RGBA16F, half
 // the target's size rounded up and at least 1 × 1, premultiplied light in RGB and
-// transmittance in A, resting in SHADER_READ_ONLY_OPTIMAL outside the clouds' own
-// march.
+// transmittance in A. The fog marches into it after the clouds (ADR-0493 point
+// 5); it rests in SHADER_READ_ONLY_OPTIMAL outside either march.
 struct voe_render_target {
 	struct voe_render_allocated_image colour;
 	struct voe_render_allocated_image depth;

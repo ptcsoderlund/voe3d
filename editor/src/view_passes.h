@@ -1,16 +1,16 @@
 // What a frame draws into the scene views: per view the dock tree shows, the
 // sun's shadow passes fitted to it (voe_3d_draw_system_shadows, ADR-0258),
 // then a pass onto that view's target with its own camera, the light
-// voe_editor_view_light gives (the world's or the preview), the world's sky
-// and clouds seen from the view's own eye so the haze veils them from there
-// (voe_3d_draw_system_sky and _clouds, 0405, 0418 point 2, 0492), its picture (voe_3d_draw_system_picture,
+// voe_editor_view_light gives (the world's or the preview), the world's sky,
+// clouds and fog seen from the view's own eye so the haze veils them from there
+// (voe_3d_draw_system_sky, _clouds and voe_3d_fog_volumes, 0405, 0418 point 2, 0492, 0493), its picture (voe_3d_draw_system_picture,
 // 0406) and those shadows: the world and its models (voe_3d_draw_system_run), the selection's outline,
 // a model's too (ADR-0203), its collider as lines (0253), its gizmo of the
 // mode (ADR-0205, 0274, 0482), the scene camera's marker (0223), every sun's (0360) and every
 // point light's (0320) and every meshless place's (0365), the brush's two
 // rings where the pointer meets the ground, the gizmo hidden while a brush is
-// chosen on a landscape (0379 point 3), and every light
-// blocker's box, faint but the selected one (0347, 0365). Before
+// chosen on a landscape (0379 point 3), and every light blocker's and fog
+// volume's box, faint but the selected one (0347, 0365, 0493 point 7). Before
 // those, the preview's shadow passes and one pass with the world's own camera
 // (view.h). Every directional and point light lights every pass; the light
 // blockers gate each.
@@ -32,7 +32,7 @@
 // the room every project's world is registered with), one more for the
 // selection's outline, two for the gizmo's handles at rest and its marked one,
 // one for the camera's marker, the selection's collider and the brush, and two each for
-// the suns', point lights' and places' markers and the blockers' boxes, times
+// the suns', point lights' and places' markers and the blockers' and fog volumes' boxes, times
 // the room for views, and the drawn entities once more for the preview's pass,
 // which draws the world alone; and every caster once per cascade of each of
 // VOE_RENDER_DIRECTIONAL_LIGHTS lights, point-shadow pass, capture pass and
@@ -125,14 +125,16 @@
 // The three transient numbers hold, per view's pass, the selection outline's
 // quads (ADR-0203, 3d/outline.h); the gizmo's, two ranges, the largest of the
 // arrows', the rings' and the scales' (ADR-0205, 0274, 0482); one range each for the camera
-// marker (0223), the collider and the selected blocker's box, the last two a
-// collider marker each (0253, 0347 point 5); the sun markers',
+// marker (0223), the collider and the selected blocker's and fog volume's
+// boxes, the last three a collider marker each (0253, 0347 point 5, 0493
+// point 7); the sun markers',
 // VOE_EDITOR_SUN_MARKERS lights in two ranges, the rest and the selected one
 // (0360 point 2); the point light markers', VOE_GAME_WORLD_POINT_LIGHTS lamps
 // in two ranges likewise (0320 point 9); the places', in two ranges, sized by
 // VOE_GAME_WORLD_AUTHORED because the editor's world holds only authored
 // entities (0365); and the other blockers' boxes,
-// VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more; and the
+// VOE_GAME_WORLD_LIGHT_BLOCKERS collider markers in one range more, and the
+// other fog volumes' likewise, VOE_GAME_WORLD_FOG_VOLUMES; and the
 // brush's rings, one range (VOE_3D_BRUSH_MARKER_*, 0379 point 3). Every pass
 // that draws the world draws VOE_3D_LANDSCAPE_NODES for each of
 // VOE_3D_LANDSCAPES_DRAWN landscapes, counted in `objects` where the world's
@@ -153,7 +155,7 @@
 		.indices = VOE_3D_SHAPES_INDICES + VOE_3D_MODELS_INDICES,      \
 		.geometries =                                                  \
 			VOE_3D_SHAPES_GEOMETRIES + VOE_3D_MODELS_GEOMETRIES,  \
-		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 14 +                \
+		.objects = (2 * VOE_GAME_WORLD_MAX_DRAWN + 16 +                \
 			    VOE_3D_LANDSCAPES_DRAWN * VOE_3D_LANDSCAPE_NODES) * \
 				   VOE_EDITOR_VIEWS +                          \
 			   2 * VOE_GAME_WORLD_MAX_DRAWN +                      \
@@ -193,13 +195,15 @@
 				       VOE_3D_CAMERA_MARKER_VERTICES +         \
 				       VOE_3D_SUN_MARKER_VERTICES *            \
 					       VOE_EDITOR_SUN_MARKERS +        \
-				       2 * VOE_3D_COLLIDER_MARKER_VERTICES +   \
+				       3 * VOE_3D_COLLIDER_MARKER_VERTICES +   \
 				       VOE_3D_POINT_LIGHT_MARKER_VERTICES *    \
 					       VOE_GAME_WORLD_POINT_LIGHTS +   \
 				       VOE_3D_PLACE_MARKER_VERTICES *          \
 					       VOE_GAME_WORLD_AUTHORED +       \
 				       VOE_3D_COLLIDER_MARKER_VERTICES *       \
 					       VOE_GAME_WORLD_LIGHT_BLOCKERS + \
+				       VOE_3D_COLLIDER_MARKER_VERTICES *       \
+					       VOE_GAME_WORLD_FOG_VOLUMES +    \
 				       VOE_3D_BRUSH_MARKER_VERTICES) *         \
 					      VOE_EDITOR_VIEWS,                 \
 		.transient_indices = (VOE_3D_OUTLINE_INDICES +                 \
@@ -207,16 +211,18 @@
 				      VOE_3D_CAMERA_MARKER_INDICES +           \
 				      VOE_3D_SUN_MARKER_INDICES *              \
 					      VOE_EDITOR_SUN_MARKERS +         \
-				      2 * VOE_3D_COLLIDER_MARKER_INDICES +     \
+				      3 * VOE_3D_COLLIDER_MARKER_INDICES +     \
 				      VOE_3D_POINT_LIGHT_MARKER_INDICES *      \
 					      VOE_GAME_WORLD_POINT_LIGHTS +    \
 				      VOE_3D_PLACE_MARKER_INDICES *            \
 					      VOE_GAME_WORLD_AUTHORED +        \
 				      VOE_3D_COLLIDER_MARKER_INDICES *         \
 					      VOE_GAME_WORLD_LIGHT_BLOCKERS +  \
+				      VOE_3D_COLLIDER_MARKER_INDICES *         \
+					      VOE_GAME_WORLD_FOG_VOLUMES +     \
 				      VOE_3D_BRUSH_MARKER_INDICES) *           \
 					     VOE_EDITOR_VIEWS,                  \
-		.transient_geometries = 14 * VOE_EDITOR_VIEWS,                 \
+		.transient_geometries = 16 * VOE_EDITOR_VIEWS,                 \
 		.heights_texels = VOE_3D_LANDSCAPE_WRITE_TEXELS                \
 	}
 

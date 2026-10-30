@@ -38,8 +38,8 @@ again, or to find where a claim that has started failing is written down.
   parts set names, and a double-sided material draws both sides. Skips without a graphics card.
 - `draw_gizmo.c` — that a gizmo's arrows, rings and scales each show through the cube it stands
   in. Skips without a graphics card.
-- `draw_markers.c` — that camera, sun, place and brush markers each add the draws they should
-  and a zeroed marker none, and that a ray picks each sun. Skips without a graphics card.
+- `draw_markers.c` — that camera, sun, place and brush markers and fog volume lines each add the
+  draws they should and a zeroed marker or an off volume none, and that a ray picks each sun. Skips without a graphics card.
 - `draw_particles.c` — that a burst of five with the dot loaded is five draws more than no emitter,
   none with no store, a glowing one is unlit, and one behind the camera holds none, five skipped.
   Skips without a graphics card.
@@ -70,6 +70,9 @@ again, or to find where a claim that has started failing is written down.
   picture skips without a graphics card.
 - `light_blockers.c` — that a blocker's box follows its transform, a frame records it with its
   block's bit and the sun's mask, and the editor lines it in the selected or rest colour.
+- `fog_volumes.c` — that fog volumes are zeroed with no table or row, a box's rows hold it about
+  the eye, the density is squared, the fields wrap less the drift, off, thin and ninth rows are
+  left out, and the shape is the scaled size. Needs no graphics card.
 - `directional_lights.c` — that one light frames no more, a moon after a sun rides in `more_lights`
   with its light, bounces and strength, five lights keep three more, a Room about the moon sets its
   mask and not the sun's, and the pass camera carries `more`. Needs no graphics card.

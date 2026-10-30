@@ -11,8 +11,10 @@
 // same call; with a progress the distinct unread paths are counted first, a
 // row's landscape's kinds added once it loads, "Loading models" set and the
 // stop flag asked before each batch, the file's own phase before its put. A
-// full store ends an update before its next file. The watch adds every entry but landscapes and materials at
-// its stamp, read only when that changed; a reload adds its one path, forced.
+// full store ends an update before its next file. The watch adds only the
+// entries but landscapes and materials whose stamp changed, by the batch's
+// own stamp test, so an unchanged store prepares no batch and starts no
+// burst; a reload adds its one path, forced.
 // Each call's batches cook as its mode says (models_cooked.h): an update
 // stale copies, the game's update missing ones, a watch and a reload none.
 // The update's and the watch's gathering and the dot and water are internal
@@ -581,20 +583,31 @@ voe_game_models_landscapes(voe_3d_models *models, voe_render_device *device,
 }
 
 uint32_t voe_game_models_watch_gather(const voe_3d_models *models,
-				      uint32_t next, uint32_t room,
+				      const char *folder,
+				      voe_base_arena *scratch, uint32_t next,
+				      uint32_t room,
 				      voe_game_models_batch *batch)
 {
 	VOE_BASE_ASSERT(models != NULL && batch != NULL, "no store or batch");
+	VOE_BASE_ASSERT(folder != NULL && scratch != NULL,
+			"no folder or scratch");
 	for (; next < voe_3d_models_count(models) &&
 	       voe_game_models_batch_count(batch) < room;
 	     next++) {
 		const voe_3d_model_entry *entry = voe_3d_models_at(models, next);
+		struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+		uint64_t stamp;
+		bool stamped;
 
 		// A landscape is never re-read by stamp (0379 point 2), nor a
 		// material, which the editor reloads itself (0399 point 7).
-		if (entry->landscape == NULL && !entry->material)
+		if (entry->landscape == NULL && !entry->material &&
+		    voe_game_models_stamp_changed(
+			    voe_platform_path_join(scratch, folder, entry->path),
+			    entry->stamp, &stamp, &stamped))
 			voe_game_models_batch_add(batch, entry->path,
 						  entry->stamp, false);
+		voe_base_arena_rewind(scratch, mark);
 	}
 	VOE_BASE_ASSERT(voe_game_models_batch_count(batch) <= room,
 			"gathered past the room");
@@ -616,9 +629,12 @@ voe_game_models_failures voe_game_models_watch(voe_3d_models *models,
 	for (uint32_t i = 0; i < voe_3d_models_count(models);) {
 		voe_game_models_batch *batch = batch_of(&call, folder);
 
-		i = voe_game_models_watch_gather(models, i, 1, batch);
-		// Every path is held, so the store has room for each.
-		if (!batch_load(&call, batch))
+		i = voe_game_models_watch_gather(models, folder, scratch, i, 1,
+						 batch);
+		// An empty gather starts no burst; every path is held, so the
+		// store has room for each.
+		if (voe_game_models_batch_count(batch) > 0 &&
+		    !batch_load(&call, batch))
 			VOE_BASE_ASSERT(false, "a held path refused for room");
 		voe_game_models_batch_destroy(batch);
 	}

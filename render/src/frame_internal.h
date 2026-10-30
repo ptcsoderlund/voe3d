@@ -1,9 +1,10 @@
 // The seam between a frame, its passes, its draws and its present: the calls
-// frame.c, pass.c, depth_copy.c, clouds_draw.c, draw.c, present.c,
-// point_shadow.c, bounce_capture.c and bounce_shadow.c (whose passes open
-// through pass.c's start) make across one another, and nothing else. Included
-// by those nine files only; every other file in render reaches a frame through
-// device_internal.h, and outside render through device.h.
+// frame.c, pass.c, depth_copy.c, clouds_draw.c, fog_draw.c, half_march.c,
+// draw.c, present.c, point_shadow.c, bounce_capture.c and bounce_shadow.c
+// (whose passes open through pass.c's start) make across one another, and
+// nothing else. Included by those eleven files only; every other file in
+// render reaches a frame through device_internal.h, and outside render through
+// device.h.
 //
 // These were static functions of one file until that file was split by what
 // each part does, which is the only reason they carry the voe_render_ prefix
@@ -39,6 +40,14 @@ void voe_render_pass_copy_lights(const struct voe_render_frame *frame,
 				 uint32_t region, uint32_t first,
 				 const voe_render_point_light *lights,
 				 uint32_t count);
+
+// half_march.c. The open camera pass's half-size march with `march` into its
+// target's clouds image and the full-size composite with `composite`, timed
+// as the span `span`; false only when the depth copy is.
+[[nodiscard]] bool voe_render_frame_half_march(voe_render_device *device,
+					       VkPipeline march,
+					       VkPipeline composite,
+					       const char *span);
 
 // point_shadow.c. The point shadow maps back to where the shader reads them,
 // after the point-shadow pass's rendering ends; pass.c's _pass_end calls it.

@@ -24,7 +24,8 @@
 // tuned: voe_3d_emitter_system_run gets `seconds` after game's step, and so
 // does voe_3d_water_system_run after it, so water moves in edit and play alike
 // (0305 point 5), and voe_scene_clouds_system_run after that, so the clouds
-// drift while editing (0492 point 2). They are the only things the editor
+// drift while editing (0492 point 2), and voe_scene_fog_volume_system_run
+// right after it, so the fog drifts too (0493 point 2). They are the only things the editor
 // steps by time; `seconds` of 0 spawns and moves nothing.
 //
 // PLACED COPIES ARE EXPANDED AFTER THE STEP (prefabs.h, 0283 point 4). A root

@@ -451,6 +451,14 @@ static void close_down(voe_render_device *device)
 		// Before the layout below, which it shares.
 		voe_render_element_shutdown(device);
 
+		if (device->pipeline_fog_composite != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_fog_composite,
+						       NULL);
+		if (device->pipeline_fog_march != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_fog_march,
+						       NULL);
 		if (device->pipeline_clouds_composite != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline_clouds_composite,

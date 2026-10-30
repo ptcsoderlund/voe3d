@@ -1,11 +1,12 @@
 // The editor's marks drawn over the world: a scene camera's box and frustum,
 // every sun's circle and arrow, every point light's three circles, every bare
-// place's diamond, the brush's two rings, every light blocker's box, one entity's
-// silhouette, a collider's and the selected blocker's lines and the gizmo's two
-// meshes, arrows, rings or scales,
+// place's diamond, the brush's two rings, every light blocker's and fog volume's
+// box, one entity's silhouette, a collider's, the selected blocker's and fog
+// volume's lines and the gizmo's two meshes, arrows, rings or scales,
 // each as this frame's transient geometry and one or two draws, at the entity's
 // world place. An off entity is not met (0428, 0441): its camera, sun, lamp,
-// place and blocker marks are left out, its outline, lines and gizmo kept. See
+// place, blocker and fog volume marks are left out, its outline, lines and gizmo
+// kept. The blockers and fog volumes share one box-lines builder. See
 // draw_marks.h.
 //
 // All of them are in metres about the frame's eye already (ADR-0250), so every
@@ -15,6 +16,7 @@
 #include <3d/brush_marker.h>
 #include <3d/camera_marker.h>
 #include <3d/collider_marker.h>
+#include <3d/fog_volume.h>
 #include <3d/gizmo.h>
 #include <3d/gizmo_rings.h>
 #include <3d/gizmo_scales.h>
@@ -30,6 +32,7 @@
 #include <ecs/component.h>
 #include <physics/shape.h>
 #include <scene/camera_component.h>
+#include <scene/fog_volume_component.h>
 #include <scene/identity_component.h>
 #include <scene/light_blocker_component.h>
 #include <scene/light_component.h>
@@ -387,27 +390,26 @@ bool voe_3d_draw_marks_outline(const voe_ecs_world *world,
 	return true;
 }
 
-// Every light blocker with a transform but the selected one, its box at the
-// frame's lag as voe_3d_collider_marker_quads' lines gathered into one geometry
-// in `colour`, in the world's depth so a wall in front hides them (0365 point
-// 5). Not shown, no blocker table and a picture with no area draw none.
-void voe_3d_draw_marks_light_blockers(const voe_ecs_world *world,
-				      voe_render_device *device,
-				      voe_base_arena *arena, voe_3d_frame frame)
+// A row's box at a lag, false for none: voe_3d_light_blocker_shape or
+// voe_3d_fog_volume_shape.
+typedef bool (*box_of)(const voe_ecs_world *world, voe_ecs_entity entity,
+		       float lag, voe_physics_shape *box);
+
+// Each of `count` `owners` with a box but `marked.selected` and an off one
+// (0428), its box at the frame's lag as voe_3d_collider_marker_quads' lines
+// gathered into one geometry in `marked.colour`, in the world's depth so a wall
+// in front hides them. A picture with no area draws none.
+static void draw_unselected_boxes(const voe_ecs_world *world,
+				  voe_render_device *device,
+				  voe_base_arena *arena, voe_3d_frame frame,
+				  voe_3d_rows_marked marked,
+				  const voe_ecs_entity *owners, uint32_t count,
+				  box_of shape_of)
 {
-	voe_3d_rows_marked marked = frame.light_blockers;
 	voe_render_vertex *vertices;
 	uint32_t *indices;
 	uint32_t vertex_count = 0;
 	uint32_t index_count = 0;
-
-	VOE_BASE_ASSERT(device != NULL, "drawing blocker lines to no device");
-	VOE_BASE_ASSERT(arena != NULL, "blocker lines with no arena");
-
-	if (!marked.shown || !has_store(world, &voe_scene_light_blocker_key))
-		return;
-	uint32_t count = voe_scene_light_blocker_count(world);
-	const voe_ecs_entity *owners = voe_scene_light_blocker_entities(world);
 
 	if (count == 0)
 		return;
@@ -423,8 +425,7 @@ void voe_3d_draw_marks_light_blockers(const voe_ecs_world *world,
 		     owners[i].generation == marked.selected.generation) ||
 		    voe_scene_identity_off(world, owners[i]))
 			continue;
-		if (!voe_3d_light_blocker_shape(world, owners[i], frame.lag,
-						&shape))
+		if (!shape_of(world, owners[i], frame.lag, &shape))
 			continue;
 		if (!voe_3d_collider_marker_quads(shape, frame.view, frame.eye,
 						  marked.size, marked.pixels,
@@ -438,11 +439,48 @@ void voe_3d_draw_marks_light_blockers(const voe_ecs_world *world,
 		vertex_count += mesh.vertex_count;
 	}
 	VOE_BASE_ASSERT(vertex_count <= count * VOE_3D_COLLIDER_MARKER_VERTICES,
-			"more blocker line vertices than were made room for");
+			"more box line vertices than were made room for");
 	draw_marker_lines(device,
 			  (voe_3d_outline_mesh){ vertices, vertex_count, indices,
 						 index_count },
 			  marked.material, marked.colour);
+}
+
+// Every light blocker with a transform but the selected one, lined as
+// draw_unselected_boxes says (0365 point 5). Not shown and no blocker table
+// draw none.
+void voe_3d_draw_marks_light_blockers(const voe_ecs_world *world,
+				      voe_render_device *device,
+				      voe_base_arena *arena, voe_3d_frame frame)
+{
+	VOE_BASE_ASSERT(device != NULL, "drawing blocker lines to no device");
+	VOE_BASE_ASSERT(arena != NULL, "blocker lines with no arena");
+
+	if (!frame.light_blockers.shown ||
+	    !has_store(world, &voe_scene_light_blocker_key))
+		return;
+	draw_unselected_boxes(world, device, arena, frame, frame.light_blockers,
+			      voe_scene_light_blocker_entities(world),
+			      voe_scene_light_blocker_count(world),
+			      voe_3d_light_blocker_shape);
+}
+
+// Every fog volume with a transform but the selected one, lined as the
+// blockers are (0493 point 7). Not shown and no fog volume table draw none.
+void voe_3d_draw_marks_fog_volumes(const voe_ecs_world *world,
+				   voe_render_device *device,
+				   voe_base_arena *arena, voe_3d_frame frame)
+{
+	VOE_BASE_ASSERT(device != NULL, "drawing fog volume lines to no device");
+	VOE_BASE_ASSERT(arena != NULL, "fog volume lines with no arena");
+
+	if (!frame.fog_volumes.shown ||
+	    !has_store(world, &voe_scene_fog_volume_key))
+		return;
+	draw_unselected_boxes(world, device, arena, frame, frame.fog_volumes,
+			      voe_scene_fog_volume_entities(world),
+			      voe_scene_fog_volume_count(world),
+			      voe_3d_fog_volume_shape);
 }
 
 // THE COLLIDER'S AND THE SELECTED BLOCKER'S LINES SHARE THE OUTLINE'S CLEAR
@@ -514,6 +552,31 @@ void voe_3d_draw_marks_light_blocker(const voe_ecs_world *world,
 	if (!marked.shown || !voe_ecs_entity_alive(world, marked.selected) ||
 	    !voe_3d_light_blocker_shape(world, marked.selected, frame.lag,
 					&shape))
+		return;
+	draw_shape_lines(device, arena, frame, shape, marked.material,
+			 marked.selected_colour, marked.pixels, marked.size,
+			 cleared);
+}
+
+// The selected fog volume's box as the selected blocker's (0493 point 7), the
+// box voe_3d_fog_volume_shape gives at the frame's lag, so the lines are the
+// box the fog fills, in `fog_volumes`' selected colour and material. Not shown,
+// no fog volume table, a zeroed entity, a dead one and one with no fog volume
+// or no transform draw nothing.
+void voe_3d_draw_marks_fog_volume(const voe_ecs_world *world,
+				  voe_render_device *device,
+				  voe_base_arena *arena, voe_3d_frame frame,
+				  bool cleared)
+{
+	voe_3d_rows_marked marked = frame.fog_volumes;
+	voe_physics_shape shape;
+
+	VOE_BASE_ASSERT(device != NULL, "drawing a fog volume to no device");
+	VOE_BASE_ASSERT(arena != NULL, "a fog volume's lines with no arena");
+
+	if (!marked.shown || !has_store(world, &voe_scene_fog_volume_key) ||
+	    !voe_ecs_entity_alive(world, marked.selected) ||
+	    !voe_3d_fog_volume_shape(world, marked.selected, frame.lag, &shape))
 		return;
 	draw_shape_lines(device, arena, frame, shape, marked.material,
 			 marked.selected_colour, marked.pixels, marked.size,

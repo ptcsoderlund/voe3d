@@ -4,10 +4,10 @@
 //
 // THE CASES, in order on one store: a row naming the file updates with no
 // failure and a loaded entry; a second row naming a missing file gives one
-// failure, named, while the first is left alone; the file rewritten as text
-// makes a watch report one failure and keeps the entry loaded; rewritten
-// valid, a watch reports none and the entry is loaded at the new stamp. That
-// world has no emitter, so no dot is loaded.
+// failure, named; unchanged, the watch gathers no entry; the file rewritten
+// as text, it gathers that one alone, reports one failure and keeps it
+// loaded; rewritten valid, a watch reports none and the entry is loaded at
+// the new stamp. That world has no emitter, so no dot is loaded.
 //
 // THE PICTURES, on a second world and store: an emitter naming a 1x1 PNG,
 // inline bytes, loads a picture entry at
@@ -59,6 +59,8 @@
 // The files and the folder are removed at the end, pass or fail. It skips
 // when there is no graphics card, because a load uploads.
 #include "glb_build.h"
+
+#include "../src/models_batch.h"
 
 #include <game/models.h>
 #include <game/progress.h>
@@ -767,6 +769,25 @@ static void check_row_landscape(voe_ecs_world *world,
 	voe_3d_models_destroy(models);
 }
 
+// How many of the store's entries the watch gathers, into a batch with room
+// for all of them, looking at every one.
+static uint32_t watch_gathered(const voe_3d_models *models,
+			       voe_render_device *device,
+			       voe_base_arena *scratch)
+{
+	uint32_t count = voe_3d_models_count(models);
+	voe_game_models_batch *batch = voe_game_models_batch_new(
+		FOLDER, count, VOE_GAME_MODELS_COOK_NEVER, device, NULL, NULL);
+	uint32_t gathered;
+
+	VOE_TEST_CHECK_INT(voe_game_models_watch_gather(models, FOLDER, scratch,
+							0, count, batch),
+			   count);
+	gathered = voe_game_models_batch_count(batch);
+	voe_game_models_batch_destroy(batch);
+	return gathered;
+}
+
 static void check_files(voe_ecs_world *world, voe_render_device *device,
 			voe_base_arena *scratch, const uint8_t *glb,
 			uint32_t size)
@@ -793,9 +814,14 @@ static void check_files(voe_ecs_world *world, voe_render_device *device,
 		       strcmp(failures.first, MISSING) == 0);
 	VOE_TEST_CHECK_INT(voe_3d_models_count(models), 2);
 
-	// ---- the file rewritten as text: the watch fails it, still loaded
+	// ---- nothing changed: the watch gathers nothing, so prepares no batch
+	VOE_TEST_CHECK_INT(watch_gathered(models, device, scratch), 0);
+
+	// ---- the file rewritten as text: gathered alone; the watch fails it,
+	// still loaded
 	VOE_TEST_CHECK(voe_platform_file_write(GOOD_ON_DISK, NOT_A_GLB,
 					       sizeof(NOT_A_GLB), NULL));
+	VOE_TEST_CHECK_INT(watch_gathered(models, device, scratch), 1);
 	failures = voe_game_models_watch(models, device, FOLDER, scratch);
 	VOE_TEST_CHECK_INT(failures.count, 1);
 	VOE_TEST_CHECK(failures.first != NULL &&

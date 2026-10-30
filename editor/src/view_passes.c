@@ -2,7 +2,8 @@
 // show, the sun's shadow passes fitted to each one's camera, then a pass begun
 // on each one's target with that camera and the shadows, the world and its
 // models drawn with the selection's outline, collider, every light blocker's
-// box lines, faint but the selected one's (0347 point 5, 0365 point 5), and
+// box lines, faint but the selected one's (0347 point 5, 0365 point 5), every
+// fog volume's the same way (0493 point 7), the fog from the view's eye, and
 // gizmo (none for a prefab's part) and the scene camera's, every directional
 // light's, every point light's (0360) and every meshless place's (0365)
 // markers, the selected one's in the outline's colour, the brush's rings on
@@ -31,6 +32,8 @@
 // 0461).
 // The first refused pass stops the frame there.
 #include "view_passes.h"
+
+#include <3d/fog_volume.h>
 
 #include <base/assert.h>
 
@@ -270,6 +273,9 @@ bool voe_editor_view_passes_draw(
 					.sky = voe_3d_draw_system_sky(world, view->eye),
 					.clouds = voe_3d_draw_system_clouds(world,
 									    view->eye),
+					// At lag 0, as this frame sets none (0254).
+					.fog = voe_3d_fog_volumes(world, view->eye,
+								  0.0f),
 					.exposure = voe_3d_draw_system_picture(world),
 					.eye = view->eye,
 					.models = models,
@@ -309,6 +315,7 @@ bool voe_editor_view_passes_draw(
 				.light = camera.light,
 				.sky = frame.sky,
 				.clouds = frame.clouds,
+				.fog = frame.fog,
 				.exposure = frame.exposure,
 				.eye = view->eye,
 				.shadow = frame.shadow,
@@ -397,6 +404,20 @@ bool voe_editor_view_passes_draw(
 						  (int)view->height } },
 				// Every blocker faint, the selected one bright (0365 point 5).
 				.light_blockers = {
+					.shown = true,
+					.selected = selected,
+					.material = shapes->outline,
+					.colour = voe_editor_view_faint_colour(
+						palette),
+					.selected_colour =
+						voe_editor_view_outline_colour(
+							palette),
+					.pixels = VOE_EDITOR_OUTLINE_MILLIMETRES *
+						  pixels_per_millimetre,
+					.size = { (int)view->width,
+						  (int)view->height } },
+				// Every fog volume's box as the blockers' (0493 point 7).
+				.fog_volumes = {
 					.shown = true,
 					.selected = selected,
 					.material = shapes->outline,

@@ -37,6 +37,10 @@ module's promises from outside. None of them needs a window or a graphics card.
   names, the drift runtime-only, a row read back, a coverage replace landing on
   a run, each refusal keeping the row, the drift added at 0 and moved by the
   wind, dropped with its row, and a dead entity.
+- `fog_volumes.c` — the fog volume's registration, transform needed, default
+  row and six fields, the drift runtime-only, a row read back, a thickness
+  replace landing on a run, each refusal keeping the row, the drift added at 0
+  and moved by the wind, dropped with its row, and a dead entity.
 - `picture.c` — the picture's registration, its exposure 0 and Soft default,
   the tone names Clip and Soft, a row read back, an exposure replace landing on
   a run, a refused NaN exposure, exposure 17 and tone 2, and a dead entity.

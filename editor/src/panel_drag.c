@@ -82,7 +82,7 @@ static void raise_box(voe_editor_dock_root *root, voe_editor_closable which)
 			"raising a box that is not closable");
 
 	for (uint32_t c = 0; c < VOE_EDITOR_CLOSABLE_COUNT; c++)
-		if (c != which && root->floats[c].raised > top)
+		if (c != (uint32_t)which && root->floats[c].raised > top)
 			top = root->floats[c].raised;
 	VOE_BASE_ASSERT(top < UINT32_MAX,
 			"a floating box raised as high as it goes");

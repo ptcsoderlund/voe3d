@@ -206,6 +206,10 @@ struct voe_render_device {
 	// premultiplied blend.
 	VkPipeline pipeline_clouds_march;
 	VkPipeline pipeline_clouds_composite;
+	// The fog's (ADR-0493 point 5): the clouds' two with the fog's
+	// fragments, the march into the same half-size clouds image.
+	VkPipeline pipeline_fog_march;
+	VkPipeline pipeline_fog_composite;
 	// The relight's, bounce_relight.c's: its own set layout, layout, pool and
 	// settle, relight and sum pipelines; per frame slot a mapped list buffer,
 	// a mapped record buffer of a region per volume, each at its descriptor

@@ -209,7 +209,7 @@ typedef struct {
 } voe_3d_point_lights_marked;
 
 // Every row of a kind, one selected (0365 point 6): the record the frame's
-// `places` and `light_blockers` use. False `shown` marks none, which is what a
+// `places`, `light_blockers` and `fog_volumes` use. False `shown` marks none, which is what a
 // zeroed record is; the `selected` one is drawn alone in `selected_colour`, the
 // rest together in `colour`.
 typedef struct {
@@ -385,6 +385,10 @@ typedef struct {
 	// voe_3d_draw_system_clouds, and the loop hands it to the pass camera
 	// beside `exposure`.
 	voe_render_clouds clouds;
+	// The pass's fog volumes (0493 point 3); zero is none. _frame fills it
+	// with voe_3d_fog_volumes at its eye and lag, and the loop hands it to
+	// the pass camera beside `clouds`.
+	voe_render_fog fog;
 	// The directional lights after the first (0357 point 1), `more_count`
 	// of them; none is NULL and 0. _frame leaves them zeroed,
 	// voe_3d_draw_system_lights fills them, and voe_3d_draw_system_shadows
@@ -496,6 +500,16 @@ typedef struct {
 	// VOE_3D_COLLIDER_MARKER_VERTICES and _INDICES per blocker, two ranges
 	// and two objects; a pool too small draws none, as the outline does.
 	voe_3d_rows_marked light_blockers;
+	// EVERY FOG VOLUME'S BOX AS LINES (0493 point 7), the fog fading so no
+	// box shows. Only an editor's view sets it. When `shown`, every fog
+	// volume row with a transform is lined from voe_3d_fog_volume_shape at
+	// the frame's lag with voe_3d_collider_marker_quads, an off owner's left
+	// out (0428): the ones not selected as one geometry in `colour` in the
+	// world's depth right after the blockers', the `selected` one right after
+	// the selected blocker's lines, as they are. The pool's room as the
+	// blockers': VOE_3D_COLLIDER_MARKER_VERTICES and _INDICES per volume,
+	// two ranges and two objects.
+	voe_3d_rows_marked fog_volumes;
 	// TRUE WHEN THE CAMERA SEES NOTHING (0223): its transform has no
 	// inverse, a scale of nought on an axis, so voe_3d_view refused it and
 	// `view` is zeroed. _run draws no world for a blind frame. Zero means
@@ -543,13 +557,13 @@ typedef struct {
 #define VOE_3D_POINT_SHADOW_TEXELS 256u
 
 
-// The camera, the sun, the sky, the exposure and the clouds (`sky` from the first sky and
-// Haze rows, `exposure` from the first picture row and `clouds` from the first
-// Clouds row, each zeroed with none) out of the tables, for the frame about to begin. `size`
+// The camera, the sun, the sky, the exposure, the clouds and the fog (`sky` from the first sky and
+// Haze rows, `exposure` from the first picture row, `clouds` from the first
+// Clouds row and `fog` from the Fog volume rows, each zeroed with none) out of the tables, for the frame about to begin. `size`
 // is the window's and gives the aspect ratio; a size with no area gets an aspect
 // of one, because _begin is about to say there is nothing to draw into and the
 // matrix is never read. `hidden`, `outlined`, `gizmo`, `marker`, `sun`,
-// `point_lights`, `places`, `brush`, `collider`, `light_blockers`, `points` and
+// `point_lights`, `places`, `brush`, `collider`, `light_blockers`, `fog_volumes`, `points` and
 // `blockers` all come back zeroed and `models` NULL — hiding, outlining,
 // standing a gizmo, marking a camera, the suns, the point lights, the places or
 // the brush, drawing a collider or the blockers' boxes,
@@ -765,7 +779,7 @@ voe_render_clouds voe_3d_draw_system_clouds(const voe_ecs_world *world,
 					      voe_base_arena *arena);
 
 // The pass camera of `frame`: its view, light, shadow, point lights, blockers,
-// sky, exposure, clouds and the lights after the first as `more`.
+// sky, exposure, clouds, fog and the lights after the first as `more`.
 voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 
 // The directional lights' shadow passes for `frame`, opened between the frame's
@@ -879,7 +893,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // `frame.light_blockers`, when `shown`,
 // every blocker but the selected one as its box's lines with the world after the
 // places, and `frame.collider`, when it names one with a collider, as lines
-// after the outline, and the selected blocker's box lines after those. Calling it with no pass open is the caller's bug
+// after the outline, and the selected blocker's box lines after those;
+// `frame.fog_volumes` right after each of the blockers' two. Calling it with no pass open is the caller's bug
 // and asserts.
 //
 // TWO KINDS OF DRAWABLE, AND THEY ARE SORTED TOGETHER. A mesh is a range in
@@ -973,7 +988,9 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // halves. THE PASS'S CLOUDS ARE DRAWN BETWEEN THEM (0492 point 5): one
 // voe_render_frame_draw_clouds after the world's blended draws and before the
 // overlay's depth clear, so they cover the world and never the overlay; a
-// refused one is said on stderr and the run goes on. An overlay object keeps a real position in metres and is seen through
+// refused one is said on stderr and the run goes on. THE PASS'S FOG RIGHT
+// AFTER THEM (0493 point 5): one voe_render_frame_draw_fog, a refused one said
+// on stderr as the clouds' is. An overlay object keeps a real position in metres and is seen through
 // the same camera: this layer is "always on top" and is not screen space. The one
 // orthographic projection in this engine is the sun's cascades' (ADR-0258).
 //

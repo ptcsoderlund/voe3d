@@ -99,8 +99,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `depth_sort.c` — the stable bottom-up merge sort through the caller's scratch, where the sign
   is the whole of it.
 - `draw_system.c` — the camera's view, the first light, the first on sky, Haze and picture rows,
-  the frame's Clouds row, its pass camera, and each drawable's draw into the frame the loop opened,
-  foliage after the landscapes, the clouds after the world's blended draws, the unseen skipped.
+  the frame's Clouds and Fog volume rows, its pass camera, and each drawable's draw, foliage
+  after the landscapes, the clouds then the fog after the blended draws, each mark in turn.
 - `draw_clouds.c` — the first Clouds row that is on, as render's record: its kind mapped, its bottom above
   the eye and the eye less the drift wrapped into the period, both in double.
 - `draw_models.h` — the model rows' walk, taking the frame's grounds, its part count for the
@@ -133,6 +133,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   off owner's and those past 256 left out, then the nearest 16 casting ones slotted and faded by the 17th.
 - `light_blocker.c` — a blocker's row and transform into a box: the world place at the lag, its
   rotation, and |scale| × size / 2 per axis.
+- `fog_volume.c` — a fog volume's box as a blocker's is, and the table into render's records: each
+  kept box's rows about the eye, the squared density, and the patches and change wrapped in double.
 - `draw_light_blockers.c` — the light blocker table into a pass's blockers: each placed box about
   the eye with its rows and sphere, flat ones, an off owner's and those past 32 left out, the Direct and Fill bits,
   the sun's mask, and light rows 2 to 4 each masked at its place.
@@ -161,12 +163,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_water.c` — the eye-relative matrix times the turned, scaled quad, the row's colour,
   waves at its clock and sky in the object record, and the quad's sphere tested.
 - `draw_marks.h` — the editor's marks over the world, bare places', the brush's, every
-  blocker's and the gizmo's arrows, rings or scales among them, and why each has its own depth;
-  internal.
-- `draw_marks.c` — the camera's marker, every sun's, lamp's and bare place's, the brush's rings on
-  its landscape, every blocker's lines,
-  the outline, a collider's and the selected blocker's lines, written once, and the gizmo's arrows,
-  rings or scales by its kind, each as transient quads.
+  blocker's and fog volume's and the gizmo's arrows, rings or scales among them, and why each has
+  its own depth; internal.
+- `draw_marks.c` — the camera's, every sun's, lamp's and place's markers, the brush's rings,
+  every blocker's and fog volume's box lines from one builder, the outline, a collider's and the
+  selected box's lines, and the gizmo by its kind, each as transient quads.
 - `model_upload.h` — a read model's pictures and materials uploaded in one call, every id
   listed, shared by the import and the model store; internal.
 - `model_upload.c` — each picture once per colour space wanted, a record per material and

@@ -175,11 +175,21 @@ uint32_t voe_game_models_update_gather(const voe_ecs_world *world,
 				       uint32_t next, uint32_t room,
 				       voe_game_models_batch *batch);
 
+// The one stamp test of the watch and of a batch's reading: whether the file
+// at `full`, known at `known`, changed. Its stamp goes in `*stamp`, 0 with
+// `*stamped` false when it has none; so a file with no stamp changed only when
+// it was known at one, and a forced file is read whatever this says.
+bool voe_game_models_stamp_changed(const char *full, uint64_t known,
+				   uint64_t *stamp, bool *stamped);
+
 // Adds to `batch`, until it holds `room`, every store entry from the `next`th
-// on the watch reads, at its stamp: landscapes and materials aside. The index
-// after the last one looked at.
+// on whose file of `folder` changed (the stamp test above), at its stamp:
+// landscapes and materials aside, each path joined on scratch, rewound. The
+// index after the last one looked at.
 uint32_t voe_game_models_watch_gather(const voe_3d_models *models,
-				      uint32_t next, uint32_t room,
+				      const char *folder,
+				      voe_base_arena *scratch, uint32_t next,
+				      uint32_t room,
 				      voe_game_models_batch *batch);
 
 // The soft dot when the world has an emitter and the water record when it
