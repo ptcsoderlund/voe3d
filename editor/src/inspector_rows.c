@@ -32,6 +32,7 @@
 #include <math/quat.h>
 
 #include <ui/colour.h>
+#include <ui/slider.h>
 #include <ui/widgets.h>
 
 #include <inttypes.h>
@@ -51,6 +52,12 @@
 // A colour's swatch, in millimetres: wider than tall, about a line of text high.
 #define SWATCH_WIDE 8.0f
 #define SWATCH_HIGH 3.0f
+
+// A ranged field's slider, in millimetres: the Foliage section's width. And
+// the bytes its figure is formatted into, far more than two decimals and a
+// unit take.
+#define SLIDER_WIDE 40.0f
+#define FIGURE_SIZE 32
 
 static double per_millimetre(voe_base_field_kind writes)
 {
@@ -185,6 +192,46 @@ static void string_rows(voe_ui_context *ui, voe_editor_inspector *inspector,
 	}
 }
 
+// A ranged field's row (ADR-0494, 0498): its title, a slider over the range
+// keyed as its number box would be, and the figure; the title and the figure
+// when `shown_only`. The stored value is clamped into the range before it is
+// shown, so one outside it sits at the nearer end and is not written until the
+// slider moves.
+static void slider_row(voe_ui_context *ui, voe_editor_inspector *inspector,
+		       voe_ecs_type type, bool shown_only,
+		       const voe_base_field_description *field,
+		       const voe_base_field_range *range, const uint8_t *bytes)
+{
+	double value = dragged(field->kind, bytes);
+	char *shown = voe_base_arena_push(inspector->arena, FIGURE_SIZE);
+	voe_ui_node node;
+
+	if (value < range->least)
+		value = range->least;
+	else if (value > range->greatest)
+		value = range->greatest;
+	figure(shown, FIGURE_SIZE, value, range->unit);
+
+	row_begin(ui);
+	voe_ui_label(ui, title(inspector->arena, field->name));
+	if (shown_only) {
+		voe_ui_label(ui, shown);
+		voe_ui_end(ui);
+		return;
+	}
+	node = voe_ui_slider(ui, field->name, 0, value, range->least,
+			     range->greatest, SLIDER_WIDE);
+	voe_ui_label(ui, shown);
+	voe_ui_end(ui);
+
+	record(inspector, (voe_editor_inspector_control){
+				  .node = node,
+				  .type = type,
+				  .offset = field->offset,
+				  .writes = field->kind,
+				  .range = range });
+}
+
 // The other kinds' rows, after a colour, a named field, an entity and a list of
 // strings have taken theirs: one text field, a rotation, or a row of a button or
 // number boxes.
@@ -290,6 +337,11 @@ void voe_editor_inspector_field_row(voe_ui_context *ui,
 			? voe_base_names_find(description, field->name)
 			: NULL;
 	bool entity = field->kind == VOE_BASE_FIELD_ENTITY && field->rank == 0;
+	const voe_base_field_range *range =
+		(field->kind == VOE_BASE_FIELD_FLOAT32 ||
+		 field->kind == VOE_BASE_FIELD_FLOAT64) && field->rank == 0
+			? voe_base_ranges_find(description, field->name)
+			: NULL;
 	uint32_t boxes = strings		      ? field->dims[0]
 			 : text_box || colour || entity ? 1
 							: lanes(field->kind);
@@ -368,6 +420,11 @@ void voe_editor_inspector_field_row(voe_ui_context *ui,
 								    ? VOE_BASE_FIELD_ENTITY
 								    : VOE_BASE_FIELD_UINT32,
 						  .names = names });
+		return;
+	}
+
+	if (range != NULL) {
+		slider_row(ui, inspector, type, shown_only, field, range, bytes);
 		return;
 	}
 

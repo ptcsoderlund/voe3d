@@ -115,6 +115,17 @@ const char *title(voe_base_arena *arena, const char *name)
 	return out;
 }
 
+void figure(char *out, size_t size, double value, const char *unit)
+{
+	VOE_BASE_ASSERT(out != NULL && size > 0 && unit != NULL,
+			"a figure into nowhere or with no unit");
+
+	if (unit[0] == '\0')
+		(void)snprintf(out, size, "%.2f", value);
+	else
+		(void)snprintf(out, size, "%.2f %s", value, unit);
+}
+
 // ---------------------------------------------------------------- reading
 
 float real32_at(const uint8_t *bytes, uint32_t lane)
