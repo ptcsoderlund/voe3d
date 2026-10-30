@@ -254,7 +254,7 @@ carries it out.
   size lit, and the read of its buttons and a press outside.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
   folder row or Up, a new thing or copy placed in a scene view, or over the Inspector a swap, a
-  shape's material, a filled map, a landscape layer or a foliage kind, elsewhere nothing.
+  shape's material, a filled map, a landscape layer or a foliage kind, an added one open, else nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
   the release and the ghost, the move's target, the drop point, the Inspector's rows, layer and
   kind rows among them, and each swap with its undo step.
@@ -329,11 +329,11 @@ carries it out.
   and the read: a tick or Density asks the layer's growth, a fired row chooses PAINT with its layer
   or none, each row's rectangle kept.
 - `inspector_foliage.h` — the Inspector's Foliage section, which folds, under Layers: Scatter and
-  Erase, a row per kind toggling it picked with its Base size, Cast shadows, Blend with ground,
-  Blend height in metres and spread controls, the add row a dropped `.glb` lands on, and Density.
-- `inspector_foliage.c` — the folding section's one frame of `ui` calls, its nodes forgotten each
-  frame, and the read: a fired button chooses its kind or none, a fired row flips its pick, Density
-  clamped, a kind's slider, Cast shadows or Blend with ground asks its look with that field changed.
+  Erase, a folding box per kind whose title toggles it picked, holding its Base size, Cast shadows,
+  Blend with ground, Blend height and spreads, the add row a dropped `.glb` lands on, Density.
+- `inspector_foliage.c` — the folding section and kind boxes' one frame of `ui` calls, its nodes
+  forgotten each frame, and the read: a fired button chooses its kind or none, a fired title flips
+  its pick, Density clamped, a kind's drawn slider or button asks its look with that field changed.
 - `inspector_level.h` — the Inspector's LOD section, which folds, after Brush or Foliage: per view in
   use, the LOD it keeps of a loaded model, as its draws chose it last, else the distance's; of how
   many, made or own.

@@ -1,7 +1,8 @@
 // The Inspector's Foliage section, under Layers on a thing that wears a loaded
 // landscape (0442 point 3): a "Foliage" heading as Layers', Scatter and Erase
-// with the chosen one drawn chosen, one row per kind of the landscape's grid
-// by its model's file name, the picked ones drawn chosen, each followed by its
+// with the chosen one drawn chosen, one folding box per kind of the
+// landscape's grid titled by its model's file name as a heading, the picked
+// ones' titles drawn chosen, each holding its
 // Base size slider, a Cast shadows button drawn chosen while the kind casts,
 // a Blend with ground button drawn chosen while it blends, its Blend height
 // slider, and its Size ±%, Turn ±° and Tilt with slope % sliders, then "Drop a
@@ -27,12 +28,14 @@
 // and voe_editor_sculpt_read (sculpt.h) sets it and records the step.
 //
 // Pressing Scatter or Erase chooses that brush; pressing the chosen one again
-// chooses none. Pressing a kind row flips whether it is picked, and only
-// picked kinds are scattered or erased. A `.glb` dropped on a kind row
+// chooses none. Pressing a kind's title flips whether it is picked, and only
+// picked kinds are scattered or erased. A `.glb` dropped on a kind's title
 // replaces that kind's model, on the last row adds one (assets_drag.h).
 //
-// THE SECTION FOLDS by its fold button, named `section foliage` (folds.h,
-// 0502); folded, only its header is drawn and nothing is recorded.
+// THE SECTION AND EACH KIND'S BOX FOLD by their fold buttons alone, the title
+// never (0496 point 2), named `section foliage` and `kind <k> <landscape>` by
+// the model row's path (folds.h, 0502); folded, only the header is drawn and
+// its body's controls are not recorded.
 //
 //     voe_editor_inspector_foliage_forget(&scene->sculpt);       // frame opened
 //     voe_editor_inspector_foliage_draw(ui, &scene->sculpt, folds, store,
@@ -42,7 +45,7 @@
 //
 // THE NODES LIVE IN THE SCULPT STATE (sculpt.h), for the reason the Layers
 // section's do (inspector_layers.h): each frame forgets them first, and the
-// read keeps each kind row's rectangle for a drop the next frame.
+// read keeps each kind title's rectangle for a drop the next frame.
 //
 // Constraints: draw, forget and read are called in one frame's window, read
 // before the frame's arena is rewound; nothing here allocates. A row's label
