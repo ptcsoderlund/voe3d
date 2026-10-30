@@ -1,6 +1,7 @@
 // The emitter component: that a row added with voe_3d_emitter_add reads back
 // its fields, that the default row is 0298's, that the particles type is
-// runtime-only, and that both submits take an intent. Needs no graphics card.
+// runtime-only, that both submits take an intent, and that both alphas range 0
+// to 1 and the rate not at all. Needs no graphics card.
 //
 // THE DESCRIPTION IS SWITCHED ON HERE, WHATEVER THE BUILD SAID, for the reason
 // scene/tests/identity.c gives: check.cmake builds without descriptions.
@@ -116,10 +117,32 @@ static void both_submits_take_an_intent(voe_base_arena *arena)
 	voe_base_arena_clear(arena);
 }
 
+// Both alphas carry 0 to 1, no unit, for a tool; the rate no range.
+static void both_alphas_say_their_range(void)
+{
+	const voe_base_struct_description *description =
+		voe_3d_emitter_description();
+	const char *alphas[] = { "alpha_start", "alpha_end" };
+
+	for (uint32_t i = 0; i < 2; i++) {
+		const voe_base_field_range *range =
+			voe_base_ranges_find(description, alphas[i]);
+
+		VOE_TEST_CHECK(range != NULL);
+		if (range == NULL)
+			continue;
+		VOE_TEST_CHECK_FLOAT(range->least, 0.0, 0.0);
+		VOE_TEST_CHECK_FLOAT(range->greatest, 1.0, 0.0);
+		VOE_TEST_CHECK(strcmp(range->unit, "") == 0);
+	}
+	VOE_TEST_CHECK(voe_base_ranges_find(description, "rate") == NULL);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
 
+	both_alphas_say_their_range();
 	an_added_row_reads_back(arena);
 	the_default_row_is_0298s(arena);
 	both_submits_take_an_intent(arena);

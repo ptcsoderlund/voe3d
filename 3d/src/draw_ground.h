@@ -68,7 +68,8 @@ voe_3d_draw_ground_under(const struct voe_3d_grounds *grounds,
 
 // `object` made a ground record of `ground` (render/device.h): its `ground`,
 // `paint`, `layers`, `ground_rows`, `terrain.w` and `ground_reach`, `reach`
-// clamped to 0.05-10 m. A reach not above nought, or not a number, fills
-// nothing.
+// clamped to VOE_3D_MODEL_BLEND_HEIGHT_LEAST-_GREATEST, 0.05-10 m, the model's
+// blend height range (3d/model_component.h). A reach not above nought, or not a
+// number, fills nothing.
 void voe_3d_draw_ground_fill(const struct voe_3d_ground *ground, float reach,
 			     voe_render_object *object);
