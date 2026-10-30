@@ -1,10 +1,11 @@
 // The levels question's open with its one quiet read of the `.parts` and
-// count of the triangles, its one frame of `ui` calls with the chosen count
+// summary of the levels, its one frame of `ui` calls with the chosen count
 // lit as inspector_sculpt.c lights its chosen kind, a header row over a row per
-// LOD of its name, share, swap and triangles in fixed-width cells, and the swap
-// line under them; the read of its buttons, its share and swap boxes and a
-// press outside it afterwards, and Make's save into the `.parts`. See the
-// header for what is shown and what a save refuses.
+// LOD of its name, share, swap, swap distance and triangles in fixed-width
+// cells, the bounds worked once a frame, and the swap line under them; the
+// read of its buttons, its share and swap boxes and a press outside it
+// afterwards, and Make's save into the `.parts`. See the header for what is
+// shown and what a save refuses.
 #include "levels_ask.h"
 
 #include "inspector_place.h"
@@ -14,6 +15,7 @@
 #include <game/models.h>
 #include <platform/file.h>
 #include <platform/path.h>
+#include <scene/camera_component.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -30,12 +32,13 @@ static_assert(VOE_ASSETS_LEVELS == VOE_3D_MODEL_LEVELS,
 // header and its buffer's longest value in levels_ask.h.
 #define NAME_WIDE 12.0f      // "LOD 6"
 #define SHARE_WIDE 26.0f     // "Triangles kept", "4.29497e+11 %"
-#define SWAP_WIDE 24.0f      // "Swap distance", "×0.123457"
+#define SWAP_WIDE 24.0f      // "Swap", "×0.123457"
+#define DISTANCE_WIDE 24.0f  // "Swap distance", "99999.9 m"; longer stick out
 #define TRIANGLES_WIDE 20.0f // "4294967295", "Triangles"
 
 #define SWAP_LINE \
-	"×2 swaps a LOD in twice as far away and looks better, ×0.5 twice " \
-	"as close and saves triangles."
+	"Swap scales the distance the LOD's error allows; Swap distance is " \
+	"where it lands, each at least 1.25× the one before."
 
 #define GLB_ENDING ".glb"
 #define PARTS_ENDING ".parts"
@@ -116,14 +119,13 @@ void voe_editor_levels_ask_open(voe_editor_levels_ask *ask,
 	if (voe_platform_file_exists(full) && parts_loaded(full, scratch, &there))
 		ask->levels = there.levels;
 	ask->opened = ask->levels;
-	ask->known = voe_game_models_levels_triangles(project_folder, ask->path,
-						      scratch, ask->triangles,
-						      &ask->own, &ask->fresh);
+	voe_game_models_levels_summarise(project_folder, ask->path, scratch,
+					 &ask->summary);
 	voe_base_arena_rewind(scratch, mark);
 	VOE_BASE_ASSERT(ask->levels.count >= 1 &&
 				ask->levels.count <= VOE_ASSETS_LEVELS,
 			"a levels question opened with a count out of range");
-	VOE_BASE_ASSERT(ask->known <= VOE_ASSETS_LEVELS,
+	VOE_BASE_ASSERT(ask->summary.count <= VOE_ASSETS_LEVELS,
 			"more levels counted than a model has");
 }
 
@@ -161,8 +163,11 @@ static void draw_header_row(voe_ui_context *ui, voe_ui_container row)
 	voe_ui_label(ui, "Triangles kept");
 	voe_ui_end(ui); // share cell
 	cell_begin(ui, SWAP_WIDE);
-	voe_ui_label(ui, "Swap distance");
+	voe_ui_label(ui, "Swap");
 	voe_ui_end(ui); // swap cell
+	cell_begin(ui, DISTANCE_WIDE);
+	voe_ui_label(ui, "Swap distance");
+	voe_ui_end(ui); // distance cell
 	cell_begin(ui, TRIANGLES_WIDE);
 	voe_ui_label(ui, "Triangles");
 	voe_ui_end(ui); // triangles cell
@@ -170,12 +175,15 @@ static void draw_header_row(voe_ui_context *ui, voe_ui_container row)
 }
 
 // LOD k + 1's row: its name, its share as a number box or, on own levels, a
-// label of its triangles against LOD 1's, its swap box and its triangles,
-// each in its column's cell.
+// label of its triangles against LOD 1's, its swap box, its swap distance from
+// `bounds` (read only for a fresh file's LODs) and its triangles, each in its
+// column's cell.
 static void draw_level_row(voe_ui_context *ui, voe_editor_levels_ask *ask,
-			   uint32_t k, voe_ui_container row)
+			   uint32_t k, voe_ui_container row,
+			   const float bounds[VOE_3D_MODEL_LEVELS])
 {
 	const voe_assets_levels *levels = &ask->levels;
+	const voe_3d_model_levels_summary *summary = &ask->summary;
 
 	VOE_BASE_ASSERT(ui != NULL && ask != NULL, "drawing no level row");
 	VOE_BASE_ASSERT(k >= 1 && k < VOE_ASSETS_LEVELS,
@@ -183,23 +191,32 @@ static void draw_level_row(voe_ui_context *ui, voe_editor_levels_ask *ask,
 
 	snprintf(ask->row_names[k], sizeof ask->row_names[k], "LOD %u",
 		 (unsigned)(k + 1));
-	if (k < ask->known)
+	if (k < summary->count)
 		snprintf(ask->row_triangles[k], sizeof ask->row_triangles[k],
-			 "%u", (unsigned)ask->triangles[k]);
+			 "%u", (unsigned)summary->triangles[k]);
 	else
 		snprintf(ask->row_triangles[k], sizeof ask->row_triangles[k],
+			 "—");
+	if (summary->fresh && k < summary->count)
+		snprintf(ask->row_distances[k], sizeof ask->row_distances[k],
+			 "%.1f m",
+			 (double)voe_3d_model_level_metres(
+				 summary->radius, bounds[k],
+				 VOE_SCENE_CAMERA_FOV_Y));
+	else
+		snprintf(ask->row_distances[k], sizeof ask->row_distances[k],
 			 "—");
 	voe_ui_row_begin(ui, row);
 	cell_begin(ui, NAME_WIDE);
 	voe_ui_label(ui, ask->row_names[k]);
 	voe_ui_end(ui); // name cell
 	cell_begin(ui, SHARE_WIDE);
-	if (ask->own) {
-		if (ask->triangles[0] > 0)
+	if (summary->own) {
+		if (summary->triangles[0] > 0)
 			snprintf(ask->row_shares[k], sizeof ask->row_shares[k],
 				 "%g %%",
-				 round(ask->triangles[k] * 1000.0 /
-				       ask->triangles[0]) / 10.0);
+				 round(summary->triangles[k] * 1000.0 /
+				       summary->triangles[0]) / 10.0);
 		else
 			snprintf(ask->row_shares[k], sizeof ask->row_shares[k],
 				 "—");
@@ -221,13 +238,17 @@ static void draw_level_row(voe_ui_context *ui, voe_editor_levels_ask *ask,
 	voe_ui_label(ui, ask->row_swaps[k]);
 	voe_ui_end(ui); // swap
 	voe_ui_end(ui); // swap cell
+	cell_begin(ui, DISTANCE_WIDE);
+	voe_ui_label(ui, ask->row_distances[k]);
+	voe_ui_end(ui); // distance cell
 	cell_begin(ui, TRIANGLES_WIDE);
 	voe_ui_label(ui, ask->row_triangles[k]);
 	voe_ui_end(ui); // triangles cell
 	voe_ui_end(ui); // LOD row
 	VOE_BASE_ASSERT(ask->row_names[k][0] != '\0' &&
-				ask->row_triangles[k][0] != '\0',
-			"a level row drawn with no name or triangles");
+				ask->row_triangles[k][0] != '\0' &&
+				ask->row_distances[k][0] != '\0',
+			"a level row drawn with no name, distance or triangles");
 }
 
 void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
@@ -235,6 +256,7 @@ void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 {
 	const voe_ui_container row = { .across = VOE_UI_ACROSS_CENTER,
 				       .gap = ASK_GAP };
+	float bounds[VOE_3D_MODEL_LEVELS] = { 0 };
 	uint32_t rows;
 
 	VOE_BASE_ASSERT(ui != NULL, "drawing a levels question into no interface");
@@ -251,7 +273,7 @@ void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 				    .y = { VOE_UI_ACROSS_START, top + ASK_GAP } } });
 	voe_ui_label(ui, ask->title);
 
-	if (!ask->own) {
+	if (!ask->summary.own) {
 		voe_ui_row_begin(ui, row);
 		voe_ui_label(ui, "LODs");
 		for (uint32_t i = 0; i < VOE_ASSETS_LEVELS; i++) {
@@ -269,11 +291,17 @@ void voe_editor_levels_ask_draw(voe_ui_context *ui, voe_editor_levels_ask *ask,
 		ask->share_boxes[k] = VOE_UI_NODE_NONE;
 		ask->swap_boxes[k] = VOE_UI_NODE_NONE;
 	}
-	rows = ask->own ? ask->known : ask->levels.count;
+	// The shown swaps, so the distances follow a swap as it is typed.
+	if (ask->summary.fresh && ask->summary.count >= 1)
+		voe_3d_model_levels_bounds(ask->summary.radius,
+					   ask->summary.errors,
+					   ask->levels.swaps, ask->summary.count,
+					   true, bounds);
+	rows = ask->summary.own ? ask->summary.count : ask->levels.count;
 	if (rows > 1)
 		draw_header_row(ui, row);
 	for (uint32_t k = 1; k < rows; k++)
-		draw_level_row(ui, ask, k, row);
+		draw_level_row(ui, ask, k, row, bounds);
 	if (rows > 1)
 		voe_ui_label_role(ui, SWAP_LINE, VOE_UI_TEXT_ROLE_SECONDARY);
 
@@ -383,9 +411,9 @@ bool voe_editor_levels_ask_swaps_only(const voe_editor_levels_ask *ask)
 	bool same;
 
 	VOE_BASE_ASSERT(ask != NULL, "asking whether no question changed swaps");
-	if (!ask->fresh)
+	if (!ask->summary.fresh)
 		return false;
-	if (ask->own)
+	if (ask->summary.own)
 		return true;
 	now = &ask->levels;
 	was = &ask->opened;

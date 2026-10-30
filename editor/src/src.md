@@ -237,8 +237,8 @@ carries it out.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
 - `levels_ask.h` — the anchored panel a model's LODs ask: its count and a row per LOD
-  with share, swap and triangles read from the `.parts`, with Make and Cancel; Make saves into the
-  `.parts` and says whether a reload is enough.
+  with share, swap, Swap distance in metres and triangles, with Make and Cancel; Make saves into
+  the `.parts` and says whether a reload is enough.
 - `levels_ask.c` — the open with its quiet `.parts` read and triangle count, the panel's one frame
   of `ui` calls with its column headers, LOD rows and swap line, the read of its buttons, boxes and
   a press outside, and the save into the `.parts`.
