@@ -1,7 +1,8 @@
 // The clouds: what registration tells a tool (the menu path, no needed type,
 // the default row of 0492 point 1, the seven fields in order with `kind`
 // UINT32 named Flat and Volumetric and the rest FLOAT32, the drift table
-// runtime-only), that a row arrives as given, that a replace changes
+// runtime-only), the ranges of coverage and shadow_strength 0 to 1 and
+// wind_direction 0 to 360 °, height none, that a row arrives as given, that a replace changes
 // `coverage` only when the system runs, that each refusal keeps the row, that
 // a run adds a drift at 0, that the wind moves it by speed × seconds towards
 // its direction, that removing the row drops its drift on the next run, and
@@ -100,6 +101,32 @@ static void check_fields(const voe_base_struct_description *description)
 		       0);
 	VOE_TEST_CHECK(strcmp(kinds->values[VOE_SCENE_CLOUDS_VOLUMETRIC],
 			      "Volumetric") == 0);
+}
+
+static void check_range(const voe_base_struct_description *description,
+			const char *field, double least, double greatest,
+			const char *unit)
+{
+	const voe_base_field_range *range =
+		voe_base_ranges_find(description, field);
+
+	VOE_TEST_CHECK(range != NULL);
+	if (range == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT(range->least, least, 0.0);
+	VOE_TEST_CHECK_FLOAT(range->greatest, greatest, 0.0);
+	VOE_TEST_CHECK(strcmp(range->unit, unit) == 0);
+}
+
+static void the_bounded_fields_say_their_ranges(void)
+{
+	const voe_base_struct_description *description =
+		voe_scene_clouds_description();
+
+	check_range(description, "coverage", 0.0, 1.0, "");
+	check_range(description, "shadow_strength", 0.0, 1.0, "");
+	check_range(description, "wind_direction", 0.0, 360.0, "°");
+	VOE_TEST_CHECK(voe_base_ranges_find(description, "height") == NULL);
 }
 
 static void registration_says_what_clouds_are(voe_base_arena *arena)
@@ -264,6 +291,7 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(256 * 1024);
 
 	registration_says_what_clouds_are(arena);
+	the_bounded_fields_say_their_ranges();
 	clouds_arrive_as_given(arena);
 	a_replace_lands_when_the_system_runs(arena);
 	refused_clouds_keep_the_row(arena);

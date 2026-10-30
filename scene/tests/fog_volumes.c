@@ -1,7 +1,8 @@
 // The fog volumes: what registration tells a tool (the menu path, the
 // transform needed, the default row of 0493 point 1, the six fields in order
-// with `size` FLOAT3 and the rest FLOAT32, the drift table runtime-only), that
-// a row arrives as given, that a replace changes `thickness` only when the
+// with `size` FLOAT3 and the rest FLOAT32, the drift table runtime-only), the
+// ranges of thickness, patchiness and godrays_strength 0 to 1 and
+// wind_direction 0 to 360 °, wind_speed none, that a row arrives as given, that a replace changes `thickness` only when the
 // system runs, that each refusal keeps the row, that a run adds a drift at 0,
 // that the wind moves it by speed × seconds towards its direction, that
 // removing the row drops its drift on the next run, and that adding to a dead
@@ -92,6 +93,33 @@ static void check_fields(const voe_base_struct_description *description)
 					    VOE_BASE_FIELD_FLOAT32);
 		VOE_TEST_CHECK(!description->fields[i].read_only);
 	}
+}
+
+static void check_range(const voe_base_struct_description *description,
+			const char *field, double least, double greatest,
+			const char *unit)
+{
+	const voe_base_field_range *range =
+		voe_base_ranges_find(description, field);
+
+	VOE_TEST_CHECK(range != NULL);
+	if (range == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT(range->least, least, 0.0);
+	VOE_TEST_CHECK_FLOAT(range->greatest, greatest, 0.0);
+	VOE_TEST_CHECK(strcmp(range->unit, unit) == 0);
+}
+
+static void the_bounded_fields_say_their_ranges(void)
+{
+	const voe_base_struct_description *description =
+		voe_scene_fog_volume_description();
+
+	check_range(description, "thickness", 0.0, 1.0, "");
+	check_range(description, "patchiness", 0.0, 1.0, "");
+	check_range(description, "godrays_strength", 0.0, 1.0, "");
+	check_range(description, "wind_direction", 0.0, 360.0, "°");
+	VOE_TEST_CHECK(voe_base_ranges_find(description, "wind_speed") == NULL);
 }
 
 static void registration_says_what_fog_is(voe_base_arena *arena)
@@ -272,6 +300,7 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(512 * 1024);
 
 	registration_says_what_fog_is(arena);
+	the_bounded_fields_say_their_ranges();
 	a_volume_arrives_as_given(arena);
 	a_replace_lands_when_the_system_runs(arena);
 	refused_volumes_keep_the_row(arena);

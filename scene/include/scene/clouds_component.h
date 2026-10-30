@@ -29,6 +29,10 @@
 // build that asks for descriptions also has voe_scene_clouds_description(),
 // and one that does not has the same struct and nothing more. Every field is
 // authored, not read-only.
+//
+// COVERAGE, SHADOW_STRENGTH AND WIND_DIRECTION CARRY THEIR RANGE FOR A TOOL,
+// which draws them as sliders (0498 point 5). Wind direction is still taken at
+// any finite value; its 0 to 360 only says what a slider offers.
 #pragma once
 
 #include <base/describe.h>
@@ -60,8 +64,14 @@ extern VOE_BASE_IMPORTED const char
 
 #define VOE_SCENE_CLOUDS_NAMES(N) N(kind, voe_scene_clouds_kind_names)
 
-VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_scene_clouds, VOE_SCENE_CLOUDS_FIELDS,
-			       VOE_SCENE_CLOUDS_NAMES)
+#define VOE_SCENE_CLOUDS_RANGES(R)          \
+	R(coverage, 0.0, 1.0, "")           \
+	R(wind_direction, 0.0, 360.0, "°") \
+	R(shadow_strength, 0.0, 1.0, "")
+
+VOE_BASE_DESCRIBE_STRUCT_NAMED_RANGED(voe_scene_clouds, VOE_SCENE_CLOUDS_FIELDS,
+				      VOE_SCENE_CLOUDS_NAMES,
+				      VOE_SCENE_CLOUDS_RANGES)
 
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_clouds_key;

@@ -62,9 +62,10 @@ space is.
   the direct call that creates one, and the run that drains it. Its header says
   what size and Block are refused and why the replace is queued.
 - `include/scene/sky_component.h` — the sky's backdrop: zenith, horizon and
-  ground colours, horizon height and strength, as a described field list, and
-  the reads. Its header says the row lights nothing, the lights draw their
-  discs in it, the haze takes only its hue, and each field's bounds.
+  ground colours, horizon height and strength, as a described field list with
+  their ranges, and
+  the reads. Its header says the row lights nothing, the haze takes only its
+  hue, and each field's bounds.
 - `include/scene/sky_system.h` — the whole-row intent as its replace, the direct
   call that creates one, and the run that drains it. Its header says what is
   refused and why the replace is queued.
@@ -77,14 +78,15 @@ space is.
   what is refused and why the replace is queued.
 - `include/scene/clouds_component.h` — clouds, Flat or Volumetric, named:
   coverage, height, thickness, wind and shadow strength as a described field
-  list, the runtime-only drift and the reads. Its header says the row is
+  list with their ranges, the runtime-only drift and the reads. Its header says the row is
   clouds on and each field's bounds.
 - `include/scene/clouds_system.h` — the whole-row intent as its replace, the
   direct call that creates one, and the run that drains it and moves the drift
   by the wind. Its header says what is refused and where it runs.
-- `include/scene/fog_volume_component.h` — a box of fog placed, turned and
-  scaled by its transform: size, thickness, patchiness, wind and godrays
-  strength as a described field list, the runtime-only drift and the reads.
+- `include/scene/fog_volume_component.h` — a box of fog placed by its
+  transform: size, thickness, patchiness, wind and godrays
+  strength as a described field list with their ranges, the runtime-only drift
+  and the reads.
   Its header says fog is only inside and each field's bounds.
 - `include/scene/fog_volume_system.h` — the whole-row intent as its replace,
   the direct call that creates one, the transform it needs, and the run that

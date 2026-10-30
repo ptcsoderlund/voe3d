@@ -29,6 +29,10 @@
 // build that asks for descriptions also has voe_scene_fog_volume_description(),
 // and one that does not has the same struct and nothing more. Every field is
 // authored, not read-only.
+//
+// THICKNESS, PATCHINESS, GODRAYS_STRENGTH AND WIND_DIRECTION CARRY THEIR RANGE
+// FOR A TOOL, which draws them as sliders (0498 point 5). Wind direction is
+// still taken at any finite value; its 0 to 360 only says what a slider offers.
 #pragma once
 
 #include <base/describe.h>
@@ -50,7 +54,15 @@
 	F(float, wind_speed, FLOAT32)               \
 	F(float, godrays_strength, FLOAT32)
 
-VOE_BASE_DESCRIBE_STRUCT(voe_scene_fog_volume, VOE_SCENE_FOG_VOLUME_FIELDS)
+#define VOE_SCENE_FOG_VOLUME_RANGES(R)      \
+	R(thickness, 0.0, 1.0, "")          \
+	R(patchiness, 0.0, 1.0, "")         \
+	R(wind_direction, 0.0, 360.0, "°") \
+	R(godrays_strength, 0.0, 1.0, "")
+
+VOE_BASE_DESCRIBE_STRUCT_RANGED(voe_scene_fog_volume,
+				VOE_SCENE_FOG_VOLUME_FIELDS,
+				VOE_SCENE_FOG_VOLUME_RANGES)
 
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_fog_volume_key;

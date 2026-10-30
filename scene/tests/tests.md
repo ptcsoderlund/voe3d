@@ -26,21 +26,21 @@ module's promises from outside. None of them needs a window or a graphics card.
   replace to Direct landing on a run, refused negative, infinite and NaN sizes
   and a Block past Direct, and a dead entity.
 - `sky.c` — the sky's registration, its default row of strength 1 and five
-  fields, a row read back, a horizon replace landing on a run, a refused NaN
+  fields, horizon height's range 0 to 1, a row read back, a horizon replace landing on a run, a refused NaN
   zenith, negative ground, horizon height 1.5, strength -1 and infinite, and a
   dead entity.
 - `haze.c` — the haze's registration, its default row of haze 1000, start 100
   and height 1000 and three fields, a row read back, a haze replace landing on
   a run, height -50 taken, a refused NaN haze, haze -1, start -1, infinite
   start, NaN height and infinite height, and a dead entity.
-- `clouds.c` — the clouds' registration, default row, seven fields and kind
-  names, the drift runtime-only, a row read back, a coverage replace landing on
-  a run, each refusal keeping the row, the drift added at 0 and moved by the
-  wind, dropped with its row, and a dead entity.
-- `fog_volumes.c` — the fog volume's registration, transform needed, default
-  row and six fields, the drift runtime-only, a row read back, a thickness
-  replace landing on a run, each refusal keeping the row, the drift added at 0
-  and moved by the wind, dropped with its row, and a dead entity.
+- `clouds.c` — the clouds' registration, fields, kind names and ranges
+  (coverage, shadow strength 0 to 1, wind direction 0 to 360 °), the drift
+  runtime-only, a row read back, a replace landing on a run, each refusal
+  keeping the row, the drift moved by the wind and dropped with its row.
+- `fog_volumes.c` — the fog volume's registration, fields and ranges
+  (thickness, patchiness, godrays strength 0 to 1, wind direction 0 to 360 °),
+  a row read back, a replace landing on a run, each refusal keeping the row,
+  the drift moved by the wind and dropped with its row.
 - `picture.c` — the picture's registration, its exposure 0 and Soft default,
   the tone names Clip and Soft, a row read back, an exposure replace landing on
   a run, a refused NaN exposure, exposure 17 and tone 2, and a dead entity.
