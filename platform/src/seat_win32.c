@@ -331,9 +331,11 @@ static bool pointer_inside(const voe_platform_window *window)
 // top-left, +x right and +y down, the same space WM_SIZE measures the client
 // area in — so a pointer and voe_platform_size agree without arithmetic. The two
 // halves of lparam are signed, and are read as signed, because a captured
-// pointer goes negative. This process declares no DPI awareness, so on a scaled
-// display Windows virtualises both numbers by the same factor and they still
-// agree with each other and with the swapchain. The button messages carry the
+// pointer goes negative. The process is per-monitor DPI aware (see
+// src/window_win32.c), so on a scaled display both are real pixels, as are
+// the clip's rectangle and the lock's saved screen position, and they agree
+// with each other and with the swapchain. Raw motion is the device's own
+// counts and no scale touches it. The button messages carry the
 // same coordinates and are recorded the same way, so a press with no movement
 // before it still knows where it landed.
 //

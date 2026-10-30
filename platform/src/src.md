@@ -99,8 +99,8 @@ header.
 - `scale.c` — its implementation, in 64-bit integers for the length.
 - `window_win32.h` — the Windows window's struct and its pad tables, shared by the two files below
   and `gamepad_win32.c` and seen by nothing outside this folder, and the functions that cross.
-- `window_win32.c` — the Windows window: its class, the window procedure, open, close, poll, wait
-  and the queries.
+- `window_win32.c` — the Windows window: per-monitor DPI awareness, its class, the window
+  procedure, open, close, poll, wait and the queries.
 - `seat_win32.c` — the Windows window's seat: the keyboard and its `WM_CHAR` text, the mouse as a
   raw input device for look and as ordinary messages for position and buttons, its shape, and the
   lock.

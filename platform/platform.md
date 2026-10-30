@@ -9,10 +9,10 @@ arguments, the environment, the sound device, and work in bursts.
 - `include` — the public headers, in `include/platform/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
-- `include/platform/window.h` — the window API. Opening, maybe fullscreen, can
-  fail; `_poll` folds events into state; `_close_refuse` takes back a close;
-  `_focused` and `_visible` say whether the person is in it and can see it, and
-  `_wait` blocks for at most the timeout it is given.
+- `include/platform/window.h` — the window API: opening, maybe fullscreen, can
+  fail; `_poll` folds events into state; `_close_refuse`, `_focused`, `_visible`
+  and `_wait`. The Windows window is per-monitor DPI aware and reports the
+  monitor's real pixels.
 - `include/platform/input.h` — the keyboard, the mouse and four gamepad slots: keys, motion, the
   wheel in notches, typed UTF-8 text, the pointer's position, buttons, shape and lock, and each
   pad's sticks, triggers and buttons. Its header says why it is polled state and a key is a place.

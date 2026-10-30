@@ -17,6 +17,13 @@
 // job, and a window that tore itself down inside poll would leave the caller
 // holding a pointer to nothing until it next thought to ask.
 //
+// THE PROCESS IS PER-MONITOR DPI AWARE, SO EVERY SIZE HERE IS REAL PIXELS. It is
+// declared on the way into _new, before the first window exists: the client
+// size, the cursor's positions and the monitor's rectangle are then the
+// monitor's own pixels, and Windows never stretches a presented frame. The size
+// asked of _new is those pixels too. Moving to a monitor of another scale takes
+// the rectangle WM_DPICHANGED suggests, and the WM_SIZE after it is the news.
+//
 // Input is src/seat_win32.c: window_proc takes each keyboard and mouse message
 // and hands it to a voe_platform_seat_ function there. Pads are
 // src/gamepad_win32.c, opened with the window, routed their device changes,
@@ -63,6 +70,21 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam,
 		// cursor outside it.
 		voe_platform_seat_apply_lock(window);
 		return 0;
+	// The window is on a monitor of another scale now, or its scale changed.
+	// The suggested rectangle keeps it the same size to the eye, and the
+	// WM_SIZE SetWindowPos sends carries the new real pixels. A fullscreen
+	// popup keeps its place: it covers a monitor, whose pixels no scale
+	// changes.
+	case WM_DPICHANGED: {
+		const RECT *suggested = (const RECT *)lparam;
+
+		if ((GetWindowLongPtrW(hwnd, GWL_STYLE) & WS_POPUP) == 0)
+			SetWindowPos(hwnd, NULL, suggested->left, suggested->top,
+				     suggested->right - suggested->left,
+				     suggested->bottom - suggested->top,
+				     SWP_NOZORDER | SWP_NOACTIVATE);
+		return 0;
+	}
 	case WM_KEYDOWN:
 		voe_platform_seat_key_set(window, wparam, true);
 		return 0;
@@ -223,12 +245,42 @@ static bool fullscreen_rect(RECT *rect)
 	return true;
 }
 
+// SetProcessDpiAwarenessContext, looked up rather than linked so that the
+// program still starts on a Windows older than 10 version 1703.
+typedef BOOL(WINAPI *set_awareness_context_fn)(DPI_AWARENESS_CONTEXT context);
+
+// A PROCESS THAT DECLARES NO DPI AWARENESS IS STRETCHED, AND THE STRETCH STALLS.
+// On a scaled monitor Windows gives such a window a smaller client area and
+// bitmap-stretches every presented frame up to the monitor; maximised at 4K and
+// 125% that stretch froze the editor for seconds at a time (fix 005).
+// Per-monitor v2 first; where it is missing, system awareness, which is real
+// pixels on the primary monitor. ERROR_ACCESS_DENIED is awareness already set,
+// by an earlier window or a manifest, and is kept rather than replaced. A
+// refusal of the fallback leaves the stretched window, which still works.
+static void declare_dpi_aware(void)
+{
+	HMODULE user32 = GetModuleHandleW(L"user32.dll");
+	set_awareness_context_fn set_context = NULL;
+
+	if (user32 != NULL)
+		set_context = (set_awareness_context_fn)(void (*)(void))
+			GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+	if (set_context != NULL) {
+		if (set_context(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
+			return;
+		if (GetLastError() == ERROR_ACCESS_DENIED)
+			return;
+	}
+	SetProcessDPIAware();
+}
+
 voe_platform_window *voe_platform_window_new(int width, int height,
 					     bool fullscreen, const char *title)
 {
 	voe_platform_window *window;
 	wchar_t wide_title[TITLE_MAX];
 	RECT wanted = { 0, 0, width, height };
+	RECT client;
 	DWORD style = fullscreen ? WS_POPUP : WS_OVERLAPPEDWINDOW;
 	int x = CW_USEDEFAULT;
 	int y = CW_USEDEFAULT;
@@ -249,6 +301,7 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	window->active = true;
 	window->visible = true;
 
+	declare_dpi_aware();
 	if (!class_ready(window->instance)) {
 		free(window);
 		return NULL;
@@ -301,6 +354,17 @@ voe_platform_window *voe_platform_window_new(int width, int height,
 	voe_platform_gamepads_open(window);
 
 	ShowWindow(window->hwnd, SW_SHOW);
+
+	// The client area as Windows made it, in real pixels. The WM_SIZE sent
+	// inside CreateWindowExW came before the user data and was not seen, a
+	// fullscreen popup's size is the monitor's and not the one asked, and
+	// AdjustWindowRect measured the frame at the system's scale, which need
+	// not be this monitor's. A minimised start keeps the size asked.
+	if (GetClientRect(window->hwnd, &client) && client.right > 0 &&
+	    client.bottom > 0) {
+		window->width = client.right;
+		window->height = client.bottom;
+	}
 
 	// ShowWindow activates the window and WM_SETFOCUS has already been
 	// through the procedure by here — but only if this window really got
