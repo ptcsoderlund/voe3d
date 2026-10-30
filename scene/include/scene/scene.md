@@ -12,8 +12,8 @@ stays on `scene/scene.md`.
 - `prefab_component.h` — the prefab a placed copy is, and the copy a part was
   made for.
 - `prefab_system.h` — registering the two prefab tables.
-- `camera_component.h` — eye, yaw, pitch, field of view, the two planes, and the
-  view matrix.
+- `camera_component.h` — field of view, the two planes, the default lens
+  `VOE_SCENE_CAMERA_FOV_Y`, and the view matrix.
 - `camera_system.h` — the two camera intents, absolute and relative.
 - `identity_component.h` — a 64-bit id, a name, whether its row is folded and
   whether it is switched off on the entities a person authored, and the read of

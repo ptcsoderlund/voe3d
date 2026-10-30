@@ -48,6 +48,11 @@
 
 #include <stdint.h>
 
+// The fov_y a new camera starts with, 60° (π/3) in radians, and what a lens "by
+// default" means elsewhere: a distance measured through the default lens is
+// measured through this.
+#define VOE_SCENE_CAMERA_FOV_Y 1.0471976f
+
 // fov_y is the vertical field of view, radians; the horizontal one falls out of
 // the aspect ratio, which is the render target's and not the camera's.
 // near_plane and far_plane are metres, and spelled out because `near` and `far`

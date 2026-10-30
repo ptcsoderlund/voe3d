@@ -55,7 +55,7 @@ void voe_scene_camera_register(voe_ecs_world *world, uint32_t capacity)
 				      offsetof(voe_scene_camera_intent, camera));
 	voe_ecs_component_default_set(
 		world, type,
-		&(voe_scene_camera){ .fov_y = 1.0471976f,
+		&(voe_scene_camera){ .fov_y = VOE_SCENE_CAMERA_FOV_Y,
 				     .near_plane = 0.1f,
 				     .far_plane = 1000.0f });
 	voe_ecs_component_needs_set(world, type, transform);

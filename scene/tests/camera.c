@@ -167,6 +167,26 @@ static void registration_says_what_a_camera_is(voe_base_arena *arena)
 		check_description(found);
 }
 
+// A camera added at its default row, as a tool's Add component does, sees
+// through the named default lens.
+static void default_fov_is_the_named_lens(voe_base_arena *arena)
+{
+	voe_ecs_entity eye = { 0 };
+	voe_ecs_entity added = { 0 };
+	voe_ecs_world *world = world_of(arena, &eye);
+	voe_ecs_type type = voe_ecs_component_type(world, &voe_scene_camera_key);
+	const voe_scene_camera *row;
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &added));
+	VOE_TEST_CHECK(voe_scene_transform_add(world, added, unmoved()));
+	VOE_TEST_CHECK(voe_ecs_component_add(
+		world, type, added, voe_ecs_component_default(world, type)));
+	row = voe_scene_camera_get(world, added);
+	VOE_TEST_CHECK(row != NULL);
+	if (row != NULL)
+		VOE_TEST_CHECK_FLOAT(row->fov_y, VOE_SCENE_CAMERA_FOV_Y, 0.0f);
+}
+
 // A point as the view takes it: its position minus the eye, in double.
 static voe_math_float3 relative(voe_math_double3 point,
 				voe_scene_transform pose)
@@ -291,6 +311,7 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(256 * 1024);
 
 	registration_says_what_a_camera_is(arena);
+	default_fov_is_the_named_lens(arena);
 	the_view_undoes_the_position();
 	a_far_camera_sees_a_millimetre();
 	the_view_keeps_the_roll();
