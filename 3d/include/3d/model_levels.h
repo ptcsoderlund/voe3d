@@ -130,17 +130,34 @@ voe_3d_model_levels_make(voe_base_arena *arena,
 void voe_3d_model_levels_swaps_set(uint8_t *bytes, size_t size,
 				   const float swaps[VOE_3D_MODEL_LEVELS]);
 
-// Each level's triangles into `triangles`, for the LODs panel: how many levels
-// it wrote, 0 when `glb` will not parse or bake. `*own` whether the `.glb` has
-// its own levels, `*fresh` whether `levels` read as a fresh file of it. Own:
-// each own level's bake, ending as _make ends. Made: level 0's bake, then a
-// fresh file's index counts ÷ 3 per level; level 0 alone when `levels` is NULL
-// or stale. No picture decoded. Everything on `arena`, the caller rewinding.
-uint32_t voe_3d_model_levels_triangles(voe_base_arena *arena,
-				       const uint8_t *glb, size_t glb_size,
-				       const uint8_t *levels, size_t levels_size,
-				       uint32_t triangles[VOE_3D_MODEL_LEVELS],
-				       bool *own, bool *fresh);
+// What the LODs panel shows of a `.glb`'s levels.
+typedef struct {
+	// Levels written; 0 when the `.glb` will not parse or bake.
+	uint32_t count;
+	// Each level's triangles.
+	uint32_t triangles[VOE_3D_MODEL_LEVELS];
+	// Each level's error in model metres, a fresh file's; level 0's nought,
+	// all nought when the file is not fresh.
+	float errors[VOE_3D_MODEL_LEVELS];
+	// Level 0's bounding radius, the store's sphere: the farthest baked
+	// vertex from its box's centre.
+	float radius;
+	// The `.glb` has its own levels.
+	bool own;
+	// The levels file read as a fresh file of the `.glb`.
+	bool fresh;
+} voe_3d_model_levels_summary;
+
+// The summary of `glb`'s levels into `out`, for the LODs panel; all nought
+// when `glb` will not parse or bake. Triangles, own: each own level's bake,
+// ending as _make ends. Made: level 0's bake, then a fresh file's index counts
+// ÷ 3 per level; level 0 alone when `levels` is NULL or stale. Errors: the
+// fresh file's, own or made. Radius: level 0's bake's. No picture decoded.
+// Everything on `arena`, the caller rewinding.
+void voe_3d_model_levels_summarise(voe_base_arena *arena, const uint8_t *glb,
+				   size_t glb_size, const uint8_t *levels,
+				   size_t levels_size,
+				   voe_3d_model_levels_summary *out);
 
 // Each level's bound, the screen size `s` it is drawn under, for a model of
 // `radius` whose levels have `errors` and `swaps`, into `bounds`: every bound
