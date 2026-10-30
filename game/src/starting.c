@@ -11,6 +11,7 @@
 
 #include <base/assert.h>
 
+#include <platform/burst.h>
 #include <platform/clock.h>
 #include <platform/window.h>
 
@@ -21,7 +22,6 @@
 #include <math.h>
 #include <stdatomic.h>
 #include <stdint.h>
-#include <threads.h>
 
 // The window polled and its size, or the headless app's frame opened for the
 // settings' size. False when the window is closing.
@@ -168,25 +168,22 @@ bool voe_game_starting_frame(voe_app *app, voe_ui_context *ui,
 	return voe_app_draw_close(app) && drawn;
 }
 
-// What the worker is handed and hands back: the work, its answer, and whether
-// it has ended, which the main thread reads.
+// What the burst's one task is handed and hands back: the work and its answer,
+// read once the burst is finished.
 struct starting_worker {
 	voe_game_starting_work *work;
 	void *context;
 	voe_game_progress *progress;
 	bool answer;
-	atomic_bool ended;
 };
 
-static int starting_worker_run(void *argument)
+static void starting_worker_run(void *argument, uint32_t index)
 {
 	struct starting_worker *worker = argument;
 
-	VOE_BASE_ASSERT(worker != NULL && worker->work != NULL,
-			"a starting worker with no work");
+	VOE_BASE_ASSERT(worker != NULL && worker->work != NULL && index == 0,
+			"a starting worker with no work, or a second task");
 	worker->answer = worker->work(worker->context, worker->progress);
-	atomic_store(&worker->ended, true);
-	return 0;
 }
 
 // One frame of the line, the arena rewound after it; a window not visible
@@ -244,28 +241,25 @@ bool voe_game_starting_wait(voe_app *app, voe_ui_context *ui,
 					  .progress = &progress };
 	double began = voe_platform_clock_now();
 	char line[96];
-	thrd_t thread;
+	voe_platform_burst *burst;
 
 	VOE_BASE_ASSERT(app != NULL && ui != NULL && frame_arena != NULL &&
 				work != NULL,
 			"a starting wait with no app, context, arena or work");
 
 	voe_game_progress_set(&progress, "Starting", 0, 0);
-	// No thread to be had: the work runs here, the window unanswered until
-	// it ends, which is slow but still a start.
-	if (thrd_create(&thread, starting_worker_run, &worker) != thrd_success)
-		return work(context, &progress) &&
-		       starting_loaded(app, ui, frame_arena, splash,
-				       voe_platform_clock_now() - began);
-	while (!atomic_load(&worker.ended)) {
+	// With no worker standing the work runs inside start, the window
+	// unanswered until it ends, which is slow but still a start.
+	burst = voe_platform_burst_start(1, 1, starting_worker_run, &worker);
+	while (!voe_platform_burst_done(burst)) {
 		voe_game_progress_line(&progress, line, sizeof(line));
 		if (!starting_shown(app, ui, frame_arena, splash, line)) {
 			atomic_store(&progress.stop, true);
-			(void)thrd_join(thread, NULL);
+			voe_platform_burst_finish(burst);
 			return false;
 		}
 	}
-	(void)thrd_join(thread, NULL);
+	voe_platform_burst_finish(burst);
 	return worker.answer &&
 	       starting_loaded(app, ui, frame_arena, splash,
 			       voe_platform_clock_now() - began);

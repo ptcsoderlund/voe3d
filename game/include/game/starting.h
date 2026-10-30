@@ -10,8 +10,8 @@
 //             ...             // the window closed, or the work answered false
 //     // true: "Loaded in N.N s" was shown for a second
 //
-// THE WAIT'S TWO THREADS (0370 point 2). One thrd_t runs the work; the worker
-// owns everything its context names until the wait returns. The main thread
+// THE WAIT'S TWO THREADS (0370 point 2). The work runs on one standing worker
+// as a one-task burst, not a thread of its own (0504); the worker owns everything its context names until the wait returns. The main thread
 // touches only the app's window, the ui context and the splash: it polls,
 // draws element-only frames with the progress line and, while the window is
 // not visible, draws none and waits on the window 50 ms at a time. A close
@@ -71,7 +71,7 @@ typedef bool voe_game_starting_work(void *context, voe_game_progress *progress);
 					   const voe_app_picture *splash,
 					   const char *line);
 
-// `work` run with `context` on one worker while starting frames show its
+// `work` run with `context` on one standing worker while starting frames show its
 // progress line, "Starting" until it sets one. On a true answer, "Loaded in
 // N.N s", the wait's start to the work's end, for 1 s polling as before;
 // headless, one frame and no hold. The work's answer once it has ended; false,
