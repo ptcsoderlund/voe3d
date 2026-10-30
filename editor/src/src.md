@@ -237,8 +237,8 @@ carries it out.
 - `assets_ask.c` — the open with its one walk and lines, the panel's one frame of `ui` calls, and
   the read of its buttons and a press outside afterwards.
 - `levels_ask.h` — the anchored panel a model's LODs ask: its count and a row per LOD
-  with share, swap and triangles read from the `.parts`, with Make and Cancel; Make saves into the
-  `.parts` and says whether a reload is enough.
+  with share, swap, Swap distance in metres and triangles, with Make and Cancel; Make saves into
+  the `.parts` and says whether a reload is enough.
 - `levels_ask.c` — the open with its quiet `.parts` read and triangle count, the panel's one frame
   of `ui` calls with its column headers, LOD rows and swap line, the read of its buttons, boxes and
   a press outside, and the save into the `.parts`.
@@ -329,7 +329,7 @@ carries it out.
   the read: a fired button chooses its kind or none, a fired row flips its pick, Density clamped,
   a kind's slider, Cast shadows or Blend with ground asks its look with that field changed.
 - `inspector_level.h` — the Inspector's LOD section after Brush or Foliage: per view in use, the LOD it
-  draws of a loaded model, of how many, made or own, asked with the draws' own function.
+  keeps of a loaded model, as its draws chose it last, else the distance's; of how many, made or own.
 - `inspector_level.c` — the worn loaded model found, the LOD section's one frame of `ui` calls,
   each view's label formatted into its kept buffer.
 - `inspector_material.h` — the Inspector's material section: Lit and Unlit, the Colour and Emission
@@ -365,7 +365,7 @@ carries it out.
   and why names and only authored ones.
 - `entity_field.c` — the identity table sorted by id into the choices, and a name or "None" as the
   label.
-- `view.h` — a scene view: its orbit, target, remembered casters and input, the fly's speed the
+- `view.h` — a scene view: its orbit, target, remembered casters, kept LODs and input, the fly's speed the
   wheel sets and a middle press resets, the glide to a focus,
   the view under the pointer, its colours, the preview of what the world's camera sees, and each
   picture's counts.
@@ -375,9 +375,9 @@ carries it out.
 - `view_passes.h` — what a frame draws into the views: a pass per shown view after its shadow
   passes, lit by every light, sky, clouds and fog from its own eye, the world, models, foliage,
   outline, collider, gizmo, blockers' and fog volumes' boxes, markers, brush, counts, capacities.
-- `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, foliage
-  gathered after the lights, kept out of the blockers, every place marked, blocker and fog volume lined,
-  stopping at the first refused pass, the shadows, their parts and gathers timed, counts recorded.
+- `view_passes.c` — the preview's pass, then each shown view's shadow passes and pass, each with
+  its own LOD memory, foliage after the lights, kept out of the blockers, places marked, blockers
+  and fog volumes lined, stopping at the first refused pass, shadows and gathers timed, counts kept.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or on asking, emptied on a different project, a broken file in the notice, where landscapes and
   materials are edited, models given parts, and maps compressed on the GPU between frames.

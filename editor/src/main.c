@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
 
 	// An upload too, on the main thread now the worker is joined, before the
 	// first frame. `render` says why on stderr when it refuses.
-	if (!voe_editor_views_create(&views, gpu, &error)) {
+	if (!voe_editor_views_create(&views, arena, gpu, &error)) {
 		status = 1;
 		goto stop;
 	}

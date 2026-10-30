@@ -16,6 +16,14 @@
 // no state, so the two agree. The first walk counts the copies into the
 // frame's `counts`.
 //
+// A COPY'S LOD COMES AFTER ITS TIER (0501 point 5): a seen or cast copy's
+// through the frame's memory (lods_kept.h), keyed by its row's entity, kind and
+// painted x and z (0501 point 4), so a grown copy keys alike; an unseen one's
+// whole with no state, touching no memory. A copy dissolving after a swap is
+// its `level` dithered by `shown` and its `from` in a `rest` group dithered by
+// −`shown`; on the swap's first frame, `shown` 0, `level` keeps no pixel but is
+// still an instance, so its shadow, which reads no dither, is cast.
+//
 // TWO WALKS OVER THE SAME COPIES: the first counts each group's instances, the
 // second fills them contiguously, group after group, into one array on the
 // caller's arena, written by one voe_render_frame_instances and given back; then
@@ -23,7 +31,8 @@
 // take a row's own copies and then its grown copies (0476 point 5), each with
 // its placed transform, so they find the same groups in the same order, the
 // counts the first made are the room the second fills, and a group the first
-// left out past VOE_3D_FOLIAGE_GROUPS the second leaves out too.
+// left out past VOE_3D_FOLIAGE_GROUPS the second leaves out too; the memory
+// answers a key's second choose in a frame as its first.
 //
 // A ROW'S KINDS ARE FOUND ONCE: each kind's loaded `.glb`, each of its parts as
 // worn, a blended one left out (0442 point 5), whether its look is
@@ -44,6 +53,7 @@
 #include "draw_models.h"
 
 #include <3d/draw_system.h>
+#include <3d/lods_kept.h>
 #include <3d/model_component.h>
 #include <3d/model_levels.h>
 #include <3d/models_foliage.h>
@@ -54,6 +64,8 @@
 #include <scene/transform_component.h>
 #include <scene/transform_system.h>
 
+#include <float.h>
+#include <math.h>
 #include <string.h>
 
 // A per-row slot that has not been looked up, and one whose group was left out.
@@ -292,10 +304,31 @@ static void gather_copy(struct gathering *g, uint32_t kind, uint32_t level,
 	}
 }
 
-// The `count` copies at `copies` of a grid of `kind_count` kinds, each placed
-// by `placed` under the row's `where`. A shadowless kind's copy not seen is
-// counted skipped and left out.
-static void gather_copies(const voe_3d_frame *frame, voe_scene_transform where,
+// The LOD `model`, painted as `copy` on `landscape` and placed at `at`, draws
+// in `tier`: a seen or cast copy's kept by the frame's memory, an unseen one's
+// whole and stateless (0501 point 5).
+static voe_3d_model_level_choice
+level_of(const voe_3d_frame *frame, voe_ecs_entity landscape,
+	 const voe_assets_landscape_copy *copy, const voe_3d_model_entry *model,
+	 const voe_scene_transform *at, voe_3d_foliage_tier tier)
+{
+	uint32_t level;
+
+	if (tier != VOE_3D_FOLIAGE_UNSEEN)
+		return voe_3d_lods_kept_choose(
+			frame->lods,
+			voe_3d_lods_kept_copy_key(landscape, copy->kind, copy->x,
+						  copy->z),
+			model, at, frame->eye, &frame->view);
+	level = voe_3d_model_level(model, at, frame->eye, &frame->view);
+	return (voe_3d_model_level_choice){ level, level, 1.0f };
+}
+
+// The `count` copies at `copies` of a grid of `kind_count` kinds on the row of
+// `landscape`, each placed by `placed` under the row's `where`. A shadowless
+// kind's copy not seen is counted skipped and left out.
+static void gather_copies(const voe_3d_frame *frame, voe_ecs_entity landscape,
+			  voe_scene_transform where,
 			  const voe_assets_landscape_copy *copies,
 			  const voe_scene_transform *placed, uint32_t count,
 			  uint32_t kind_count, struct gathering *g)
@@ -315,11 +348,6 @@ static void gather_copies(const voe_3d_frame *frame, voe_scene_transform where,
 		if (g->kinds[kind] == NULL)
 			continue;
 		at = voe_scene_transform_compose(where, placed[i]);
-		choice = voe_3d_model_level_choose(g->kinds[kind], &at, frame->eye,
-						   &frame->view);
-		dissolving = choice.shown < 1.0f;
-		VOE_BASE_ASSERT(!dissolving || choice.level >= 1,
-				"level 0 dissolving into no level before it");
 		place = voe_scene_transform_matrix(at, frame->eye);
 		tier = tier_of(g, g->kinds[kind], place);
 		if (g->out != NULL)
@@ -330,19 +358,27 @@ static void gather_copies(const voe_3d_frame *frame, voe_scene_transform where,
 			g->counts.skipped++;
 		if (g->shadowless[kind] && tier != VOE_3D_FOLIAGE_SEEN)
 			continue;
+		choice = level_of(frame, landscape, &copies[i], g->kinds[kind],
+				  &at, tier);
+		dissolving = choice.shown < 1.0f;
+		VOE_BASE_ASSERT(!dissolving || choice.from != choice.level,
+				"a LOD dissolving into itself");
+		// Dither 0 draws whole: `shown` 0 is FLT_MIN, below every
+		// threshold of the pattern, so no pixel.
 		gather_copy(g, kind, choice.level, false, tier,
-			    dissolving ? choice.shown : 0.0f, instance);
+			    dissolving ? fmaxf(choice.shown, FLT_MIN) : 0.0f,
+			    instance);
 		if (dissolving)
-			gather_copy(g, kind, choice.level - 1, true, tier,
+			gather_copy(g, kind, choice.from, true, tier,
 				    -choice.shown, instance);
 	}
 }
 
-// Every copy of `land`, a loaded landscape whose row `row` stands at `where`:
-// its own, then its grown.
+// Every copy of `land`, a loaded landscape worn by row `row` of entity
+// `landscape`, standing at `where`: its own, then its grown.
 static void gather_row(const voe_3d_frame *frame, uint32_t row,
-		       const voe_3d_model_entry *land, voe_scene_transform where,
-		       struct gathering *g)
+		       voe_ecs_entity landscape, const voe_3d_model_entry *land,
+		       voe_scene_transform where, struct gathering *g)
 {
 	const voe_assets_landscape *grid = land->landscape;
 	const voe_3d_models_grown grown =
@@ -355,11 +391,11 @@ static void gather_row(const voe_3d_frame *frame, uint32_t row,
 			g->ground = &g->grounds.grounds[i];
 	find_kinds(frame->models, grid, g);
 	memset(g->slots, 0, sizeof(g->slots));
-	gather_copies(frame, where, grid->copies,
+	gather_copies(frame, landscape, where, grid->copies,
 		      voe_3d_models_landscape_placed(frame->models, land),
 		      grid->copy_count, grid->kind_count, g);
-	gather_copies(frame, where, grown.copies, grown.placed, grown.count,
-		      grid->kind_count, g);
+	gather_copies(frame, landscape, where, grown.copies, grown.placed,
+		      grown.count, grid->kind_count, g);
 }
 
 // The landscape rows draw_system.c's landscape walk draws solid: not off,
@@ -386,7 +422,7 @@ static void walk(const voe_ecs_world *world, const voe_3d_frame *frame,
 			break;
 		if (fade > 0.0f)
 			continue;
-		gather_row(frame, row, land,
+		gather_row(frame, row, owners[row], land,
 			   voe_scene_transform_between(world, owners[row],
 						       frame->lag),
 			   g);

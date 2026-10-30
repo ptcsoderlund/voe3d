@@ -66,6 +66,7 @@
 #include <3d/gizmo.h>
 #include <3d/gizmo_rings.h>
 #include <3d/gizmo_scales.h>
+#include <3d/lods_kept.h>
 #include <3d/models.h>
 #include <3d/outline.h>
 #include <3d/place_marker.h>
@@ -299,7 +300,7 @@ typedef struct {
 	const voe_3d_model_part *part;
 	// Its render instances, `first` as voe_render_frame_instances wrote it.
 	uint32_t first, count;
-	// A band's level-before copies, dithered the other way (0432 point 3).
+	// A swap's outgoing LOD, dithered the other way (0500 point 1).
 	bool rest;
 	// Which passes draw it (0464 point 4).
 	voe_3d_foliage_tier tier;
@@ -343,7 +344,7 @@ typedef struct {
 } voe_3d_shadow_times;
 
 // What a view drew and skipped (0464 point 5). A thing is a mesh row, a model
-// row, a landscape node, a foliage copy (a band's `rest` copies not counted), a
+// row, a landscape node, a foliage copy (a swap's `rest` copies not counted), a
 // particle or a water; panels, marks, the outline and the gizmo are none.
 typedef struct {
 	// The camera pass's things drawn, a held one among them, and skipped.
@@ -531,6 +532,10 @@ typedef struct {
 	// marks there (0394), NULL for none. _frame leaves it NULL; the caller
 	// sets it per target, and only the shadows call writes it.
 	voe_3d_bounce_casters *casters;
+	// This target's kept LODs (0501 point 1), NULL for none: each model
+	// row's and seen or cast foliage copy's LOD chosen through it. _frame leaves it NULL; the caller
+	// begins it and sets it each frame, and only the draws write it.
+	voe_3d_lods_kept *lods;
 	// This view's foliage groups, `foliage_count` of them; none is NULL and
 	// 0. _frame leaves them so, voe_3d_draw_system_foliage fills them.
 	const voe_3d_foliage_group *foliage;
@@ -742,12 +747,14 @@ voe_render_clouds voe_3d_draw_system_clouds(const voe_ecs_world *world,
 // takes, among its first VOE_3D_LANDSCAPES_DRAWN; off, hidden and fading rows
 // are left out, and a blind frame gathers none. Each copy whose kind is a loaded
 // `.glb` in the store (each kind found once a row) is placed at the row's world
-// transform composed with its placed one, given its level and share by
-// voe_3d_model_level_choose with the frame's view and eye, and is one instance
-// per opaque or cut-out part that level has: the top three rows of its matrix
-// about the eye, dithered as a dissolving model row is. Under a whole share it
-// is also one instance of each such part of the level before, with the other
-// dither, in a `rest` group. A group is one (kind, level, part, rest, tier,
+// transform composed with its placed one, sorted into its tier, then given its
+// level with the frame's view and eye: a seen or cast copy's from the frame's
+// memory, `frame->lods` (lods_kept.h), keyed by its row, kind and painted x
+// and z (0501 points 4 and 5), an unseen one's by voe_3d_model_level, whole and
+// with no state. It is one instance per opaque or cut-out part that level has:
+// the top three rows of its matrix about the eye, dithered as a dissolving
+// model row is. While a swap dissolves it is also one instance of each such
+// part of the outgoing LOD, with the other dither, in a `rest` group. A group is one (kind, level, part, rest, tier,
 // casts, ground, reach), shared by every row naming that file; a kind whose
 // look `blends` names its row's painted ground and the look's blend height in
 // metres (0481 point 3), a row with no painted ground none. Each row's grown
@@ -802,7 +809,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // CASTERS ARE WORLD-LAYER, LIT, OPAQUE OR CUTOUT MESHES WITH A TRANSFORM, the
 // frame's `hidden` and switched-off owners left out (0428); a cutout casts as
 // solid, and panels and marks cast nothing. A model part in `frame->models` casts under the same rule, its
-// material the part's. A mesh whose shape, or a model whose row, has
+// material the part's, at the LOD its row keeps in `frame->lods`, whole (0500
+// point 1), the bounce's at the last. A mesh whose shape, or a model whose row, has
 // `cast_shadows` false is no caster, though still drawn and shadowed; nor is a
 // model row with `fade` at or above 1, and a fading one casts as ever (0336).
 // A CASTER IS DRAWN INTO A CASCADE ONLY WHEN ITS SPHERE IS INSIDE THE
@@ -915,7 +923,8 @@ voe_render_pass_camera voe_3d_draw_system_camera(const voe_3d_frame *frame);
 // whole reason an interface is one draw command. A MODEL ROW WITH A TRANSFORM
 // WHOSE ENTRY IN `frame.models` IS LOADED draws each part (0277 point 3): in the
 // world layer, white in its object record, solid or blended by the part's
-// material. An empty path, a path the store lacks, a failed entry and a NULL
+// material, at the LOD its row keeps in `frame.lods`, a solid part dissolving
+// for 0.25 s at a swap (0500 point 1). An empty path, a path the store lacks, a failed entry and a NULL
 // store draw nothing. A ROW'S `fade` (0336 point 3): at or above 1 the model
 // is gone and not drawn; above 0 and below 1 every part is blended at 1 − fade
 // with its part's twin, `faded`, sorted with the world's blended group; at or

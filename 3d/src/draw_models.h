@@ -43,7 +43,8 @@ uint32_t voe_3d_draw_models_part_count(const voe_ecs_world *world,
 				       const voe_3d_models *models);
 
 // Each model row's solid parts drawn now and blended or fading ones held in
-// `world_blended`; false when a draw is refused, which stops this walk only.
+// `world_blended`, at the LOD the row keeps in `frame->lods` (lods_kept.h);
+// false when a draw is refused, which stops this walk only.
 // A row, not a landscape, whose entry's `centre` and `radius` under its world
 // matrix about the eye `cull` does not see draws and holds none of its parts;
 // NULL tests nothing. Each such row is one thing in `counts`, drawn or skipped.

@@ -11,8 +11,8 @@
 // - The interface runs each frame and may end the run.
 // - A restart asked makes the world again in its own arena; the mixer pauses
 //   with the run.
-// - The window's remembered bounce casters are kept for the whole run, across
-//   frames and restarts.
+// - The window's remembered bounce casters and its LOD memory are kept for
+//   the whole run, across frames and restarts.
 // - VOE_GAME_COUNTS=1, read once at start, puts the view's and its shadows'
 //   drawn and skipped things on stderr once a second (0465 point 2); unset or
 //   anything else, nothing is said and no frame counts.
@@ -40,6 +40,7 @@
 #include <game/world.h>
 
 #include <3d/bounce_casters.h>
+#include <3d/lods_kept.h>
 #include <3d/models.h>
 #include <3d/shape_system.h>
 
@@ -241,14 +242,14 @@ static double run_counts_said(voe_3d_view_counts counts, double banked)
 // pump fails is destroyed and the sound's device set to NULL, and the game
 // goes on silent. Paused, no step runs and the draw keeps the last lag. The
 // start's log gets its last step here and is written after the first frame.
-// `casters` is the window's bounce memory, kept across frames and restarts.
-// `counting` hands each frame a counts record and says it once a second.
+// `casters` is the window's bounce memory and `lods` its LOD memory, both kept
+// across frames and restarts. `counting` hands each frame a counts record and says it once a second.
 static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 		       voe_ecs_world *world, const voe_3d_shapes *shapes,
 		       voe_base_arena *scratch, voe_game_interface *interface,
 		       struct run_sound *sound, const struct run_models *models,
-		       voe_3d_bounce_casters *casters, voe_app_start_log *log,
-		       bool counting)
+		       voe_3d_bounce_casters *casters, voe_3d_lods_kept *lods,
+		       voe_app_start_log *log, bool counting)
 {
 	voe_game_project_asks asks = { 0 };
 	voe_game_steps steps = { 0 };
@@ -308,7 +309,7 @@ static bool run_frames(voe_app *app, voe_base_arena *world_arena,
 			sound->device = NULL;
 		}
 		if (!voe_game_frame(app, world, shapes, models->store, scratch,
-				    frame.size, lag, casters,
+				    frame.size, lag, casters, lods,
 				    voe_game_interface_context(interface),
 				    counting ? &counts : NULL)) {
 			VOE_BASE_ERROR("game", "the device stopped drawing");
@@ -343,6 +344,7 @@ int voe_game_run(const char *title, voe_game_window window)
 	voe_base_error error = VOE_BASE_OK;
 	voe_game_interface *interface;
 	voe_3d_bounce_casters *casters;
+	voe_3d_lods_kept *lods;
 	voe_app_start_log log;
 	struct run_start start;
 	struct run_models models;
@@ -394,9 +396,11 @@ int voe_game_run(const char *title, voe_game_window window)
 		// and in the run's arena for as long as the window lives: 20 KB,
 		// too much for a small stack.
 		casters = voe_base_arena_push(arena, sizeof(*casters));
+		// Its LOD memory beside it (0501 point 1), as long-lived.
+		lods = voe_3d_lods_kept_create(arena);
 		if (run_frames(app, world_arena, start.world, &start.shapes,
 			       scratch, interface, &sound, &models, casters,
-			       &log, counting))
+			       lods, &log, counting))
 			status = 0;
 		voe_platform_sound_destroy(sound.device);
 		voe_audio_mixer_destroy(sound.mixer);

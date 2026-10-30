@@ -4,16 +4,20 @@
 // an anchored panel over the dock below the bar, drawn and read the way
 // assets_ask.h's Delete question is.
 //
-// A LOD'S ROW is its name, share, swap and triangles (0435 points 1, 2). The
-// share is its triangles in percent of LOD 1's, a number box in tenths, kept
-// below the share before it and at least a tenth per LOD from it on; the
-// later ones at or above it are pushed down a tenth below the one before. The
-// swap multiplies the distance its error allows, a number box in tenths, ×0.1
-// to ×10. The triangles are the file's, as voe_game_models_levels_triangles
-// counts them, "—" when not known. A model's own levels hide the LODs row and
-// show each share as a label, measured against LOD 1. The columns have headers,
-// "Triangles kept", "Swap distance" and "Triangles", each column one fixed
-// width; a line under the rows explains the swap (0437 points 5, 6).
+// A LOD'S ROW is its name, share, swap, swap distance and triangles (0435
+// points 1, 2). The share is its triangles in percent of LOD 1's, a number box
+// in tenths, kept below the share before it and at least a tenth per LOD from
+// it on; the later ones at or above it are pushed down a tenth below the one
+// before. The swap multiplies the distance its error allows, a number box in
+// tenths, ×0.1 to ×10. The swap distance is the metres at which that LOD swaps
+// in for the model at scale 1 through a new camera's lens, after the cap and
+// the 1.25 spread, following the typed swaps as they change; "—" with no fresh
+// levels file or past the file's LODs (0500 point 3). The triangles are the
+// file's, as voe_game_models_levels_summarise counts them, "—" when not known.
+// A model's own levels hide the LODs row and show each share as a label,
+// measured against LOD 1. The columns have headers, "Triangles kept", "Swap",
+// "Swap distance" and "Triangles", each column one fixed width; a line under
+// the rows explains the swap (0437 points 5, 6).
 //
 //     voe_editor_levels_ask_open(&ask, project_folder, "Assets/a.glb", scratch);
 //     voe_editor_levels_ask_draw(ui, &ask, top);
@@ -40,11 +44,13 @@
 // Constraints. A save refuses a `.parts` that is there but will not read,
 // rather than write over its materials with an empty file. The path is cut at
 // VOE_3D_MODEL_PATH bytes, as session.h's `prepare_path` holds it. The column
-// widths are millimetres sized at 100 % text, so a larger text size sticks out
-// of them; measuring the cells last frame, as assets_menu.c does, would lift it.
+// widths are millimetres sized at 100 % text, so a larger text size, or a swap
+// distance past 99999.9 m, sticks out of them; measuring the cells last frame,
+// as assets_menu.c does, would lift it.
 #pragma once
 
 #include <3d/model_component.h>
+#include <3d/model_levels.h>
 
 #include <assets/parts.h>
 
@@ -65,13 +71,8 @@ typedef struct {
 	voe_assets_levels levels;
 	// The levels as opening read them, which a swap-only Make is told by.
 	voe_assets_levels opened;
-	// Each level's triangles, the first `known` of them read on opening, 0
-	// when the `.glb` would not read; `own` and `fresh` as
-	// voe_game_models_levels_triangles says.
-	uint32_t triangles[VOE_ASSETS_LEVELS];
-	uint32_t known;
-	bool own;
-	bool fresh;
+	// The levels as voe_game_models_levels_summarise read them on opening.
+	voe_3d_model_levels_summary summary;
 	// Kept here because a label's text is drawn after the call that made it.
 	char title[VOE_3D_MODEL_PATH + sizeof "LODs of "];
 	// Per level index, each the longest it can be: a share measured on own
@@ -79,6 +80,9 @@ typedef struct {
 	char row_names[VOE_ASSETS_LEVELS][sizeof "LOD 6"];
 	char row_shares[VOE_ASSETS_LEVELS][sizeof "4.29497e+11 %"];
 	char row_swaps[VOE_ASSETS_LEVELS][sizeof "×0.123457"];
+	// A float's largest metres at one decimal; "—" is shorter.
+	char row_distances[VOE_ASSETS_LEVELS]
+			  [sizeof "340282346638528859811704939345611489280.0 m"];
 	char row_triangles[VOE_ASSETS_LEVELS][sizeof "4294967295"];
 	voe_ui_node panel;
 	voe_ui_node count_buttons[VOE_ASSETS_LEVELS];
@@ -117,8 +121,8 @@ voe_editor_levels_ask_answer
 voe_editor_levels_ask_read(const voe_ui_context *ui, voe_editor_levels_ask *ask,
 			   bool pointer_down, voe_math_float2 at);
 
-// Whether Make needs no levels made: the levels file is `fresh` and either
-// `own`, or the count and shares are as `opened` had them.
+// Whether Make needs no levels made: the summary's levels file is `fresh` and
+// either `own`, or the count and shares are as `opened` had them.
 bool voe_editor_levels_ask_swaps_only(const voe_editor_levels_ask *ask);
 
 // The `.parts` read (none: an empty one naming no material), its levels set to

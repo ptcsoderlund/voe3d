@@ -105,8 +105,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   the eye and the eye less the drift wrapped into the period, both in double.
 - `draw_models.h` — the model rows' walk, taking the frame's grounds, its part count for the
   blended group's room and the entry and landscape test the landscape walk shares; internal.
-- `draw_models.c` — each model row's parts at the camera's level, solid drawn now, dissolving into
-  the level before, blended or fading ones held, unseen rows counted, and a row blending with the
+- `draw_models.c` — each model row's parts at the LOD the frame's memory keeps, solid drawn now,
+  dissolving from the LOD before a swap, blended or fading ones held, unseen rows counted, and a row blending with the
   ground filled with it, its solid parts last in the `ground blend` span.
 - `draw_ground.h` — a frame's painted grounds, the one under a point and a part's record filled
   with one; internal.
@@ -117,7 +117,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   solid draws, blending ones in a `foliage blend` span, and cast draws, and why rest groups and a
   shadowless kind's do not cast; internal.
 - `draw_foliage.c` — the foliage gathering: each drawn landscape row's own then grown copies given
-  level and tier, a blending kind's keyed by its row's ground, written as instances in one call;
+  tier then a kept or, unseen, stateless level, a blending kind's keyed by its row's ground,
+  written as instances in one call;
   then each group's instanced draw.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended unless outside the pass's planes, and why one eye chooses the same nodes in
@@ -198,7 +199,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   and index checked.
 - `models_levels.c` — a `.glb`'s levels beside its parts, as the prepare baked or read them: own
   levels joined by material, or made levels' indices shared over level 0's vertices, each bounded
-  by the file's error and swap; the level-0 mirror and the free.
+  through voe_3d_model_levels_bounds; the level-0 mirror and the free.
 - `models_landscape.c` — a landscape's grid copied with its layers, paint, foliage kinds and
   copies, each placed, its grown copies made, uploaded as heights, paint and a pyramid; brushes
   and puts growing its dirt, placing copies again and remaking the grown; renames following.
@@ -229,10 +230,11 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `simplify.c` — the weld, each vertex's side, the plane sums and a heap of stamped collapses
   popped cheapest first, a seam line's re-pointed by side and a soft position's onto the kept
   vertex, each refused past 90° of turn.
-- `model_levels.c` — a `.glb`'s levels file made with no picture decoded (level 0 baked, each
-  part simplified to its share level by level, no pool, or own levels baked and measured),
-  written and read back with stale fields refused,
-  its swaps patched in place, and each level's triangles.
+- `model_levels.c` — a `.glb`'s levels file made with no picture decoded (simplified level by
+  level, or own levels measured), read back with stale fields refused, its swaps patched in
+  place; each level's triangles, the bounds capped and spread, and a bound's metres.
+- `lods_kept.c` — a view's kept LODs: two stamped tables probed from a mixed key, this frame's
+  filled and last frame's read, the swap rule over model_levels.c's size and level, and the keys.
 - `measure.h` — how far apart two bakes are, both ways, vertex to nearest triangle, for an own
   level's error; internal.
 - `measure.c` — each way's triangles in a grid of about one a cell, searched ring by ring out

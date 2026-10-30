@@ -60,6 +60,7 @@
 // (VOE_3D_MODELS) ends an update, said once; a larger store would lift it.
 #pragma once
 
+#include <3d/model_levels.h>
 #include <3d/models.h>
 
 #include <base/arena.h>
@@ -202,15 +203,14 @@ unsigned voe_game_models_stale(const char *folder, const char *const *paths,
 					voe_base_arena *scratch,
 					voe_game_progress *progress);
 
-// Each level's triangles of `<folder>/<path>` into `triangles`, as
-// voe_3d_model_levels_triangles counts them with its levels file in the Cache
-// when there: how many levels it wrote, `*own` and `*fresh` as that call says;
-// 0 when the `.glb` will not read. Never makes or writes a file; scratch
-// rewound. For the editor's LODs panel (0435 point 4).
-uint32_t voe_game_models_levels_triangles(const char *folder, const char *path,
-					  voe_base_arena *scratch,
-					  uint32_t triangles[VOE_3D_MODEL_LEVELS],
-					  bool *own, bool *fresh);
+// The summary of `<folder>/<path>`'s levels into `out`, as
+// voe_3d_model_levels_summarise makes it with its levels file in the Cache
+// when there; all nought, `out->count` 0, when the `.glb` will not read.
+// Never makes or writes a file; scratch rewound. For the editor's LODs panel
+// (0435 point 4, 0500 point 3).
+void voe_game_models_levels_summarise(const char *folder, const char *path,
+				      voe_base_arena *scratch,
+				      voe_3d_model_levels_summary *out);
 
 // A prepare rewrites only the levels file, which no stamp covers, so the
 // watch would keep drawing the levels it loaded (0431).

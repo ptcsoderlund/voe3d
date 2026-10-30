@@ -3,10 +3,13 @@
 // (0433), then per
 // view in use one row, "View <n>: LOD <k> of <count>, made" or "..., own", k
 // counted from one, the full model LOD 1 (0434), or "View <n>: LOD 1 of 1" for
-// a model without levels. It shows what is drawn, so it
-// asks voe_3d_model_level (3d/model_levels.h), the very function the draws
-// choose with, with the view's own pass camera and eye and the thing's world
-// place; a picture, landscape or material gets no section.
+// a model without levels. It shows the LOD each view keeps, as its draws
+// chose it last: the `level` voe_3d_lods_kept_find (3d/lods_kept.h) gives for
+// the thing's row key in the view's `lods`, so a copy creeping back inside the
+// 10% shows the coarser LOD. Not drawn yet, or no memory, it falls back to the
+// distance's LOD, voe_3d_model_level (3d/model_levels.h) with the view's own
+// pass camera and eye and the thing's world place. A picture, landscape or
+// material gets no section.
 //
 //     voe_editor_inspector_level_draw(ui, &inspector->level, store, world,
 //                                     selected, views);         // inspector.c

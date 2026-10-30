@@ -22,24 +22,26 @@
 //    0.05) on the −z axis of a 60° projection, the distances from its P[1][1]:
 //    0 with the eye inside, 0 at 2 m, 1 where s is 0.1, 2 where s is 0.01, and
 //    below 2 there when scaled by 10.
-// 10. A view's choice on 9's entry, in level 1's band from 0.2 down to 0.16,
-//     where s is about 0.19: level 1 showing 0.25 of its pixels (within 0.01).
-// 11. Where s is about 0.15, below the band: level 1, whole.
-// 12. With the third bound 0.19, narrowing the band, s about 0.195: level 1
-//     showing 0.5 (within 0.05).
-// 13. The eye inside the sphere: level 0, whole.
-// 14. At each of 9's distances, voe_3d_model_level is the choice's level.
-// 15. The sphere made with swaps 1, 2, 0.5, 1, 1, 1: read gives them back; at
+// 10. voe_3d_model_level_at on 9's entry: level 0 at s infinite and at 0.2, a
+//     bound not above itself; 1 just under 0.2 and at 0.05; 2 under 0.05. With
+//     one level, 0 at any s.
+// 11. The sphere made with swaps 1, 2, 0.5, 1, 1, 1: read gives them back; at
 //     the defaults, all 1.
-// 16. 1's sphere, made with VOE_ASSETS_LEVELS_DEFAULT: `level_count` above 4.
-// 17. The defaults' file with swap 3 on level 2 set by _swaps_set: still read,
+// 12. 1's sphere, made with VOE_ASSETS_LEVELS_DEFAULT: `level_count` above 4.
+// 13. The defaults' file with swap 3 on level 2 set by _swaps_set: still read,
 //     `swaps[2]` 3, its indices and errors unchanged.
-// 18. _triangles of 3's sphere: 2, `own`, each above nought and level 1's
-//     below level 0's; `fresh` false with NULL levels, true with its file.
-// 19. _triangles of 1's sphere with the defaults' file: its `level_count`,
-//     level 0 the sphere's triangles, level k its index counts' sum ÷ 3, not
-//     `own`; with NULL levels, 1.
-// 20. _triangles of bytes that are no `.glb`: 0.
+// 14. _summarise of 3's sphere: 2 levels, `own`, each's triangles above nought
+//     and level 1's below level 0's; `fresh` false with NULL levels, true
+//     with its file, `errors[1]` then the file's.
+// 15. _summarise of 1's sphere with the defaults' file: its `level_count`,
+//     level 0 the sphere's triangles, level k its index counts' sum ÷ 3 and
+//     the file's error, radius above nought, not `own`; with NULL levels or a
+//     stale file, 1 level and all errors nought.
+// 16. _summarise of bytes that are no `.glb`: count 0.
+// 17. _bounds of errors rising per level under swaps 0.2, 0.5, 0.5, 1, 0.8:
+//     none above 1, each at most the one before ÷ 1.25 (0495, 0500 point 5);
+//     an error of nought gives 1, capped, not infinity; unmeasured, 2^-k.
+// 18. _metres at a 60° lens: a bound of 1 is radius × √3; infinite, 0.
 #include <3d/model_levels.h>
 #include <3d/projection.h>
 
@@ -60,7 +62,7 @@
 #define SEGMENTS 64
 #define TRIANGLES (SEGMENTS * (RINGS - 1) * 2)
 
-// 17 on the defaults' `file`, a copy of it patched.
+// 13 on the defaults' `file`, a copy of it patched.
 static void swaps_patched(voe_base_arena *arena, const uint8_t *file,
 			  size_t size, const uint8_t *glb, size_t glb_size)
 {
@@ -89,28 +91,43 @@ static void swaps_patched(voe_base_arena *arena, const uint8_t *file,
 	}
 }
 
-// 19 on the defaults' `file` and its read `levels`.
-static void made_triangles(voe_base_arena *arena, const uint8_t *glb,
-			   size_t glb_size, const uint8_t *file, size_t size,
-			   const voe_3d_model_levels *levels)
+// 15 on the defaults' `file` and its read `levels`.
+static void made_summary(voe_base_arena *arena, const uint8_t *glb,
+			 size_t glb_size, const uint8_t *file, size_t size,
+			 const voe_3d_model_levels *levels)
 {
-	uint32_t triangles[VOE_3D_MODEL_LEVELS] = {};
-	bool own = true;
-	bool fresh = false;
-	const uint32_t count = voe_3d_model_levels_triangles(
-		arena, glb, glb_size, file, size, triangles, &own, &fresh);
+	voe_3d_model_levels_summary summary;
+	uint8_t *stale;
 
-	VOE_TEST_CHECK_INT(count, levels->level_count);
-	VOE_TEST_CHECK(!own);
-	VOE_TEST_CHECK(fresh);
-	VOE_TEST_CHECK_INT(triangles[0], TRIANGLES);
-	for (uint32_t k = 1; k < count && k < VOE_3D_MODEL_LEVELS; k++)
-		VOE_TEST_CHECK_INT(triangles[k], levels->index_counts[k][0] / 3);
-	VOE_TEST_CHECK_INT(voe_3d_model_levels_triangles(arena, glb, glb_size,
-							 NULL, 0, triangles,
-							 &own, &fresh),
-			   1);
-	VOE_TEST_CHECK(!fresh);
+	voe_3d_model_levels_summarise(arena, glb, glb_size, file, size,
+				      &summary);
+	VOE_TEST_CHECK_INT(summary.count, levels->level_count);
+	VOE_TEST_CHECK(!summary.own);
+	VOE_TEST_CHECK(summary.fresh);
+	VOE_TEST_CHECK(summary.radius > 0.0f);
+	VOE_TEST_CHECK_INT(summary.triangles[0], TRIANGLES);
+	VOE_TEST_CHECK(summary.errors[0] == 0.0f);
+	for (uint32_t k = 1; k < summary.count && k < VOE_3D_MODEL_LEVELS;
+	     k++) {
+		VOE_TEST_CHECK_INT(summary.triangles[k],
+				   levels->index_counts[k][0] / 3);
+		VOE_TEST_CHECK(summary.errors[k] == levels->errors[k]);
+	}
+	voe_3d_model_levels_summarise(arena, glb, glb_size, NULL, 0, &summary);
+	VOE_TEST_CHECK_INT(summary.count, 1);
+	VOE_TEST_CHECK(!summary.fresh);
+	for (uint32_t k = 0; k < VOE_3D_MODEL_LEVELS; k++)
+		VOE_TEST_CHECK(summary.errors[k] == 0.0f);
+	// A stale file, one byte of its hash changed: all errors nought.
+	stale = voe_base_arena_push(arena, size);
+	memcpy(stale, file, size);
+	stale[8] ^= 1;
+	voe_3d_model_levels_summarise(arena, glb, glb_size, stale, size,
+				      &summary);
+	VOE_TEST_CHECK_INT(summary.count, 1);
+	VOE_TEST_CHECK(!summary.fresh);
+	for (uint32_t k = 0; k < VOE_3D_MODEL_LEVELS; k++)
+		VOE_TEST_CHECK(summary.errors[k] == 0.0f);
 }
 
 static void sphere_levels(voe_base_arena *arena)
@@ -134,7 +151,7 @@ static void sphere_levels(voe_base_arena *arena)
 	VOE_TEST_CHECK(!levels.own);
 	VOE_TEST_CHECK_INT(levels.part_count, 1);
 	VOE_TEST_CHECK(levels.level_count >= 3);
-	// 16
+	// 12
 	VOE_TEST_CHECK(levels.level_count > 4);
 	for (uint32_t k = 1; k < levels.level_count; k++) {
 		const uint64_t triangles = levels.index_counts[k][0] / 3;
@@ -144,7 +161,7 @@ static void sphere_levels(voe_base_arena *arena)
 		VOE_TEST_CHECK(levels.errors[k] >= levels.errors[k - 1]);
 		previous = triangles;
 	}
-	made_triangles(arena, glb, glb_size, file, size, &levels);
+	made_summary(arena, glb, glb_size, file, size, &levels);
 
 	// 2: stale three ways.
 	changed = voe_base_arena_push(arena, glb_size);
@@ -213,7 +230,7 @@ static void levels_asked(voe_base_arena *arena)
 		       0.1 * 0.8 * TRIANGLES);
 	VOE_TEST_CHECK(levels.index_counts[2][0] / 3 <= 0.15 * TRIANGLES);
 
-	// 15
+	// 11
 	asked = VOE_ASSETS_LEVELS_DEFAULT;
 	memcpy(asked.swaps, swaps, sizeof(swaps));
 	VOE_TEST_CHECK(sphere_made(arena, asked, &levels));
@@ -234,9 +251,7 @@ static void own_levels(voe_base_arena *arena)
 		voe_3d_model_levels_make(arena, glb, glb_size,
 					 VOE_ASSETS_LEVELS_DEFAULT, &size, &error);
 	voe_3d_model_levels levels = {};
-	uint32_t triangles[VOE_3D_MODEL_LEVELS] = {};
-	bool own = false;
-	bool fresh = true;
+	voe_3d_model_levels_summary summary;
 
 	VOE_TEST_CHECK(file != NULL);
 	if (file == NULL)
@@ -247,20 +262,19 @@ static void own_levels(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(levels.level_count, 2);
 	VOE_TEST_CHECK(isfinite(levels.errors[1]) && levels.errors[1] > 0.0f);
 
-	// 18
-	VOE_TEST_CHECK_INT(voe_3d_model_levels_triangles(arena, glb, glb_size,
-							 NULL, 0, triangles,
-							 &own, &fresh),
-			   2);
-	VOE_TEST_CHECK(own);
-	VOE_TEST_CHECK(!fresh);
-	VOE_TEST_CHECK(triangles[1] > 0 && triangles[1] < triangles[0]);
-	VOE_TEST_CHECK_INT(voe_3d_model_levels_triangles(arena, glb, glb_size,
-							 file, size, triangles,
-							 &own, &fresh),
-			   2);
-	VOE_TEST_CHECK(own);
-	VOE_TEST_CHECK(fresh);
+	// 14
+	voe_3d_model_levels_summarise(arena, glb, glb_size, NULL, 0, &summary);
+	VOE_TEST_CHECK_INT(summary.count, 2);
+	VOE_TEST_CHECK(summary.own);
+	VOE_TEST_CHECK(!summary.fresh);
+	VOE_TEST_CHECK(summary.triangles[1] > 0 &&
+		       summary.triangles[1] < summary.triangles[0]);
+	voe_3d_model_levels_summarise(arena, glb, glb_size, file, size,
+				      &summary);
+	VOE_TEST_CHECK_INT(summary.count, 2);
+	VOE_TEST_CHECK(summary.own);
+	VOE_TEST_CHECK(summary.fresh);
+	VOE_TEST_CHECK(summary.errors[1] == levels.errors[1]);
 }
 
 static void not_a_glb(voe_base_arena *arena)
@@ -268,15 +282,12 @@ static void not_a_glb(voe_base_arena *arena)
 	static const char text[] = "not a model at all, only words";
 	voe_base_error error = VOE_BASE_OK;
 	size_t size = 0;
-	uint32_t triangles[VOE_3D_MODEL_LEVELS] = {};
-	bool own = false;
-	bool fresh = false;
+	voe_3d_model_levels_summary summary;
 
-	// 20
-	VOE_TEST_CHECK_INT(voe_3d_model_levels_triangles(
-				   arena, (const uint8_t *)text, sizeof(text),
-				   NULL, 0, triangles, &own, &fresh),
-			   0);
+	// 16
+	voe_3d_model_levels_summarise(arena, (const uint8_t *)text,
+				      sizeof(text), NULL, 0, &summary);
+	VOE_TEST_CHECK_INT(summary.count, 0);
 	VOE_TEST_CHECK(voe_3d_model_levels_make(arena,
 						(const uint8_t *)text,
 						sizeof(text),
@@ -298,50 +309,17 @@ static uint32_t level_at(const voe_3d_model_entry *model,
 	return voe_3d_model_level(model, &placed, (voe_math_double3){ 0 }, view);
 }
 
-static voe_3d_model_level_choice choice_at(const voe_3d_model_entry *model,
-					   const voe_render_view *view,
-					   double distance, float scale)
+// 10 on view_levels' entry; its level count is put back.
+static void level_at_follows_the_bounds(voe_3d_model_entry *model)
 {
-	const voe_scene_transform placed = {
-		.position = { 0.0, 0.0, -distance },
-		.rotation = { 0.0f, 0.0f, 0.0f, 1.0f },
-		.scale = { scale, scale, scale },
-	};
-
-	return voe_3d_model_level_choose(model, &placed, (voe_math_double3){ 0 },
-					 view);
-}
-
-// 10 to 14 on view_levels' entry and view; its third bound is put back.
-static void view_shares(voe_3d_model_entry *model, const voe_render_view *view)
-{
-	const double focal = view->projection.m[1][1];
-	const double distances[] = { 0.5, 2.0, focal / 0.1, focal / 0.01 };
-	voe_3d_model_level_choice choice;
-
-	// 10, 11, 13
-	choice = choice_at(model, view, focal / 0.19, 1.0f);
-	VOE_TEST_CHECK_INT(choice.level, 1);
-	VOE_TEST_CHECK(fabsf(choice.shown - 0.25f) < 0.01f);
-	choice = choice_at(model, view, focal / 0.15, 1.0f);
-	VOE_TEST_CHECK_INT(choice.level, 1);
-	VOE_TEST_CHECK(choice.shown == 1.0f);
-	choice = choice_at(model, view, 0.5, 1.0f);
-	VOE_TEST_CHECK_INT(choice.level, 0);
-	VOE_TEST_CHECK(choice.shown == 1.0f);
-	// 14
-	for (size_t i = 0; i < sizeof(distances) / sizeof(distances[0]); i++)
-		VOE_TEST_CHECK_INT(level_at(model, view, distances[i], 1.0f),
-				   choice_at(model, view, distances[i], 1.0f).level);
-	VOE_TEST_CHECK_INT(level_at(model, view, focal / 0.01, 10.0f),
-			   choice_at(model, view, focal / 0.01, 10.0f).level);
-
-	// 12
-	model->levels[2].bound = 0.19f;
-	choice = choice_at(model, view, focal / 0.195, 1.0f);
-	VOE_TEST_CHECK_INT(choice.level, 1);
-	VOE_TEST_CHECK(fabsf(choice.shown - 0.5f) < 0.05f);
-	model->levels[2].bound = 0.05f;
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, INFINITY), 0);
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, 0.2f), 0);
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, 0.199f), 1);
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, 0.05f), 1);
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, 0.049f), 2);
+	model->level_count = 1;
+	VOE_TEST_CHECK_INT(voe_3d_model_level_at(model, 0.001f), 0);
+	model->level_count = 3;
 }
 
 static void view_levels(void)
@@ -369,7 +347,45 @@ static void view_levels(void)
 	VOE_TEST_CHECK_INT(level_at(&model, &view, focal / 0.1, 1.0f), 1);
 	VOE_TEST_CHECK_INT(level_at(&model, &view, focal / 0.01, 1.0f), 2);
 	VOE_TEST_CHECK(level_at(&model, &view, focal / 0.01, 10.0f) < 2);
-	view_shares(&model, &view);
+	level_at_follows_the_bounds(&model);
+}
+
+// 17
+static void bounds_are_capped_and_spread(void)
+{
+	const float errors[VOE_3D_MODEL_LEVELS] = { 0,	   0.001f, 0.002f,
+						    0.004f, 0.008f, 0.016f };
+	const float swaps[VOE_3D_MODEL_LEVELS] = { 1, 0.2f, 0.5f, 0.5f, 1, 0.8f };
+	const float lossless[VOE_3D_MODEL_LEVELS] = { 0, 0, 0, 0, 0, 0 };
+	float bounds[VOE_3D_MODEL_LEVELS];
+
+	voe_3d_model_levels_bounds(1.0f, errors, swaps, VOE_3D_MODEL_LEVELS,
+				   true, bounds);
+	VOE_TEST_CHECK(isinf(bounds[0]));
+	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++) {
+		VOE_TEST_CHECK(bounds[k] > 0.0f && bounds[k] <= 1.0f);
+		VOE_TEST_CHECK(bounds[k] <= bounds[k - 1] / 1.25f);
+	}
+	VOE_TEST_CHECK(bounds[1] == 1.0f);
+	VOE_TEST_CHECK(bounds[2] == 1.0f / 1.25f);
+
+	voe_3d_model_levels_bounds(1.0f, lossless, swaps, 2, true, bounds);
+	VOE_TEST_CHECK(bounds[1] == 1.0f);
+
+	voe_3d_model_levels_bounds(1.0f, NULL, NULL, VOE_3D_MODEL_LEVELS, false,
+				   bounds);
+	for (uint32_t k = 1; k < VOE_3D_MODEL_LEVELS; k++)
+		VOE_TEST_CHECK(bounds[k] == ldexpf(1.0f, -(int)k));
+}
+
+// 18
+static void level_metres_follow_the_lens(void)
+{
+	const float fov_y = 1.0471976f; // 60°
+	const float metres = voe_3d_model_level_metres(2.0f, 1.0f, fov_y);
+
+	VOE_TEST_CHECK(fabsf(metres - 2.0f * sqrtf(3.0f)) < 1e-4f);
+	VOE_TEST_CHECK(voe_3d_model_level_metres(2.0f, INFINITY, fov_y) == 0.0f);
 }
 
 int main(void)
@@ -383,6 +399,8 @@ int main(void)
 	not_a_glb(arena);
 	levels_asked(arena);
 	view_levels();
+	bounds_are_capped_and_spread();
+	level_metres_follow_the_lens();
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

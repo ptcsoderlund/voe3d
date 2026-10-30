@@ -28,9 +28,9 @@
 // its parts', in model metres. A level not below the one before in triangles
 // ends the list: it and the ones after are dropped. Level k swaps in at its own
 // `levels.swaps[k]` times the distance its error allows (0436 point 4), not
-// times the level before's. One that lands at or nearer than the level before
-// is pushed out to it (0435 point 2), and of two at one distance the later is
-// drawn: the earlier never shows. Swaps 1 1 1 2 1 most often skip level 4.
+// times the level before's; then capped at s = 1 and each at least 1.25 times
+// as far as the one before, applied when read and never written back (0500
+// points 2, 4, 5), as voe_3d_model_levels_bounds says.
 //
 // A FILE WITH ITS OWN LEVELS (0435 point 3, 0436 point 6): a node named `_LOD1`
 // to `_LOD5` anywhere makes the file `own`, never simplified, no parts; each
@@ -49,15 +49,14 @@
 // not finite and at least nought, a swap not finite and above nought, bytes
 // cut short or left over: _read says false and the file is made again.
 //
-// THE CHOICE HAS NO STATE (0425 point 3), so every asker gets one answer. `s` =
-// world radius × |P[1][1]| ÷ the centre's clip w, the world radius the model's
-// radius times its largest scale component: the radius as a fraction of half
-// the screen. The level is the largest k below `level_count` whose
-// `levels[k].bound` b_k is above `s`; level 0 when the eye is inside the world
-// sphere, when the w is not above nought, or for an entry with one level. From
-// b_k down to low, the larger of 0.8 × b_k and b_(k+1), is a band (0432 point
-// 3): `shown` = (b_k − s) ÷ (b_k − low), level k − 1 drawing the rest; whole
-// below it, for level 0 and an infinite bound.
+// THE SIZE AND THE LEVEL HAVE NO STATE (0425 point 3): _size, _at and
+// voe_3d_model_level answer alike for every asker. `s` = world radius ×
+// |P[1][1]| ÷ the centre's clip w, the world radius the model's radius times
+// its largest scale component: the radius as a fraction of half the screen.
+// The level is the largest k below `level_count` whose `levels[k].bound` is
+// above `s`; level 0 when the eye is inside the world sphere, when the w is not
+// above nought, or for an entry with one level. A view's kept choice and its
+// dissolve live in lods_kept.h (0500 point 1, 0501).
 #pragma once
 
 #include <3d/models.h>
@@ -130,35 +129,76 @@ voe_3d_model_levels_make(voe_base_arena *arena,
 void voe_3d_model_levels_swaps_set(uint8_t *bytes, size_t size,
 				   const float swaps[VOE_3D_MODEL_LEVELS]);
 
-// Each level's triangles into `triangles`, for the LODs panel: how many levels
-// it wrote, 0 when `glb` will not parse or bake. `*own` whether the `.glb` has
-// its own levels, `*fresh` whether `levels` read as a fresh file of it. Own:
-// each own level's bake, ending as _make ends. Made: level 0's bake, then a
-// fresh file's index counts ÷ 3 per level; level 0 alone when `levels` is NULL
-// or stale. No picture decoded. Everything on `arena`, the caller rewinding.
-uint32_t voe_3d_model_levels_triangles(voe_base_arena *arena,
-				       const uint8_t *glb, size_t glb_size,
-				       const uint8_t *levels, size_t levels_size,
-				       uint32_t triangles[VOE_3D_MODEL_LEVELS],
-				       bool *own, bool *fresh);
-
-// A view's choice of a model's level.
+// What the LODs panel shows of a `.glb`'s levels.
 typedef struct {
-	// The level, as voe_3d_model_level answers.
+	// Levels written; 0 when the `.glb` will not parse or bake.
+	uint32_t count;
+	// Each level's triangles.
+	uint32_t triangles[VOE_3D_MODEL_LEVELS];
+	// Each level's error in model metres, a fresh file's; level 0's nought,
+	// all nought when the file is not fresh.
+	float errors[VOE_3D_MODEL_LEVELS];
+	// Level 0's bounding radius, the store's sphere: the farthest baked
+	// vertex from its box's centre.
+	float radius;
+	// The `.glb` has its own levels.
+	bool own;
+	// The levels file read as a fresh file of the `.glb`.
+	bool fresh;
+} voe_3d_model_levels_summary;
+
+// The summary of `glb`'s levels into `out`, for the LODs panel; all nought
+// when `glb` will not parse or bake. Triangles, own: each own level's bake,
+// ending as _make ends. Made: level 0's bake, then a fresh file's index counts
+// ÷ 3 per level; level 0 alone when `levels` is NULL or stale. Errors: the
+// fresh file's, own or made. Radius: level 0's bake's. No picture decoded.
+// Everything on `arena`, the caller rewinding.
+void voe_3d_model_levels_summarise(voe_base_arena *arena, const uint8_t *glb,
+				   size_t glb_size, const uint8_t *levels,
+				   size_t levels_size,
+				   voe_3d_model_levels_summary *out);
+
+// Each level's bound, the screen size `s` it is drawn under, for a model of
+// `radius` whose levels have `errors` and `swaps`, into `bounds`: every bound
+// the store and the LODs panel use comes from here. `bounds[0]` INFINITY; level
+// k >= 1 is 0.002 × radius ÷ errors[k] ÷ swaps[k] when `measured` (INFINITY for
+// error nought), 2^-k when not (an own file with no measures), neither array
+// then read; then each capped at 1 (0500 point 5); then each at most the one
+// before ÷ 1.25 (0495 point 1). Entries at and past `level_count` unwritten.
+void voe_3d_model_levels_bounds(float radius,
+				const float errors[VOE_3D_MODEL_LEVELS],
+				const float swaps[VOE_3D_MODEL_LEVELS],
+				uint32_t level_count, bool measured,
+				float bounds[VOE_3D_MODEL_LEVELS]);
+
+// The distance in metres at which a model of `radius` at scale 1, seen through
+// a lens of `fov_y` radians, is `bound` on screen: radius ÷ tan(fov_y ÷ 2) ÷
+// bound; 0 for an infinite bound.
+float voe_3d_model_level_metres(float radius, float bound, float fov_y);
+
+// A view's choice of a model's level, as lods_kept.h keeps and dissolves it.
+typedef struct {
+	// The level drawing `shown` of the model's pixels.
 	uint32_t level;
-	// In (0, 1]: the share of the model's pixels `level` draws, `level` − 1
-	// drawing the rest when under 1; 1 for level 0.
+	// The level drawing the pixels `level` does not; `level` when settled.
+	uint32_t from;
+	// In [0, 1]: the share of the pixels `level` draws, `from` drawing the
+	// rest; 1 when settled.
 	float shown;
 } voe_3d_model_level_choice;
 
-// The level `view` draws of `model` placed at `placed`, the view about `eye`
-// (eye-relative, 0250), and its share, as the paragraph above says.
-voe_3d_model_level_choice
-voe_3d_model_level_choose(const voe_3d_model_entry *model,
-			  const voe_scene_transform *placed,
-			  voe_math_double3 eye, const voe_render_view *view);
+// `s` of `model` placed at `placed`, seen by `view` about `eye` (eye-relative,
+// 0250), as the paragraph above defines it; INFINITY when the eye is inside
+// the world sphere or the centre's clip w is not above nought.
+float voe_3d_model_level_size(const voe_3d_model_entry *model,
+			      const voe_scene_transform *placed,
+			      voe_math_double3 eye, const voe_render_view *view);
 
-// voe_3d_model_level_choose's level.
+// The largest k below `model->level_count` whose `levels[k].bound` is above
+// `s`, else 0.
+uint32_t voe_3d_model_level_at(const voe_3d_model_entry *model, float s);
+
+// voe_3d_model_level_at of voe_3d_model_level_size: the level with no memory.
 uint32_t voe_3d_model_level(const voe_3d_model_entry *model,
 			    const voe_scene_transform *placed,
 			    voe_math_double3 eye, const voe_render_view *view);

@@ -59,7 +59,9 @@
 
 #include <3d/bounce_casters.h>
 #include <3d/draw_system.h>
+#include <3d/lods_kept.h>
 
+#include <base/arena.h>
 #include <base/error.h>
 
 #include <ecs/world.h>
@@ -126,6 +128,9 @@ typedef struct {
 	// Where the casters of this view's last bounce stood, feeding the bounce
 	// of `target` alone; only 3d writes it (0394).
 	voe_3d_bounce_casters casters;
+	// This view's kept LODs (0501 point 1), made and begun once by
+	// voe_editor_views_create, then written only by 3d's draws.
+	voe_3d_lods_kept *lods;
 	// The size the target was last asked to be, in pixels, which is the size
 	// its picture is drawn at and the aspect ratio's source.
 	uint32_t width;
@@ -168,7 +173,8 @@ typedef struct {
 // from. `flying` is the view the fly started over, VOE_EDITOR_VIEW_NONE when none.
 // Each view and the preview hold remembered casters of about 20 KB (0394), so
 // the struct is about 100 KB; main.c keeps it in a local, inside every
-// platform's default main-thread stack.
+// platform's default main-thread stack. Their kept LODs are on the arena,
+// only pointers here.
 typedef struct {
 	voe_editor_view views[VOE_EDITOR_VIEWS];
 	uint32_t count;
@@ -187,6 +193,8 @@ typedef struct {
 	// Where the casters of the preview's last bounce stood, feeding the
 	// bounce of `preview_target` alone; only 3d writes it (0394).
 	voe_3d_bounce_casters preview_casters;
+	// The preview's kept LODs (0501 point 1), as a view's `lods`.
+	voe_3d_lods_kept *preview_lods;
 
 	// The pictures drawn this frame, in drawing order: the preview, then
 	// each shown view. Only view_passes writes them; the Frame panel reads
@@ -198,10 +206,13 @@ typedef struct {
 // Sets every view in use to its initial camera — view 0 from the front and
 // above, view 1 from the side, both looking at the origin until
 // voe_editor_views_focus_camera moves them — and makes each one a target, then
-// the preview's. A startup operation, because making a target is.
+// the preview's. A startup operation, because making a target is. Each of the
+// VOE_EDITOR_VIEWS views and the preview gets its kept LODs on `arena`, 12 MiB
+// each (lods_kept.h), living as long as the arena.
 //
 // False when `render` refused a target, which has already said why on stderr.
 [[nodiscard]] bool voe_editor_views_create(voe_editor_views *views,
+					   voe_base_arena *arena,
 					   voe_render_device *gpu,
 					   voe_base_error *error);
 

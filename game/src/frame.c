@@ -26,6 +26,8 @@
 #include <physics/body_system.h>
 #include <physics/collider_system.h>
 
+#include <platform/clock.h>
+
 #include <scene/haze_system.h>
 #include <scene/identity_system.h>
 #include <scene/light_blocker_system.h>
@@ -88,8 +90,8 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 		    const voe_3d_shapes *shapes, const voe_3d_models *models,
 		    voe_base_arena *scratch,
 		    voe_platform_size size, float lag,
-		    voe_3d_bounce_casters *casters, const voe_ui_context *ui,
-		    voe_3d_view_counts *counts)
+		    voe_3d_bounce_casters *casters, voe_3d_lods_kept *lods,
+		    const voe_ui_context *ui, voe_3d_view_counts *counts)
 {
 	voe_render_device *device;
 	voe_render_pass_camera camera;
@@ -117,6 +119,11 @@ bool voe_game_frame(voe_app *app, voe_ecs_world *world,
 	frame = voe_3d_draw_system_frame(world, size, lag);
 	frame.models = models;
 	frame.casters = casters;
+	// Wall time, once a frame drawn and before the shadows choose: a
+	// paused Play still ends a dissolve (0501 point 2).
+	if (lods != NULL)
+		voe_3d_lods_kept_begin(lods, voe_platform_clock_now());
+	frame.lods = lods;
 	// The lights and the foliage's groups stay on `scratch` until the
 	// window pass has drawn them.
 	foliage = voe_base_arena_mark(scratch);

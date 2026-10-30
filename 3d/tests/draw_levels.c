@@ -10,20 +10,29 @@
 // 3. The sphere loaded with NULL levels, 400 m away: over four times check 2's
 //    count. A model without levels is drawn whole at any distance.
 //
-// The dissolve (ADR-0432 points 3 and 4), its distances from the loaded
-// sphere's levels[1].bound and the lens's P[1][1] as model_levels.c works them:
-// 4. Where s is midway through level 1's band: C4, level 1 and level 0 drawn.
-// 5. Where s is just below the band's low end: C5, level 1 alone, and C4 − C5
-//    at least the sphere's level-0 triangles.
-// 6. Case 4's distance with the row's fade 0.5: at most C5, since a held row
-//    is drawn whole at its level and not dissolved.
+// The swap's dissolve through a memory (0500 point 1, 0501), at s from the
+// loaded sphere's levels[1].bound b and the lens's P[1][1] as model_levels.c
+// works them, the memory's clock in seconds, each against N(s), the frame
+// with no memory there:
+// 4. First seen at 1.25 b: N(1.25 b), level 0 alone.
+// 5. At 0.95 b, 0.1 s later the swap's first frame, 0.2 s later: at least
+//    N(0.95 b), level 1 alone, plus level 0's triangles, both drawn.
+// 6. Then with the row's fade 0.5: at most N(0.95 b), since a held row is
+//    drawn whole at its level and not dissolved.
+// 7. 0.3 s after the swap: N(0.95 b), level 1 alone, cascades included.
+// 8. Back at 1.01 b, just inside the bound, two frames: the same twice and
+//    under N(1.01 b), level 1 kept whole.
+// 9. 10% nearer, the swap back's first frame and 0.1 s on: over N, both.
 //
-// Radius 1 on the camera's axis, so both distances are in view; the far plane
-// is past 400 m. Nothing bounces, so no capture adds its last level.
+// Radius 1 on the camera's axis, so every distance is in view; the far plane
+// is past 400 m. Nothing bounces, so no capture adds its last level. Every
+// frame builds its world afresh, the model row the same entity each time, so
+// one key in the memory.
 //
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_model_fade.c does.
 #include <3d/draw_system.h>
+#include <3d/lods_kept.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
@@ -53,7 +62,8 @@
 
 #include "model_glb.inc"
 
-#define SCRATCH (16 * 1024 * 1024)
+// The memory's 12 MiB, and every frame's world, never rewound.
+#define SCRATCH (64 * 1024 * 1024)
 #define SIDE 32
 #define RINGS 32
 #define SEGMENTS 64
@@ -133,10 +143,11 @@ static voe_ecs_world *a_world(voe_base_arena *arena, const char *path,
 }
 
 // One whole frame of `path` `distance` metres away at `fade`: the triangles it
-// drew.
+// drew, through `kept` begun at `now` seconds, none with NULL.
 static uint64_t triangles(voe_base_arena *arena, voe_render_device *device,
 			  const voe_3d_models *models, const char *path,
-			  double distance, float fade)
+			  double distance, float fade, voe_3d_lods_kept *kept,
+			  double now)
 {
 	voe_ecs_world *world = a_world(arena, path, distance, fade);
 	voe_platform_size size = { SIDE, SIDE };
@@ -146,6 +157,9 @@ static uint64_t triangles(voe_base_arena *arena, voe_render_device *device,
 	uint64_t count;
 
 	frame.models = models;
+	if (kept != NULL)
+		voe_3d_lods_kept_begin(kept, now);
+	frame.lods = kept;
 	VOE_TEST_CHECK(voe_render_frame_begin(device, size, &drawing));
 	VOE_TEST_CHECK(drawing);
 	if (!drawing)
@@ -189,9 +203,12 @@ static void draws_use_the_level(voe_base_arena *arena,
 				voe_render_device *device,
 				const voe_3d_models *models)
 {
-	uint64_t near = triangles(arena, device, models, LEVELLED, 3.0, 0.0f);
-	uint64_t far = triangles(arena, device, models, LEVELLED, 400.0, 0.0f);
-	uint64_t whole = triangles(arena, device, models, PLAIN, 400.0, 0.0f);
+	uint64_t near =
+		triangles(arena, device, models, LEVELLED, 3.0, 0.0f, NULL, 0.0);
+	uint64_t far =
+		triangles(arena, device, models, LEVELLED, 400.0, 0.0f, NULL, 0.0);
+	uint64_t whole =
+		triangles(arena, device, models, PLAIN, 400.0, 0.0f, NULL, 0.0);
 
 	VOE_TEST_CHECK(near > 0);
 	VOE_TEST_CHECK(far > 0);
@@ -199,39 +216,52 @@ static void draws_use_the_level(voe_base_arena *arena,
 	VOE_TEST_CHECK(whole > far * 4);
 }
 
-// 4 to 6: the distance at which s is a given value is radius × P[1][1] ÷ s,
+// 4 to 9: the distance at which s is a given value is radius × P[1][1] ÷ s,
 // the sphere's centre being the origin of its row.
-static void a_band_dissolves(voe_base_arena *arena, voe_render_device *device,
+static void a_swap_dissolves(voe_base_arena *arena, voe_render_device *device,
 			     const voe_3d_models *models)
 {
 	const voe_3d_model_entry *ball = voe_3d_models_find(models, LEVELLED);
 	const double focal = voe_3d_projection(LENS, 1.0f).m[1][1];
 	const uint64_t level_0 = SEGMENTS * (RINGS - 1) * 2;
-	double top;
-	double low;
-	uint64_t c4;
-	uint64_t c5;
-	uint64_t c6;
+	voe_3d_lods_kept *kept = voe_3d_lods_kept_create(arena);
+	double near, past, inside, nearer;
+	uint64_t first, both, fading, settled, kept_1, kept_2, back, back_both;
 
 	VOE_TEST_CHECK(ball != NULL && ball->level_count >= 2);
 	if (ball == NULL || ball->level_count < 2)
 		return;
-	top = ball->levels[1].bound;
-	low = 0.8 * top;
-	if (ball->level_count > 2 && ball->levels[2].bound > low)
-		low = ball->levels[2].bound;
-	// Below the band and still level 1's.
+	// Level 2 swaps in below 0.9 × 1.01 b, so 1.01 b keeps level 1.
 	VOE_TEST_CHECK(ball->level_count == 2 ||
-		       0.99 * low > ball->levels[2].bound);
-	c4 = triangles(arena, device, models, LEVELLED,
-		       ball->radius * focal / (0.5 * (top + low)), 0.0f);
-	c5 = triangles(arena, device, models, LEVELLED,
-		       ball->radius * focal / (0.99 * low), 0.0f);
-	c6 = triangles(arena, device, models, LEVELLED,
-		       ball->radius * focal / (0.5 * (top + low)), 0.5f);
-	VOE_TEST_CHECK(c5 > 0);
-	VOE_TEST_CHECK(c4 >= c5 + level_0);
-	VOE_TEST_CHECK(c6 <= c5);
+		       ball->levels[2].bound < 0.85 * ball->levels[1].bound);
+	near = ball->radius * focal / (1.25 * ball->levels[1].bound);
+	past = ball->radius * focal / (0.95 * ball->levels[1].bound);
+	inside = ball->radius * focal / (1.01 * ball->levels[1].bound);
+	nearer = 0.9 * inside;
+
+	first = triangles(arena, device, models, LEVELLED, near, 0.0f, kept, 0.0);
+	(void)triangles(arena, device, models, LEVELLED, past, 0.0f, kept, 0.1);
+	both = triangles(arena, device, models, LEVELLED, past, 0.0f, kept, 0.2);
+	fading = triangles(arena, device, models, LEVELLED, past, 0.5f, kept, 0.3);
+	settled = triangles(arena, device, models, LEVELLED, past, 0.0f, kept, 0.4);
+	kept_1 = triangles(arena, device, models, LEVELLED, inside, 0.0f, kept, 0.5);
+	kept_2 = triangles(arena, device, models, LEVELLED, inside, 0.0f, kept, 0.6);
+	(void)triangles(arena, device, models, LEVELLED, nearer, 0.0f, kept, 0.7);
+	back_both =
+		triangles(arena, device, models, LEVELLED, nearer, 0.0f, kept, 0.8);
+	back = triangles(arena, device, models, LEVELLED, nearer, 0.0f, NULL, 0.0);
+
+	VOE_TEST_CHECK(first == triangles(arena, device, models, LEVELLED, near,
+					  0.0f, NULL, 0.0));
+	VOE_TEST_CHECK(settled == triangles(arena, device, models, LEVELLED,
+					    past, 0.0f, NULL, 0.0));
+	VOE_TEST_CHECK(settled > 0);
+	VOE_TEST_CHECK(both >= settled + level_0);
+	VOE_TEST_CHECK(fading <= settled);
+	VOE_TEST_CHECK(kept_1 == kept_2);
+	VOE_TEST_CHECK(kept_1 < triangles(arena, device, models, LEVELLED,
+					  inside, 0.0f, NULL, 0.0));
+	VOE_TEST_CHECK(back_both > back);
 }
 
 int main(void)
@@ -256,7 +286,7 @@ int main(void)
 	load_spheres(arena, device, models);
 
 	draws_use_the_level(arena, device, models);
-	a_band_dissolves(arena, device, models);
+	a_swap_dissolves(arena, device, models);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);

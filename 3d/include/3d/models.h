@@ -21,7 +21,8 @@
 // levels file, walk level 0's vertices with indices of their own, not compacted
 // copies (0444). Each bound is 0.002 × radius ÷ the file's error (infinite for
 // error nought) ÷ the level's swap, an own level's 2^-k only without a fresh
-// file; then made non-increasing; freed with the parts.
+// file; then capped and spread (voe_3d_model_levels_bounds); freed with the
+// parts.
 //
 // A FAILED ENTRY IS KEPT at its stamp, `loaded` false and no parts, so a broken
 // file asked for each frame is not parsed each frame. A PATH LOADED AGAIN
@@ -121,7 +122,8 @@ typedef struct {
 
 // One level of a model: the geometry each level-0 part draws at it, a zeroed id
 // (generation 0 is never handed out) where the level lacks the part, and the
-// screen size `s` it is drawn under (0425 point 3), ÷ its swap (0436).
+// screen size `s` it is drawn under (0425 point 3), ÷ its swap (0436), capped
+// at 1 and at most the level before's ÷ 1.25 (0495, 0500 point 5).
 typedef struct {
 	voe_render_geometry geometries[VOE_3D_MODEL_PARTS];
 	float bound;

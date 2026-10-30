@@ -49,11 +49,11 @@ again, or to find where a claim that has started failing is written down.
 - `draw_model_fade.c` — that a model on a ground cube seen from above changes the centre at fade 0
   and 0.5, equals no model row at 1, and casts at 0.5 but not at 1. Skips without a graphics card.
 - `draw_levels.c` — that a levelled sphere 400 m away draws under a quarter of the triangles it
-  draws 3 m away, one loaded without levels draws whole, and in level 1's band it dissolves into
-  level 0 unless fading. Skips without a graphics card.
-- `draw_foliage.c` — that a landscape's copies gather into groups, none without the row, kind or
-  room, that their shadow shows, that copies behind the camera count skipped but shadow, and
-  that a blending kind's groups name the painted ground. Skips without a card.
+  draws 3 m away, one without levels draws whole, and a memory's swap dissolves unless fading,
+  settles, and swaps back only 10% nearer. Skips without a card.
+- `draw_foliage.c` — that copies gather into groups, none without row, kind or room, shadow,
+  count skipped yet shadow behind the camera, blend with their ground, dissolve a swap through a
+  memory and settle, and keep no memory unseen. Skips without a card.
 - `draw_switched_off.c` — that a sphere on a child draws as no model row does when the child or
   its parent is off, and whole again when both are back on. Skips without a graphics card.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up draws its far ridge and ground
@@ -210,8 +210,12 @@ again, or to find where a claim that has started failing is written down.
   cylinder cut along its seam lines at angle 0 and further softened at 180. Needs no graphics card.
 - `model_levels.c` — a sphere's levels file made and read back as asked,
   its own levels measured,
-  going stale when its `.glb` or version changes, each level's triangles counted, and a view's level
-  and pixel share chosen by its screen size; needs no graphics card.
+  going stale when its `.glb` or version changes, its levels summarised, a view's level chosen
+  and following the bounds, bounds capped and spread, and a bound's metres; needs no graphics
+  card.
+- `lods_kept.c` — a view's kept LODs: first sight, creeping back, swapping back 10% nearer, the
+  quarter-second dissolve, a frame unseen, two chooses agreeing, no memory, and the keys. Needs no
+  graphics card.
 - `model_cooked.c` — that a prepared sphere written and read back keeps its bake, levels, sphere,
   flags, edges and given BC7 and BC5 blocks, a picture's kind is its first use, and the key comes
   back, another version refused. Needs no graphics card.
