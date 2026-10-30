@@ -40,6 +40,7 @@
 // and a glow tinting the sky around it. DISC_SIZE is the disc's angular radius
 // in degrees, 0 to VOE_SCENE_LIGHT_DISC_SIZE_MAX, 0 no disc; GLOW_SIZE is 0 to
 // 1, 0 no glow. Two suns are two lights. Without a sky neither does anything.
+// Both carry that range for a tool, which draws them as sliders (0498 point 5).
 //
 // INTENSITY IS A MULTIPLIER AND NOT A PHYSICAL UNIT. Exposure and tone are the
 // picture row's (scene/picture_component.h), so a number here is whatever looks
@@ -95,8 +96,13 @@ extern VOE_BASE_IMPORTED const char
 
 #define VOE_SCENE_LIGHT_NAMES(N) N(bounces, voe_scene_light_bounces_names)
 
-VOE_BASE_DESCRIBE_STRUCT_NAMED(voe_scene_light, VOE_SCENE_LIGHT_FIELDS,
-			       VOE_SCENE_LIGHT_NAMES)
+#define VOE_SCENE_LIGHT_RANGES(R)                                 \
+	R(disc_size, 0.0, VOE_SCENE_LIGHT_DISC_SIZE_MAX, "°") \
+	R(glow_size, 0.0, 1.0, "")
+
+VOE_BASE_DESCRIBE_STRUCT_NAMED_RANGED(voe_scene_light, VOE_SCENE_LIGHT_FIELDS,
+				      VOE_SCENE_LIGHT_NAMES,
+				      VOE_SCENE_LIGHT_RANGES)
 
 // The key this component is registered against. Its address is its identity.
 extern VOE_BASE_IMPORTED const struct voe_ecs_key voe_scene_light_key;

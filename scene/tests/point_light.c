@@ -4,7 +4,8 @@
 // of exactly either bound is accepted. Cast shadows is off by default and lands
 // either way. Bounces and bounce strength follow it, last, defaulting to 0 and
 // 1; bounces is named with the sun's "0" to "3", lands at 3 and is refused at 4,
-// and a negative strength is refused.
+// and a negative strength is refused. Falloff's range is LEAST to MOST with no
+// unit, and range has none.
 //
 // EACH REFUSAL IS ITS OWN INTENT, submitted one at a time with the row checked
 // after each, so a refusal that let one field through shows as that field.
@@ -136,6 +137,27 @@ static void the_description_lists_the_bounce_last(void)
 	check_field(&fields[6], "bounce_strength", VOE_BASE_FIELD_FLOAT32,
 		    offsetof(voe_scene_point_light, bounce_strength),
 		    sizeof(float));
+}
+
+// Falloff carries its bounds as its range; range does not, and the bounces
+// names are still there beside it.
+static void falloff_says_its_range(void)
+{
+	const voe_base_struct_description *description =
+		voe_scene_point_light_description();
+	const voe_base_field_range *range =
+		voe_base_ranges_find(description, "falloff");
+
+	VOE_TEST_CHECK(voe_base_ranges_find(description, "range") == NULL);
+	VOE_TEST_CHECK(voe_base_names_find(description, "bounces") != NULL);
+	VOE_TEST_CHECK(range != NULL);
+	if (range == NULL)
+		return;
+	VOE_TEST_CHECK_FLOAT(range->least, VOE_SCENE_POINT_LIGHT_FALLOFF_LEAST,
+			     0.0);
+	VOE_TEST_CHECK_FLOAT(range->greatest, VOE_SCENE_POINT_LIGHT_FALLOFF_MOST,
+			     0.0);
+	VOE_TEST_CHECK(strcmp(range->unit, "") == 0);
 }
 
 static voe_ecs_entity lamp_of(voe_ecs_world *world, voe_scene_point_light light)
@@ -292,6 +314,7 @@ int main(void)
 	cast_shadows_lands_either_way(arena);
 	bounces_lands_up_to_the_maximum(arena);
 	the_description_lists_the_bounce_last();
+	falloff_says_its_range();
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

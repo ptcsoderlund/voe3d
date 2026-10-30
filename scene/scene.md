@@ -41,15 +41,15 @@ space is.
   report's state is per process.
 - `include/scene/light_component.h` — the directional light: colour and
   strength, a fill of the shade, bounces, shadows, and the disc and glow it
-  draws under a sky, as a described field list, and the conversions between a
+  draws under a sky, as a described field list with their ranges, and the conversions between a
   rotation and its direction.
 - `include/scene/light_system.h` — the whole-light intent, registered as the
   light's replace, the direct call that creates one, and the transform it needs.
   Its header says the default disc and glow, what light is refused and why a
   drawn world needs the table.
 - `include/scene/point_light_component.h` — a lamp beside the sun: linear colour,
-  intensity, range, falloff, shadows and bounces, as a described field list,
-  and the falloff's bounds. Its header says where it shines from, what falloff does and why it
+  intensity, range, falloff, shadows and bounces, as a described field list
+  with their ranges, and the falloff's bounds. Its header says where it shines from, what falloff does and why it
   does not flash.
 - `include/scene/point_light_system.h` — the whole-light intent as its replace,
   the direct call that creates one, and the run that drains it. Its header says
@@ -93,7 +93,8 @@ space is.
   drains it and moves the drift by the wind. Its header says what is refused
   and where it runs.
 - `include/scene/picture_component.h` — the whole picture's exposure in stops
-  and its tone, Clip or Soft, named, as a described field list, and the reads.
+  and its tone, Clip or Soft, named, as a described field list with their
+  ranges, and the reads.
   Its header says why it is not a camera's and that no row is x1 and Clip.
 - `include/scene/picture_system.h` — the whole-row intent as its replace, the
   direct call that creates one, and the run that drains it. Its header says
