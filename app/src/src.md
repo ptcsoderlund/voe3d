@@ -3,7 +3,8 @@
 `app`'s implementation: one file per public header. Every line of reasoning is
 in `include/app/`; what is here is the order.
 
-- `app.c` — the two startups, the frame's three readings and the wait it
+- `app.c` — the two startups and the standing workers they open and destroy
+  closes, the frame's three readings and the wait it
   reports, the two draw calls, and the capture's three steps. Its header says
   that what it holds is the order.
 - `clock.c` — the subtraction and the ceiling.

@@ -10,8 +10,8 @@
 // 10 mm up the ground of the line's panel.
 //
 // The wait runs the shaders step on a fresh device's worker: the device ends
-// PREPARED and the cache is written under the working directory, removed at
-// the end; a work answering false makes the wait false. The progress line is
+// PREPARED, the cache is written under the working directory, removed at
+// the end, and as many workers stand after as before; a work answering false makes the wait false. The progress line is
 // checked for total 0 and for 3/7 with no device, and the loaded line for
 // 2.46 s and 0.04 s.
 //
@@ -26,6 +26,7 @@
 #include <base/arena.h>
 #include <base/error.h>
 
+#include <platform/burst.h>
 #include <platform/file.h>
 
 #include <text/font.h>
@@ -220,10 +221,12 @@ static void wait_cases(voe_app *app, voe_ui_context *ui, voe_base_arena *arena,
 	voe_base_arena *worker_scratch = voe_base_arena_new(1 << 20);
 	struct shaders_work work = { voe_app_device(app), CACHE_PATH,
 				     worker_scratch };
+	uint32_t standing = voe_platform_workers_standing();
 
 	(void)arena;
 	VOE_TEST_CHECK(voe_game_starting_wait(app, ui, scratch, NULL,
 					      shaders_run, &work));
+	VOE_TEST_CHECK_INT(voe_platform_workers_standing(), standing);
 	VOE_TEST_CHECK(voe_render_device_prepare(voe_app_device(app)) ==
 		       VOE_RENDER_PREPARED);
 	VOE_TEST_CHECK(voe_platform_file_exists(CACHE_PATH));
