@@ -39,10 +39,10 @@ module's promises from outside. None of them needs a window or a graphics card.
   (coverage, shadow strength 0 to 1, wind direction 0 to 360 °), the drift
   runtime-only, a row read back, a replace landing on a run, each refusal
   keeping the row, the drift moved by the wind and dropped with its row.
-- `fog_volumes.c` — the fog volume's registration, fields and ranges
-  (thickness, patchiness, godrays strength 0 to 1, wind direction 0 to 360 °),
-  a row read back, a replace landing on a run, each refusal keeping the row,
-  the drift moved by the wind and dropped with its row.
+- `fog_volumes.c` — the fog volume's registration, fields, ranges
+  (thickness 0 to 4, patchiness and godrays strength 0 to 1, wind direction 0
+  to 360 °), a row read back, a replace landing on a run, thickness 4 taken,
+  each refusal keeping the row, the drift moved by wind, dropped with its row.
 - `picture.c` — the picture's registration, its exposure 0 and Soft default,
   the tone names Clip and Soft, exposure's range -16 to 16 stops, a row read
   back, an exposure replace landing on a run, a refused NaN exposure, exposure
