@@ -25,8 +25,8 @@
 // - it moves each drift by wind × seconds, in double.
 //
 // REFUSED, NOT CLAMPED: a number not finite, a size component below 0,
-// thickness, patchiness or godrays strength outside 0 to 1, wind speed below
-// 0. `add` asserts on one; the drain keeps the row and says so on stderr, one
+// thickness outside 0 to VOE_SCENE_FOG_VOLUME_THICKNESS_MAX, patchiness or
+// godrays strength outside 0 to 1, wind speed below 0. `add` asserts on one; the drain keeps the row and says so on stderr, one
 // line per refused intent.
 //
 // IT SITS AT "Rendering / Fog volume" IN ADD COMPONENT, a menu path

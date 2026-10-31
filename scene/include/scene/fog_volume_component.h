@@ -1,5 +1,5 @@
 // A fog volume: a box of fog placed in the world, and how far the wind has
-// moved its patches (0480 point 4, 0493 points 1 and 2). Read by anyone,
+// moved its patches (0480 point 4, 0493 points 1 and 2, 0499). Read by anyone,
 // const; written only through scene/fog_volume_system.h.
 //
 // THE BOX IS PLACED, TURNED AND SCALED BY ITS TRANSFORM, as a light blocker's
@@ -13,7 +13,8 @@
 // THE FIELDS, every number finite:
 //   size             — metres along the box's local axes before scale, the
 //                      whole edge and not a half, each at least 0.
-//   thickness        — 0 to 1: 0 no fog, 1 the thickest.
+//   thickness        — 0 to VOE_SCENE_FOG_VOLUME_THICKNESS_MAX: 0 no fog,
+//                      the top the thickest (0499 point 1).
 //   patchiness       — 0 to 1: 0 even fog, 1 patches with clear air between.
 //   wind_direction   — degrees, any finite, the way the wind blows towards:
 //                      0 towards -Z, 90 towards +X, as the clouds'.
@@ -54,8 +55,11 @@
 	F(float, wind_speed, FLOAT32)               \
 	F(float, godrays_strength, FLOAT32)
 
-#define VOE_SCENE_FOG_VOLUME_RANGES(R)      \
-	R(thickness, 0.0, 1.0, "")          \
+// The thickest fog a volume may ask for.
+#define VOE_SCENE_FOG_VOLUME_THICKNESS_MAX 4.0f
+
+#define VOE_SCENE_FOG_VOLUME_RANGES(R)                          \
+	R(thickness, 0.0, VOE_SCENE_FOG_VOLUME_THICKNESS_MAX, "") \
 	R(patchiness, 0.0, 1.0, "")         \
 	R(wind_direction, 0.0, 360.0, "°") \
 	R(godrays_strength, 0.0, 1.0, "")

@@ -1,10 +1,11 @@
 // The fog volumes: what registration tells a tool (the menu path, the
 // transform needed, the default row of 0493 point 1, the six fields in order
 // with `size` FLOAT3 and the rest FLOAT32, the drift table runtime-only), the
-// ranges of thickness, patchiness and godrays_strength 0 to 1 and
-// wind_direction 0 to 360 °, wind_speed none, that a row arrives as given, that a replace changes `thickness` only when the
-// system runs, that each refusal keeps the row, that a run adds a drift at 0,
-// that the wind moves it by speed × seconds towards its direction, that
+// ranges of thickness 0 to 4, patchiness and godrays_strength 0 to 1 and
+// wind_direction 0 to 360 °, wind_speed none, that a row arrives as given,
+// that a replace changes `thickness` only when the system runs, that
+// thickness 4 is taken, that each refusal keeps the row, that a run adds a
+// drift at 0, that the wind moves it by speed × seconds towards its direction, that
 // removing the row drops its drift on the next run, and that adding to a dead
 // entity is false.
 //
@@ -115,7 +116,7 @@ static void the_bounded_fields_say_their_ranges(void)
 	const voe_base_struct_description *description =
 		voe_scene_fog_volume_description();
 
-	check_range(description, "thickness", 0.0, 1.0, "");
+	check_range(description, "thickness", 0.0, 4.0, "");
 	check_range(description, "patchiness", 0.0, 1.0, "");
 	check_range(description, "godrays_strength", 0.0, 1.0, "");
 	check_range(description, "wind_direction", 0.0, 360.0, "°");
@@ -190,6 +191,28 @@ static void a_replace_lands_when_the_system_runs(voe_base_arena *arena)
 	check_fog(voe_scene_fog_volume_get(world, valley), thicker);
 }
 
+// The old top, 1, is now an ordinary value; 4 is the new top, taken both ways.
+static void thickness_four_is_taken(voe_base_arena *arena)
+{
+	voe_ecs_world *world = world_of(arena);
+	voe_ecs_entity added = { 0 };
+	voe_ecs_entity replaced = { 0 };
+	voe_scene_fog_volume thickest = known();
+
+	thickest.thickness = 4.0f;
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &added));
+	VOE_TEST_CHECK(voe_scene_fog_volume_add(world, added, thickest));
+	check_fog(voe_scene_fog_volume_get(world, added), thickest);
+
+	VOE_TEST_CHECK(voe_ecs_entity_create(world, &replaced));
+	VOE_TEST_CHECK(voe_scene_fog_volume_add(world, replaced, known()));
+	VOE_TEST_CHECK(voe_scene_fog_volume_submit(
+		world, (voe_scene_fog_volume_intent){ .entity = replaced,
+						      .fog_volume = thickest }));
+	voe_scene_fog_volume_system_run(world, 0.0f);
+	check_fog(voe_scene_fog_volume_get(world, replaced), thickest);
+}
+
 static void refused_volumes_keep_the_row(voe_base_arena *arena)
 {
 	voe_ecs_world *world = world_of(arena);
@@ -203,7 +226,7 @@ static void refused_volumes_keep_the_row(voe_base_arena *arena)
 	bad[2].size.z = -1.0f;
 	bad[3].size.x = INFINITY;
 	bad[4].thickness = -0.1f;
-	bad[5].thickness = 1.1f;
+	bad[5].thickness = 4.1f;
 	bad[6].patchiness = -0.1f;
 	bad[7].patchiness = 1.1f;
 	bad[8].godrays_strength = -0.1f;
@@ -303,6 +326,7 @@ int main(void)
 	the_bounded_fields_say_their_ranges();
 	a_volume_arrives_as_given(arena);
 	a_replace_lands_when_the_system_runs(arena);
+	thickness_four_is_taken(arena);
 	refused_volumes_keep_the_row(arena);
 	a_run_adds_a_drift_at_zero(arena);
 	the_wind_moves_the_drift(arena);

@@ -82,7 +82,8 @@ static bool extent_valid(float value)
 static bool fog_volume_valid(voe_scene_fog_volume fog)
 {
 	return extent_valid(fog.size.x) && extent_valid(fog.size.y) &&
-	       extent_valid(fog.size.z) && unit_valid(fog.thickness) &&
+	       extent_valid(fog.size.z) && fog.thickness >= 0.0f &&
+	       fog.thickness <= VOE_SCENE_FOG_VOLUME_THICKNESS_MAX &&
 	       unit_valid(fog.patchiness) && isfinite(fog.wind_direction) &&
 	       extent_valid(fog.wind_speed) && unit_valid(fog.godrays_strength);
 }
