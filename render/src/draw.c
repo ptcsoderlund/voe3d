@@ -33,14 +33,16 @@
 // blended draw needs the other pipeline and a transient mesh the other pool pair;
 // draw_with rebinds either only when it differs from what device->bound and
 // device->bound_transient say was bound last, so a run of draws of one kind
-// costs one bind and a caller that interleaves them is still drawn right. In a shadow pass (pass.c) and the bounce
+// costs one bind and a caller that interleaves them is still drawn right. The
+// depth step (ADR-0508) turns a solid or instanced draw's pipeline into the lay
+// or shade one in a camera pass; a lay draw adds no triangles. In a shadow pass (pass.c) and the bounce
 // shadow pass (bounce_shadow.c) every mesh draw goes through the shadow pipeline, in the point-shadow and capture passes through theirs; a blended draw and the
 // depth clear assert in each. The element pipeline (element.c) is
 // never bound here; it leaves `bound` different, and the next mesh rebinds.
 //
 // WHICH SIDES ARE DRAWN (ADR-0421 point 2). voe_render_frame_two_sided sets the
 // cull mode the pass's mesh draws want, device->cull_wanted, BACK as every pass
-// opens (pass.c). The solid and blended pipelines take it as dynamic state:
+// opens (pass.c). The solid, blended, lay and shade pipelines take it as dynamic state:
 // after one of them is bound, draw_with records it only when it differs from
 // device->cull_recorded, which a bind of any other pipeline forgets. The shadow,
 // point-shadow and capture pipelines cull nothing, so it changes nothing there.
@@ -149,12 +151,14 @@ static uint32_t caster_faces(const voe_render_device *device,
 	return count;
 }
 
-// Whether `pipeline` takes its cull mode as dynamic state: the solid and the
-// blended one (pipeline.c).
+// Whether `pipeline` takes its cull mode as dynamic state: the solid, blended,
+// lay and shade ones (pipeline.c).
 static bool culls_by_draw(const voe_render_device *device, VkPipeline pipeline)
 {
 	return pipeline == device->pipeline ||
-	       pipeline == device->pipeline_blended;
+	       pipeline == device->pipeline_blended ||
+	       pipeline == device->pipeline_lay ||
+	       pipeline == device->pipeline_shade;
 }
 
 // The whole of the three draw calls: `pipeline` and `copies`, the instances
@@ -217,6 +221,13 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 		pipeline = device->pipeline_point_shadow;
 	else if (device->pass_capture)
 		pipeline = device->pipeline_capture;
+	// A camera pass's solid draw goes through the pipeline of its step.
+	else if (pipeline == device->pipeline &&
+		 device->depth_step == VOE_RENDER_DEPTH_STEP_LAY)
+		pipeline = device->pipeline_lay;
+	else if (pipeline == device->pipeline &&
+		 device->depth_step == VOE_RENDER_DEPTH_STEP_SHADE)
+		pipeline = device->pipeline_shade;
 
 	if (device->bound != pipeline) {
 		// A pipeline whose cull mode is static, bound since, has
@@ -274,7 +285,10 @@ static bool draw_with(voe_render_device *device, voe_render_geometry geometry,
 	// not to do. Counted here and in the element draw and nowhere else — see
 	// voe_render_frame_draw_count.
 	device->draw_commands++;
-	device->triangles += (uint64_t)(slot->index_count / 3) * instances;
+	// A laid draw's triangles are counted once, by its shade (ADR-0508).
+	if (pipeline != device->pipeline_lay)
+		device->triangles += (uint64_t)(slot->index_count / 3) *
+				     instances;
 	return true;
 }
 
@@ -304,6 +318,9 @@ bool voe_render_frame_draw_blended(voe_render_device *device,
 			"drawing a blended mesh in a point-shadow pass — nothing see-through casts");
 	VOE_BASE_ASSERT(!device->pass_capture,
 			"drawing a blended mesh in a capture pass — nothing see-through bounces");
+	VOE_BASE_ASSERT(!device->pass_open ||
+				device->depth_step == VOE_RENDER_DEPTH_STEP_WHOLE,
+			"drawing a blended mesh while laying or shading — a blended surface is drawn whole");
 	object.instances = 0;
 	return draw_with(device, geometry, object, device->pipeline_blended, 1);
 }
@@ -366,6 +383,29 @@ void voe_render_frame_two_sided(voe_render_device *device, bool two_sided)
 			"choosing the sides drawn with no pass open — every pass opens culling back faces");
 	device->cull_wanted = two_sided ? VK_CULL_MODE_NONE :
 					  VK_CULL_MODE_BACK_BIT;
+}
+
+// Only the step is kept here, as the sides are; draw_with turns it into a
+// pipeline at the next solid or instanced draw.
+void voe_render_frame_depth_step(voe_render_device *device,
+				 voe_render_depth_step step)
+{
+	VOE_BASE_ASSERT(device != NULL, "choosing the depth step on no device");
+	VOE_BASE_ASSERT(device->pass_open,
+			"choosing the depth step with no pass open — every pass opens whole");
+	VOE_BASE_ASSERT(device->pass_camera,
+			"choosing the depth step in a pass opened with no camera — it draws no mesh");
+	VOE_BASE_ASSERT(step == VOE_RENDER_DEPTH_STEP_WHOLE ||
+				step == VOE_RENDER_DEPTH_STEP_LAY ||
+				step == VOE_RENDER_DEPTH_STEP_SHADE,
+			"choosing a depth step that is none of whole, lay and shade");
+	VOE_BASE_ASSERT(step == VOE_RENDER_DEPTH_STEP_WHOLE ||
+				(!device->pass_shadow &&
+				 !device->pass_bounce_shadow &&
+				 !device->pass_point_shadow &&
+				 !device->pass_capture),
+			"laying or shading in a shadow, point-shadow or capture pass — its depth is a map, drawn whole");
+	device->depth_step = step;
 }
 
 // The overlay's depth clear: one command into the rendering block that is

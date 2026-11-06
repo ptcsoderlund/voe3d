@@ -91,6 +91,9 @@ by reading the offscreen colour image back.
 - `instances.c` — three copies of a white quad in one instanced draw: each place white, a spot
   between the clear colour, one draw and three quads' triangles, a write past `instances` refused
   with the frame still ending. Headless.
+- `depth_first.c` — the depth step: stripes, a dissolving pair and copies laid then shaded the same
+  bytes as whole, a dither under the floor and a lay alone drawing nothing, and each pass opening
+  whole. Headless.
 - `unshaded.c` — that `unshaded` draws a lit cube in its base colour and black without it, that a
   fill lifts a face the sun misses, and that a face the sun meets head-on or at N·L 0.5 reads the
   same with fill and without. Headless.

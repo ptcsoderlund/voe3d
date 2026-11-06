@@ -463,11 +463,17 @@ struct voe_render_device {
 	// NONE after voe_render_frame_two_sided(true) (ADR-0421 point 2). And the
 	// one the recording last set, VOE_RENDER_CULL_UNSET as a pass opens and
 	// once a pipeline whose cull mode is static has been bound. draw.c sets
-	// `cull_wanted` after binding the solid or blended pipeline, the two whose
-	// cull mode is dynamic, and records it only when it differs from
+	// `cull_wanted` after binding the solid, blended, lay or shade pipeline,
+	// those whose cull mode is dynamic, and records it only when it differs from
 	// `cull_recorded`. Meaningless while `pass_open` is false.
 	VkCullModeFlags cull_wanted;
 	VkCullModeFlags cull_recorded;
+
+	// The step the open camera pass's solid and instanced mesh draws are made
+	// in (ADR-0508 point 2): whole as every pass opens (pass.c), lay or shade
+	// after voe_render_frame_depth_step, which draw.c turns into the solid,
+	// lay or shade pipeline. Meaningless while `pass_open` is false.
+	voe_render_depth_step depth_step;
 
 	// Whether the open pass has bound a pool pair yet: false as a pass opens,
 	// set by its first mesh draw (draw.c), so a pass of elements alone binds
