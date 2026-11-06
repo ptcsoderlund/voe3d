@@ -39,9 +39,9 @@ which file to open — what each one owns, and where the seams between them run.
   capture tool; each does nothing without debug-utils.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,
   and the `render` line that says which and why.
-- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the ten
-  mesh pipelines, solid, blended, shadow, sky, clouds and fog march and composite, point shadow, capture,
-  through the pipeline cache, then the relight, a step a call, and the count of those steps.
+- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the twelve
+  mesh pipelines, solid, blended, lay, shade, shadow, sky, clouds and fog march and composite, point shadow, capture,
+  then the relight, a step a call, and the count of those steps.
 - `pipeline_cache.c` — the device's pipeline cache: made empty at open, seeded from a caller's bytes
   before the first prepare step, and handed out behind render's own header.
 - `descriptors.c` — everything the shader reads and the one layout that describes it, fifteen
@@ -148,7 +148,8 @@ which file to open — what each one owns, and where the seams between them run.
   the device's guard.
 - `pass.c` — a pass: one rendering block onto the window or a target, its camera block with probe
   volume, point lights, light blockers and further lights, the clear colour, the
-  first-clears-later-load rule, the one Y flip, and each pass's name, timed by `pass_timing.c`.
+  first-clears-later-load rule, the one Y flip, the whole step, and each pass's name, timed by
+  `pass_timing.c`.
 - `pass_sky.c` — a camera pass's sky, exposure, clouds and fog volumes placed into its block, checked, with no
   clouds image yet, and the nine harmonics of its backdrop at strength 1 when its sky is drawn.
 - `pass_timing.c` — every pass timed and labelled by its name: a timestamp pair per pass in the
@@ -163,8 +164,8 @@ which file to open — what each one owns, and where the seams between them run.
 - `fog_draw.c` — a camera pass's fog volumes over the world after the clouds through
   `half_march.c`, timed as the span `fog`; no volumes records nothing.
 - `draw.c` — the draws inside a pass: one object record per mesh draw, solid or blended, one
-  instance per cube face reached in the point-shadow pass, a frame's instance records and the
-  instanced draw of copies they place, bounce sun maps included, and the sides a draw shows.
+  instance per cube face reached in the point-shadow pass, the instanced draw of a frame's copies,
+  the sides a draw shows, and the depth step: whole, or lay then shade.
 - `present.c` — the last thing a frame records: the target made ready to copy, and the blit that is
   the one write into a swapchain image.
 - `probe.c` — the pipeline that reads a matrix and reports what it saw, built

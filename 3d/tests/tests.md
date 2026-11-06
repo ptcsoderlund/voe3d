@@ -53,7 +53,7 @@ again, or to find where a claim that has started failing is written down.
   settles, and swaps back only 10% nearer. Skips without a card.
 - `draw_foliage.c` — that copies gather into groups, none without row, kind or room, shadow,
   count skipped yet shadow behind the camera, blend with their ground, dissolve a swap through a
-  memory and settle, and keep no memory unseen. Skips without a card.
+  memory, keep no memory unseen, and are laid then shaded by the camera. Skips without a card.
 - `draw_switched_off.c` — that a sphere on a child draws as no model row does when the child or
   its parent is off, and whole again when both are back on. Skips without a graphics card.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up draws its far ridge and ground

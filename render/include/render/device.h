@@ -1074,7 +1074,7 @@ typedef enum {
 } voe_render_prepare;
 
 // Each call builds the next thing this device still lacks, in the order solid,
-// blended, shadow, sky, clouds march, clouds composite, fog march, fog
+// blended, lay, shade, shadow, sky, clouds march, clouds composite, fog march, fog
 // composite, point shadow and capture pipelines (the last two only on a card
 // with shaderOutputLayer), then the
 // relight's startup. PREPARING while
@@ -1094,10 +1094,10 @@ typedef enum {
 voe_render_prepare voe_render_device_prepare(voe_render_device *device);
 
 // How many steps voe_render_device_prepare takes on this card from an unprepared
-// device: the solid, blended, shadow, sky, clouds march, clouds composite, fog
-// march and fog composite pipelines, eight, and with shaderOutputLayer the
-// point shadow and capture ones and the relight's startup, eleven. So a caller
-// can show "2/11" as the steps are taken.
+// device: the solid, blended, lay, shade, shadow, sky, clouds march, clouds
+// composite, fog march and fog composite pipelines, ten, and with
+// shaderOutputLayer the point shadow and capture ones and the relight's
+// startup, thirteen. So a caller can show "2/13" as the steps are taken.
 uint32_t voe_render_device_prepare_steps(const voe_render_device *device);
 
 // THE PIPELINE CACHE, AS BYTES OUT AND IN (ADR-0370 point 6). Every mesh
@@ -2136,6 +2136,27 @@ void voe_render_bounce_begin(voe_render_device *device, voe_render_target target
 // Calling this with no pass open is the caller's bug and asserts.
 void voe_render_frame_two_sided(voe_render_device *device, bool two_sided);
 
+// The step a camera pass's solid and instanced mesh draws are made in (ADR-0508
+// point 2). WHOLE is the draw as it always was.
+typedef enum {
+	VOE_RENDER_DEPTH_STEP_WHOLE = 0,
+	VOE_RENDER_DEPTH_STEP_LAY,
+	VOE_RENDER_DEPTH_STEP_SHADE,
+} voe_render_depth_step;
+
+// Which pipeline the solid and instanced mesh draws after this, in this pass, go
+// through: the solid one (WHOLE), the lay one or the shade one. Every pass opens
+// whole. LAY writes depth where the cut-out and the dither keep a pixel, and no
+// colour. SHADE tests EQUAL and writes no depth, so a group laid then shaded is
+// the picture its whole draw makes, each kept pixel shaded once. A caller lays a
+// run of draws, then shades the same run in the same order and two-sidedness,
+// then sets WHOLE.
+//
+// With no pass open, in a pass opened with no camera, or with a step other than
+// WHOLE in a shadow, bounce shadow, point-shadow or capture pass, it asserts.
+void voe_render_frame_depth_step(voe_render_device *device,
+				 voe_render_depth_step step);
+
 // The same draw through the blended pipeline: the depth test still runs, so
 // something behind an opaque object is still hidden, but nothing is written to
 // the depth buffer and what is drawn is blended over what is already there.
@@ -2151,7 +2172,8 @@ void voe_render_frame_two_sided(voe_render_device *device, bool two_sided);
 //
 // False for the same two reasons voe_render_frame_draw is, and with the same
 // asserts — and one more: in a shadow, bounce shadow, point-shadow or capture pass it asserts,
-// because nothing see-through casts.
+// because nothing see-through casts. So it does under a depth step other than
+// WHOLE: a blended surface is neither laid nor shaded.
 //
 // THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
 // OUTPUTS PREMULTIPLIED COLOUR. A fragment's rgb is already multiplied by its
@@ -2185,8 +2207,9 @@ void voe_render_frame_two_sided(voe_render_device *device, bool two_sided);
 // record's. Through the solid pipeline in a camera pass and the shadow one in a
 // shadow pass or the bounce shadow pass: a sun map is one view like a cascade,
 // so the copies shade the ground the probes are relit by (ADR-0450). Spends one
-// object, counts one draw and index count ÷ 3 × count triangles. False for the
-// reasons voe_render_frame_draw is.
+// object, counts one draw and index count ÷ 3 × count triangles, a laid draw
+// none (voe_render_frame_depth_step). False for the reasons
+// voe_render_frame_draw is.
 //
 // Count nought, a range past what this frame wrote, or a point-shadow or
 // capture pass asserts, as do voe_render_frame_draw's mistakes: those two spend
@@ -2306,7 +2329,9 @@ voe_render_frame_draw_count(const voe_render_device *device);
 // the frame just submitted drew, read as the draw count is. Reset by every
 // _begin. Every mesh draw adds its index count ÷ 3 × the instances it records,
 // a point shadow's or a capture's faces included, in every pass, solid and
-// blended; element draws add nothing (ADR-0425 point 7).
+// blended; element draws add nothing (ADR-0425 point 7). A laid draw
+// (voe_render_frame_depth_step) counts a draw and adds no triangles: its shade
+// adds them.
 [[nodiscard]] uint64_t
 voe_render_frame_triangle_count(const voe_render_device *device);
 

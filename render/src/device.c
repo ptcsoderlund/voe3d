@@ -482,6 +482,14 @@ static void close_down(voe_render_device *device)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline_shadow,
 						       NULL);
+		if (device->pipeline_shade != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_shade,
+						       NULL);
+		if (device->pipeline_lay != VK_NULL_HANDLE)
+			voe_render_vk.destroy_pipeline(device->device,
+						       device->pipeline_lay,
+						       NULL);
 		if (device->pipeline_blended != VK_NULL_HANDLE)
 			voe_render_vk.destroy_pipeline(device->device,
 						       device->pipeline_blended,
