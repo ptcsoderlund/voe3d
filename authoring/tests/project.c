@@ -1,7 +1,9 @@
 // project.voe3d: the exact bytes the writer emits, a round trip back to the
 // same scene and window, the window's defaults, every refusal named in authoring/project.h with the line
 // voe_base_report_error_first() keeps where the file has one, and an unknown
-// key that still loads with a warning.
+// key that still loads with a warning. The strict reader refuses that key,
+// naming its line, refuses a window out of range and what the reader refuses,
+// and reads what the writer writes.
 //
 // A REFUSAL IS CHECKED BY THE CALL RETURNING FALSE, and voe_base_report_error_
 // clear() runs before each one, as base/report.h says a reader must, so the
@@ -105,13 +107,18 @@ static void test_window_defaults(void)
 	VOE_TEST_CHECK(!out.window.fullscreen);
 }
 
-static bool refused(const char *text, const char *line_prefix)
+// Whether the reader, strict or not, refuses `text` with a kept first error
+// starting `line_prefix`.
+static bool refused_by(bool strict, const char *text, const char *line_prefix)
 {
 	voe_base_arena *arena = voe_base_arena_new(4096);
 	voe_authoring_project out;
 
 	voe_base_report_error_clear();
-	bool ok = voe_authoring_project_read(text, strlen(text), arena, &out);
+	bool ok = strict ? voe_authoring_project_read_strict(text, strlen(text),
+							     arena, &out)
+			 : voe_authoring_project_read(text, strlen(text), arena,
+						      &out);
 	bool result = !ok;
 
 	if (result && line_prefix != NULL) {
@@ -122,6 +129,11 @@ static bool refused(const char *text, const char *line_prefix)
 	}
 	voe_base_arena_destroy(arena);
 	return result;
+}
+
+static bool refused(const char *text, const char *line_prefix)
+{
+	return refused_by(false, text, line_prefix);
 }
 
 static void test_refusals(void)
@@ -198,6 +210,55 @@ static void test_unknown_key_warns_and_loads(void)
 	voe_base_arena_destroy(arena);
 }
 
+static void strict_refuses_an_unknown_key(void)
+{
+	const char *const unknown = "[project]\nfuture = 1\nscene = main.scene\n";
+
+	VOE_TEST_CHECK(refused_by(true, unknown, "line 2"));
+
+	const char *kept = voe_base_report_error_first();
+
+	VOE_TEST_CHECK(kept != NULL && strstr(kept, "future") != NULL);
+	// What the lenient reader refuses: a section, a [window] key, a scene.
+	VOE_TEST_CHECK(
+		refused_by(true, "[other]\nscene = main.scene\n", "line 1"));
+	VOE_TEST_CHECK(refused_by(true, "[project]\nscene = m.scene\n[window]\n"
+					"depth = 3\n", "line 4"));
+	VOE_TEST_CHECK(
+		refused_by(true, "[project]\nscene = ../m.scene\n", "line 2"));
+	VOE_TEST_CHECK(refused_by(true, "", NULL));
+}
+
+static void strict_refuses_a_window_out_of_range(void)
+{
+	VOE_TEST_CHECK(refused_by(true, "[project]\nscene = m.scene\n[window]\n"
+					"width = 159\n", "line 4"));
+	VOE_TEST_CHECK(refused_by(true, "[project]\nscene = m.scene\n[window]\n"
+					"width = 1280\nheight = 16385\n",
+				  "line 5"));
+}
+
+static void strict_reads_what_write_writes(void)
+{
+	voe_base_arena *arena = voe_base_arena_new(4096);
+	voe_authoring_project written = {
+		.scene = "sub/weird\"main.scene",
+		.window = { .width = 160, .height = 16384, .fullscreen = true },
+	};
+	size_t size;
+	const char *text = voe_authoring_project_write(&written, arena, &size);
+	voe_authoring_project read;
+
+	voe_base_report_error_clear();
+	VOE_TEST_CHECK(
+		voe_authoring_project_read_strict(text, size, arena, &read));
+	VOE_TEST_CHECK(strcmp(read.scene, written.scene) == 0);
+	VOE_TEST_CHECK(read.window.width == 160);
+	VOE_TEST_CHECK(read.window.height == 16384);
+	VOE_TEST_CHECK(read.window.fullscreen);
+	voe_base_arena_destroy(arena);
+}
+
 int main(void)
 {
 	test_write_exact_bytes();
@@ -206,5 +267,8 @@ int main(void)
 	test_window_defaults();
 	test_refusals();
 	test_unknown_key_warns_and_loads();
+	strict_refuses_an_unknown_key();
+	strict_refuses_a_window_out_of_range();
+	strict_reads_what_write_writes();
 	return voe_test_result();
 }

@@ -41,5 +41,6 @@ file; the rest hand the writer a world and the reader text held in memory.
   alone, an array and a kept section reached, the longest value, an open string
   refused, and the named check ignoring keys and section names.
 - `project.c` — the exact bytes the writer emits, a round trip through the
-  reader, every refusal with the line it names, and an unknown key that warns and
-  still loads.
+  reader, every refusal with the line it names, an unknown key that warns and
+  still loads, and the strict reader refusing that key and a window out of
+  range, with the line, and reading what the writer writes.

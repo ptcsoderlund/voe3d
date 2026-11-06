@@ -128,9 +128,10 @@ static bool read_window_key(const voe_assets_sectioned_key *key,
 	return false;
 }
 
-bool voe_authoring_project_read(const char *text, size_t size,
-				voe_base_arena *arena,
-				voe_authoring_project *out)
+// The one body of both readers: `strict` only turns an unknown `[project]`
+// key from a warning into a refusal, since every other refusal is shared.
+static bool read_project(const char *text, size_t size, voe_base_arena *arena,
+			 voe_authoring_project *out, bool strict)
 {
 	voe_assets_sectioned doc;
 
@@ -192,6 +193,13 @@ bool voe_authoring_project_read(const char *text, size_t size,
 			scene_line = key->line;
 			continue;
 		}
+		if (strict) {
+			VOE_BASE_ERROR(MODULE,
+				       "line %u: [project] has no key %s; nothing "
+				       "was loaded",
+				       key->line, key->name);
+			return false;
+		}
 		VOE_BASE_WARNING(MODULE,
 				 "line %u: [project] has no key %s; the line "
 				 "is ignored",
@@ -217,6 +225,20 @@ bool voe_authoring_project_read(const char *text, size_t size,
 
 	*out = (voe_authoring_project){ .scene = scene, .window = window };
 	return true;
+}
+
+bool voe_authoring_project_read(const char *text, size_t size,
+				voe_base_arena *arena,
+				voe_authoring_project *out)
+{
+	return read_project(text, size, arena, out, false);
+}
+
+bool voe_authoring_project_read_strict(const char *text, size_t size,
+				       voe_base_arena *arena,
+				       voe_authoring_project *out)
+{
+	return read_project(text, size, arena, out, true);
 }
 
 const char *voe_authoring_project_write(const voe_authoring_project *project,

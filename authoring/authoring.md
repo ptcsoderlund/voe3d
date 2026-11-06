@@ -29,6 +29,6 @@ out (ADR-0145); only the reader creates rows (ADR-0152); `platform` owns files.
 - `include/authoring/paths.h` — paths in scene text followed through a rename
   or move, and looked for before a delete. Its header says what a quoted string
   is, why a match is whole segments, and what the caller checks.
-- `include/authoring/project.h` — `project.voe3d` read and written. Its header
-  says the scene key and the optional `[window]` section with its range and defaults,
-  what it refuses, and why the writer cannot fail.
+- `include/authoring/project.h` — `project.voe3d` read, read strictly and written.
+  Its header says the scene key and the optional `[window]` section with its range
+  and defaults, what it refuses, why a strict reader, and why the writer cannot fail.
