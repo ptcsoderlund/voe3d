@@ -1,5 +1,5 @@
-// Scene text, read into a world (ADR-0149, ADR-0152) — the other half of
-// authoring/scene_write.h, which says what the text looks like.
+// Scene text, read into a world (ADR-0149, ADR-0152) or checked strictly — the
+// other half of authoring/scene_write.h, which says what the text looks like.
 //
 //     voe_authoring_kept kept;
 //
@@ -112,3 +112,27 @@ typedef struct {
 					    voe_ecs_world *world,
 					    voe_base_arena *arena,
 					    voe_authoring_kept *out_kept);
+
+// Whether `size` bytes of scene text are ones voe_authoring_scene_read would
+// accept, read strictly (0509 point 3). True when the reader would take the
+// text and two more things hold; false, reported the way the reader reports a
+// refusal, naming the line, the section, the key and why.
+//
+// WHAT IT ADDS TO THE READER. A key in the section of a registered, described
+// type must name one of its fields or a former name (0353), where the reader
+// ignores it with a warning. A ranged field (0498, voe_base_ranges_find) must
+// hold a value from its least to its greatest, where the reader takes any
+// value; the refusal names the range and its unit. A section naming a type
+// nothing registered still passes, as the reader keeps it.
+//
+// IT CREATES NOTHING AND CHANGES NOTHING IN `world`, which it reads only for its
+// registered types, and which may hold entities. The arena holds its working
+// memory; what is pushed is the caller's to rewind.
+//
+// A `.prefab` file's text is checked by it too, as scene text: the prefab
+// reader's own refusals about its one tree are not this check's. A file the
+// editor opens still goes through the lenient reader (0509 point 3), so a
+// project holding a key from another version still opens.
+[[nodiscard]] bool voe_authoring_scene_check(const char *text, size_t size,
+					     voe_ecs_world *world,
+					     voe_base_arena *arena);

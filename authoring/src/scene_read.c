@@ -30,7 +30,9 @@
 // value is kept whatever the line order, and the former line is a warning.
 //
 // PASS ONE IS SHARED through scene_scratch.h: prefab_read.c runs the same pass
-// and its own second one.
+// and its own second one, and voe_authoring_scene_check runs it alone with the
+// scratch's `strict` set, which turns the unknown-key warning into a refusal
+// and checks a ranged value against its range — one pass, two strictnesses.
 #include <authoring/scene_read.h>
 
 #include "authored.h"
@@ -312,6 +314,14 @@ static bool read_section(voe_authoring_scratch *reader, uint32_t s)
 				continue;
 			}
 		}
+		if (field == NULL && reader->strict) {
+			VOE_BASE_ERROR(MODULE,
+				       "line %u: [%s] has no field %s, and no "
+				       "field of it was ever named so; nothing "
+				       "was loaded",
+				       site.line, parsed->name, key->name);
+			return false;
+		}
 		if (field == NULL) {
 			VOE_BASE_WARNING(MODULE,
 					 "line %u: [%s] has no field %s; the "
@@ -322,6 +332,16 @@ static bool read_section(voe_authoring_scratch *reader, uint32_t s)
 		site.field = field->name;
 		if (!voe_authoring_field_value(&reader->refs, &site, field,
 					       key->value, section->row))
+			return false;
+
+		const voe_base_field_range *range =
+			reader->strict ? voe_base_ranges_find(description,
+							      field->name)
+				       : NULL;
+
+		if (range != NULL &&
+		    !voe_authoring_field_in_range(&site, field, range,
+						  section->row))
 			return false;
 	}
 
@@ -562,4 +582,18 @@ bool voe_authoring_scene_read(const char *text, size_t size,
 		.count = reader.kept_count,
 	};
 	return true;
+}
+
+bool voe_authoring_scene_check(const char *text, size_t size,
+			       voe_ecs_world *world, voe_base_arena *arena)
+{
+	voe_authoring_scratch reader = {
+		.world = world,
+		.arena = arena,
+		.strict = true,
+	};
+
+	VOE_BASE_ASSERT(world != NULL, "checking against a NULL world");
+	VOE_BASE_ASSERT(arena != NULL, "checking with a NULL arena");
+	return voe_authoring_scratch_read(&reader, text, size);
 }

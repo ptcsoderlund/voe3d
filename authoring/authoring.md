@@ -15,10 +15,10 @@ out (ADR-0145); only the reader creates rows (ADR-0152); `platform` owns files.
 - `include/authoring/prefab.h` — one tree written as a `.prefab` file's scene text,
   and read back onto a placed root. Its header says what a prefab file is, why the
   root sits at the origin, and why a read may add rows.
-- `include/authoring/scene_read.h` — scene text read into a world. Its header says
-  why a load may create rows, that a file is validated whole first, what a missing
-  field reads as, that a key may be a field's former name, what is kept
-  rather than read; the file, what a full world is left as.
+- `include/authoring/scene_read.h` — scene text read into a world, or checked
+  strictly against one. Its header says why a load creates rows, that a file is
+  validated whole first, what a missing field reads as, former names, what is
+  kept; the file, a full world and what the check adds.
 - `include/authoring/scene_cook.h` — a world cooked into C source the game compiles in.
   Its header says what is cooked, why floats are hex and why the cooked function may
   create rows; the file says how every field kind is spelled and what it refuses.

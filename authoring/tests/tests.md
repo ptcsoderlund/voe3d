@@ -23,6 +23,9 @@ file; the rest hand the writer a world and the reader text held in memory.
 - `scene_lights.c` — a sun and a moon written and read back as two light rows,
   each keeping its fields, `cast_shadows` and its disc and glow sizes included,
   and its rotation, and a light saved before 049 reading one row that casts.
+- `scene_check.c` — the strict check refusing a key naming no field, with its
+  line, and a disc size past its range, passing a former name, an unregistered
+  section and a written scene, refusing what the reader does, creating nothing.
 - `scene_read_former.c` — a blocker saved with `kind` read as its `block`,
   written back as `block` alone, `block` winning over `kind` in either order,
   and a blocker saying neither reading All.
