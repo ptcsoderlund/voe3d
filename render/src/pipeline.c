@@ -1,7 +1,6 @@
-// The ten mesh pipelines — solid, blended, shadow, sky, clouds and fog march
-// and composite, point shadow, capture — and the layout every pipeline shares.
-// device.c's open_device calls voe_render_pipeline_layout_create once, after
-// the descriptors (startup.h); the pipelines are not built at open.
+// The twelve mesh pipelines — solid, blended, lay, shade, shadow, sky, clouds and
+// fog march and composite, point shadow, capture — and the layout all share, which
+// open_device makes once, after the descriptors (startup.h); no pipeline at open.
 //
 // PREPARE BUILDS THEM, ONE PER CALL (ADR-0345). voe_render_device_prepare builds
 // the next one the device lacks, then the relight's startup (bounce_relight.c),
@@ -9,7 +8,7 @@
 // calls it until nothing is left; every pass that can use one calls that first,
 // so a caller who never prepares gets them all on its first such pass. A failed
 // step is final: every later call answers FAILED, and elements still draw.
-// voe_render_device_prepare_steps counts them: eight, eleven with shaderOutputLayer.
+// voe_render_device_prepare_steps counts them: ten, thirteen with shaderOutputLayer.
 // Every build passes the device's pipeline cache (pipeline_cache.c), which a
 // caller may have seeded with an earlier run's bytes.
 //
@@ -20,18 +19,19 @@
 // waits while a frame is open on the other thread.
 //
 // THE SHADER IS IN THIS FILE, AS BYTES: draw.spv, #embed'ded below, so nothing
-// is read from disk at run time; cmake/voe.cmake makes every source here
-// depend on the .spv.
+// is read at run time; cmake/voe.cmake makes every source here depend on it.
 //
 // THE PIPELINE NAMES THINGS OTHER STARTUP FILES OWN. Its layout names the
 // descriptor set layout descriptors.c builds, and its vertex input describes
 // voe_render_vertex — which is why voe_render_descriptors_build runs before this
 // in open_device and not after it.
 //
-// THERE ARE TEN OF THEM FROM ONE DESCRIPTION. The solid one writes depth and
+// THERE ARE TWELVE OF THEM FROM ONE DESCRIPTION. The solid one writes depth and
 // does not blend; the blended one tests depth the same way, writes none, and
-// blends premultiplied. The shadow one (ADR-0258) drops the fragment stage and
-// the colour attachment, culls nothing, and biases its depth away from the sun.
+// blends premultiplied. Lay and shade (ADR-0508) run the solid vertex stage:
+// lay the depth fragment, no colour, depth GREATER, written; shade the solid
+// fragment, depth EQUAL, unwritten. The shadow one (ADR-0258) drops the fragment
+// stage and colour attachment, culls nothing, biases its depth away from the sun.
 // The point-shadow one (ADR-0325) is the shadow one with its own vertex stage,
 // which writes the layer; it is built only with shaderOutputLayer, as is the
 // capture one (ADR-0326): its own vertex stage writing the layer, its own
@@ -45,8 +45,8 @@
 // the vertex input and the layout are shared, which keeps them from drifting
 // apart: create_pipeline's `kind` is the whole of the difference.
 //
-// DYNAMIC: viewport and scissor in all ten, and the cull mode in the solid and
-// blended ones (ADR-0421 point 2), BACK their static default; draw.c sets it.
+// DYNAMIC: viewport and scissor in all twelve, and the cull mode in the solid,
+// blended, lay and shade ones (ADR-0421 point 2), BACK by default; draw.c sets it.
 //
 // THE ELEMENT PIPELINE IS element.c's, not a variant of these: no vertex input,
 // a triangle strip, nothing culled, its own shader. It shares the layout below,
@@ -87,6 +87,7 @@ const size_t voe_render_draw_spv_size = sizeof(voe_render_draw_spv);
 // keeps these two strings true.
 #define DRAW_VERTEX_ENTRY "voe_render_draw_vertex"
 #define DRAW_FRAGMENT_ENTRY "voe_render_draw_fragment"
+#define DEPTH_FRAGMENT_ENTRY "voe_render_depth_fragment"
 #define POINT_SHADOW_VERTEX_ENTRY "voe_render_point_shadow_vertex"
 #define CAPTURE_VERTEX_ENTRY "voe_render_capture_vertex"
 #define CAPTURE_FRAGMENT_ENTRY "voe_render_capture_fragment"
@@ -97,8 +98,9 @@ const size_t voe_render_draw_spv_size = sizeof(voe_render_draw_spv);
 #define FOG_MARCH_FRAGMENT_ENTRY "voe_render_fog_march_fragment"
 #define FOG_COMPOSITE_FRAGMENT_ENTRY "voe_render_fog_composite_fragment"
 
-// Which of the ten create_pipeline builds.
-enum mesh_kind { MESH_SOLID, MESH_BLENDED, MESH_SHADOW, MESH_POINT_SHADOW,
+// Which of the twelve create_pipeline builds.
+enum mesh_kind { MESH_SOLID, MESH_BLENDED, MESH_LAY, MESH_SHADE,
+		 MESH_SHADOW, MESH_POINT_SHADOW,
 		 MESH_CAPTURE, MESH_SKY, MESH_CLOUDS_MARCH,
 		 MESH_CLOUDS_COMPOSITE, MESH_FOG_MARCH, MESH_FOG_COMPOSITE };
 
@@ -122,12 +124,15 @@ static const VkFormat clouds_format = VK_FORMAT_R16G16B16A16_SFLOAT;
 #define SHADOW_BIAS_CONSTANT -2.0f
 #define SHADOW_BIAS_SLOPE -2.5f
 
-// All ten pipelines, from one description. `kind` is the only thing that
+// All twelve pipelines, from one description. `kind` is the only thing that
 // differs between them and the lines it touches are marked below.
 static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 			    VkPipeline *out)
 {
 	const bool blended = kind == MESH_BLENDED;
+	// The foliage steps (ADR-0508): lay depth only, then shade where EQUAL.
+	const bool lay = kind == MESH_LAY;
+	const bool shade = kind == MESH_SHADE;
 	// The point-shadow pipeline is the shadow one but for its vertex entry.
 	const bool point_shadow = kind == MESH_POINT_SHADOW;
 	const bool shadow = kind == MESH_SHADOW || point_shadow;
@@ -279,13 +284,18 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	// makes the caller's furthest-first order load-bearing rather than
 	// cosmetic. Leave the write on and the sort appears to work while doing
 	// nothing at all.
+	//
+	// THE SHADE STEP TESTS EQUAL AND WRITES NONE: the lay step wrote the
+	// nearest kept depth, so only that surface passes, once a pixel.
 	VkPipelineDepthStencilStateCreateInfo depth = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 		// The sky neither tests nor writes: it is behind everything. The
 		// clouds' composite reads depth from the copy instead.
 		.depthTestEnable = full_screen ? VK_FALSE : VK_TRUE,
-		.depthWriteEnable = blended || full_screen ? VK_FALSE : VK_TRUE,
-		.depthCompareOp = VK_COMPARE_OP_GREATER,
+		.depthWriteEnable = blended || shade || full_screen ? VK_FALSE :
+								      VK_TRUE,
+		.depthCompareOp = shade ? VK_COMPARE_OP_EQUAL :
+					  VK_COMPARE_OP_GREATER,
 		.depthBoundsTestEnable = VK_FALSE,
 		.stencilTestEnable = VK_FALSE,
 		.minDepthBounds = 0.0f,
@@ -315,10 +325,12 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 		.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
 		.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
 		.alphaBlendOp = VK_BLEND_OP_ADD,
-		.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-				  VK_COLOR_COMPONENT_G_BIT |
-				  VK_COLOR_COMPONENT_B_BIT |
-				  VK_COLOR_COMPONENT_A_BIT,
+		// The lay step writes depth and no colour.
+		.colorWriteMask = lay ? 0 :
+					VK_COLOR_COMPONENT_R_BIT |
+						VK_COLOR_COMPONENT_G_BIT |
+						VK_COLOR_COMPONENT_B_BIT |
+						VK_COLOR_COMPONENT_A_BIT,
 	};
 	VkPipelineColorBlendStateCreateInfo blend = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -329,9 +341,9 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	// else. A pipeline baked at one size would have to be built again on
 	// every resize, which is a lot of driver work to say a number that
 	// changed.
-	// The cull mode too in the solid and blended ones, so a draw picks its
-	// sides with no second pipeline (ADR-0421 point 2); `raster`'s BACK is
-	// the default every pass opens with (draw.c).
+	// The cull mode too in the solid, blended, lay and shade ones, so a draw
+	// picks its sides with no second pipeline (ADR-0421 point 2); `raster`'s
+	// BACK is the default every pass opens with (draw.c).
 	VkDynamicState dynamic_states[3] = {
 		VK_DYNAMIC_STATE_VIEWPORT,
 		VK_DYNAMIC_STATE_SCISSOR,
@@ -339,7 +351,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 	};
 	VkPipelineDynamicStateCreateInfo dynamic = {
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-		.dynamicStateCount = kind == MESH_SOLID || blended ? 3 : 2,
+		.dynamicStateCount =
+			kind == MESH_SOLID || blended || lay || shade ? 3 : 2,
 		.pDynamicStates = dynamic_states,
 	};
 	// Dynamic rendering has no render pass, so the pipeline is told the
@@ -387,6 +400,8 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 			   march	? "clouds march" :
 			   composite	? "clouds composite" :
 			   shadow	? "shadow" :
+			   lay		? "lay" :
+			   shade	? "shade" :
 			   blended	? "blended" :
 					  "solid";
 	char name[32];
@@ -420,6 +435,7 @@ static bool create_pipeline(voe_render_device *device, enum mesh_kind kind,
 			 fog_composite ? FOG_COMPOSITE_FRAGMENT_ENTRY :
 			 march	   ? CLOUDS_MARCH_FRAGMENT_ENTRY :
 			 composite ? CLOUDS_COMPOSITE_FRAGMENT_ENTRY :
+			 lay	   ? DEPTH_FRAGMENT_ENTRY :
 				     DRAW_FRAGMENT_ENTRY,
 	};
 	// Neither of the capture's two attachments blends.
@@ -501,13 +517,15 @@ bool voe_render_pipeline_layout_create(voe_render_device *device)
 
 // ------------------------------------------------------------------ prepare
 
-// Whether every step prepare takes has been taken: the eight pipelines every
+// Whether every step prepare takes has been taken: the ten pipelines every
 // device has, and with shaderOutputLayer the point shadow, the capture and the
 // relight's startup.
 static bool prepared(const voe_render_device *device)
 {
 	return device->pipeline != VK_NULL_HANDLE &&
 	       device->pipeline_blended != VK_NULL_HANDLE &&
+	       device->pipeline_lay != VK_NULL_HANDLE &&
+	       device->pipeline_shade != VK_NULL_HANDLE &&
 	       device->pipeline_shadow != VK_NULL_HANDLE &&
 	       device->pipeline_sky != VK_NULL_HANDLE &&
 	       device->pipeline_clouds_march != VK_NULL_HANDLE &&
@@ -533,6 +551,11 @@ static bool take_step(voe_render_device *device)
 	if (device->pipeline_blended == VK_NULL_HANDLE)
 		return create_pipeline(device, MESH_BLENDED,
 				       &device->pipeline_blended);
+	if (device->pipeline_lay == VK_NULL_HANDLE)
+		return create_pipeline(device, MESH_LAY, &device->pipeline_lay);
+	if (device->pipeline_shade == VK_NULL_HANDLE)
+		return create_pipeline(device, MESH_SHADE,
+				       &device->pipeline_shade);
 	if (device->pipeline_shadow == VK_NULL_HANDLE)
 		return create_pipeline(device, MESH_SHADOW,
 				       &device->pipeline_shadow);
@@ -577,12 +600,12 @@ voe_render_prepare voe_render_device_prepare(voe_render_device *device)
 	return prepared(device) ? VOE_RENDER_PREPARED : VOE_RENDER_PREPARING;
 }
 
-// Matches prepared() above: the eight every device has, then two pipelines and
+// Matches prepared() above: the ten every device has, then two pipelines and
 // the relight's startup only with shaderOutputLayer.
 uint32_t voe_render_device_prepare_steps(const voe_render_device *device)
 {
 	VOE_BASE_ASSERT(device != NULL, "counting the prepare steps of no device");
-	return device->output_layer ? 11u : 8u;
+	return device->output_layer ? 13u : 10u;
 }
 
 bool voe_render_device_ready(voe_render_device *device)

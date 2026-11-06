@@ -22,8 +22,9 @@
 // array below. Every one of them is the same integer the CPU handed out
 // (ADR-0018), so there is no table anywhere between the two sides of the bus.
 //
-// ONE FILE, ELEVEN ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
-// to draw.spv with all of them in it (the point-shadow pass's vertex stage, which writes the layer, the capture
+// ONE FILE, TWELVE ENTRY POINTS, ONE SPIR-V MODULE. slangc compiles this whole file
+// to draw.spv with all of them in it (the depth fragment the lay pipeline runs, the
+// point-shadow pass's vertex stage, which writes the layer, the capture
 // pass's two in draw_capture.slangh, the sky's two in draw_sky.slangh, the clouds' two
 // fragments in draw_clouds.slangh and the fog's two in draw_fog.slangh), and pipeline.c names them by the names
 // spelled here — see -fvk-use-entrypoint-name in cmake/voe.cmake, which is what
@@ -177,6 +178,8 @@
 //              distance-field record keeps its cut unscaled.
 //   blended  — alpha exactly as computed, and the pass it is drawn in blends.
 // Beside them an object's `dither` discards the pixels its 4 × 4 pattern drops.
+// The cut and the dither are one function, voe_render_kept, which the depth
+// fragment calls too, so lay and shade discard alike (ADR-0508 point 1).
 //
 // THE COLOUR TARGET HOLDS PREMULTIPLIED COLOUR, AND ANYTHING THAT WRITES INTO IT
 // OUTPUTS PREMULTIPLIED COLOUR. That is the engine's contract, it is stated in
@@ -246,6 +249,11 @@ struct voe_render_draw_vertex_out {
 	nointerpolation float dither : TEXCOORD2;
 };
 
+// The solid, blended, lay and shade pipelines' vertex stage. The shade step's
+// EQUAL meets the lay step's depth only if both place a vertex bit for bit
+// (ADR-0508): both run this entry, from one module, layout and vertex input.
+// The position is NOT decorated Invariant: slangc 2026.17 refuses `invariant`
+// and `[vk::invariant]`, so the sameness rests on one entry compiled alike.
 [shader("vertex")]
 voe_render_draw_vertex_out
 voe_render_draw_vertex(voe_render_draw_vertex_in vertex,
@@ -368,6 +376,33 @@ float voe_render_dither_threshold(float2 pixel)
 	return (float(bayer[at.y * 4 + at.x]) + 0.5) / 16.0;
 }
 
+// THE KEEP TEST: whether a pixel survives the cut-out and the dither, the whole
+// of the keep-or-discard decision. The main fragment and the depth one both
+// call it, so the lay step lays exactly the pixels the shade step keeps
+// (ADR-0508 point 1). `coverage` is the base colour's alpha, `level` the base
+// colour map's level of detail, `pixel` the fragment's position.
+//
+// A far cut-out stays solid (ADR-0421 point 3): see the header. The dither's
+// share d keeps a threshold under d, −d one at or above d, so the two cover
+// each pixel once (ADR-0432 point 5). A swap's incoming copy has a d below the
+// pattern's 1/32 floor, so it keeps no pixel; this must stay exactly so.
+bool voe_render_kept(voe_render_shading shading, float coverage, float level,
+		     float dither, float2 pixel)
+{
+	if (shading.alpha_mode == VOE_RENDER_ALPHA_CUTOUT) {
+		if (shading.base_colour_distance_field == 0)
+			coverage *= 1.0 + 0.25 * max(0.0, level);
+		if (coverage < shading.alpha_cutoff)
+			return false;
+	}
+	if (dither != 0.0) {
+		float threshold = voe_render_dither_threshold(pixel);
+		if (dither > 0.0 ? threshold >= dither : threshold < -dither)
+			return false;
+	}
+	return true;
+}
+
 // Slot 0, the white pixel: voe_render_texture in render/device.h.
 static const uint VOE_RENDER_NO_TEXTURE = 0;
 
@@ -421,6 +456,52 @@ float2 voe_render_repeated_uv(voe_render_shading shading, float2 uv)
 
 #include "terrain_layers.slangh"
 #include "ground_blend.slangh"
+
+// The base colour from the record's tinted factor, the base colour map's sample
+// and the vertex's colour: what the main fragment and the depth one both read,
+// so the keep test sees the same alpha in each. The distance field's reading is
+// explained where the main fragment calls this.
+float4 voe_render_base(voe_render_shading shading, float4 factor, float4 sheet,
+		       float4 colour)
+{
+	float field = voe_render_median(sheet.rgb);
+	float field_alpha = step(0.5, field);
+
+	// THE THIRD UNIFORM BRANCH IN THIS FILE. See the header before adding a
+	// fourth. The sheet's rgb is distances and never multiplies the colour;
+	// its alpha channel is not read at all. The factor's own alpha still
+	// applies, so a tint may fade text the way it fades anything else.
+	float4 base = shading.base_colour_distance_field != 0 ?
+			      float4(factor.rgb, factor.a * field_alpha) :
+			      factor * sheet;
+	// The vertex's colour, before the alpha mode reads `base` (ADR-0421).
+	return base * colour;
+}
+
+// THE LAY STEP'S FRAGMENT (ADR-0508 point 1): the main fragment's inputs, its
+// base colour sample and level, and its keep test, and nothing shaded. The lay
+// pipeline writes no colour; it lays the depth of exactly the pixels the main
+// fragment would keep, so the shade step's EQUAL lets each through once.
+[shader("fragment")]
+void voe_render_depth_fragment(voe_render_draw_vertex_out vertex,
+			       bool front : SV_IsFrontFace)
+{
+	voe_render_object object = voe_render_objects[voe_render_draw_current.object];
+	voe_render_shading shading = voe_render_shadings[object.shading];
+	float4 factor = shading.base_colour * object.colour;
+	float2 uv = voe_render_repeated_uv(shading, vertex.uv);
+	float2 base_uv = uv * shading.base_colour_uv_rect.zw +
+			 shading.base_colour_uv_rect.xy;
+	float4 sheet =
+		voe_render_textures[shading.base_colour_texture].Sample(base_uv);
+	float level = voe_render_textures[shading.base_colour_texture]
+			      .CalculateLevelOfDetail(base_uv);
+	float4 base = voe_render_base(shading, factor, sheet, vertex.colour);
+
+	if (!voe_render_kept(shading, base.a, level, vertex.dither,
+			     vertex.position.xy))
+		discard;
+}
 
 [shader("fragment")]
 float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
@@ -517,18 +598,7 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 	// pixel spans several texels breaks into disconnected specks, and they
 	// move as the camera moves. That is accepted here and it is not a bug to
 	// fix at this line.
-	float field = voe_render_median(sheet.rgb);
-	float field_alpha = step(0.5, field);
-
-	// THE THIRD UNIFORM BRANCH IN THIS FILE. See the header before adding a
-	// fourth. The sheet's rgb is distances and never multiplies the colour;
-	// its alpha channel is not read at all. The factor's own alpha still
-	// applies, so a tint may fade text the way it fades anything else.
-	float4 base = shading.base_colour_distance_field != 0 ?
-			      float4(factor.rgb, factor.a * field_alpha) :
-			      factor * sheet;
-	// The vertex's colour, before the alpha mode reads `base` (ADR-0421).
-	base *= vertex.colour;
+	float4 base = voe_render_base(shading, factor, sheet, vertex.colour);
 
 	bool mapped = shading.metallic_roughness_texture != VOE_RENDER_NO_TEXTURE;
 	float roughness = saturate(mapped ? orm.g : shading.roughness);
@@ -578,36 +648,22 @@ float4 voe_render_draw_fragment(voe_render_draw_vertex_out vertex,
 	float alpha = roughness * roughness;
 
 	// THE ALPHA MODE, RESOLVED HERE AND NOT AT THE RETURN, because there are
-	// two returns and because the discard belongs after every Sample above
-	// and before everything else. `coverage` and not `alpha`: alpha is
-	// roughness squared in this file and has been since card 019.
+	// two returns and because the discard — the cut-out's and the dither's,
+	// voe_render_kept — belongs after every Sample above and before
+	// everything else. `coverage` and not `alpha`: alpha is roughness
+	// squared in this file and has been since card 019.
 	//
 	// OPAQUE FORCING IT TO ONE IS THE LINE THAT MATTERS. See the header: it
 	// is what makes the multiply at the bottom safe for a material whose
-	// base colour happens to carry an alpha of a half.
+	// base colour happens to carry an alpha of a half. What a cut-out keeps
+	// is forced to one as well.
 	float coverage = base.a;
 
-	if (shading.alpha_mode == VOE_RENDER_ALPHA_CUTOUT) {
-		// A far cut-out stays solid (ADR-0421 point 3). See the header.
-		if (shading.base_colour_distance_field == 0)
-			coverage *= 1.0 + 0.25 * max(0.0, level);
-		if (coverage < shading.alpha_cutoff)
-			discard;
+	if (!voe_render_kept(shading, coverage, level, vertex.dither,
+			     vertex.position.xy))
+		discard;
+	if (shading.alpha_mode != VOE_RENDER_ALPHA_BLENDED)
 		coverage = 1.0;
-	} else if (shading.alpha_mode != VOE_RENDER_ALPHA_BLENDED) {
-		coverage = 1.0;
-	}
-
-	// The object's share of the pixels, 0 whole (ADR-0432 point 5): d keeps
-	// a threshold under d, −d one at or above d, so the two cover each pixel
-	// once. Here for the reason the cut-out's discard is.
-	if (vertex.dither != 0.0) {
-		float threshold =
-			voe_render_dither_threshold(vertex.position.xy);
-		if (vertex.dither > 0.0 ? threshold >= vertex.dither :
-					  threshold < -vertex.dither)
-			discard;
-	}
 
 	// An unlit material, which is text and will be the user interface: the
 	// base colour is the answer and no light of any direction changes it.

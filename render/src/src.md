@@ -39,9 +39,9 @@ which file to open — what each one owns, and where the seams between them run.
   capture tool; each does nothing without debug-utils.
 - `card.c` — ranking the graphics cards by kind then memory, choosing one, keeping its vendor id,
   and the `render` line that says which and why.
-- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the ten
-  mesh pipelines, solid, blended, shadow, sky, clouds and fog march and composite, point shadow, capture,
-  through the pipeline cache, then the relight, a step a call, and the count of those steps.
+- `pipeline.c` — the layout every pipeline shares, made at open, and prepare, which builds the twelve
+  mesh pipelines, solid, blended, lay, shade, shadow, sky, clouds and fog march and composite, point shadow, capture,
+  then the relight, a step a call, and the count of those steps.
 - `pipeline_cache.c` — the device's pipeline cache: made empty at open, seeded from a caller's bytes
   before the first prepare step, and handed out behind render's own header.
 - `descriptors.c` — everything the shader reads and the one layout that describes it, fifteen

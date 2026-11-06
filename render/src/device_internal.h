@@ -186,6 +186,12 @@ struct voe_render_device {
 	VkPipelineLayout layout;
 	VkPipeline pipeline;
 	VkPipeline pipeline_blended;
+	// The lay step's (ADR-0508): the solid one's vertex stage and the depth
+	// fragment's keep test, depth GREATER and written, no colour written.
+	VkPipeline pipeline_lay;
+	// The shade step's: the solid one's two stages, depth EQUAL to what lay
+	// wrote and unwritten, so each kept pixel is shaded once.
+	VkPipeline pipeline_shade;
 	VkPipeline pipeline_elements;
 	// The shadow pass's: the solid one's vertex stage and nothing after it
 	// but a biased depth write. pipeline.c builds it with the other two.
