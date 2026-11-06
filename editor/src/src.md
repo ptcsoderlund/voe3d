@@ -226,7 +226,9 @@ carries it out.
   landscape or material to open, and Import.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
-  fired row's path, Up and Import afterwards, and the import's copy.
+  fired row's path and the bar's two buttons afterwards, and the listing calls the import shares.
+- `assets_import.c` — Import's copy into the shown folder, read whole before `Assets/` is made,
+  the panel listed again, and a `.glb`'s materials and parts written beside it.
 - `model_import.h` — what Import writes beside a `.glb`: one `<stem>-<name>.material` per glTF
   material and `<stem>.parts` naming them, both overwritten every import, the levels kept (0403,
   0420 point 3); and Import textures: its pictures as PNGs within a largest size, the four maps set.

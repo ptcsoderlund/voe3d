@@ -3,20 +3,18 @@
 // `keyboard`, the field's request, a fired prefab, landscape or material row's
 // path and Up afterwards,
 // with the rectangles the right button's menu and the drag are read from, and
-// Import's copy, a `.glb`'s materials and parts written after it.
+// the listing calls Import's copy (assets_import.c) shares.
 // See the header for the arena, the once a second and what a missing
 // `Assets/` or a failed listing leaves.
 #include "assets_panel.h"
 
 #include "inspector_place.h"
-#include "model_import.h"
 #include "themes.h"
 
 #include <base/arena.h>
 #include <base/assert.h>
 #include <base/report.h>
 
-#include <platform/file.h>
 #include <platform/folder.h>
 #include <platform/path.h>
 
@@ -51,7 +49,7 @@ static char *copy_string(voe_base_arena *arena, const char *text)
 	return copy;
 }
 
-static bool same_folder(const char *a, const char *b)
+bool voe_editor_assets_same_folder(const char *a, const char *b)
 {
 	return (a == NULL && b == NULL) ||
 	       (a != NULL && b != NULL && strcmp(a, b) == 0);
@@ -81,12 +79,12 @@ static void cut_to_parent(char *shown)
 		shown[0] = '\0';
 }
 
-// Lists `<project>/Assets/<shown>` into `listing`. False on a failed listing;
-// true with `missing` set when there is no project or no `Assets/`, whose
-// presence is read from the project's own listing so it reports nothing.
-static bool list_shown(const char *project, const char *shown,
-		       voe_base_arena *scratch,
-		       voe_platform_folder_listing *listing, bool *missing)
+// `Assets/`'s presence is read from the project's own listing so it reports
+// nothing.
+bool voe_editor_assets_list_shown(const char *project, const char *shown,
+				  voe_base_arena *scratch,
+				  voe_platform_folder_listing *listing,
+				  bool *missing)
 {
 	voe_platform_folder_listing top;
 	const char *path;
@@ -210,7 +208,8 @@ static void relist(voe_editor_assets *assets, const char *project,
 	scratch = voe_base_arena_new(ASSETS_SCRATCH);
 	kept = project ? copy_string(scratch, project) : NULL;
 	next = copy_string(scratch, shown);
-	same = assets->listed_once && same_folder(kept, assets->project);
+	same = assets->listed_once &&
+	       voe_editor_assets_same_folder(kept, assets->project);
 	if (same && name == NULL && !up && strcmp(next, assets->shown) == 0 &&
 	    assets->selected != NULL)
 		selected = copy_string(scratch, assets->selected);
@@ -223,7 +222,9 @@ static void relist(voe_editor_assets *assets, const char *project,
 	else if (up)
 		cut_to_parent(next);
 
-	if (!list_shown(kept, next, scratch, &listing, &missing) && same) {
+	if (!voe_editor_assets_list_shown(kept, next, scratch, &listing,
+					  &missing) &&
+	    same) {
 		voe_base_arena_destroy(scratch);
 		return;
 	}
@@ -258,7 +259,7 @@ void voe_editor_assets_update(voe_editor_assets *assets,
 		assets->body = VOE_UI_NODE_NONE;
 	}
 	if (!assets->listed_once ||
-	    !same_folder(project_folder, assets->project)) {
+	    !voe_editor_assets_same_folder(project_folder, assets->project)) {
 		relist(assets, project_folder, "", NULL, false);
 		assets->listed = now;
 	} else if (now - assets->listed >= LIST_SECONDS) {
@@ -697,102 +698,17 @@ bool voe_editor_assets_menu_at(voe_editor_assets *assets, voe_math_float2 at)
 	return true;
 }
 
-// Makes `<project>/Assets/` when the project's listing has none. False with
-// why naming the folder when the listing or the make fails.
-static bool assets_made(const char *project, voe_base_arena *scratch,
-			voe_editor_notice *why)
+void voe_editor_assets_relist(voe_editor_assets *assets, const char *project,
+			      const char *shown)
 {
-	voe_platform_folder_listing listing;
-	const char *folder;
-	bool missing;
-
-	VOE_BASE_ASSERT(project != NULL && scratch != NULL, "making no Assets/");
-	VOE_BASE_ASSERT(why != NULL, "making Assets/ with nowhere to say why");
-	if (!list_shown(project, "", scratch, &listing, &missing)) {
-		voe_editor_notice_from_report(why, project);
-		return false;
-	}
-	if (!missing)
-		return true;
-	folder = voe_platform_path_join(scratch, project, ASSETS_FOLDER);
-	voe_base_report_error_clear();
-	if (!voe_platform_folder_create(folder, NULL)) {
-		voe_editor_notice_from_report(why, folder);
-		return false;
-	}
-	return true;
+	VOE_BASE_ASSERT(assets != NULL && shown != NULL,
+			"listing again no panel or no shown folder");
+	relist(assets, project, shown, NULL, false);
 }
 
-void voe_editor_assets_import(voe_editor_assets *assets,
-			      const char *project_folder, const char *source,
-			      voe_editor_notice *why,
-			      char imported[VOE_3D_MODEL_PATH])
+bool voe_editor_assets_name_ends(const char *name, const char *ending)
 {
-	voe_base_arena *scratch;
-	const char *shown;
-	const char *target;
-	const char *relative;
-	const uint8_t *bytes;
-	size_t count;
-	int length;
-
-	VOE_BASE_ASSERT(assets != NULL && assets->arena != NULL,
-			"importing into an Assets panel never listed");
-	VOE_BASE_ASSERT(project_folder != NULL && source != NULL,
-			"importing with no project folder or no file");
-	VOE_BASE_ASSERT(why != NULL && imported != NULL,
-			"importing with nowhere to say why or where");
-	imported[0] = '\0';
-
-	// The shown folder is only this project's when it was listed for it.
-	shown = same_folder(project_folder, assets->project) &&
-				!assets->missing ?
-			assets->shown :
-			"";
-	// Read before anything is made, so a source that fails leaves the
-	// project as it was.
-	scratch = voe_base_arena_new(ASSETS_SCRATCH);
-	voe_base_report_error_clear();
-	bytes = voe_platform_file_read(source, scratch, &count, NULL);
-	if (bytes == NULL) {
-		voe_editor_notice_from_report(why, source);
-		goto destroy_scratch;
-	}
-	// A write refuses no bytes (platform/file.h), so an empty file is
-	// refused here, naming it, rather than asserting there.
-	if (count == 0) {
-		voe_editor_notice_set(why, "%s: is empty", source);
-		goto destroy_scratch;
-	}
-	if (!assets_made(project_folder, scratch, why))
-		goto destroy_scratch;
-	target = voe_platform_path_join(scratch, project_folder, ASSETS_FOLDER);
-	if (shown[0] != '\0')
-		target = voe_platform_path_join(scratch, target, shown);
-	target = voe_platform_path_join(scratch, target,
-					voe_platform_path_name(source));
-
-	voe_base_report_error_clear();
-	if (!voe_platform_file_write(target, bytes, count, NULL)) {
-		voe_editor_notice_from_report(why, target);
-		goto destroy_scratch;
-	}
-	relative = voe_editor_assets_join(
-		scratch, ASSETS_FOLDER,
-		voe_editor_assets_join(scratch, shown,
-				       voe_platform_path_name(source)));
-	length = snprintf(imported, VOE_3D_MODEL_PATH, "%s", relative);
-	if (length < 0 || length >= VOE_3D_MODEL_PATH)
-		imported[0] = '\0';
-	// A refusal has said why once and the `.glb` stays copied and listed;
-	// `imported` left "" so no LODs question, prepare or reload reads it
-	// again to say the same (0445 point 4).
-	if (name_ends(source, ".glb") &&
-	    !voe_editor_model_import(project_folder, relative, scratch, why))
-		imported[0] = '\0';
-	relist(assets, project_folder, shown, NULL, false);
-destroy_scratch:
-	voe_base_arena_destroy(scratch);
+	return name_ends(name, ending);
 }
 
 void voe_editor_assets_destroy(voe_editor_assets *assets)
