@@ -9,9 +9,10 @@ shader and never compiled alone.
   constant, each matching its C side; an object carries paint, layers, dither, instances, a ground.
 - `instances.slangh` — where a mesh draw's copy stands: from the record and the instance index its
   world matrix, normal matrix and dither, the record's own when it names no instances.
-- `draw.slang` — the mesh pipelines' twelve entry points, the capture's, sky's, clouds' and fog's in
-  its parts below, the depth one the lay step's keep test alone: placing, maps, a painted landscape's layers, a ground record's blend, alpha and
-  dither, exits hazed, exposed and toned, the point-shadow vertex stage; includes the fog's part.
+- `draw.slang` — the mesh pipelines' twelve entry points, the lay step's running the keep test
+  alone, and the capture's, sky's, clouds' and fog's in its parts below: placing, maps, a painted
+  landscape's layers, a ground record's blend, alpha and dither, exits hazed, exposed and toned, the
+  point-shadow vertex stage; includes the fog's part.
 - `draw_capture.slangh` — the part `draw.slang` includes at its end: the bounce capture pass's two
   entry points, a mesh on a probe's faces as albedo and normal with distance.
 - `draw_sky.slangh` — the part `draw.slang` includes last: the sky's two full-screen entry points,
