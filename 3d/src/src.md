@@ -119,7 +119,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `draw_foliage.c` — the foliage gathering: each drawn landscape row's own then grown copies given
   tier then a kept or, unseen, stateless level, a blending kind's keyed by its row's ground,
   written as instances in one call;
-  then each group's instanced draw.
+  then each group's instanced draws, the camera's laid then shaded.
 - `draw_terrain.h` — a landscape row's chosen nodes as records on the shared grid, drawn solid or
   held blended unless outside the pass's planes, and why one eye chooses the same nodes in
   every pass and the cull comes after; internal.

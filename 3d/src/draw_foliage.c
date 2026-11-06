@@ -27,7 +27,7 @@
 // TWO WALKS OVER THE SAME COPIES: the first counts each group's instances, the
 // second fills them contiguously, group after group, into one array on the
 // caller's arena, written by one voe_render_frame_instances and given back; then
-// the groups' draws, one each, solid and cast (draw_foliage.h). Both walks
+// the groups' draws, solid and cast (draw_foliage.h). Both walks
 // take a row's own copies and then its grown copies (0476 point 5), each with
 // its placed transform, so they find the same groups in the same order, the
 // counts the first made are the room the second fills, and a group the first
@@ -39,6 +39,13 @@
 // shadowless (0476 point 6) and its blend height when it blends. A copy's
 // (kind, level, part, rest) is looked up in a per-row table and only its first
 // sight walks the groups' keys, so a row's copies cost no search.
+//
+// THE CAMERA LAYS, THEN SHADES (0508 point 1): _solid draws each span's seen
+// groups twice, first laying their depth where the cut-out and the dither keep
+// a pixel, then shading them EQUAL, the same groups in the same order, sides and
+// records. A leaf hidden behind a nearer one costs a texture read, not a
+// shading, and each kept pixel is shaded once. The span holds both steps, so its
+// line is the whole cost. The cascades and the sun maps draw each group whole.
 //
 // Constraints: every copy's level is chosen and its matrix and tier made each
 // frame and view, twice, one per walk, each copy tested against up to 22
@@ -516,27 +523,45 @@ static bool draw_group(voe_render_device *device,
 	return drawn;
 }
 
+// `group` is seen, with a ground when `grounded`, else with none.
+static bool seen_in(const voe_3d_foliage_group *group, bool grounded)
+{
+	return group->tier == VOE_3D_FOLIAGE_SEEN &&
+	       (group->ground != NULL) == grounded;
+}
+
+// The seen groups of `frame` grounded as asked, in order, in depth step `step`.
+static bool draw_step(voe_render_device *device, const voe_3d_frame *frame,
+		      bool grounded, voe_render_depth_step step)
+{
+	bool drawn = true;
+
+	voe_render_frame_depth_step(device, step);
+	for (uint32_t i = 0; i < frame->foliage_count && drawn; i++)
+		if (seen_in(&frame->foliage[i], grounded))
+			drawn = draw_group(device, &frame->foliage[i],
+					   frame->foliage[i].ground);
+	return drawn;
+}
+
 // The seen groups of `frame` with a ground when `grounded`, else those with
-// none, inside span `span`, opened at the first drawn.
+// none, laid then shaded inside span `span`, opened only when one is there;
+// the step is whole again before the span ends, a refusal too.
 static bool draw_seen(voe_render_device *device, const voe_3d_frame *frame,
 		      bool grounded, const char *span)
 {
-	bool opened = false;
-	bool drawn = true;
+	bool any = false;
+	bool drawn;
 
-	for (uint32_t i = 0; i < frame->foliage_count && drawn; i++) {
-		const voe_3d_foliage_group *group = &frame->foliage[i];
-
-		if (group->tier != VOE_3D_FOLIAGE_SEEN ||
-		    (group->ground != NULL) != grounded)
-			continue;
-		if (!opened)
-			voe_render_frame_span_begin(device, span);
-		opened = true;
-		drawn = draw_group(device, group, group->ground);
-	}
-	if (opened)
-		voe_render_frame_span_end(device);
+	for (uint32_t i = 0; i < frame->foliage_count && !any; i++)
+		any = seen_in(&frame->foliage[i], grounded);
+	if (!any)
+		return true;
+	voe_render_frame_span_begin(device, span);
+	drawn = draw_step(device, frame, grounded, VOE_RENDER_DEPTH_STEP_LAY) &&
+		draw_step(device, frame, grounded, VOE_RENDER_DEPTH_STEP_SHADE);
+	voe_render_frame_depth_step(device, VOE_RENDER_DEPTH_STEP_WHOLE);
+	voe_render_frame_span_end(device);
 	return drawn;
 }
 

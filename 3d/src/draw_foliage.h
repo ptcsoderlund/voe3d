@@ -33,9 +33,11 @@
 // bounce sun maps every tier: a sun map covers the level, not the view, so the
 // bounce's picture is what it was before anything was culled.
 //
-// ONE DRAW PER GROUP, in every pass that draws foliage: its part's record and
-// the group's instances, so a forest of one kind and two parts is two draws a
-// pass however many copies stand in it (0375 point 3).
+// ONE DRAW PER GROUP AND STEP: its part's record and the group's instances,
+// two in the camera pass, laid then shaded (0508 point 1), one in each cascade
+// and bounce sun map, so a forest of one kind and two parts is four draws in the
+// camera pass and two in each other however many copies stand in it (0375
+// point 3).
 //
 // A SWAP'S `rest` GROUPS DO NOT CAST. A shadow is drawn at the LOD the
 // camera keeps (0425 point 5, 0500 point 1), and the depth-only pass reads no
@@ -70,7 +72,9 @@ struct voe_3d_foliage_key {
 };
 
 // Every seen group of `frame`, `rest` ones too, drawn solid into the open
-// camera pass, two-sided where its worn material is (0421 point 2): those with
+// camera pass, each laid then shaded (0508 point 1): every group of a span lays
+// its depth, then the same groups in the same order shade, then the step is
+// whole again. Two-sided where its worn material is (0421 point 2): those with
 // no ground inside one `foliage` span, then those with one, their records
 // filled with it, inside one `foliage blend` span (0388, 0481 point 5), each
 // span opened only when it draws. False when render refuses a draw, which it
