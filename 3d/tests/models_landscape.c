@@ -1,7 +1,8 @@
 // The model store's landscapes: a `.landscape`'s text loads as one part, the
 // store's grid on one material and one twin, with a heights texture and an
 // empty shape; text that is no landscape is kept failed; a brush marks the
-// entry edited and dirty and a frame writes the dirt; a stamp wider than a
+// entry edited and dirty and a frame writes the dirt; a saved one marked
+// changed is edited, its grid as it was, and an unknown path is not; a stamp wider than a
 // frame's budget takes more than one frame; a put updates the pyramid as a
 // fresh build would; on two layers, a paint brush leaves the heights and dirties
 // the paint a frame writes, a paint put writes its bytes, a layer set adds a
@@ -185,6 +186,31 @@ static void a_brush_then_a_frame_clears_the_dirt(voe_3d_models *models,
 	VOE_TEST_CHECK(entry->edited);
 	voe_3d_models_landscape_saved(models, PATH);
 	VOE_TEST_CHECK(!entry->edited);
+}
+
+// A saved hill marked changed is edited with its heights and dirt as they
+// were; an unknown path and a failed entry stay unedited.
+static void a_changed_landscape_is_edited(voe_3d_models *models)
+{
+	const voe_3d_model_entry *entry = hill(models);
+	const voe_3d_model_entry *bad =
+		voe_3d_models_find(models, "Assets/bad.landscape");
+	float heights[81];
+
+	printf("%s\n", __func__);
+	if (entry == NULL || bad == NULL)
+		return;
+	voe_3d_models_landscape_saved(models, PATH);
+	memcpy(heights, entry->landscape->heights, sizeof(heights));
+	voe_3d_models_landscape_changed(models, "Assets/none.landscape");
+	voe_3d_models_landscape_changed(models, "Assets/bad.landscape");
+	VOE_TEST_CHECK(!entry->edited && !bad->edited);
+	voe_3d_models_landscape_changed(models, PATH);
+	VOE_TEST_CHECK(entry->edited);
+	VOE_TEST_CHECK(memcmp(heights, entry->landscape->heights,
+			      sizeof(heights)) == 0);
+	VOE_TEST_CHECK(is_empty(held_of(models, PATH)->dirty));
+	VOE_TEST_CHECK(is_empty(held_of(models, PATH)->paint_dirty));
 }
 
 // Every node's low and high in `a` as in `b`.
@@ -810,6 +836,7 @@ int main(void)
 
 	a_landscape_loads_as_one_part(models, device, arena);
 	a_brush_then_a_frame_clears_the_dirt(models, device, arena);
+	a_changed_landscape_is_edited(models);
 	put_updates_the_pyramid(models, device, arena);
 	a_wide_put_takes_more_than_one_frame(models, device, arena);
 	a_paint_brush_dirties_the_paint(models, device, arena);

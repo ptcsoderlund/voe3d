@@ -329,6 +329,11 @@ void voe_3d_models_landscape_frame(voe_3d_models *models,
 // Clears `path`'s `edited`, once its grid is written to its file.
 void voe_3d_models_landscape_saved(voe_3d_models *models, const char *path);
 
+// Marks `path`'s entry edited, its grid untouched, so the next save writes it:
+// an undo step that puts a whole landscape back leaves the store unlike its
+// file (0509 point 2). Nothing for a path that is no loaded landscape.
+void voe_3d_models_landscape_changed(voe_3d_models *models, const char *path);
+
 // Every entry whose path is `from` or begins `from/` takes `to` in its place,
 // and so does every landscape's layer path; one that would not fit is kept.
 void voe_3d_models_rename(voe_3d_models *models, const char *from,

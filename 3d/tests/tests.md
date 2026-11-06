@@ -187,9 +187,10 @@ again, or to find where a claim that has started failing is written down.
 - `models_levels.c` — the store's levels: a levels file's and a file's own `_LOD1`, a far swap,
   none leaked across reloads and clears, pools below level 0, a prepare then a put, and 17
   materials refused. Skips without a card.
-- `models_landscape.c` — a `.landscape` loaded as one part on the shared grid, its brushes, puts,
-  layers and renames written within a frame's budget, and its foliage placed, kept standing by a
-  sculpt, scattered, erased, put back, kinds set, sized and renamed. Skips without a card.
+- `models_landscape.c` — a `.landscape` loaded as one part on the grid, its brushes, puts,
+  layers and renames written within a frame's budget, marked changed, and its foliage placed, kept
+  standing by a sculpt, scattered, erased, put back, kinds set, sized and renamed. Skips without a
+  card.
 - `models_material.c` — a `.material` with four maps loaded as one part and its values, a set
   written by a frame, a decoded put alike, a mipped map's and a BC7 and BC5 map's put, a
   non-picture map MALFORMED, and a rename. Skips without a card.
