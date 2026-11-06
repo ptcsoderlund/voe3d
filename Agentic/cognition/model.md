@@ -8,3 +8,4 @@
 - `worker-threads.md` — The standing worker threads: which programs have them, how bursts nest on them, and what runs on them.
 - `foliage-cost.md` — What drawing the forest's foliage costs, what the sponsor wants of it, and what the cost does not move with.
 - `gpu-times.md` — What measured GPU times mean: which builds give times true to what ships.
+- `agents-in-projects.md` — What agents may do in a game project made with the editor, why the sponsor wants it, and what the editor owes them.
