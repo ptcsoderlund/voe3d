@@ -403,6 +403,11 @@ carries it out.
   changed one reported once a second so its materials load again; the editor's, not `game`'s.
 - `map_watch.c` — the look's marks, one stamp a map under the folder, a new path noted, a change
   reported while room is left, and the unnamed paths let go.
+- `disk_watch.h` — the open project's sectioned files and `project.voe3d` stamped once a second on
+  a worker, a changed one's bytes read and a landscape strict-read, held until settled, the editor's
+  own writes told, and each path's last known bytes.
+- `disk_watch.c` — the sorted known table, the look's snapshot and walk on its worker, the found
+  files taken as noted, let go or held changes, the settle, the told write and the known bytes.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, the gizmo's mode of three, the reveal of a selection made
   elsewhere and the material open in the Inspector.
