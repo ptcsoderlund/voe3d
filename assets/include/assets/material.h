@@ -31,7 +31,15 @@
 // repeat 1, no maps, cutout 0, double_sided false, emission 0 0 0,
 // emission_strength 1. A file written before a key existed still opens, and
 // Create can write the defaults without this header growing a second writer.
-// A key this reader does not know is passed over for the same reason.
+// A key this reader does not know is passed over for the same reason, so a
+// project still opens with keys an older or newer editor wrote.
+//
+// A FILE TAKEN IN FROM DISK IS READ STRICTLY (0509 point 3):
+// voe_assets_material_read_strict refuses as well a section other than
+// [Material] and a key the reader does not take, the retired map keys apart.
+// It is a second reader, not a stricter first: a file changed outside the
+// editor is refused and the editor keeps what it holds, while opening a
+// project must not stop at a key from another editor version.
 //
 // MAPS ARE PATHS, NOT IDS. A path is what the editor's rename and delete
 // already follow (0378), what a person reads in the file, and what the cook
@@ -96,6 +104,15 @@ voe_assets_material_file voe_assets_material_default(void);
 [[nodiscard]] bool voe_assets_material_read(const char *text, size_t size,
 					    voe_assets_material_file *out,
 					    voe_base_error *error);
+
+// As voe_assets_material_read, and MALFORMED too for a section other than
+// [Material] and for a key it does not take, `colour_map`, `normal_map` and
+// `roughness_map` apart, which read as no maps. The line on stderr names the
+// line, the key and why.
+[[nodiscard]] bool voe_assets_material_read_strict(const char *text,
+						   size_t size,
+						   voe_assets_material_file *out,
+						   voe_base_error *error);
 
 // The text voe_assets_material_read takes back exactly, NUL-terminated,
 // `size` not counting the NUL, on `arena`. Floats are printed to nine digits,

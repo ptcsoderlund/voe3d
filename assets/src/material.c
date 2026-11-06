@@ -8,6 +8,10 @@
 // few hundred bytes read on open and after an Assets command, so that is
 // nothing; an arena parameter would lift it if a caller ever read in a loop.
 //
+// ONE BODY READS FOR BOTH READERS; the strict one then walks every section and
+// key against the table of keys read, so a key added to the reader and not to
+// the table is refused by the strict reader alone.
+//
 // PATHS ARE ALWAYS WRITTEN QUOTED, with `"` and `\` escaped as the sectioned
 // reader takes them back (0149), so a path with blanks at its ends, a leading
 // quote or a backslash returns as it went.
@@ -32,6 +36,25 @@ static bool refuse(voe_base_error *error, const char *key, const char *message)
 		*error = VOE_BASE_ERROR_MALFORMED;
 	return false;
 }
+
+static bool refuse_line(voe_base_error *error, uint32_t line, const char *name,
+			const char *message)
+{
+	VOE_BASE_ERROR("assets", "material: line %u: %s: %s", line, name,
+		       message);
+	if (error != NULL)
+		*error = VOE_BASE_ERROR_MALFORMED;
+	return false;
+}
+
+// Every key read_section reads, then the retired map keys, which read as no
+// maps (0400).
+static const char *const keys_taken[] = {
+	"shader",	"colour",	"roughness",	     "metal",
+	"repeat",	"colormap",	"normalmap",	     "ormmap",
+	"cutout",	"double_sided", "emission",	     "emission_strength",
+	"emissionmap",	"colour_map",	"normal_map",	     "roughness_map",
+};
 
 // A finite float at `at`, blanks before it allowed. Returns the byte after
 // it, or NULL.
@@ -168,6 +191,35 @@ static bool read_section(const voe_assets_sectioned *doc,
 	       check_ranges(material, error);
 }
 
+static bool key_taken(const char *name)
+{
+	for (size_t i = 0; i < sizeof(keys_taken) / sizeof(keys_taken[0]); i++)
+		if (strcmp(name, keys_taken[i]) == 0)
+			return true;
+	return false;
+}
+
+// Every section `[Material]` and each of its keys one in keys_taken.
+static bool check_strict(const voe_assets_sectioned *doc, voe_base_error *error)
+{
+	for (uint32_t s = 0; s < doc->section_count; s++) {
+		const voe_assets_sectioned_section *section = &doc->sections[s];
+
+		if (strcmp(section->name, "Material") != 0)
+			return refuse_line(error, section->line, section->name,
+					   "a section other than [Material]");
+		for (uint32_t i = 0; i < section->key_count; i++) {
+			const voe_assets_sectioned_key *key =
+				&doc->keys[section->first_key + i];
+
+			if (!key_taken(key->name))
+				return refuse_line(error, key->line, key->name,
+						   "a key the reader does not take");
+		}
+	}
+	return true;
+}
+
 voe_assets_material_file voe_assets_material_default(void)
 {
 	return (voe_assets_material_file){
@@ -183,8 +235,9 @@ voe_assets_material_file voe_assets_material_default(void)
 	};
 }
 
-bool voe_assets_material_read(const char *text, size_t size,
-			      voe_assets_material_file *out, voe_base_error *error)
+static bool read_material(const char *text, size_t size,
+			  voe_assets_material_file *out, voe_base_error *error,
+			  bool strict)
 {
 	voe_assets_material_file material = voe_assets_material_default();
 	voe_base_arena *scratch;
@@ -199,11 +252,25 @@ bool voe_assets_material_read(const char *text, size_t size,
 	if (!read)
 		refuse(error, "text", "not sectioned text");
 	else
-		read = read_section(&doc, &material, error);
+		read = read_section(&doc, &material, error) &&
+		       (!strict || check_strict(&doc, error));
 	voe_base_arena_destroy(scratch);
 	if (read)
 		*out = material;
 	return read;
+}
+
+bool voe_assets_material_read(const char *text, size_t size,
+			      voe_assets_material_file *out, voe_base_error *error)
+{
+	return read_material(text, size, out, error, false);
+}
+
+bool voe_assets_material_read_strict(const char *text, size_t size,
+				     voe_assets_material_file *out,
+				     voe_base_error *error)
+{
+	return read_material(text, size, out, error, true);
 }
 
 // `path` between quotes with `"` and `\` escaped, into `quoted`.

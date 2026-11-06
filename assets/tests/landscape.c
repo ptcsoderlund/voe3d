@@ -3,11 +3,14 @@
 // layers and paint round-trip byte for byte and resample to sums of 255,
 // foliage kinds, their looks, each layer's grows and copies round-trip byte for
 // byte and a resample keeps them, and each refusal comes with its category.
+// The strict reader refuses a key or section the lenient one passes over,
+// naming its line, and reads what the writer writes.
 //
 // The files refused are written by hand at four cells, the smallest a file may
 // have, so each case shows the one thing wrong with it.
 #include <assets/landscape.h>
 #include <base/arena.h>
+#include <base/report.h>
 
 #include <testing/test.h>
 
@@ -798,6 +801,74 @@ static void a_resample_keeps_looks_and_grows(voe_base_arena *arena)
 	VOE_TEST_CHECK_INT(eight.grows[1][1], VOE_ASSETS_LANDSCAPE_GROW_MAX);
 }
 
+static void strict_refuses_an_unknown_key(voe_base_arena *arena)
+{
+	// What goes before the heights and after them, each with one key or
+	// section the lenient reader passes over.
+	static const struct {
+		const char *before, *after;
+	} unknown[] = {
+		{ "sea=0\n", "" },
+		{ "", "row5=0 0 0 0 0\n" },
+		{ "", "[Weather]\n" },
+		{ "[Layers]\nlayer0=\"a.material\"\nlayer2=\"c.material\"\n", "" },
+		{ "[Foliage]\nkind0=\"a.glb\"\nglow0=1\n", "" },
+		{ "[Foliage]\nkind0=\"a.glb\"\nsize1=500\n", "" },
+		{ "[Layers]\nlayer0=\"a.material\"\n", "[Paint]\npaint1_0=0*5\n" },
+		{ "", "[Paint]\npaint1_0=0*5\n" },
+	};
+	char text[512];
+	const char *kept;
+
+	for (size_t i = 0; i < sizeof(unknown) / sizeof(unknown[0]); i++) {
+		voe_assets_landscape out = { .size = 1.0f };
+		voe_base_error error = VOE_BASE_OK;
+
+		snprintf(text, sizeof(text),
+			 "[Landscape]\nsize=64\ncells=4\n%s%s%s",
+			 unknown[i].before, four_flat_rows, unknown[i].after);
+		VOE_TEST_CHECK(read_text(arena, text, &out, NULL));
+		out = (voe_assets_landscape){ .size = 1.0f };
+		voe_base_report_error_clear();
+		VOE_TEST_CHECK(!voe_assets_landscape_read_strict(
+			text, strlen(text), arena, &out, &error));
+		VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_MALFORMED);
+		VOE_TEST_CHECK(out.size == 1.0f && out.heights == NULL);
+		kept = voe_base_report_error_first();
+		VOE_TEST_CHECK(kept != NULL && strstr(kept, "line ") != NULL);
+		if (i == 0)
+			VOE_TEST_CHECK(strstr(kept, "line 4: sea: ") != NULL);
+	}
+	// What the lenient reader refuses, the strict one does too.
+	snprintf(text, sizeof(text), "%s%s[Copies]\nc0=2 0 0 0 1000 0\n",
+		 two_kinds, four_flat_rows);
+	VOE_TEST_CHECK(!voe_assets_landscape_read_strict(text, strlen(text),
+							 arena, &(voe_assets_landscape){ 0 },
+							 NULL));
+}
+
+static void strict_reads_what_write_writes(voe_base_arena *arena)
+{
+	voe_assets_landscape grid = grown(arena);
+	voe_assets_landscape_text text;
+	voe_assets_landscape_text again;
+	voe_assets_landscape back;
+
+	grid.looks[1].blends = true;
+	grid.looks[1].blend_height = 120;
+	set_weight(&grid, 7, 1, 100);
+	set_weight(&grid, 7, 0, 155);
+	text = voe_assets_landscape_write(&grid, arena);
+	VOE_TEST_CHECK(strstr(text.text, "\nblendheight1=120\n") != NULL);
+	VOE_TEST_CHECK(strstr(text.text, "\n[Paint]\n") != NULL);
+	VOE_TEST_CHECK(strstr(text.text, "\n[Copies]\n") != NULL);
+	VOE_TEST_CHECK(voe_assets_landscape_read_strict(text.text, text.size,
+							arena, &back, NULL));
+	again = voe_assets_landscape_write(&back, arena);
+	VOE_TEST_CHECK_INT(again.size, text.size);
+	VOE_TEST_CHECK(strcmp(again.text, text.text) == 0);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
@@ -827,6 +898,8 @@ int main(void)
 	no_look_keys_read_as_the_default(arena);
 	bad_looks_and_grows_are_malformed(arena);
 	a_resample_keeps_looks_and_grows(arena);
+	strict_refuses_an_unknown_key(arena);
+	strict_reads_what_write_writes(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

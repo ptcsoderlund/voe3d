@@ -8,7 +8,7 @@
 // leading zeros, and the sectioned reader refuses a key twice, so counting the
 // rows read is checking that none is missing. A key for a layer or row the
 // file does not have is passed over, as other readers here pass over a key
-// they do not know.
+// they do not know, and refused by a strict read.
 //
 // LAYER 0 IS COMPUTED, NEVER READ: 255 minus layers 1-7, after every row is in,
 // so a point past 255 is refused wherever its rows lie.
@@ -125,10 +125,11 @@ static bool paint_key(const char *name, uint32_t *layer, uint32_t *row)
 	return strcmp(canonical, name) == 0;
 }
 
-// Every row of `section` for layers 1 to layer_count - 1 into the paint.
+// Every row of `section` for layers 1 to layer_count - 1 into the paint; any
+// other key passed over, or refused when `strict`.
 static bool read_rows(const voe_assets_sectioned *doc, uint32_t section,
-		      uint32_t cells, uint32_t layer_count, uint8_t *paint,
-		      voe_base_error *error)
+		      uint32_t cells, uint32_t layer_count, bool strict,
+		      uint8_t *paint, voe_base_error *error)
 {
 	const voe_assets_sectioned_section *rows = &doc->sections[section];
 	const size_t points = point_count(cells);
@@ -142,8 +143,11 @@ static bool read_rows(const voe_assets_sectioned *doc, uint32_t section,
 		uint32_t row;
 
 		if (!paint_key(key->name, &layer, &row) || layer == 0 ||
-		    layer >= layer_count || row > cells)
+		    layer >= layer_count || row > cells) {
+			if (strict)
+				return voe_assets_landscape_refuse_key(key, error);
 			continue;
+		}
 		wrong = read_row(key->value, cells, paint, points, layer,
 				 (size_t)row * (cells + 1));
 		if (wrong != NULL)
@@ -157,7 +161,7 @@ static bool read_rows(const voe_assets_sectioned *doc, uint32_t section,
 
 uint8_t *voe_assets_landscape_paint_read(const voe_assets_sectioned *doc,
 					 uint32_t cells, uint32_t layer_count,
-					 voe_base_arena *arena,
+					 bool strict, voe_base_arena *arena,
 					 voe_base_error *error)
 {
 	const size_t points = point_count(cells);
@@ -171,7 +175,7 @@ uint8_t *voe_assets_landscape_paint_read(const voe_assets_sectioned *doc,
 	VOE_BASE_ASSERT(paint != NULL, "no room for a landscape's paint");
 
 	if (section != VOE_ASSETS_SECTIONED_NONE &&
-	    !read_rows(doc, section, cells, layer_count, paint, error))
+	    !read_rows(doc, section, cells, layer_count, strict, paint, error))
 		return NULL;
 	for (size_t p = 0; p < points; p++) {
 		uint32_t sum = 0;

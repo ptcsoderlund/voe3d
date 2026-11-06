@@ -14,10 +14,6 @@
 //     [Foliage]
 //     kind0="Assets/pine.glb"
 //     size0=2000
-//     vary0=30
-//     turn0=90
-//     tilt0=50
-//     shadow0=0
 //     blend0=1
 //     blendheight0=120
 //
@@ -55,6 +51,10 @@
 // THE LAYER ROW'S CHOICE: a row with another material keeps it (0476 point 2).
 // COPY i IS `c<i>=kind x z turn scale lean`, no height: it stands on the ground
 // a sculpt moves. [Copies] IS WALKED ONCE IN ORDER, not 65536 lookups.
+//
+// A FILE TAKEN IN FROM DISK IS READ STRICTLY (0509 point 3), by a second reader
+// refusing an unknown section or key too: a project still opens with keys
+// another editor version wrote, but a file changed outside is refused.
 //
 // THE GAME NEVER READS THIS (0236): the editor does; the cook makes a table.
 // `platform` owns files. Result and working memory go on the arena handed in.
@@ -214,6 +214,16 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 					     voe_base_arena *arena,
 					     voe_assets_landscape *out,
 					     voe_base_error *error);
+
+// As voe_assets_landscape_read, and MALFORMED too for a section other than
+// [Landscape], [Layers], [Foliage], [Heights], [Paint] and [Copies], and for a
+// key no section takes: a layer, kind, look key, row or paint row past the
+// file's counts or misnamed. The line on stderr names the line and the key.
+[[nodiscard]] bool voe_assets_landscape_read_strict(const char *text,
+						    size_t size,
+						    voe_base_arena *arena,
+						    voe_assets_landscape *out,
+						    voe_base_error *error);
 
 // The text voe_assets_landscape_read takes, NUL-terminated, `size` not
 // counting the NUL. [Layers] only when there are any, each grow of a kind

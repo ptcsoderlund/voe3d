@@ -24,6 +24,9 @@
 // [Layers] IS WALKED ONCE FOR `grow<l>_<k>` (0476 point 2): any key starting
 // `grow`, so one naming a layer or kind not in the file is refused, not
 // skipped. It is read after the kinds, since its k is checked against them.
+//
+// A STRICT READ WALKS [Foliage] ONCE MORE, after the kinds: each key a kind's
+// path or one of look_keys, numbered below the kind count, or refused.
 #include "landscape_foliage.h"
 
 #include <base/assert.h>
@@ -146,9 +149,33 @@ static bool read_look(const voe_assets_sectioned *doc, uint32_t section,
 	return true;
 }
 
-// `[Foliage]`'s paths from kind0= to the first missing key, into `into`.
+// Every key of `[Foliage]` section `section` `kind<k>` or a look key's
+// `<key><k>`, k below `kind_count`.
+static bool check_foliage_keys(const voe_assets_sectioned *doc,
+			       uint32_t section, uint32_t kind_count,
+			       voe_base_error *error)
+{
+	const voe_assets_sectioned_section *keys = &doc->sections[section];
+
+	for (uint32_t i = 0; i < keys->key_count; i++) {
+		const voe_assets_sectioned_key *key =
+			&doc->keys[keys->first_key + i];
+		bool taken =
+			voe_assets_landscape_numbered(key->name, "kind", kind_count);
+
+		for (uint32_t l = 0; l < LOOK_KEYS && !taken; l++)
+			taken = voe_assets_landscape_numbered(
+				key->name, look_keys[l].key, kind_count);
+		if (!taken)
+			return voe_assets_landscape_refuse_key(key, error);
+	}
+	return true;
+}
+
+// `[Foliage]`'s paths from kind0= to the first missing key, into `into`; when
+// `strict`, then its keys checked.
 static bool read_kinds(const voe_assets_sectioned *doc, const char *text,
-		       size_t size, voe_assets_landscape *into,
+		       size_t size, bool strict, voe_assets_landscape *into,
 		       voe_base_error *error)
 {
 	const uint32_t section = voe_assets_sectioned_find(doc, "Foliage");
@@ -177,7 +204,8 @@ static bool read_kinds(const voe_assets_sectioned *doc, const char *text,
 			return false;
 		into->kind_count = k + 1;
 	}
-	return true;
+	return !strict ||
+	       check_foliage_keys(doc, section, into->kind_count, error);
 }
 
 // `grow<l>_<k>`'s l and k; false when `name` is not shaped so.
@@ -342,7 +370,7 @@ float voe_assets_landscape_kind_size(const voe_assets_landscape *landscape,
 
 bool voe_assets_landscape_foliage_read(const voe_assets_sectioned *doc,
 				       const char *text, size_t size,
-				       voe_base_arena *arena,
+				       bool strict, voe_base_arena *arena,
 				       voe_assets_landscape *into,
 				       voe_base_error *error)
 {
@@ -350,7 +378,7 @@ bool voe_assets_landscape_foliage_read(const voe_assets_sectioned *doc,
 			"reading foliage from or into nothing");
 	VOE_BASE_ASSERT(arena != NULL, "reading foliage with no arena");
 
-	return read_kinds(doc, text, size, into, error) &&
+	return read_kinds(doc, text, size, strict, into, error) &&
 	       read_grows(doc, into, error) &&
 	       read_copies(doc, arena, into, error);
 }
