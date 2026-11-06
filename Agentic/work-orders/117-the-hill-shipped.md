@@ -1,13 +1,13 @@
-# 113 — The hill, shipped
+# 117 — The hill, shipped
 
 ## What
 A project whose world has no player ships as a build that flies through it with a free camera: mouse
 to look, keys or a gamepad to fly, a key to go faster. The build opens on a camera I place in the editor.
 The hill, its ground, grass, forest, sky, clouds, fog, house and tower look as in the editor's view and in Play. It
-runs smoothly on my laptop. With this, 0.3 is done (0374, 0479).
+runs smoothly on my laptop. 0.3 is done when I say the hill is made (0507).
 
 ## Why
-0.3 is the world without the player, flown through as a shipped build. This is its finish line.
+0.3 is the world without the player, flown through as a shipped build. This is the build it ships as.
 
 ## How to test
 1. Place the start camera on the lookout tower, facing the valley. Ship the project.
