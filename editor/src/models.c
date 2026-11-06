@@ -338,7 +338,8 @@ static bool edited_landscape(const voe_3d_model_entry *entry)
 }
 
 bool voe_editor_models_save(voe_editor_models *models, const char *folder,
-			    voe_base_arena *scratch, voe_editor_notice *why)
+			    voe_base_arena *scratch, voe_editor_disk_watch *watch,
+			    voe_editor_notice *why)
 {
 	uint32_t count;
 
@@ -353,15 +354,18 @@ bool voe_editor_models_save(voe_editor_models *models, const char *folder,
 		struct voe_base_arena_mark mark;
 		voe_assets_landscape_text text;
 		voe_base_error error = VOE_BASE_OK;
+		const char *path;
 		bool written;
 
 		if (!edited_landscape(entry))
 			continue;
 		mark = voe_base_arena_mark(scratch);
 		text = voe_assets_landscape_write(entry->landscape, scratch);
-		written = voe_platform_file_write(
-			voe_platform_path_join(scratch, folder, entry->path),
-			(const uint8_t *)text.text, text.size, &error);
+		path = voe_platform_path_join(scratch, folder, entry->path);
+		written = voe_platform_file_write(path, (const uint8_t *)text.text,
+						  text.size, &error);
+		if (written && watch != NULL)
+			voe_editor_disk_watch_wrote(watch, path);
 		voe_base_arena_rewind(scratch, mark);
 		if (!written) {
 			voe_editor_notice_set(why, "Could not save %s: %s",
@@ -616,10 +620,12 @@ bool voe_editor_models_landscape_shape(voe_editor_models *models,
 				       const char *folder, const char *path,
 				       float size, uint32_t cells,
 				       voe_base_arena *scratch,
+				       voe_editor_disk_watch *watch,
 				       voe_editor_notice *why)
 {
 	const voe_3d_model_entry *entry;
 	struct voe_base_arena_mark mark;
+	const char *full;
 	voe_assets_landscape grid;
 	voe_assets_landscape_text text;
 	voe_base_error error = VOE_BASE_OK;
@@ -640,14 +646,16 @@ bool voe_editor_models_landscape_shape(voe_editor_models *models,
 		grid = voe_assets_landscape_resample(&grid, cells, scratch);
 	grid.size = size;
 	text = voe_assets_landscape_write(&grid, scratch);
-	written = voe_platform_file_write(
-		voe_platform_path_join(scratch, folder, path),
-		(const uint8_t *)text.text, text.size, &error);
+	full = voe_platform_path_join(scratch, folder, path);
+	written = voe_platform_file_write(full, (const uint8_t *)text.text,
+					  text.size, &error);
 	if (!written) {
 		voe_editor_notice_set(why, "Could not save %s: %s", path,
 				      voe_base_error_string(error));
 		goto rewind;
 	}
+	if (watch != NULL)
+		voe_editor_disk_watch_wrote(watch, full);
 	entry = voe_3d_models_find(models->store, path);
 	if (entry != NULL && entry->landscape != NULL) {
 		size_t length = strlen(path) + 1;

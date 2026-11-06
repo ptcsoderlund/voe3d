@@ -535,7 +535,8 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		// is voe_editor_session_browser_do's.
 		if (session->project->folder != NULL)
 			session->saved |= voe_editor_project_save(
-				session->project, NULL, &session->notice);
+				session->project, NULL, session->watch,
+				&session->notice);
 		else
 			session_browser_show(session, browser,
 					     VOE_EDITOR_BROWSER_SAVE);
@@ -699,7 +700,7 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 		// "is not empty" included, leaves why set by the save and the
 		// browser open on the folder that refused it.
 		if (!voe_editor_project_save(session->project, browser->folder,
-					     &session->notice))
+					     session->watch, &session->notice))
 			return;
 
 		session->saved = true;

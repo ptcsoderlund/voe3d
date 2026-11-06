@@ -302,6 +302,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	voe_app_start_log_step(&start, "project");
+	session.watch = voe_editor_disk_watch_create();
 
 	voe_editor_undo_create(&undo, arena);
 
@@ -326,6 +327,7 @@ int main(int argc, char *argv[])
 		voe_base_arena_destroy(worker_scratch);
 		voe_base_arena_destroy(scratch);
 		voe_base_arena_destroy(arena);
+		voe_editor_disk_watch_destroy(session.watch);
 		voe_editor_project_destroy(session.project);
 		return 1;
 	}
@@ -504,7 +506,8 @@ int main(int argc, char *argv[])
 		if (session.saved) {
 			session.saved = false;
 			if (!voe_editor_models_save(models, session.project->folder,
-						    scratch, &session.notice))
+						    scratch, session.watch,
+						    &session.notice))
 				session.project->unsaved = true;
 		}
 		if (session.replaced)
@@ -763,6 +766,7 @@ stop:
 	voe_base_arena_destroy(worker_scratch);
 	voe_base_arena_destroy(scratch);
 	voe_base_arena_destroy(arena);
+	voe_editor_disk_watch_destroy(session.watch);
 	voe_editor_project_destroy(session.project);
 	voe_editor_browser_destroy(&browser);
 	voe_editor_assets_destroy(&scene.assets);

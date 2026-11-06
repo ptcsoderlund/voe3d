@@ -357,7 +357,8 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 
 // The open prefab's world written to `<folder>/<prefab>`: refused unless it is
 // one tree whose root voe_editor_prefab_refused lets through (0283 point 1).
-static bool prefab_save(voe_editor_project *project, voe_editor_notice *why)
+static bool prefab_save(voe_editor_project *project, voe_editor_disk_watch *watch,
+			voe_editor_notice *why)
 {
 	const voe_ecs_entity *authored = voe_scene_identity_entities(project->world);
 	uint32_t count = voe_scene_identity_count(project->world);
@@ -393,6 +394,8 @@ static bool prefab_save(voe_editor_project *project, voe_editor_notice *why)
 				     text.size, &error)) {
 		voe_editor_notice_from_report(why, path);
 	} else {
+		if (watch != NULL)
+			voe_editor_disk_watch_wrote(watch, path);
 		project->unsaved = false;
 		saved = true;
 	}
@@ -401,7 +404,7 @@ static bool prefab_save(voe_editor_project *project, voe_editor_notice *why)
 }
 
 bool voe_editor_project_save(voe_editor_project *project, const char *folder,
-			     voe_editor_notice *why)
+			     voe_editor_disk_watch *watch, voe_editor_notice *why)
 {
 	voe_base_arena *scratch;
 	voe_base_error error;
@@ -415,7 +418,7 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 			"folder is required for an untitled project and refused for an opened one");
 
 	if (project->prefab[0] != '\0')
-		return prefab_save(project, why);
+		return prefab_save(project, watch, why);
 
 	scratch = voe_base_arena_new(PROJECT_SAVE_SCRATCH);
 
@@ -465,6 +468,8 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 		voe_base_arena_destroy(scratch);
 		return false;
 	}
+	if (watch != NULL)
+		voe_editor_disk_watch_wrote(watch, scene_path);
 
 	if (project->folder == NULL) {
 		const char *project_path = voe_platform_path_join(
@@ -481,6 +486,8 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 			voe_base_arena_destroy(scratch);
 			return false;
 		}
+		if (watch != NULL)
+			voe_editor_disk_watch_wrote(watch, project_path);
 
 		project->folder = target;
 	}
@@ -492,6 +499,7 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 
 bool voe_editor_project_window_set(voe_editor_project *project,
 				   voe_authoring_project_window window,
+				   voe_editor_disk_watch *watch,
 				   voe_editor_notice *why)
 {
 	voe_base_arena *scratch;
@@ -522,6 +530,8 @@ bool voe_editor_project_window_set(voe_editor_project *project,
 					  &error);
 	if (!written)
 		voe_editor_notice_from_report(why, path);
+	else if (watch != NULL)
+		voe_editor_disk_watch_wrote(watch, path);
 	voe_base_arena_destroy(scratch);
 	VOE_BASE_ASSERT(project->file.window.width == window.width,
 			"the window was not kept");

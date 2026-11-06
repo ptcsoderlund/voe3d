@@ -109,10 +109,12 @@ void voe_editor_models_frame(voe_editor_models *models,
 
 // Every edited landscape written to `<folder>/<path>` and marked saved. False
 // at the first refused write, `why` naming the file; those before it saved.
+// Each one written is told to `watch` (disk_watch.h), NULL telling nothing.
 // `scratch` is rewound.
 [[nodiscard]] bool voe_editor_models_save(voe_editor_models *models,
 					  const char *folder,
 					  voe_base_arena *scratch,
+					  voe_editor_disk_watch *watch,
 					  voe_editor_notice *why);
 
 // Every edited landscape read from `<folder>/<path>` again and loaded over
@@ -210,12 +212,13 @@ void voe_editor_models_rename(voe_editor_models *models, const char *from,
 // side when that differs (0396 point 2): from the store's entry when loaded,
 // else from the file. A loaded entry is marked saved, its edits being in the
 // file now, and loaded again from it at the next update, between frames,
-// since a load may not run inside one. False, `why` naming the file and
-// nothing written, when it will not read or write. `scratch` is rewound.
+// since a load may not run inside one. The file written is told to `watch`,
+// NULL telling nothing. False, `why` naming the file and nothing written, when
+// it will not read or write. `scratch` is rewound.
 [[nodiscard]] bool voe_editor_models_landscape_shape(
 	voe_editor_models *models, const char *folder, const char *path,
 	float size, uint32_t cells, voe_base_arena *scratch,
-	voe_editor_notice *why);
+	voe_editor_disk_watch *watch, voe_editor_notice *why);
 
 // The project's materials' table, to edit a row in place.
 voe_editor_materials *voe_editor_models_materials(voe_editor_models *models);

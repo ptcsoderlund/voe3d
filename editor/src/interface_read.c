@@ -289,7 +289,7 @@ static void voe_editor_interface_covers_read(
 		if (result.changed)
 			(void)voe_editor_project_window_set(
 				session->project, result.window,
-				&session->notice);
+				session->watch, &session->notice);
 	}
 	// A new shape is written at once (models.h) and shown, a refusal said
 	// in the notice.
@@ -302,7 +302,7 @@ static void voe_editor_interface_covers_read(
 		    voe_editor_models_landscape_shape(
 			    models, session->project->folder,
 			    landscape_panel->path, result.size, result.cells,
-			    arena, &session->notice))
+			    arena, session->watch, &session->notice))
 			(void)voe_editor_landscape_panel_show(
 				landscape_panel, landscape_panel->path,
 				result.size, result.cells);

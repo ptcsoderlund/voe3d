@@ -45,23 +45,24 @@
 // REFRESH NEVER ARMS: it starts session->refresh now (refresh.h), unless one
 // runs. `refresh_due` asks for one the next step, set wherever a project with
 // a folder lands: Open's load, a first Save, and startup.h.
-//
 // voe_editor_session_step IS WHERE A REFRESH LANDS: a due one started if the
 // project has code, a running one polled. BUILT loads the library unless its
 // bytes equal the loaded one's (code.h), swaps the world (project.h), re-finds
 // the selection by authored id and closes the picker and dropdown. A failure
 // says so and keeps the old world; `play_after` and `ship_after` are dropped.
-//
 // A FAILED REFRESH, PLAY OR SHIP STEP SHOWS `errors` (errors.h) from
 // Build/build.log, and one that starts hides it.
 //
-// voe_editor_session_edited IS THE OTHER HALF OF WHAT DISARMS: the
-// inspector's edits are no command, so its caller calls this, which marks the
-// project unsaved, clears the notice and disarms.
+// voe_editor_session_edited IS THE OTHER HALF OF WHAT DISARMS: the inspector's
+// edits are no command, so its caller calls this: unsaved, notice cleared.
+//
+// THE DISK WATCH, `watch`, IS MADE BY main.c once startup.h gave the session a
+// project, and destroyed with it; every save here tells it each path written.
 #pragma once
 
 #include "assets_ask.h"
 #include "browser.h"
+#include "disk_watch.h"
 #include "errors.h"
 #include "levels_ask.h"
 #include "notice.h"
@@ -100,6 +101,9 @@ typedef enum {
 // set from outside (scene.h).
 typedef struct voe_editor_session {
 	voe_editor_project *project;
+	// The project's files on disk, told of every write (disk_watch.h);
+	// NULL in a session main.c did not make, which tells nothing.
+	voe_editor_disk_watch *watch;
 	voe_editor_notice notice;
 	voe_editor_command armed;
 	// Idle while zeroed; ended by a CLOSE that goes ahead.
@@ -235,7 +239,7 @@ void voe_editor_session_prefab_open(voe_editor_session *session,
 // browser->target copied into `load_folder`, `load_due` set and the browser
 // hidden; voe_editor_session_load opens it next frame. A target too long to
 // copy is a notice and the browser stays. IN SAVE MODE:
-// voe_editor_project_save(session->project, browser->folder, why) — the first
+// voe_editor_project_save(session->project, browser->folder, watch, why) — the first
 // save a project this session built untitled ever gets — and on success the
 // last project is remembered (a failure to write that is a notice and not a
 // refusal), a refresh is due and the browser hides; on failure, INCLUDING "IS

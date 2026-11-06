@@ -47,6 +47,7 @@
 #pragma once
 
 #include "code.h"
+#include "disk_watch.h"
 #include "notice.h"
 
 #include <authoring/project.h>
@@ -129,17 +130,20 @@ voe_render_light voe_editor_project_preview_light(void);
 // nothing written; true clears project->unsaved and, for an untitled project,
 // sets project->folder to folder. With a prefab open it writes the prefab,
 // refusing a world without exactly one entity with no parent, or one that
-// voe_editor_prefab_refused (prefabs.h) refuses.
+// voe_editor_prefab_refused (prefabs.h) refuses. Each file written is told to
+// `watch` (disk_watch.h) at once; NULL tells nothing.
 [[nodiscard]] bool voe_editor_project_save(voe_editor_project *project,
 					   const char *folder,
+					   voe_editor_disk_watch *watch,
 					   voe_editor_notice *why);
 
 // Sets the game's window, asserting a size in range; with a folder, writes
-// project.voe3d at once with the kept scene path. False with why when that
-// write fails, the window still set. Untitled writes nothing. Never touches
-// unsaved or the undo line.
+// project.voe3d at once with the kept scene path and tells `watch` (NULL
+// nothing). False with why when that write fails, the window still set.
+// Untitled writes nothing. Never touches unsaved or the undo line.
 [[nodiscard]] bool voe_editor_project_window_set(voe_editor_project *project,
 						 voe_authoring_project_window window,
+						 voe_editor_disk_watch *watch,
 						 voe_editor_notice *why);
 
 // The world and project->kept written into arena as scene text — the same
