@@ -206,6 +206,9 @@ again, or to find where a claim that has started failing is written down.
 - `tree_grow.c` — a tree's skeleton repeating by variation, children starting on their parents at
   the defaults and at every maximum, fewer triangles each level, no leaves at density 0, every
   vertex in a box about the trunk, and the levels' node names. Needs no graphics card.
+- `model_prepare_grown.c` — a default tree prepared in memory with its four own levels measured,
+  their errors rising, and the bounds they give swapping each level in farther. Needs no
+  graphics card.
 - `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
   once, neighbours within a level, within capacity, bounding their heights; an update equal to a
   fresh build and the pyramid's box. Needs no graphics card.

@@ -193,7 +193,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   store's files share.
 - `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until
   one matches no part, or a levels file read and checked against the bake, the shape built and
-  the sphere measured.
+  the sphere measured; a grown model alike, its own levels measured against level 0.
 - `model_cooked.c` — a prepared `.glb` measured then written as one run of 16-aligned sections,
   each picture mipped by its first use, and read back pointing into the bytes, every count, range
   and index checked.

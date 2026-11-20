@@ -22,6 +22,13 @@
 // bounding sphere; it touches no device and no store. The put uploads and
 // keeps.
 //
+// TWO ENTRY POINTS. voe_3d_model_prepare for a model read from a `.glb`, its
+// levels file beside it. voe_3d_model_prepare_grown for a model made in memory,
+// the tree grower's (3d/tree_grow.h): no file, no levels file; its own
+// `_LOD<n>` levels are measured both ways against level 0 here, as a levels
+// file measures a `.glb`'s, every swap 1. Its parts get their materials later,
+// from paths; a model with no pictures prepares with none.
+//
 // THE MODEL IS KEPT BY POINTER, not copied, so its pictures may be decoded
 // after the prepare, by the loader's decoding step, into `model->images`; the
 // put asserts they are by then. The prepare reads none of them.
@@ -58,6 +65,13 @@ typedef struct voe_3d_model_prepared voe_3d_model_prepared;
 voe_3d_model_prepare(voe_base_arena *arena, const voe_assets_model *model,
 		     const uint8_t *glb, size_t glb_size, const uint8_t *levels,
 		     size_t levels_size, voe_base_error *error);
+
+// `model`, made in memory, baked on `arena` with its own levels, each measured
+// against level 0; level 0 alone when its nodes name none. NULL with `error`
+// set as voe_3d_model_prepare says.
+[[nodiscard]] const voe_3d_model_prepared *
+voe_3d_model_prepare_grown(voe_base_arena *arena, const voe_assets_model *model,
+			   voe_base_error *error);
 
 // Whether `path` ends `.png`, `.jpg` or `.jpeg`, in any case.
 bool voe_3d_model_picture_is(const char *path);
