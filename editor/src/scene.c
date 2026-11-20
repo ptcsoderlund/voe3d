@@ -1,5 +1,6 @@
 // The selection, the colour picker's and the open dropdown's targets, the
-// gizmo's mode, the open material's close, follow and refresh, and the rows the Scene
+// gizmo's mode, the open material's close, follow and refresh, the open
+// tree's follow, refresh and clamp, and the rows the Scene
 // panel drew. See the header for why
 // building a project's entities is not this file's job, and why the rows
 // outlive the call that drew them.
@@ -105,6 +106,74 @@ void voe_editor_scene_material_refresh(voe_editor_scene *scene,
 	}
 	scene->material = row->values;
 	scene->material_before = row->values;
+}
+
+// `path`'s row of the read-only table; NULL when none. A scan, as _find's.
+static const voe_game_tree *tree_row(const voe_editor_trees *trees,
+				     const char *path)
+{
+	VOE_BASE_ASSERT(trees != NULL && path != NULL,
+			"finding a species in no table or of no path");
+	VOE_BASE_ASSERT(trees->count <= VOE_EDITOR_TREES, "a table past its room");
+	for (uint32_t i = 0; i < trees->count; i++)
+		if (strcmp(trees->rows[i].path, path) == 0)
+			return &trees->rows[i];
+	return NULL;
+}
+
+void voe_editor_scene_tree_follow(voe_editor_scene *scene, const char *species,
+				  const voe_editor_trees *trees)
+{
+	const voe_game_tree *row;
+
+	VOE_BASE_ASSERT(scene != NULL && trees != NULL,
+			"following a species in no scene or from no table");
+	if (species == NULL) {
+		scene->tree_open[0] = '\0';
+		return;
+	}
+	if (strcmp(species, scene->tree_open) == 0)
+		return;
+	row = tree_row(trees, species);
+	scene->tree_open[0] = '\0';
+	if (row == NULL)
+		return;
+	// A row's path is shorter than its room, which is `tree_open`'s.
+	VOE_BASE_ASSERT(strlen(species) < sizeof scene->tree_open,
+			"a species' path past the open tree's room");
+	memcpy(scene->tree_open, species, strlen(species) + 1);
+	scene->tree = row->values;
+	scene->tree_before = row->values;
+	scene->tree_variation = 0;
+}
+
+void voe_editor_scene_tree_refresh(voe_editor_scene *scene,
+				   const voe_editor_trees *trees)
+{
+	const voe_game_tree *row;
+
+	VOE_BASE_ASSERT(scene != NULL && trees != NULL,
+			"refreshing the open tree of no scene or from no table");
+	if (scene->tree_open[0] == '\0')
+		return;
+	row = tree_row(trees, scene->tree_open);
+	if (row == NULL) {
+		scene->tree_open[0] = '\0';
+		return;
+	}
+	scene->tree = row->values;
+	scene->tree_before = row->values;
+}
+
+bool voe_editor_scene_tree_clamp(voe_editor_scene *scene)
+{
+	VOE_BASE_ASSERT(scene != NULL, "clamping the variation of no scene");
+	VOE_BASE_ASSERT(scene->tree.variations >= VOE_ASSETS_TREE_VARIATIONS_MIN,
+			"a shown tree with no variations");
+	if (scene->tree_variation < scene->tree.variations)
+		return false;
+	scene->tree_variation = scene->tree.variations - 1;
+	return true;
 }
 
 bool voe_editor_scene_is_selected(const voe_editor_scene *scene,

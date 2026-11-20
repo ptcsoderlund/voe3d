@@ -306,6 +306,7 @@ static void materials_read(voe_editor_session *session, voe_editor_scene *scene,
 	VOE_BASE_ASSERT(models != NULL && scratch != NULL, "reading materials into no store");
 	voe_editor_models_materials_read(models, session->project->folder, scratch);
 	voe_editor_scene_material_refresh(scene, voe_editor_models_materials(models));
+	voe_editor_scene_tree_refresh(scene, voe_editor_models_trees(models));
 }
 
 bool voe_editor_assets_material_make(voe_editor_session *session, voe_editor_scene *scene,

@@ -67,6 +67,7 @@
 #include "folds.h"
 #include "inspector_level.h"
 #include "inspector_material.h"
+#include "inspector_tree.h"
 #include "sculpt.h"
 #include "view.h"
 
@@ -375,7 +376,9 @@ bool voe_editor_inspector_is_part(const voe_ecs_world *world,
 // (inspector_level.h). Every section opens on `folds` and its body is drawn
 // only while open. While `material_open` is not "", `material`'s section
 // is drawn in place of all of it into `controls` (inspector_material.h), and
-// no entity is recorded, so no entity's edit is read.
+// no entity is recorded, so no entity's edit is read; else, while `tree_open`
+// is not "", `tree`'s section is, showing `tree_variation`, into
+// `tree_controls` (inspector_tree.h).
 void voe_editor_inspector_draw(voe_ui_context *ui,
 			       voe_editor_inspector *inspector,
 			       voe_ecs_world *world, voe_ecs_entity selected,
@@ -386,4 +389,7 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			       const voe_editor_views *views,
 			       const char *material_open,
 			       const voe_assets_material_file *material,
-			       voe_editor_inspector_material *controls);
+			       voe_editor_inspector_material *controls,
+			       const char *tree_open, const voe_assets_tree *tree,
+			       uint32_t tree_variation,
+			       voe_editor_inspector_tree *tree_controls);

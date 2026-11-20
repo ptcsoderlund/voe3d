@@ -665,6 +665,7 @@ static void session_import(voe_editor_session *session, voe_editor_scene *scene,
 	voe_base_arena_destroy(scratch);
 	voe_editor_scene_material_refresh(scene,
 					  voe_editor_models_materials(models));
+	voe_editor_scene_tree_refresh(scene, voe_editor_models_trees(models));
 }
 
 void voe_editor_session_browser_do(voe_editor_session *session,

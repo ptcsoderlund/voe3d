@@ -54,19 +54,21 @@
 //
 // THE GIZMO'S MODE, `gizmo_kind`, AND `snap` ARE THE PERSON'S, NOT THE PROJECT'S
 // (ADR-0274, 0482): R cycles Move, Rotate, Scale, never saved; `snap` is kept in
-// editor_settings (settings.h). Neither is undone and a new project keeps both.
-// `assets`, the Assets panel's state, is here so the dock reaches it (assets_panel.h).
-// AN OPEN MATERIAL (0399 point 8) is `material_open`, its shown copy `material`: a live
-// selection or a trash closes it, a move follows it, a materials re-read refreshes it.
+// editor_settings (settings.h). Neither is undone and a new project keeps both. `assets` is
+// here so the dock reaches it. AN OPEN MATERIAL (0399 point 8), `material_open` shown as
+// `material`, closes on a live selection or trash, follows a move, refreshes on a re-read; AN
+// OPEN SPECIES (0515), `tree_open` shown as `tree`, follows the project, its variation clamped.
 #pragma once
 
 #include "assets_panel.h"
 #include "folds.h"
 #include "inspector.h"
 #include "inspector_material.h"
+#include "inspector_tree.h"
 #include "materials.h"
 #include "sculpt.h"
 #include "settings.h"
+#include "trees.h"
 
 #include <3d/gizmo.h>
 #include <ecs/world.h>
@@ -243,6 +245,17 @@ typedef struct voe_editor_scene {
 	voe_assets_material_file material;
 	voe_assets_material_file material_before;
 	voe_editor_inspector_material material_controls;
+	// The species the Inspector shows in place of the entity, `Assets/...`,
+	// "" for none; set and cleared by voe_editor_scene_tree_follow. `tree`
+	// is the shown copy the Inspector edits, `tree_controls` what its section
+	// drew (inspector_tree.h), `tree_before` the copy as last read from its
+	// file, and `tree_variation` the variation stepped to, from 0, the one
+	// the world's tree wears once interface_read.c has stepped it.
+	char tree_open[VOE_ASSETS_LANDSCAPE_KIND_PATH];
+	voe_assets_tree tree;
+	voe_assets_tree tree_before;
+	voe_editor_inspector_tree tree_controls;
+	uint32_t tree_variation;
 } voe_editor_scene;
 
 // Which entity is selected, or a zeroed one when nothing is — including when
@@ -269,6 +282,24 @@ void voe_editor_scene_material_follow(voe_editor_scene *scene,
 // its row is gone. Nothing with none open.
 void voe_editor_scene_material_refresh(voe_editor_scene *scene,
 				       voe_editor_materials *materials);
+
+// Each frame before the draw, `species` the open species' path (project.h's
+// `prefab` while voe_editor_project_species_is), NULL for none: none closes
+// the open tree; one other than `tree_open` with a row in `trees` opens it,
+// `tree` and `tree_before` its row's values and `tree_variation` 0, as the
+// species opens; one with no row waits closed until a read gives it one.
+void voe_editor_scene_tree_follow(voe_editor_scene *scene, const char *species,
+				  const voe_editor_trees *trees);
+
+// After `trees` was read again: the open tree takes its row's values as both
+// `tree` and `tree_before`, as the open material does; closed when its row is
+// gone. Nothing with none open.
+void voe_editor_scene_tree_refresh(voe_editor_scene *scene,
+				   const voe_editor_trees *trees);
+
+// `tree_variation` brought below `tree.variations` when Variations fell;
+// whether it moved, so the caller steps the world's tree to it.
+[[nodiscard]] bool voe_editor_scene_tree_clamp(voe_editor_scene *scene);
 
 // Whether this is the selected entity. False for a zeroed `entity` and false
 // for one that is not alive, so a caller comparing table rows needs no checks of

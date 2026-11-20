@@ -187,6 +187,7 @@ static void voe_editor_interface_assets_textures_do(voe_editor_session *session,
 		arena, session->watch, &session->notice);
 	voe_editor_models_materials_read(models, folder, arena);
 	voe_editor_scene_material_refresh(scene, voe_editor_models_materials(models));
+	voe_editor_scene_tree_refresh(scene, voe_editor_models_trees(models));
 	voe_editor_assets_list_due(&scene->assets);
 }
 

@@ -312,7 +312,7 @@ carries it out.
   answered, Make's asking the prepare or, for swaps alone, a reload, Import's importing at its size.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project and Landscape.
-- `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,
+- `interface_read.c` — the Inspector's reads, an edited material or species handed to the store,
   the picker's submit (a material's into the field its offset names), the drop's prefab, the reveal,
   the panels' toggles, the bar's or browser's commands, the covers' reads and Preferences'.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
@@ -320,7 +320,8 @@ carries it out.
   draws that list and reads what was picked from it; a part is shown, never edited; sections fold.
 - `inspector.c` — the Enabled row's button, the Duplicate and Delete row, each described
   component's folding section with its heading and Remove, then "Needs" line and fields, Add
-  component, its menu and open list, a part read-only, a landscape's sections, or a material's.
+  component, its menu and open list, a part read-only, a landscape's sections, or a material's or
+  species' instead.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
   strings a text field per string, a ranged real a slider with its figure, labels when it cannot be
   edited.
@@ -364,6 +365,11 @@ carries it out.
   set), Repeat clamped 0.01–1000, Cutout, One side and Both sides, and the four map rows with ×.
 - `inspector_material.c` — the section's one frame of `ui` calls, its nodes forgotten each frame,
   and the read into the shown copy only, a swatch opening the picker on its field's offset.
+- `inspector_tree.h` — the Inspector's tree section for an open species: Bark and Leaf rows with ×,
+  a slider per number key over assets/tree.h's ranges, Variations clamped 1–16, and the ◀ v / count
+  ▶ stepper.
+- `inspector_tree.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
+  the read into the shown copy and the stepped variation, which wraps.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
   frame from the types' registered menu paths (ADR-0217, 0221), and each level drawn as a list.
 - `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under
@@ -443,9 +449,9 @@ carries it out.
   take that sets the world, the asked path answered, and the question opened, closed and answered.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, the gizmo's mode of three, the reveal of a selection made
-  elsewhere and the material open in the Inspector.
-- `scene.c` — the selection and its targets, the open material's close, follow and refresh,
-  Delete, Duplicate and the Inspector's switch, and the Scene panel's rows, asked after the frame
+  elsewhere and the material or species open in the Inspector.
+- `scene.c` — the selection and its targets, the open material's close, follow and refresh, the
+  open tree's follow, refresh and clamp, Delete, Duplicate and the Inspector's switch, and the Scene panel's rows, asked after the frame
   has ended.
 - `pick.h` — a left click in a scene view selects what is under the pointer, every placed thing on
   its mesh or its marker, a marker before a mesh, and a click on nothing clears the selection; the
