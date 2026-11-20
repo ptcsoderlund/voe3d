@@ -87,14 +87,16 @@ carries it out.
   digits with an `x` between, and the one usage line every mistake ends at.
 - `project.h` — the project being worked on: its three arenas, kept sections, project file with its
   game window, code, folder and unsaved flag (ADR-0164), where its worlds are made, its scene as
-  text or read back and expanded, the new-code swap, and a prefab opened with the level set aside.
+  text or read back and expanded, the new-code swap, and a prefab or species opened in its place.
 - `project.c` — opening, making and saving a project, the game window set and written at once, the
   scene written out as text and read back into the same world or a new one, each read expanded,
   and the untitled scene's cube, light and camera.
-- `project_prefab.h` — the open prefab's save, private to the two project files, which
-  voe_editor_project_save hands a save to while a prefab is open.
+- `project_prefab.h` — the open prefab's save and the untitled scene's light, private to the
+  project files: the save Save hands a prefab to, the light the species view stands as its sun.
 - `project_prefab.c` — a prefab opened with the level set aside as text, saved as one tree, and
   Back reading the level in again.
+- `project_species.c` — a `.tree` species opened in the level's place as a prefab is, its world a
+  sun and one model row wearing a variation, the variation stepped, and whether one is open.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
   failure worth reporting.

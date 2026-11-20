@@ -229,7 +229,8 @@ const char *voe_editor_session_ship_label(const voe_editor_session *session);
 void voe_editor_session_edited(voe_editor_session *session);
 
 // Opens the prefab at `path` under the project's folder in the level's place
-// (voe_editor_project_prefab_open), clearing the notice and disarming as a
+// (voe_editor_project_prefab_open), or a `.tree` path's species at variation
+// 0 (voe_editor_project_species_open), clearing the notice and disarming as a
 // command does. Refused with a notice while a prefab is open; a failure is the
 // notice. On success `scene`'s selection is cleared, the picker and dropdown
 // closed, any Play or Ship to follow a refresh dropped, and prefab_opened set.
