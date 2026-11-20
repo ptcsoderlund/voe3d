@@ -19,7 +19,9 @@
 // OR A STEP CARRIES ONE THING beside a text equal to the one before: back from
 // it puts the thing's before, forward its after. A stroke (_stroke, strokes.h,
 // 0379 point 5) goes into the store; a material step (_material, 0399 point 9)
-// into the table, file and store; a file taken in from disk (_file,
+// into the table, file and store; a tree step (_tree, tree_steps.h, 0515) into
+// the table, file and open copy, the species re-stepped to the shown
+// variation, as the text may wear another; a file taken in from disk (_file,
 // file_steps.h, 0506): a material, closed prefab, `.parts` or project.voe3d,
 // is written, told to the watch and taken in; a landscape taken in from disk
 // (_landscape) goes into the store, left unsaved as a stroke leaves it. Each is
@@ -64,6 +66,7 @@
 #include "models.h"
 #include "scene.h"
 #include "strokes.h"
+#include "tree_steps.h"
 
 #include <base/arena.h>
 
@@ -76,13 +79,14 @@
 #define VOE_EDITOR_UNDO_TEXT (64u * 1024u)
 
 // One state of the line: a scene text, `size` bytes of `text` long, and the
-// stroke, material, file or landscape step it carries, the state's own, NULL
-// for none.
+// stroke, material, tree, file or landscape step it carries, the state's own,
+// NULL for none.
 typedef struct {
 	size_t size;
 	char text[VOE_EDITOR_UNDO_TEXT];
 	voe_editor_stroke *stroke;
 	voe_editor_material_step *material;
+	voe_editor_tree_step *tree;
 	voe_editor_file_step *file;
 	voe_editor_landscape_step *landscape;
 } voe_editor_undo_state;
@@ -159,6 +163,11 @@ void voe_editor_undo_material(voe_editor_undo *undo,
 			      voe_base_arena *scratch,
 			      voe_editor_material_step *step);
 
+// Takes `step`, a species edit, which the line now owns, as
+// voe_editor_undo_material takes a material step.
+void voe_editor_undo_tree(voe_editor_undo *undo, voe_editor_project *project,
+			  voe_base_arena *scratch, voe_editor_tree_step *step);
+
 // Takes `step`, a file taken in from disk, which the line now owns, as
 // voe_editor_undo_material takes a material step.
 void voe_editor_undo_file(voe_editor_undo *undo, voe_editor_project *project,
@@ -174,8 +183,9 @@ void voe_editor_undo_landscape(voe_editor_undo *undo,
 // Takes a step back, or forward when `forward`: the project's world is made
 // the neighbouring state and the selection re-found by its authored id; back
 // from a state with a stroke writes its `before` into `models`, forward onto
-// one its `after`, and a material, file or landscape step is applied the same
-// way (material_steps.h, file_steps.h) in `scratch`, which is rewound, its
+// one its `after`, and a material, tree, file or landscape step is applied the
+// same way (material_steps.h, tree_steps.h, file_steps.h) in `scratch`, which
+// is rewound, its
 // write told to `watch` (disk_watch.h), NULL telling nothing. A file step
 // refused is said in `why` and the step still taken. False and nothing done
 // when there is no state that way, and false with `why` filled and the line

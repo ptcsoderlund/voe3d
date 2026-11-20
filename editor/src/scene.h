@@ -248,8 +248,8 @@ typedef struct voe_editor_scene {
 	// The species the Inspector shows in place of the entity, `Assets/...`,
 	// "" for none; set and cleared by voe_editor_scene_tree_follow. `tree`
 	// is the shown copy the Inspector edits, `tree_controls` what its section
-	// drew (inspector_tree.h), `tree_before` the copy as last read from its
-	// file, and `tree_variation` the variation stepped to, from 0, the one
+	// drew (inspector_tree.h), `tree_before` the copy as last read from or
+	// written to its file (frame_commands.c, tree_steps.h), and `tree_variation` the variation stepped to, from 0, the one
 	// the world's tree wears once interface_read.c has stepped it.
 	char tree_open[VOE_ASSETS_LANDSCAPE_KIND_PATH];
 	voe_assets_tree tree;
