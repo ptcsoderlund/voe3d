@@ -12,8 +12,9 @@
 //     (void)voe_3d_draw_foliage_solid(device, &frame);
 //
 // A GROUP IS ONE (kind, level, part, rest, tier, casts, ground, reach): the
-// kind's loaded `.glb` entry, so two landscape rows naming one file share its
-// groups; the level its copies are drawn at; the level-0 part they wear;
+// entry its copies draw, the kind's loaded `.glb` or the variation of its
+// species a copy picks (0515 point 4), so two landscape rows naming one file
+// share its groups; the level its copies are drawn at; the level-0 part they wear;
 // whether they are the outgoing LOD of a 0.25 s swap, dithered the other way
 // (0500 point 1); their tier; whether the row's look of the kind casts; and, for a
 // kind whose look blends, the painted ground of the row it stands on and the

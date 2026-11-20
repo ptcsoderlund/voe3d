@@ -53,6 +53,8 @@
 //     0.1 s later, level 1 and a `rest` group at level 0; 0.3 s on, no `rest`.
 // 14. The copy 60 m behind the camera, the sun nearly overhead: every group
 //     unseen, and its key not found in a new memory.
+// 16. KIND a species of two `.glb`s at KIND#v (0515 point 3): none loaded, no
+//     group; both, groups drawing their parts, three copies' worth.
 //
 // IT NEEDS A GRAPHICS CARD AND SKIPS WITH A REASON WITHOUT ONE, as
 // 3d/tests/draw_model_fade.c does.
@@ -98,15 +100,15 @@
 #define FOREST "Assets/forest.landscape"
 #define COPIES 3
 
-// The model's parts and the landscape's grid, both with their twins, or the
-// sphere's levels in their place; the ground's nodes and the groups drawn into
-// the view and four cascades.
+// The model's parts, twice for 16's variations, and the landscape's grid, both
+// with their twins, or the sphere's levels in their place; the ground's nodes
+// and the groups drawn into the view and four cascades.
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 33 * 33 + 6 + 32 * 1024,
 	.indices = 32 * 32 * 6 + 6 + 128 * 1024,
-	.geometries = 4 + VOE_3D_MODEL_LEVELS,
+	.geometries = 8 + VOE_3D_MODEL_LEVELS,
 	.objects = (1 + VOE_RENDER_SHADOW_CASCADES) * 64,
-	.shadings = 8,
+	.shadings = 16,
 	.passes = 1 + VOE_RENDER_SHADOW_CASCADES,
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
 	.heights_texels = VOE_3D_LANDSCAPE_WRITE_TEXELS,
@@ -265,10 +267,10 @@ static bool gather(voe_ecs_world *world, voe_render_device *device,
 	return gather_kept(world, device, arena, models, NULL, 0.0, out);
 }
 
-// The model's parts drawn as foliage: neither blended.
-static uint32_t opaque_parts(const voe_3d_models *models)
+// The parts of the model at `path` drawn as foliage: neither blended.
+static uint32_t opaque_parts(const voe_3d_models *models, const char *path)
 {
-	const voe_3d_model_entry *kind = voe_3d_models_find(models, KIND);
+	const voe_3d_model_entry *kind = voe_3d_models_find(models, path);
 	uint32_t parts = 0;
 
 	VOE_TEST_CHECK(kind != NULL && kind->loaded);
@@ -290,7 +292,7 @@ static void copies_gather_into_groups(voe_render_device *device,
 	voe_scene_identity identity;
 	voe_3d_frame frame;
 	uint32_t sum = 0;
-	const uint32_t parts = opaque_parts(models);
+	const uint32_t parts = opaque_parts(models, KIND);
 
 	VOE_TEST_CHECK(parts > 0);
 	VOE_TEST_CHECK(gather(world, device, arena, models, &frame));
@@ -545,7 +547,7 @@ static void grown_copies_gather(voe_render_device *device,
 	voe_ecs_world *world = a_world(arena, &land);
 	voe_3d_frame frame;
 	uint32_t sum = 0;
-	const uint32_t parts = opaque_parts(models);
+	const uint32_t parts = opaque_parts(models, KIND);
 
 	printf("%u grown, shadowless %d\n", grown.count, shadowless);
 	VOE_TEST_CHECK(grown.count > 0);
@@ -755,6 +757,55 @@ static void unseen_copies_keep_no_memory(voe_render_device *device,
 	voe_3d_models_destroy(models);
 }
 
+// `group` draws a part of one of the `count` models at `paths`.
+static bool draws_one_of(const voe_3d_models *models, const char *const *paths,
+			 uint32_t count, voe_3d_foliage_group group)
+{
+	for (uint32_t v = 0; v < count; v++) {
+		const voe_3d_model_entry *entry =
+			voe_3d_models_find(models, paths[v]);
+
+		for (uint32_t p = 0; entry != NULL && p < entry->part_count; p++)
+			if (entry->parts[p].geometry.index == group.geometry.index &&
+			    entry->parts[p].geometry.generation ==
+				    group.geometry.generation)
+				return true;
+	}
+	return false;
+}
+
+// 16, from the camera of 5.
+static void a_species_draws_its_variations(voe_render_device *device,
+					   voe_base_arena *arena)
+{
+	static const char *const paths[] = { KIND "#0", KIND "#1" };
+	voe_3d_models *models = a_store(device, arena, false, COPIES);
+	voe_ecs_entity land = { 0 };
+	voe_ecs_world *world = a_world(arena, &land);
+	voe_base_error error = VOE_BASE_OK;
+	voe_3d_frame frame;
+	uint32_t sum = 0;
+
+	VOE_TEST_CHECK(voe_3d_models_species_set(models, KIND, 2));
+	VOE_TEST_CHECK(gather(world, device, arena, models, &frame));
+	VOE_TEST_CHECK_INT(frame.foliage_count, 0);
+	for (uint32_t v = 0; v < 2; v++)
+		VOE_TEST_CHECK(voe_3d_models_load(models, device, paths[v], 1,
+						  TWO_PRIMITIVES_GLB,
+						  sizeof(TWO_PRIMITIVES_GLB),
+						  &error));
+	VOE_TEST_CHECK(voe_3d_models_species_set(models, KIND, 2));
+	VOE_TEST_CHECK(gather(world, device, arena, models, &frame));
+	VOE_TEST_CHECK(frame.foliage_count > 0);
+	for (uint32_t i = 0; i < frame.foliage_count; i++) {
+		VOE_TEST_CHECK(draws_one_of(models, paths, 2, frame.foliage[i]));
+		sum += frame.foliage[i].count;
+	}
+	VOE_TEST_CHECK_INT(sum, COPIES * opaque_parts(models, paths[0]));
+	voe_3d_models_clear(models, device);
+	voe_3d_models_destroy(models);
+}
+
 // 4.
 static void no_room_gathers_none(voe_base_arena *arena)
 {
@@ -810,6 +861,7 @@ int main(void)
 	blending_kind_names_its_ground(device, arena);
 	a_copy_swap_dissolves(device, arena);
 	unseen_copies_keep_no_memory(device, arena);
+	a_species_draws_its_variations(device, arena);
 	voe_render_device_destroy(device);
 	no_room_gathers_none(arena);
 	voe_base_arena_destroy(arena);
