@@ -36,6 +36,7 @@
 #include "assets_ask.h"
 #include "assets_menu.h"
 #include "browser.h"
+#include "disk_ask.h"
 #include "drag_ghost.h"
 #include "folds.h"
 #include "inspector.h"
@@ -206,6 +207,9 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		bool levels_asking;
 		// The Import textures question (textures_ask.h), the same way.
 		bool textures_asking;
+		// The disk question (disk_ask.h), the same way, but hidden while
+		// the browser shows rather than closed: only an answer closes it.
+		bool disk_asking;
 		// The Panels list, closed by Escape or the browser showing.
 		bool menuing;
 		// The Assets panel's right-button menu (assets_menu.h).
@@ -230,9 +234,11 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		asking = session->asking.open;
 		levels_asking = session->levels_asking.open;
 		textures_asking = session->textures_asking.open;
+		disk_asking = session->disk_asking.open && !browsing;
 		// Any panel over the dock closes the Assets menu; Escape closes
 		// it first and goes no further.
-		if (covered || asking || levels_asking || textures_asking)
+		if (covered || asking || levels_asking || textures_asking ||
+		    disk_asking)
 			voe_editor_assets_menu_close(&scene->assets.menu);
 		if (escape && scene->assets.menu.open) {
 			voe_editor_assets_menu_close(&scene->assets.menu);
@@ -258,7 +264,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		below_bar.outline.min.y -=
 			voe_editor_topbar_high(bar, root->size.y);
 		if (covered || menuing || asking || levels_asking ||
-		    textures_asking)
+		    textures_asking || disk_asking)
 			below_bar.pointer.over = false;
 		// The four's open flags again, as captured above: main.c copied
 		// them before Escape could hide one, and a contents call asserts
@@ -362,6 +368,10 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			voe_editor_textures_ask_draw(
 				ui, &session->textures_asking,
 				voe_editor_topbar_high(bar, root->size.y));
+		if (disk_asking)
+			voe_editor_disk_ask_draw(
+				ui, &session->disk_asking,
+				voe_editor_topbar_high(bar, root->size.y));
 		// Its right edge PICKER_GAP short of the Inspector's content,
 		// its top PICKER_GAP under the bar; the column around it only
 		// carries the anchor, the picker being a panel of its own.
@@ -425,7 +435,7 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 			ui, arena, root, scene, undo, models, session, browser,
 			preferences, project_panel, landscape_panel,
 			over_assets, assets_menuing, asking, levels_asking,
-			textures_asking);
+			textures_asking, disk_asking);
 		voe_editor_views_rects_read(views, ui);
 		// Snap and its steps, asked as the bar's buttons are: not while
 		// the browser showed (interface.h). Remembered at once, a

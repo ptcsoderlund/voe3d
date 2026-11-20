@@ -62,6 +62,7 @@
 
 #include "assets_ask.h"
 #include "browser.h"
+#include "disk_ask.h"
 #include "disk_watch.h"
 #include "errors.h"
 #include "levels_ask.h"
@@ -135,6 +136,12 @@ typedef struct voe_editor_session {
 	// The Import textures question (textures_ask.h), opened by the Assets
 	// menu, drawn by interface.c and answered in interface_assets.c.
 	voe_editor_textures_ask textures_asking;
+	// The disk question (disk_ask.h), load from disk or keep mine, drawn by
+	// interface.c and answered in interface_assets.c, which stores its
+	// answer in `disk_answer` and closes it; main.c opens it, hands the
+	// answer to disk_take.h and sets it back to NONE.
+	voe_editor_disk_ask disk_asking;
+	voe_editor_disk_ask_answer disk_answer;
 	// A flag, not a return value: a different project is in
 	// session->project, set by voe_editor_session_load and cleared by
 	// main.c, which empties undo on it.

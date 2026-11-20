@@ -22,11 +22,14 @@
 // Make saves the levels and asks the session's prepare, which main.c runs
 // behind the splash next frame (0429, 0430), or for swaps alone a reload. Escape closing the menu first,
 // and the dock's covers, are interface.c's.
+// The disk question (disk_ask.h) is read here too, its answer stored in the
+// session and the question closed; main.c carries it out.
 #include "interface_assets.h"
 
 #include "assets_ask.h"
 #include "assets_manage.h"
 #include "assets_menu.h"
+#include "disk_ask.h"
 #include "levels_ask.h"
 #include "model_import.h"
 #include "notice.h"
@@ -324,7 +327,8 @@ void voe_editor_interface_assets_read(
 	voe_editor_preferences *preferences,
 	voe_editor_project_panel *project_panel,
 	voe_editor_landscape_panel *landscape_panel, bool over_assets,
-	bool menuing, bool asking, bool levels_asking, bool textures_asking)
+	bool menuing, bool asking, bool levels_asking, bool textures_asking,
+	bool disk_asking)
 {
 	// A landscape Create made this frame, `Assets/...`.
 	char made[VOE_SCENE_PREFAB_PATH];
@@ -385,6 +389,17 @@ void voe_editor_interface_assets_read(
 		voe_editor_interface_assets_textures_answer(ui, arena, root,
 							    scene, models,
 							    session);
+	// Stored for main.c to carry out (disk_take.h); only a button answers.
+	if (disk_asking) {
+		voe_editor_disk_ask_answer answer = voe_editor_disk_ask_read(
+			ui, &session->disk_asking, root->pointer.down,
+			root->pointer.at);
+
+		if (answer != VOE_EDITOR_DISK_ASK_NONE) {
+			session->disk_answer = answer;
+			voe_editor_disk_ask_close(&session->disk_asking);
+		}
+	}
 	if (scene->assets.deleting[0] != '\0') {
 		if (!session->asking.open)
 			voe_editor_assets_ask_open(&session->asking,

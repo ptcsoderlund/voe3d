@@ -17,7 +17,8 @@
 // `project_panel`, the right-button menu's row when `menuing`, the Delete
 // question's answer when `asking` and a new question opened, the levels
 // question's (levels_ask.h) when `levels_asking`, the Import textures
-// question's (textures_ask.h) when `textures_asking`, then a fired prefab
+// question's (textures_ask.h) when `textures_asking`, the disk question's
+// (disk_ask.h) stored in the session when `disk_asking`, then a fired prefab
 // opened (session.h). `over_assets` is whether the pointer is over the Assets
 // leaf. Scratch comes out of `arena`, which the caller rewinds.
 void voe_editor_interface_assets_read(
@@ -28,4 +29,5 @@ void voe_editor_interface_assets_read(
 	voe_editor_preferences *preferences,
 	voe_editor_project_panel *project_panel,
 	voe_editor_landscape_panel *landscape_panel, bool over_assets,
-	bool menuing, bool asking, bool levels_asking, bool textures_asking);
+	bool menuing, bool asking, bool levels_asking, bool textures_asking,
+	bool disk_asking);

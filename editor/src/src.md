@@ -152,8 +152,8 @@ carries it out.
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
 - `session.h` — the project being worked on, the commands a person asks of it, Play and Ship
-  waiting a frame for the cook before them, and the questions it holds: Delete, levels and Import
-  textures.
+  waiting a frame for the cook before them, and the questions it holds: Delete, levels, Import
+  textures and the disk question with its last answer.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first and
   cooking before they build, one build at a time and refused while a prefab is open, a prefab
   opened, a built library swapped in once a frame, and what a browser action does to the session.
@@ -254,6 +254,10 @@ carries it out.
   or 4096, 2048 on every opening, with Import and Cancel; the caller carries out the answer.
 - `textures_ask.c` — the open with its title, the panel's one frame of `ui` calls with the chosen
   size lit, and the read of its buttons and a press outside.
+- `disk_ask.h` — the anchored panel a file changed on disk asks while it has unsaved changes:
+  its project-relative path, Load from disk and Keep mine, answered by those two buttons alone.
+- `disk_ask.c` — the open with its line, the panel's one frame of `ui` calls, and the read of its
+  two buttons.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
   folder row or Up, a new thing or copy placed in a scene view, or over the Inspector a swap, a
   shape's material, a filled map, a landscape layer or a foliage kind, an added one open, else nothing.
