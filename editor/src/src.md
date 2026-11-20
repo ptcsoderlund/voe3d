@@ -6,6 +6,10 @@ carries it out.
 
 - `main.c` — opens the project, window and device, starts and loads scenes on a worker behind a
   live splash, and runs the loop until a close goes ahead or the picture is written.
+- `check.h` — `--check`: the project's files read strictly with no window, the project's own
+  components only when its code is built, a line per refused file, a summary and the exit code.
+- `check.c` — the folder found, the code loaded, each listed file handed to its kind's strict reader,
+  a prefab's one tree checked, and the lines.
 - `loading.h` — the start's, a New or Open load's, an import's prepare and the cook before Play and
   Ship works for a splash wait: shaders, shapes and models, the scene and its models, an imported
   model's levels file or every stale cooked copy made on the device, and what the worker owns.
