@@ -15,14 +15,15 @@
 // NODES ARE BAKED AND PARTS MERGED: each node's matrices applied to its vertices
 // and normals, every primitive of one material joined into one part, at most
 // VOE_3D_MODEL_PARTS, so a model is a handful of draws. The file's tree is lost.
+// EACH PART NOT ALREADY BLENDED HAS A TWIN (ADR-0336 point 2), its material
+// BLENDED, uploaded at load and freed with it; otherwise `faded` is `shading`.
 //
 // A `.glb` HAS LEVELS (0425 points 3, 4, 6; 0426; 0432; 0436): own levels
 // baked per level and joined to level 0's parts by material; made ones, from a
 // levels file, walk level 0's vertices with indices of their own, not compacted
 // copies (0444). Each bound is 0.002 × radius ÷ the file's error (infinite for
 // error nought) ÷ the level's swap, an own level's 2^-k only without a fresh
-// file; then capped and spread (voe_3d_model_levels_bounds); freed with the
-// parts.
+// file, then capped and spread (voe_3d_model_levels_bounds), freed with parts.
 //
 // A FAILED ENTRY IS KEPT at its stamp, `loaded` false and no parts, so a broken
 // file asked for each frame is not parsed each frame. A PATH LOADED AGAIN
@@ -36,14 +37,10 @@
 //
 // PICTURES SHARE THE STORE (ADR-0298 point 5): a `.png`, `.jpg` or `.jpeg` path
 // has two BLENDED parts on the store's one quad, 0 lit and 1 unlit, the glow,
-// since `render` has no additive blend. Its shape is empty.
-//
-// THE SOFT DOT AND THE WATER ARE HELD APART (ADR-0305 point 6), made in code,
-// never re-read, not in _count or _at: the dot found at "", the water read by
-// _water, one BLENDED `water` record on the quad. _clear frees both.
-//
-// EACH PART NOT ALREADY BLENDED HAS A TWIN (ADR-0336 point 2), its material
-// BLENDED, uploaded at load and freed with it; otherwise `faded` is `shading`.
+// since `render` has no additive blend. Its shape is empty. THE SOFT DOT AND
+// THE WATER ARE HELD APART (ADR-0305 point 6), made in code, never re-read, not
+// in _count or _at: the dot found at "", the water read by _water, one BLENDED
+// `water` record on the quad. _clear frees both.
 //
 // A `.landscape` IS ONE PART (0379 points 2, 6; 0396 points 3, 5): the shared
 // grid wearing one lit opaque ground and its twin; the entry owns its grid's
@@ -56,6 +53,11 @@
 // A `.material` IS AN ENTRY WITH NO SHAPE (0399 points 4, 5): one part with no
 // geometry holding its record, blended twin and own maps, here as reload,
 // rename, clear and the twin live here. A map two materials name goes up twice.
+//
+// GROWN TREES (0515 point 3): variation v of species `path` is entry `path#v`,
+// put by _put_grown wearing its species' bark and leaf, never _parts_set's; the
+// species at `path` is loaded, partless, holding its variations' indices, and
+// _variation picks one per copy by voe_3d_tree_pick. Renames move `path#v` too.
 #pragma once
 
 #include <3d/landscape.h>
@@ -67,6 +69,7 @@
 #include <assets/material.h>
 #include <assets/model.h>
 #include <assets/parts.h>
+#include <assets/tree.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <math/float3.h>
@@ -81,6 +84,10 @@
 #define VOE_3D_MODEL_PARTS 16
 // Levels one model may have, level 0 the file as it is (0425 point 1).
 #define VOE_3D_MODEL_LEVELS 6
+// Variations one species entry holds, as many as a species file may ask.
+#define VOE_3D_TREE_VARIATIONS 16
+static_assert(VOE_3D_TREE_VARIATIONS == VOE_ASSETS_TREE_VARIATIONS_MAX,
+	      "a species entry holds every variation its file may ask for");
 
 // The device room the store's models are given, which a program adds to its
 // own capacities: 3074 geometries, four parts for each of the VOE_3D_MODELS
@@ -159,6 +166,13 @@ typedef struct {
 	// level-0 vertex from it; nought for a non-`.glb`.
 	voe_math_float3 centre;
 	float radius;
+	// A tree's variation, put by _put_grown: its parts wear its species'
+	// bark and leaf, which no parts file changes.
+	bool grown;
+	// A species, when above 0: its variations `path#0` up, each its index
+	// into the store (_at), or VOE_3D_MODELS where the store held none.
+	uint32_t variation_count;
+	uint32_t variations[VOE_3D_TREE_VARIATIONS];
 } voe_3d_model_entry;
 
 // One map's file bytes, read by the caller; a size of 0 is no map.
@@ -233,6 +247,30 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 				     const voe_3d_model_prepared *prepared,
 				     voe_base_error *error);
 
+// _put of a grown tree's variation (3d/tree_grow.h) at stamp 0, then each part
+// wears `bark` when its source is material 0 and `leaf` when it is 1, and the
+// entry is marked grown. Fails as _put does; a failure marks nothing.
+[[nodiscard]] bool voe_3d_models_put_grown(
+	voe_3d_models *models, voe_render_device *device, const char *path,
+	const voe_3d_model_prepared *prepared, const char *bark,
+	const char *leaf, voe_base_error *error);
+
+// `path`'s entry, at stamp 0, made a species of `count` variations, 1 to
+// VOE_3D_TREE_VARIATIONS: loaded with no parts, holding the entries
+// `path#0`..`path#<count - 1>` the store has now; called again once more are
+// put. Asserts an entry already at `path` has no parts. False, said once, when
+// the store is full.
+[[nodiscard]] bool voe_3d_models_species_set(voe_3d_models *models,
+					     const char *path, uint32_t count);
+
+// What a foliage copy of kind `kind` at (`x_mm`, `z_mm`) wearing `entry` draws:
+// `entry` itself unless it is a species, else its variation
+// voe_3d_tree_pick(kind, x_mm, z_mm, count), NULL when that one is not loaded.
+const voe_3d_model_entry *
+voe_3d_models_variation(const voe_3d_models *models,
+			const voe_3d_model_entry *entry, uint32_t kind,
+			int32_t x_mm, int32_t z_mm);
+
 // `landscape`'s grid copied into `path`'s entry with its layers and paint (all
 // layer 0 when NULL), uploaded as its heights texture and two paint textures,
 // RGBA8 DATA FIELD of (cells + 1)² each, and built into its pyramid; one part,
@@ -277,7 +315,8 @@ void voe_3d_models_material_set(voe_3d_models *models, const char *path,
 
 // Each part of `path`'s loaded model takes `parts->materials[source]` into
 // `wears`, "" for a `source` of NONE or at or past `parts->count`; NULL
-// `parts` empties every `wears`. Nothing for a path that is no loaded model.
+// `parts` empties every `wears`. Nothing for a path that is no loaded model or
+// is a grown one.
 // So a part wears what its model's parts file names for its glTF `source`
 // (0404, 0420); a load leaves `wears` empty, the file's own.
 void voe_3d_models_parts_set(voe_3d_models *models, const char *path,
@@ -334,8 +373,9 @@ void voe_3d_models_landscape_saved(voe_3d_models *models, const char *path);
 // file (0509 point 2). Nothing for a path that is no loaded landscape.
 void voe_3d_models_landscape_changed(voe_3d_models *models, const char *path);
 
-// Every entry whose path is `from` or begins `from/` takes `to` in its place,
-// and so does every landscape's layer path; one that would not fit is kept.
+// Every entry whose path is `from` or begins `from/` or `from#`, a species'
+// variations, takes `to` in its place, and so does every landscape's layer and
+// kind path; one that would not fit is kept. A species keeps its variations.
 void voe_3d_models_rename(voe_3d_models *models, const char *from,
 			  const char *to);
 

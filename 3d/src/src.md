@@ -206,6 +206,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
   handed to foliage.c, a kind's look, its blend counted, or a layer's growth set remaking that
   kind's copies, the entry marked edited and the store's count raised on a change.
+- `models_trees.c` — a grown variation put wearing its species' bark and leaf by source, a
+  species kept partless with its `path#v` entries' indices, and the variation a copy draws.
 - `models_material.c` — a `.material`'s four maps, decoded by the load under each map's name as
   the subject or already by the caller, put mipped with its record, cutout, emission and sides
   and its twin as one part with no geometry; the set marking it and the frame rewriting both records.
@@ -223,7 +225,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `foliage_grow.c` — the area's grown copies of the remade kinds removed, then each kind's
   lattice cells over it hashed, jittered, kept by the bilinear paint and placed.
 - `tree_grow.c` — the trunk as one limb of equal steps, then each limb's children breadth first,
-  spaced above the crown, turned by the golden angle, drooped and jittered, until the cap.
+  spaced above the crown, turned by the golden angle, drooped and jittered, until the cap; and
+  the pick's integer mix.
 - `tree_mesh.c` — each level's bark as tubes of transported rings with a child's collar, and its
   leaves as every 2^k-th card, rolled about its twig, scaled and bent off the crown's centre.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the

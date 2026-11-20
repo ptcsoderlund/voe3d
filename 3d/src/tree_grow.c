@@ -8,6 +8,9 @@
 // a jitter. A child's base radius is 0.8 × √reach of its parent's there, and
 // every limb tapers to a quarter of its base at its tip.
 //
+// The pick folds kind, x and z into one 64-bit word by odd multipliers and
+// finishes it with murmur3's fmix64, so neighbouring copies differ.
+//
 // Constraints: one push of VOE_3D_TREE_SEGMENTS segments; a walk over them
 // once, each limb's children up to the cap.
 #include <3d/tree_grow.h>
@@ -186,4 +189,18 @@ void voe_3d_tree_grow(voe_base_arena *arena, const voe_assets_tree *values,
 	}
 	out->segments = g.segments;
 	out->count = g.count;
+}
+
+uint32_t voe_3d_tree_pick(uint32_t kind, int32_t x_mm, int32_t z_mm,
+			  uint32_t count)
+{
+	uint64_t h = (uint64_t)kind * 0x9E3779B97F4A7C15ull ^
+		     (uint64_t)(uint32_t)x_mm * 0xC2B2AE3D27D4EB4Full ^
+		     (uint64_t)(uint32_t)z_mm * 0x165667B19E3779F9ull;
+
+	VOE_BASE_ASSERT(count > 0, "a pick among no variations");
+	h = (h ^ (h >> 33)) * 0xFF51AFD7ED558CCDull;
+	h = (h ^ (h >> 33)) * 0xC4CEB9FE1A85EC53ull;
+	h ^= h >> 33;
+	return (uint32_t)(h % count);
 }

@@ -4,6 +4,8 @@
 // maximum, within the cap, and that tree meshes; each level has fewer triangles than the one
 // before; leaf_density 0 gives no leaf triangles; every vertex lies within a
 // box of `height` about the trunk; and the nodes are tree_LOD0..tree_LOD3.
+// The pick gives the same variation for the same kind and place, and 6
+// variations over a grid of 10 000 copies each take 12 to 22 % of them.
 // Needs no graphics card.
 #include <3d/tree_grow.h>
 #include <assets/model.h>
@@ -16,6 +18,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #define ARENA (16 * 1024 * 1024)
@@ -180,9 +183,38 @@ static void the_nodes_are_named_by_level(voe_base_arena *arena)
 	}
 }
 
+static void the_pick_repeats(void)
+{
+	for (int32_t i = -50; i < 50; i++) {
+		const int32_t x = i * 1733, z = -i * 911;
+
+		VOE_TEST_CHECK_INT(voe_3d_tree_pick(3, x, z, 6),
+				   voe_3d_tree_pick(3, x, z, 6));
+		VOE_TEST_CHECK(voe_3d_tree_pick(3, x, z, 6) < 6);
+	}
+}
+
+// A 100 × 100 grid of copies 1.5 m apart, as a planted wood stands.
+static void the_pick_spreads_evenly(void)
+{
+	uint32_t shares[6] = { 0 };
+
+	for (int32_t i = 0; i < 100; i++)
+		for (int32_t j = 0; j < 100; j++)
+			shares[voe_3d_tree_pick(2, i * 1500 - 75000,
+						j * 1500 - 75000, 6)]++;
+	for (uint32_t v = 0; v < 6; v++) {
+		printf("variation %u: %u of 10000\n", v, shares[v]);
+		VOE_TEST_CHECK(shares[v] >= 1200 && shares[v] <= 2200);
+	}
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(ARENA);
+
+	the_pick_repeats();
+	the_pick_spreads_evenly();
 
 	a_variation_repeats_and_another_differs(arena);
 	voe_base_arena_clear(arena);

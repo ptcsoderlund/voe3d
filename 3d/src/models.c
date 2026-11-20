@@ -661,7 +661,8 @@ void voe_3d_models_parts_set(voe_3d_models *models, const char *path,
 	VOE_BASE_ASSERT(path != NULL, "setting parts with no path");
 
 	index = voe_3d_models_index(models, path);
-	if (index == VOE_3D_MODELS || !models->entries[index].loaded)
+	if (index == VOE_3D_MODELS || !models->entries[index].loaded ||
+	    models->entries[index].grown)
 		return;
 	entry = &models->entries[index];
 	for (uint32_t p = 0; p < entry->part_count; p++) {

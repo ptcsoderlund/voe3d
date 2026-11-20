@@ -604,13 +604,14 @@ void voe_3d_models_landscape_changed(voe_3d_models *models, const char *path)
 		models->entries[index].edited = true;
 }
 
-// What follows `from` in `path` when `path` is `from` or under `from/`; NULL
-// for any other path.
+// What follows `from` in `path` when `path` is `from`, under `from/` or one of
+// its variations `from#<v>` (0515 point 3); NULL for any other path.
 static const char *tail_after(const char *path, const char *from,
 			      size_t from_length)
 {
 	if (strncmp(path, from, from_length) != 0 ||
-	    (path[from_length] != '\0' && path[from_length] != '/'))
+	    (path[from_length] != '\0' && path[from_length] != '/' &&
+	     path[from_length] != '#'))
 		return NULL;
 	return path + from_length;
 }

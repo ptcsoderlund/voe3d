@@ -40,6 +40,10 @@
 // about it, `leaf_density` per twig, its normals bent away from the crown's
 // centre (the mean of the cards' centres), uv 0–1.
 //
+// THE PICK (0513, 0515 point 4) is which variation a foliage copy draws: an
+// integer mix of its kind and its stored x and z in millimetres, modulo the
+// species' count, so it is the same across saves and opens and spreads evenly.
+//
 // Constraints: growth stops at VOE_3D_TREE_SEGMENTS segments and
 // VOE_3D_TREE_LEAVES cards, a whole limb at a time and breadth first (trunk,
 // branches, then twigs), so a tree at every key's maximum fits and is never an
@@ -91,3 +95,8 @@ void voe_3d_tree_mesh(voe_base_arena *arena,
 		      const voe_3d_tree_skeleton *skeleton,
 		      const voe_assets_tree *values, uint32_t variation,
 		      voe_assets_model *out);
+
+// The variation, below `count`, a copy of kind `kind` at (`x_mm`, `z_mm`)
+// draws. Asserts `count` is above 0.
+uint32_t voe_3d_tree_pick(uint32_t kind, int32_t x_mm, int32_t z_mm,
+			  uint32_t count);
