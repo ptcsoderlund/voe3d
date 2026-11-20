@@ -21,8 +21,8 @@ way out: a decoder takes a buffer and an encoder hands one back, since
   table. Its header says why it is layer one of three.
 - `include/assets/landscape.h` — a `.landscape` file's text to heights, up to
   eight material layers, paint weights, foliage kinds, looks, growth and
-  copies, and back, read strictly when taken in from disk; and a grid
-  resampled bilinearly.
+  copies, and back, read strictly when taken in from disk; a grid
+  resampled bilinearly; and its key table, `voe_assets_landscape_keys`.
 - `include/assets/material.h` — a `.material` file's text to a shader, its
   factors, repeat and three map paths, and back, and its key table,
   `voe_assets_material_keys`. Its header says the defaults,
