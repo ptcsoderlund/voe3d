@@ -4,6 +4,8 @@
 // row marked refused is refused a value above its greatest; and every row has
 // a section, key, kind and meaning. A pattern's `<…>` takes each index 0 to 9
 // in turn until one reads, so it stands for the first index the reader takes.
+// A table that comes back empty or NULL fails its check and the walk stops
+// there: no row is read.
 #include <assets/material.h>
 #include <assets/parts.h>
 
@@ -64,6 +66,8 @@ static void check_rows(const voe_assets_documented_key *rows, uint32_t count,
 		       bool (*reads)(const char *text), bool check_refused)
 {
 	VOE_TEST_CHECK(rows != NULL && count > 0);
+	if (rows == NULL || count == 0)
+		return;
 	for (uint32_t i = 0; i < count; i++) {
 		const voe_assets_documented_key *row = &rows[i];
 		char above[32];
