@@ -4,8 +4,9 @@
 // has unsaved changes (ADR-0164).
 //
 // THREE ARENAS, AND voe_editor_project_destroy IS THE ONLY WAY THEY GO BACK.
-// The struct, the folder and the project file's scene path live in arena, so
-// New and Open build a whole new project, then discard the old one. The world
+// The struct, the folder and the project file's scene path live in arena (a
+// path taken from disk in file_arena), so New and Open build a whole new
+// project, then discard the old one. The world
 // lives in world_arena. The kept sections and a read's working memory live in
 // scene_arena, cleared by every voe_editor_project_scene_set, which reads
 // into the same world again and again. The code is closed after all three.
@@ -86,8 +87,11 @@ typedef struct {
 	voe_authoring_kept kept;
 	// project.voe3d as read, its scene path in arena: main.scene and the
 	// default window while untitled. Kept by a code swap, a scene set and a
-	// prefab; the window changes only through voe_editor_project_window_set.
+	// prefab; changed only through voe_editor_project_window_set and
+	// voe_editor_project_file_take, whose scene path is in file_arena.
 	voe_authoring_project file;
+	// A taken scene path's, cleared at each take; NULL until the first.
+	voe_base_arena *file_arena;
 	// The code the world's project types came from; zeroed while none.
 	// The project closes it, after the world it registered into.
 	voe_editor_code code;
@@ -146,6 +150,13 @@ voe_render_light voe_editor_project_preview_light(void);
 						 voe_editor_disk_watch *watch,
 						 voe_editor_notice *why);
 
+// project.voe3d's values as `file` holds them, read strictly from disk, taken
+// in: the window and the scene path, copied so they outlive `file`, a changed
+// path into file_arena cleared first so repeated takes stay bounded. Writes
+// nothing, cooks nothing (0470), leaves unsaved and the undo line untouched.
+void voe_editor_project_file_take(voe_editor_project *project,
+				  const voe_authoring_project *file);
+
 // The world and project->kept written into arena as scene text — the same
 // bytes a save writes to the scene file. False when
 // voe_authoring_scene_write refuses, which it reports itself and nothing is
@@ -175,6 +186,17 @@ voe_render_light voe_editor_project_preview_light(void);
 [[nodiscard]] bool voe_editor_project_scene_set(voe_editor_project *project,
 						const char *text, size_t size,
 						voe_editor_notice *why);
+
+// What the open scene's or open prefab's file on disk now says, taken in (0509
+// point 3): `text` checked strictly by voe_authoring_scene_check against the
+// world in `scratch`, rewound, then set as _scene_set sets it, unsaved false.
+// False with why from the report naming the file, the world as it was since
+// the check comes first; or false as _scene_set's refusal, half-loaded only by
+// running out of room. Writes nothing to disk and cooks nothing (0470).
+[[nodiscard]] bool voe_editor_project_scene_take(voe_editor_project *project,
+						 const char *text, size_t size,
+						 voe_base_arena *scratch,
+						 voe_editor_notice *why);
 
 // The world swapped for one made with code, holding what the old one did: its
 // text, kept sections included, read into a new world in new arenas, then the
