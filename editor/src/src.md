@@ -428,11 +428,11 @@ carries it out.
   from the view's own camera, measured from the press in world space, its world value snapped,
   and submitted as a whole transform, a child's written back relative to its parent.
 - `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), a state
-  carrying a sculpting stroke or material edit beside its text, with the level's line set aside
-  while a prefab is open.
+  carrying a sculpting stroke, material edit, or file or landscape taken in from disk beside its
+  text, with the level's line set aside while a prefab is open.
 - `undo.c` — the states pushed once, the two lines swapped, a settled edit's compare and a reveal's
-  amend, a stroke or material step pushed, what could have been redone thrown away with them, and a
-  step applying the one it passes and re-finding the selection by authored id.
+  amend, a stroke, material, file or landscape step pushed, what could have been redone thrown away
+  with them, and a step applying the ones it passes and re-finding the selection by authored id.
 - `material_steps.h` — one material edit: a `.material`'s path and its values before and after, its
   own memory beside the undo line's text, and the file written at once.
 - `material_steps.c` — the copy made and freed, the file's write, and the values put back either

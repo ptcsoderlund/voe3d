@@ -1,8 +1,8 @@
 // The states pushed once, the two lines swapped, the compare a settled edit
 // makes against the state the world is, a settled reveal's amend of that
-// state, a stroke or material step pushed beside a copy of the text, every
-// dropped state's freed, and the step a take moves by, writing a stroke or
-// material step stepped over.
+// state, a stroke, material, file or landscape step pushed beside a copy of
+// the text, every dropped state's freed, and the step a take moves by,
+// applying whichever of those it steps over.
 // See the header for what a step is, what bounds it, where in the frame a take
 // belongs and why the selection is re-found by authored id.
 #include "undo.h"
@@ -29,23 +29,36 @@ static void voe_editor_undo_state_set(voe_editor_undo *undo, uint32_t index,
 	memcpy(undo->states[index].text, text.text, text.size);
 }
 
-// Destroys the strokes of `states` from `from` up to `to`, leaving NULL: every
-// state outside a line's count carries none, so a state reused starts bare.
+// Leaves the state at `index` carrying nothing, without freeing what it did.
+static void voe_editor_undo_bare(voe_editor_undo_state *states, uint32_t index)
+{
+	VOE_BASE_ASSERT(states != NULL && index < VOE_EDITOR_UNDO_STEPS,
+			"baring a state of no line or past it");
+	states[index].stroke = NULL;
+	states[index].material = NULL;
+	states[index].file = NULL;
+	states[index].landscape = NULL;
+}
+
+// Destroys the steps `states` carry from `from` up to `to`, leaving NULL:
+// every state outside a line's count carries none, so a state reused starts
+// bare.
 static void voe_editor_undo_drop(voe_editor_undo_state *states, uint32_t from,
 				 uint32_t to)
 {
-	VOE_BASE_ASSERT(states != NULL, "dropping strokes of no line");
+	VOE_BASE_ASSERT(states != NULL, "dropping steps of no line");
 	VOE_BASE_ASSERT(to <= VOE_EDITOR_UNDO_STEPS, "dropping past the line");
 
 	for (uint32_t i = from; i < to; i++) {
 		voe_editor_stroke_destroy(states[i].stroke);
-		states[i].stroke = NULL;
 		voe_editor_material_step_destroy(states[i].material);
-		states[i].material = NULL;
+		voe_editor_file_step_destroy(states[i].file);
+		voe_editor_landscape_step_destroy(states[i].landscape);
+		voe_editor_undo_bare(states, i);
 	}
 }
 
-// Empties the line in force, freeing its strokes.
+// Empties the line in force, freeing its steps.
 static void voe_editor_undo_empty(voe_editor_undo *undo)
 {
 	voe_editor_undo_drop(undo->states, 0, undo->count);
@@ -54,14 +67,12 @@ static void voe_editor_undo_empty(voe_editor_undo *undo)
 	VOE_BASE_ASSERT(undo->count == 0, "an emptied line still counts states");
 }
 
-// Pushes `text`, `stroke` and `material` (NULL for none) as the state after
-// `at`: what could have been redone is thrown away, because the world has gone
-// somewhere else from here, and count follows. The line full means the oldest
-// state is dropped and the rest shift down one, which the header's memmove is.
-// `text` must not point into the line.
-static void voe_editor_undo_push(voe_editor_undo *undo, voe_authoring_text text,
-				 voe_editor_stroke *stroke,
-				 voe_editor_material_step *material)
+// Pushes `text`, carrying nothing, as the state after `at`: what could have
+// been redone is thrown away, because the world has gone somewhere else from
+// here, and count follows. The line full means the oldest state is dropped and
+// the rest shift down one, which the header's memmove is. `text` must not
+// point into the line.
+static void voe_editor_undo_push(voe_editor_undo *undo, voe_authoring_text text)
 {
 	VOE_BASE_ASSERT(undo->count > 0, "pushing onto a line with no states");
 
@@ -70,14 +81,11 @@ static void voe_editor_undo_push(voe_editor_undo *undo, voe_authoring_text text,
 		voe_editor_undo_drop(undo->states, 0, 1);
 		memmove(&undo->states[0], &undo->states[1],
 			(VOE_EDITOR_UNDO_STEPS - 1) * sizeof(undo->states[0]));
-		undo->states[VOE_EDITOR_UNDO_STEPS - 1].stroke = NULL;
-		undo->states[VOE_EDITOR_UNDO_STEPS - 1].material = NULL;
 		undo->at--;
 	}
 	undo->at++;
 	voe_editor_undo_state_set(undo, undo->at, text);
-	undo->states[undo->at].stroke = stroke;
-	undo->states[undo->at].material = material;
+	voe_editor_undo_bare(undo->states, undo->at);
 	undo->count = undo->at + 1;
 	VOE_BASE_ASSERT(undo->count <= VOE_EDITOR_UNDO_STEPS,
 			"a push past the end of the line");
@@ -127,10 +135,8 @@ void voe_editor_undo_create(voe_editor_undo *undo, voe_base_arena *arena)
 	VOE_BASE_ASSERT(undo->states != NULL && undo->aside_states != NULL,
 			"an undo created with no room for its lines");
 	for (uint32_t i = 0; i < VOE_EDITOR_UNDO_STEPS; i++) {
-		undo->states[i].stroke = NULL;
-		undo->states[i].material = NULL;
-		undo->aside_states[i].stroke = NULL;
-		undo->aside_states[i].material = NULL;
+		voe_editor_undo_bare(undo->states, i);
+		voe_editor_undo_bare(undo->aside_states, i);
 	}
 }
 
@@ -242,7 +248,7 @@ void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 		// still can.
 		voe_editor_undo_state_set(undo, undo->at, text);
 	} else if (!voe_editor_undo_state_same(undo, text)) {
-		voe_editor_undo_push(undo, text, NULL, NULL);
+		voe_editor_undo_push(undo, text);
 	}
 
 	voe_base_arena_rewind(scratch, mark);
@@ -250,14 +256,13 @@ void voe_editor_undo_settle(voe_editor_undo *undo, voe_editor_project *project,
 	undo->revealed = false;
 }
 
-// Pushes a state with the text at `at` carrying `stroke` or `material`, which
-// the line now owns, recording the scene first when the line is empty; a scene
-// that will not be a state destroys both instead. `scratch` is rewound.
-static void voe_editor_undo_beside(voe_editor_undo *undo,
-				   voe_editor_project *project,
-				   voe_base_arena *scratch,
-				   voe_editor_stroke *stroke,
-				   voe_editor_material_step *material)
+// Pushes a bare state with the text at `at`, recording the scene first when
+// the line is empty, and returns it for the caller to hang its step on; NULL
+// when the scene will not be a state, the caller then freeing its step.
+// `scratch` is rewound.
+static voe_editor_undo_state *
+voe_editor_undo_beside(voe_editor_undo *undo, voe_editor_project *project,
+		       voe_base_arena *scratch)
 {
 	struct voe_base_arena_mark mark;
 	voe_authoring_text text;
@@ -275,9 +280,7 @@ static void voe_editor_undo_beside(voe_editor_undo *undo,
 		if (!voe_editor_project_scene_text(project, scratch, &text) ||
 		    text.size > VOE_EDITOR_UNDO_TEXT) {
 			voe_base_arena_rewind(scratch, mark);
-			voe_editor_stroke_destroy(stroke);
-			voe_editor_material_step_destroy(material);
-			return;
+			return NULL;
 		}
 		voe_editor_undo_state_set(undo, 0, text);
 		undo->count = 1;
@@ -290,19 +293,24 @@ static void voe_editor_undo_beside(voe_editor_undo *undo,
 	voe_editor_undo_push(undo,
 			     (voe_authoring_text){
 				     .text = copy,
-				     .size = undo->states[undo->at].size },
-			     stroke, material);
+				     .size = undo->states[undo->at].size });
 	voe_base_arena_rewind(scratch, mark);
-	VOE_BASE_ASSERT(undo->states[undo->at].stroke == stroke &&
-				undo->states[undo->at].material == material,
-			"a step recorded off the state the world is");
+	VOE_BASE_ASSERT(undo->count == undo->at + 1,
+			"a step recorded off the top of the line");
+	return &undo->states[undo->at];
 }
 
 void voe_editor_undo_stroke(voe_editor_undo *undo, voe_editor_project *project,
 			    voe_base_arena *scratch, voe_editor_stroke *stroke)
 {
+	voe_editor_undo_state *state;
+
 	VOE_BASE_ASSERT(stroke != NULL, "recording no stroke");
-	voe_editor_undo_beside(undo, project, scratch, stroke, NULL);
+	state = voe_editor_undo_beside(undo, project, scratch);
+	if (state == NULL)
+		voe_editor_stroke_destroy(stroke);
+	else
+		state->stroke = stroke;
 }
 
 void voe_editor_undo_material(voe_editor_undo *undo,
@@ -310,8 +318,71 @@ void voe_editor_undo_material(voe_editor_undo *undo,
 			      voe_base_arena *scratch,
 			      voe_editor_material_step *step)
 {
+	voe_editor_undo_state *state;
+
 	VOE_BASE_ASSERT(step != NULL, "recording no material step");
-	voe_editor_undo_beside(undo, project, scratch, NULL, step);
+	state = voe_editor_undo_beside(undo, project, scratch);
+	if (state == NULL)
+		voe_editor_material_step_destroy(step);
+	else
+		state->material = step;
+}
+
+void voe_editor_undo_file(voe_editor_undo *undo, voe_editor_project *project,
+			  voe_base_arena *scratch, voe_editor_file_step *step)
+{
+	voe_editor_undo_state *state;
+
+	VOE_BASE_ASSERT(step != NULL, "recording no file step");
+	state = voe_editor_undo_beside(undo, project, scratch);
+	if (state == NULL)
+		voe_editor_file_step_destroy(step);
+	else
+		state->file = step;
+}
+
+void voe_editor_undo_landscape(voe_editor_undo *undo,
+			       voe_editor_project *project,
+			       voe_base_arena *scratch,
+			       voe_editor_landscape_step *step)
+{
+	voe_editor_undo_state *state;
+
+	VOE_BASE_ASSERT(step != NULL, "recording no landscape step");
+	state = voe_editor_undo_beside(undo, project, scratch);
+	if (state == NULL)
+		voe_editor_landscape_step_destroy(step);
+	else
+		state->landscape = step;
+}
+
+// Applies the steps `carried` holds onto the world just set: their after when
+// `forward`, their before otherwise. A file step refused says so in `why`.
+static void voe_editor_undo_apply(const voe_editor_undo_state *carried,
+				  voe_editor_project *project,
+				  voe_editor_scene *scene,
+				  voe_editor_models *models,
+				  voe_base_arena *scratch,
+				  voe_editor_disk_watch *watch,
+				  voe_editor_notice *why, bool forward)
+{
+	VOE_BASE_ASSERT(carried != NULL && project != NULL,
+			"applying the steps of no state, or to no project");
+	VOE_BASE_ASSERT(why != NULL, "applying steps with nowhere to say why");
+	if (carried->stroke != NULL)
+		voe_editor_stroke_apply(carried->stroke, models, forward);
+	if (carried->material != NULL)
+		voe_editor_material_step_apply(carried->material, models, scene,
+					       project->folder, scratch, watch,
+					       forward);
+	// A refusal leaves the world at the state stepped to: its text is
+	// already read, and the file's notice in `why` is what is left to say.
+	if (carried->file != NULL)
+		(void)voe_editor_file_step_apply(carried->file, project, models,
+						 watch, scratch, why, forward);
+	if (carried->landscape != NULL)
+		voe_editor_landscape_step_apply(carried->landscape, models,
+						forward);
 }
 
 bool voe_editor_undo_take(voe_editor_undo *undo, voe_editor_project *project,
@@ -321,8 +392,7 @@ bool voe_editor_undo_take(voe_editor_undo *undo, voe_editor_project *project,
 {
 	const voe_scene_identity *identity;
 	const voe_editor_undo_state *state;
-	const voe_editor_stroke *stroke;
-	const voe_editor_material_step *material;
+	const voe_editor_undo_state *carried;
 	voe_ecs_entity selected = { 0 };
 	uint64_t id = 0;
 	bool was_selected;
@@ -349,10 +419,9 @@ bool voe_editor_undo_take(voe_editor_undo *undo, voe_editor_project *project,
 	if (was_selected)
 		id = identity->id;
 
-	// The stroke or material step stepped over: back from the state the
-	// world is, or forward onto the next.
-	stroke = undo->states[forward ? to : undo->at].stroke;
-	material = undo->states[forward ? to : undo->at].material;
+	// The steps stepped over: back from the state the world is, or forward
+	// onto the next.
+	carried = &undo->states[forward ? to : undo->at];
 	state = &undo->states[to];
 	if (!voe_editor_project_scene_set(project, state->text, state->size,
 					  why)) {
@@ -360,12 +429,8 @@ bool voe_editor_undo_take(voe_editor_undo *undo, voe_editor_project *project,
 		return false;
 	}
 	undo->at = to;
-	if (stroke != NULL)
-		voe_editor_stroke_apply(stroke, models, forward);
-	if (material != NULL)
-		voe_editor_material_step_apply(material, models, scene,
-					       project->folder, scratch, watch,
-					       forward);
+	voe_editor_undo_apply(carried, project, scene, models, scratch, watch,
+			      why, forward);
 
 	if (was_selected)
 		selected = voe_editor_undo_entity_of(project->world, id);
