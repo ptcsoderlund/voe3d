@@ -17,7 +17,9 @@
 // naming a written map loaded again at the next update. Once a second, after
 // the models' watch, the maps the materials name are stamped, and the rows
 // naming a changed one load again, the queue compressing it (0477 point 5).
-// Between frames the update and the watch load whole (0459 point 3).
+// Between frames the update and the watch load whole (0459 point 3). A
+// landscape taken in from disk waits as a copy in an arena of its own, at most
+// LANDSCAPE_TAKES at once, and loads at the next update; a bigger count lifts it.
 #include "models.h"
 
 #include "map_watch.h"
@@ -37,6 +39,19 @@
 
 // How often the store's files are asked for their stamps, in seconds.
 #define WATCH_SECONDS 1.0
+// How many landscapes may wait to be taken in at once, and the block size of
+// the arena each waiting copy lives in (a default, not a limit).
+#define LANDSCAPE_TAKES 8
+#define LANDSCAPE_TAKE_ARENA (1u * 1024u * 1024u)
+
+// A landscape waiting to be loaded over its entry, copied with its path into an
+// arena of its own; `edited` marks the entry edited once loaded.
+struct landscape_take {
+	voe_base_arena *arena;
+	char *path;
+	voe_assets_landscape *landscape;
+	bool edited;
+};
 
 struct voe_editor_models {
 	voe_3d_models *store;
@@ -63,11 +78,16 @@ struct voe_editor_models {
 	// The materials to load again at the next update, `reloads` of them.
 	char reload[VOE_EDITOR_MATERIALS][VOE_ASSETS_MATERIAL_PATH];
 	uint32_t reloads;
+	// The landscapes taken in to load at the next update, `takes` of them.
+	struct landscape_take take[LANDSCAPE_TAKES];
+	uint32_t takes;
 };
 
 static void reread(voe_3d_models *store, voe_render_device *device,
 		   const char *folder, const char *path,
 		   voe_base_arena *scratch);
+static void take_load(voe_3d_models *store, voe_render_device *device,
+		      const struct landscape_take *take);
 
 voe_editor_models *voe_editor_models_new(void)
 {
@@ -88,12 +108,24 @@ voe_editor_models *voe_editor_models_new(void)
 	return models;
 }
 
+// Every waiting take let go, its arena destroyed.
+static void takes_clear(voe_editor_models *models)
+{
+	VOE_BASE_ASSERT(models->takes <= LANDSCAPE_TAKES,
+			"more takes waiting than their room");
+	for (uint32_t i = 0; i < models->takes; i++)
+		voe_base_arena_destroy(models->take[i].arena);
+	models->takes = 0;
+	VOE_BASE_ASSERT(models->takes == 0, "takes left waiting");
+}
+
 void voe_editor_models_destroy(voe_editor_models *models,
 			       voe_render_device *device)
 {
 	if (models == NULL)
 		return;
 	VOE_BASE_ASSERT(device != NULL, "clearing models without a device");
+	takes_clear(models);
 	voe_3d_models_clear(models->store, device);
 	voe_3d_models_destroy(models->store);
 	voe_game_compressing_destroy(models->compressing, device);
@@ -123,6 +155,7 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 	free(models->resized);
 	models->resized = NULL;
 	models->reloads = 0;
+	takes_clear(models);
 	if (folder != NULL) {
 		size_t size = strlen(folder) + 1;
 
@@ -247,6 +280,9 @@ void voe_editor_models_update(voe_editor_models *models,
 		free(models->resized);
 		models->resized = NULL;
 	}
+	for (uint32_t i = 0; i < models->takes; i++)
+		take_load(models->store, device, &models->take[i]);
+	takes_clear(models);
 	voe_base_report_error_clear();
 	say_failure(&session->notice,
 		    voe_game_models_update(session->project->world,
@@ -338,7 +374,8 @@ static bool edited_landscape(const voe_3d_model_entry *entry)
 }
 
 bool voe_editor_models_save(voe_editor_models *models, const char *folder,
-			    voe_base_arena *scratch, voe_editor_notice *why)
+			    voe_base_arena *scratch, voe_editor_disk_watch *watch,
+			    voe_editor_notice *why)
 {
 	uint32_t count;
 
@@ -353,15 +390,18 @@ bool voe_editor_models_save(voe_editor_models *models, const char *folder,
 		struct voe_base_arena_mark mark;
 		voe_assets_landscape_text text;
 		voe_base_error error = VOE_BASE_OK;
+		const char *path;
 		bool written;
 
 		if (!edited_landscape(entry))
 			continue;
 		mark = voe_base_arena_mark(scratch);
 		text = voe_assets_landscape_write(entry->landscape, scratch);
-		written = voe_platform_file_write(
-			voe_platform_path_join(scratch, folder, entry->path),
-			(const uint8_t *)text.text, text.size, &error);
+		path = voe_platform_path_join(scratch, folder, entry->path);
+		written = voe_platform_file_write(path, (const uint8_t *)text.text,
+						  text.size, &error);
+		if (written && watch != NULL)
+			voe_editor_disk_watch_wrote(watch, path);
 		voe_base_arena_rewind(scratch, mark);
 		if (!written) {
 			voe_editor_notice_set(why, "Could not save %s: %s",
@@ -402,6 +442,93 @@ static void reread(voe_3d_models *store, voe_render_device *device,
 				"a refused re-read with no error");
 	}
 	voe_base_report_subject_pop();
+}
+
+// `take`'s copy loaded over its entry at the entry's own stamp, since a
+// landscape is never re-read by stamp; a refused load says nothing here, as a
+// re-read's does not. Nothing when the entry went, by a rename, in the meantime.
+static void take_load(voe_3d_models *store, voe_render_device *device,
+		      const struct landscape_take *take)
+{
+	const voe_3d_model_entry *entry = voe_3d_models_find(store, take->path);
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_BASE_ASSERT(device != NULL && take->landscape != NULL,
+			"taking a landscape in with no device or no copy");
+	if (entry == NULL)
+		return;
+	voe_base_report_subject_push(take->path);
+	if (voe_3d_models_load_landscape(store, device, take->path, entry->stamp,
+					 take->landscape, &error)) {
+		if (take->edited)
+			voe_3d_models_landscape_changed(store, take->path);
+	} else {
+		VOE_BASE_ASSERT(error != VOE_BASE_OK,
+				"a refused landscape take with no error");
+	}
+	voe_base_report_subject_pop();
+}
+
+void voe_editor_models_landscape_take(voe_editor_models *models,
+				      const char *path,
+				      const voe_assets_landscape *landscape,
+				      bool edited)
+{
+	struct landscape_take *take = NULL;
+	size_t length;
+
+	VOE_BASE_ASSERT(models != NULL && path != NULL && landscape != NULL,
+			"taking no landscape, at no path or into no store");
+	if (voe_3d_models_find(models->store, path) == NULL)
+		return;
+	for (uint32_t i = 0; i < models->takes; i++)
+		if (strcmp(models->take[i].path, path) == 0)
+			take = &models->take[i];
+	if (take != NULL) {
+		voe_base_arena_destroy(take->arena);
+	} else if (models->takes == LANDSCAPE_TAKES) {
+		VOE_BASE_ERROR("editor", "left %s as it was: %u landscapes wait",
+			       path, LANDSCAPE_TAKES);
+		return;
+	} else {
+		take = &models->take[models->takes++];
+	}
+	length = strlen(path) + 1;
+	take->arena = voe_base_arena_new(LANDSCAPE_TAKE_ARENA);
+	take->path = memcpy(voe_base_arena_push(take->arena, length), path,
+			    length);
+	take->landscape = voe_base_arena_push(take->arena,
+					      sizeof *take->landscape);
+	*take->landscape = voe_assets_landscape_resample(
+		landscape, landscape->cells, take->arena);
+	take->edited = edited;
+	VOE_BASE_ASSERT(models->takes <= LANDSCAPE_TAKES,
+			"more takes waiting than their room");
+}
+
+const voe_assets_landscape *
+voe_editor_models_landscape_held(const voe_editor_models *models,
+				 const char *path)
+{
+	const voe_3d_model_entry *entry;
+
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"a landscape held by no store");
+	VOE_BASE_ASSERT(path != NULL, "the landscape held at no path");
+	entry = voe_3d_models_find(models->store, path);
+	return entry != NULL ? entry->landscape : NULL;
+}
+
+bool voe_editor_models_landscape_edited(const voe_editor_models *models,
+					const char *path)
+{
+	const voe_3d_model_entry *entry;
+
+	VOE_BASE_ASSERT(models != NULL && models->store != NULL,
+			"asking whether a landscape is edited in no store");
+	VOE_BASE_ASSERT(path != NULL, "asking whether no landscape is edited");
+	entry = voe_3d_models_find(models->store, path);
+	return entry != NULL && edited_landscape(entry);
 }
 
 void voe_editor_models_revert(voe_editor_models *models, const char *folder,
@@ -616,10 +743,12 @@ bool voe_editor_models_landscape_shape(voe_editor_models *models,
 				       const char *folder, const char *path,
 				       float size, uint32_t cells,
 				       voe_base_arena *scratch,
+				       voe_editor_disk_watch *watch,
 				       voe_editor_notice *why)
 {
 	const voe_3d_model_entry *entry;
 	struct voe_base_arena_mark mark;
+	const char *full;
 	voe_assets_landscape grid;
 	voe_assets_landscape_text text;
 	voe_base_error error = VOE_BASE_OK;
@@ -640,14 +769,16 @@ bool voe_editor_models_landscape_shape(voe_editor_models *models,
 		grid = voe_assets_landscape_resample(&grid, cells, scratch);
 	grid.size = size;
 	text = voe_assets_landscape_write(&grid, scratch);
-	written = voe_platform_file_write(
-		voe_platform_path_join(scratch, folder, path),
-		(const uint8_t *)text.text, text.size, &error);
+	full = voe_platform_path_join(scratch, folder, path);
+	written = voe_platform_file_write(full, (const uint8_t *)text.text,
+					  text.size, &error);
 	if (!written) {
 		voe_editor_notice_set(why, "Could not save %s: %s", path,
 				      voe_base_error_string(error));
 		goto rewind;
 	}
+	if (watch != NULL)
+		voe_editor_disk_watch_wrote(watch, full);
 	entry = voe_3d_models_find(models->store, path);
 	if (entry != NULL && entry->landscape != NULL) {
 		size_t length = strlen(path) + 1;

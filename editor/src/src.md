@@ -152,8 +152,8 @@ carries it out.
   SHIPPED with the shipped folder's path or FAILED, and the ship's arena destroyed whenever it goes
   idle.
 - `session.h` — the project being worked on, the commands a person asks of it, Play and Ship
-  waiting a frame for the cook before them, and the questions it holds: Delete, levels and Import
-  textures.
+  waiting a frame for the cook before them, and the questions it holds: Delete, levels, Import
+  textures and the disk question with its last answer.
 - `session.c` — the refuse-once rule, the eight commands with Play and Ship refreshing first and
   cooking before they build, one build at a time and refused while a prefab is open, a prefab
   opened, a built library swapped in once a frame, and what a browser action does to the session.
@@ -226,7 +226,9 @@ carries it out.
   landscape or material to open, and Import.
 - `assets_panel.c` — the listings with the selection kept, the rows filled in two passes, the
   panel's one frame of `ui` calls with the naming's field, the read of rows, keyboard, request, a
-  fired row's path, Up and Import afterwards, and the import's copy.
+  fired row's path and the bar's two buttons afterwards, and the listing calls the import shares.
+- `assets_import.c` — Import's copy into the shown folder, read whole before `Assets/` is made,
+  the panel listed again, and a `.glb`'s materials and parts written beside it.
 - `model_import.h` — what Import writes beside a `.glb`: one `<stem>-<name>.material` per glTF
   material and `<stem>.parts` naming them, both overwritten every import, the levels kept (0403,
   0420 point 3); and Import textures: its pictures as PNGs within a largest size, the four maps set.
@@ -252,6 +254,10 @@ carries it out.
   or 4096, 2048 on every opening, with Import and Cancel; the caller carries out the answer.
 - `textures_ask.c` — the open with its title, the panel's one frame of `ui` calls with the chosen
   size lit, and the read of its buttons and a press outside.
+- `disk_ask.h` — the anchored panel a file changed on disk asks while it has unsaved changes:
+  its project-relative path, Load from disk and Keep mine, answered by those two buttons alone.
+- `disk_ask.c` — the open with its line, the panel's one frame of `ui` calls, and the read of its
+  two buttons.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
   folder row or Up, a new thing or copy placed in a scene view, or over the Inspector a swap, a
   shape's material, a filled map, a landscape layer or a foliage kind, an added one open, else nothing.
@@ -403,6 +409,16 @@ carries it out.
   changed one reported once a second so its materials load again; the editor's, not `game`'s.
 - `map_watch.c` — the look's marks, one stamp a map under the folder, a new path noted, a change
   reported while room is left, and the unnamed paths let go.
+- `disk_watch.h` — the open project's sectioned files and `project.voe3d` stamped once a second on
+  a worker, a changed one's bytes read and a landscape strict-read, held until settled, the editor's
+  own writes told, and each path's last known bytes.
+- `disk_watch.c` — the sorted known table, the look's snapshot and walk on its worker, the found
+  files taken as noted, let go or held changes, the settle, the told write and the known bytes.
+- `disk_take.h` — the watch's held changes dealt with once a frame by kind: taken in as one undo
+  step, refused into the notice, left waiting, or one at a time asked, load from disk or keep mine,
+  the session's question kept open on the asked path.
+- `disk_take.c` — the dispatch by path, the safety net's compares, the selection re-found around a
+  take that sets the world, the asked path answered, and the question opened, closed and answered.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, the gizmo's mode of three, the reveal of a selection made
   elsewhere and the material open in the Inspector.
@@ -421,15 +437,20 @@ carries it out.
   from the view's own camera, measured from the press in world space, its world value snapped,
   and submitted as a whole transform, a child's written back relative to its parent.
 - `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), a state
-  carrying a sculpting stroke or material edit beside its text, with the level's line set aside
-  while a prefab is open.
+  carrying a sculpting stroke, material edit, or file or landscape taken in from disk beside its
+  text, with the level's line set aside while a prefab is open.
 - `undo.c` — the states pushed once, the two lines swapped, a settled edit's compare and a reveal's
-  amend, a stroke or material step pushed, what could have been redone thrown away with them, and a
-  step applying the one it passes and re-finding the selection by authored id.
+  amend, a stroke, material, file or landscape step pushed, what could have been redone thrown away
+  with them, and a step applying the ones it passes and re-finding the selection by authored id.
 - `material_steps.h` — one material edit: a `.material`'s path and its values before and after, its
   own memory beside the undo line's text, and the file written at once.
 - `material_steps.c` — the copy made and freed, the file's write, and the values put back either
   way into the table, file, store and open copy.
+- `file_steps.h` — a file changed on disk taken in by its kind, read strictly, and its undo step:
+  a file step's bytes before and after, written at once, or a landscape step's whole copies, left
+  unsaved; each its own memory.
+- `file_steps.c` — the material, parts, closed prefab and project file takes, the steps' copies made
+  and freed, and either side written and taken in, or put into the store.
 - `strokes.h` — one sculpting, paint, foliage, look or grow stroke: a landscape's path, the
   rectangle touched and its heights or weights before and after, the copies added or removed, a
   kind's look or a layer's growth before and after, its own memory beside the undo line's text.

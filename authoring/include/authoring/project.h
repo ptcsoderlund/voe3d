@@ -35,6 +35,12 @@
 // path, an unknown key in `[window]`, and a window value out of range or not
 // in its form. An unknown key in `[project]` is a warning, and the file loads.
 //
+// A FILE TAKEN IN FROM DISK IS READ STRICTLY (ADR-0509 point 3):
+// voe_authoring_project_read_strict refuses the unknown `[project]` key too.
+// It is a second reader, not a stricter first: a project must still open with
+// a key another editor version wrote, while a file changed outside the editor
+// is refused and the editor keeps what it holds.
+//
 // THE WRITER CANNOT FAIL. It only ever writes a scene path and a window this
 // reader accepts — an editor never hands it anything else — so anything the
 // reader would refuse is the caller's bug, and asserts rather than reported.
@@ -75,6 +81,14 @@ typedef struct {
 [[nodiscard]] bool voe_authoring_project_read(const char *text, size_t size,
 					      voe_base_arena *arena,
 					      voe_authoring_project *out);
+
+// As voe_authoring_project_read, and refused too for a `[project]` key other
+// than `scene`; an unknown section and a window size out of range are refused
+// by both. The report names the line, the key and why.
+[[nodiscard]] bool voe_authoring_project_read_strict(const char *text,
+						     size_t size,
+						     voe_base_arena *arena,
+						     voe_authoring_project *out);
 
 // Writes `project` as project text into `arena`. Always succeeds: the text is
 // `[project]` with `scene = "<scene>"`, `"` and `\` escaped, then a blank line

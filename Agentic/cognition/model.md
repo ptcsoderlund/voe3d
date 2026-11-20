@@ -9,3 +9,6 @@
 - `foliage-cost.md` — What drawing the forest's foliage costs, what the sponsor wants of it, what the cost does not move with, and how laying depth then shading keeps the two steps in agreement.
 - `gpu-times.md` — What measured GPU times mean: which builds give times true to what ships.
 - `agents-in-projects.md` — What agents may do in a game project made with the editor, why the sponsor wants it, and what the editor owes them.
+- `outside-changes.md` — What the editor does when a file of the open project changes on disk: how it notices, how it takes the change in, and what it never takes for one.
+- `strict-reading.md` — What a strict read of a sectioned file refuses that the lenient read lets pass, and what the agents' check catches.
+- `proving-cards.md` — What can show a card's done-when is met: what the tests print, and what proves an editor card.

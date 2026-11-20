@@ -62,12 +62,15 @@
 
 #include "assets_menu.h"
 #include "browser.h"
+#include "disk_watch.h"
 
 #include <3d/model_component.h>
 
 #include <base/arena.h>
 
 #include <math/float2.h>
+
+#include <platform/folder.h>
 
 #include <scene/prefab_component.h>
 
@@ -276,15 +279,31 @@ void voe_editor_assets_delete_begin(voe_editor_assets *assets);
 // whole and written atomically over any file of that name, making `Assets/`
 // first when it is missing, then lists again. A failure is said in why,
 // naming the file, and changes nothing else. A `.glb` copied has its
-// materials and parts written beside it (model_import.h), a failure of
-// theirs said in why too; the caller reads the materials again. `imported`
+// materials and parts written beside it (model_import.h) and told to `watch`
+// (disk_watch.h), NULL telling nothing, a failure of theirs said in why too;
+// the caller reads the materials again. `imported`
 // is set to the copy's project-relative path, `Assets/...` with `/` between,
 // as model_import.h is given it, once the write succeeds; "" when the copy
 // failed, the path does not fit, or the import refused the `.glb`.
+// Carried out in assets_import.c.
 void voe_editor_assets_import(voe_editor_assets *assets,
 			      const char *project_folder, const char *source,
+			      voe_editor_disk_watch *watch,
 			      voe_editor_notice *why,
 			      char imported[VOE_3D_MODEL_PATH]);
+
+// The listing calls assets_import.c shares with the panel: whether two project
+// folders (NULL for untitled) are the same; `<project>/Assets/<shown>` listed
+// into `listing`, false on a failed listing, true with `missing` set when there
+// is no project or no `Assets/`; `shown` listed again in place, the selection
+// kept; and whether `name` ends `ending`, lower case, in any case.
+bool voe_editor_assets_same_folder(const char *a, const char *b);
+[[nodiscard]] bool voe_editor_assets_list_shown(
+	const char *project, const char *shown, voe_base_arena *scratch,
+	voe_platform_folder_listing *listing, bool *missing);
+void voe_editor_assets_relist(voe_editor_assets *assets, const char *project,
+			      const char *shown);
+bool voe_editor_assets_name_ends(const char *name, const char *ending);
 
 // Frees the arena, when one was made. Called once, at shutdown.
 void voe_editor_assets_destroy(voe_editor_assets *assets);

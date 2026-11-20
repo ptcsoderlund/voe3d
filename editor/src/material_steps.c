@@ -45,10 +45,12 @@ void voe_editor_material_step_destroy(voe_editor_material_step *step)
 bool voe_editor_material_step_write(const char *folder, const char *path,
 				    const voe_assets_material_file *values,
 				    voe_base_arena *scratch,
+				    voe_editor_disk_watch *watch,
 				    voe_base_error *error)
 {
 	struct voe_base_arena_mark mark;
 	voe_assets_material_text text;
+	const char *full;
 	bool written;
 
 	VOE_BASE_ASSERT(folder != NULL && path != NULL && values != NULL,
@@ -57,9 +59,11 @@ bool voe_editor_material_step_write(const char *folder, const char *path,
 			"writing a material with no scratch or error");
 	mark = voe_base_arena_mark(scratch);
 	text = voe_assets_material_write(values, scratch);
-	written = voe_platform_file_write(
-		voe_platform_path_join(scratch, folder, path),
-		(const uint8_t *)text.text, text.size, error);
+	full = voe_platform_path_join(scratch, folder, path);
+	written = voe_platform_file_write(full, (const uint8_t *)text.text,
+					  text.size, error);
+	if (written && watch != NULL)
+		voe_editor_disk_watch_wrote(watch, full);
 	voe_base_arena_rewind(scratch, mark);
 	return written;
 }
@@ -67,7 +71,8 @@ bool voe_editor_material_step_write(const char *folder, const char *path,
 void voe_editor_material_step_apply(const voe_editor_material_step *step,
 				    voe_editor_models *models,
 				    voe_editor_scene *scene, const char *folder,
-				    voe_base_arena *scratch, bool forward)
+				    voe_base_arena *scratch,
+				    voe_editor_disk_watch *watch, bool forward)
 {
 	const voe_assets_material_file *values;
 	voe_base_error error = VOE_BASE_OK;
@@ -87,7 +92,7 @@ void voe_editor_material_step_apply(const voe_editor_material_step *step,
 	       strcmp(row->values.ormmap, values->ormmap) != 0;
 	row->values = *values;
 	if (!voe_editor_material_step_write(folder, step->path, values, scratch,
-					    &error))
+					    watch, &error))
 		VOE_BASE_ERROR("editor", "could not save %s: %s", step->path,
 			       voe_base_error_string(error));
 	voe_editor_models_material_changed(models, step->path, maps);

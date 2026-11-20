@@ -21,8 +21,8 @@
 // window's height (voe_editor_interface_surface). Each root is the top bar
 // above its dock tree and the tree's floating panels — Project, Errors,
 // Landscape and the frame breakdown among them (0491) — with the browser or
-// Preferences over the dock when one shows, and the Delete, levels and
-// Import textures questions or the colour picker over that.
+// Preferences over the dock when one shows, and the Delete, levels, Import
+// textures and disk questions or the colour picker over that.
 #pragma once
 
 #include "assets_drag.h"
@@ -473,8 +473,17 @@
 // fill, the button's and its one character, 45 × 5. A heading is bigger
 // letters, not more of them. 55045 + 225 = 55270 elements. No scroll area:
 // nine stands.
-#define VOE_EDITOR_INTERFACE_NODES 2948
-#define VOE_EDITOR_INTERFACE_ELEMENTS 55270
+//
+// THE DISK QUESTION (disk_ask.h, 0506 point 1) ADDS SEVEN NODES, counted on
+// top as the textures question is: the panel, one; its line, one; the button
+// row, one; Load from disk and Keep mine, each a button and a label, four.
+// 2948 + 7 = 2955 nodes. AND 1093 ELEMENTS: the panel's border and fill, two;
+// the line, the path cut at VOE_EDITOR_DISK_ASK_PATH (1024) less the zero and
+// VOE_EDITOR_DISK_ASK_SAID's 44 characters, its spaces drawing nothing, 1067;
+// each button's border and fill, four; "Load from disk" and "Keep mine", 12 +
+// 8. 55270 + 1093 = 56363 elements. No scroll area: nine stands.
+#define VOE_EDITOR_INTERFACE_NODES 2955
+#define VOE_EDITOR_INTERFACE_ELEMENTS 56363
 #define VOE_EDITOR_INTERFACE_SCROLLS 9
 
 // Makes the context the interface is built in, once, drawing in `theme` and

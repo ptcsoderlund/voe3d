@@ -636,3 +636,34 @@ bool voe_authoring_field_value(voe_authoring_field_refs *refs,
 			       field->count, spelling(field->kind));
 	return false;
 }
+
+bool voe_authoring_field_in_range(const voe_authoring_site *site,
+				  const voe_base_field_description *field,
+				  const voe_base_field_range *range,
+				  const uint8_t *row)
+{
+	const uint8_t *bytes = row + field->offset;
+	double value;
+
+	if (field->rank != 0)
+		return true;
+	if (field->kind == VOE_BASE_FIELD_FLOAT32) {
+		float narrow;
+
+		memcpy(&narrow, bytes, sizeof(narrow));
+		value = narrow;
+	} else if (field->kind == VOE_BASE_FIELD_FLOAT64) {
+		memcpy(&value, bytes, sizeof(value));
+	} else {
+		return true;
+	}
+	if (value >= range->least && value <= range->greatest)
+		return true;
+	VOE_BASE_ERROR(MODULE,
+		       "line %u: %s.%s = %g is outside its range, %g to %g%s%s; "
+		       "nothing was loaded",
+		       site->line, site->section, site->field, value,
+		       range->least, range->greatest,
+		       range->unit[0] != '\0' ? " " : "", range->unit);
+	return false;
+}

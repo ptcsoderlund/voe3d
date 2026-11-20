@@ -66,11 +66,12 @@ void voe_editor_prefabs_expand(voe_ecs_world *world, const char *folder,
 
 // Makes a prefab of root's tree in project's `Assets/<shown>/` (`shown` the
 // Assets panel's folder relative to `Assets/`). Refused with why when
-// _make_refused says so or the file exists; else the file is written and the
-// rows queued. False with why on any failure. The scratch is rewound to where
-// it was.
+// _make_refused says so or the file exists; else the file is written, told to
+// `watch` (disk_watch.h), NULL telling nothing, and the rows queued. False with
+// why on any failure. The scratch is rewound to where it was.
 [[nodiscard]] bool voe_editor_prefab_make(voe_editor_project *project,
 					  voe_ecs_entity root,
 					  const char *shown,
 					  voe_base_arena *scratch,
+					  voe_editor_disk_watch *watch,
 					  voe_editor_notice *why);

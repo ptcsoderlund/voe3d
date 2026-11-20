@@ -5,7 +5,8 @@
 //     if (!voe_editor_assets_follow_check(project, from, to, scratch, &why))
 //             return refuse(&why);           // nothing moved, nothing written
 //     move from to to on disk;
-//     if (!voe_editor_assets_follow_write(project, from, to, scratch, &why))
+//     if (!voe_editor_assets_follow_write(project, from, to, scratch, watch,
+//                                         &why))
 //             say(&why);                     // the move stands; why names the file
 //
 // WHAT IS WALKED: every file under the project folder whose name ends in one of
@@ -37,6 +38,7 @@
 // read whole; scratch is rewound before each call returns.
 #pragma once
 
+#include "disk_watch.h"
 #include "notice.h"
 
 #include <base/arena.h>
@@ -70,9 +72,10 @@ void voe_editor_assets_users(const char *project, const char *path,
 						  const char *to, voe_base_arena *scratch,
 						  voe_editor_notice *why);
 
-// Every walked file followed, and each that changed written back. False with why
-// naming the first that would not read, follow or write; those before it stay
-// written.
+// Every walked file followed, and each that changed written back and told to
+// `watch` (disk_watch.h), NULL telling nothing. False with why naming the first
+// that would not read, follow or write; those before it stay written.
 [[nodiscard]] bool voe_editor_assets_follow_write(const char *project, const char *from,
 						  const char *to, voe_base_arena *scratch,
+						  voe_editor_disk_watch *watch,
 						  voe_editor_notice *why);

@@ -13,6 +13,11 @@
 // `[Foliage]`, which the writer puts before the heights. A reader that kept
 // whether a value was quoted would lift it.
 //
+// ONE BODY READS FOR BOTH READERS. A strict read refuses a key where it is
+// walked, `[Paint]`'s and `[Foliage]`'s in their files, and walks every section
+// here once the rest is read, since a row's or layer's key is checked against
+// the counts the read found.
+//
 // THE WRITER MEASURES, THEN PRINTS. A height is any float, so a millimetre
 // count can be forty digits long; one pass with no buffer counts the bytes, one
 // push holds exactly them, and the same pass prints into it. Paths are written
@@ -22,6 +27,7 @@
 #include <base/assert.h>
 #include <base/report.h>
 
+#include <ctype.h>
 #include <errno.h>
 #include <math.h>
 #include <stdarg.h>
@@ -281,10 +287,95 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 	return to;
 }
 
-bool voe_assets_landscape_read(const char *text, size_t size,
-			       voe_base_arena *arena,
-			       voe_assets_landscape *out,
-			       voe_base_error *error)
+bool voe_assets_landscape_numbered(const char *name, const char *stem,
+				   uint32_t below)
+{
+	const size_t length = strlen(stem);
+	char canonical[32];
+	unsigned long n;
+	char *end;
+
+	VOE_BASE_ASSERT(name != NULL, "numbering no key");
+	VOE_BASE_ASSERT(length < 16, "a key stem longer than the format has");
+
+	if (strncmp(name, stem, length) != 0 ||
+	    !isdigit((unsigned char)name[length]))
+		return false;
+	errno = 0;
+	n = strtoul(name + length, &end, 10);
+	if (*end != '\0' || errno == ERANGE || n >= below)
+		return false;
+	snprintf(canonical, sizeof(canonical), "%s%lu", stem, n);
+	return strcmp(canonical, name) == 0;
+}
+
+bool voe_assets_landscape_refuse_key(const voe_assets_sectioned_key *key,
+				     voe_base_error *error)
+{
+	VOE_BASE_ERROR("assets", "landscape: line %u: %s: a key no section takes",
+		       key->line, key->name);
+	if (error != NULL)
+		*error = VOE_BASE_ERROR_MALFORMED;
+	return false;
+}
+
+// The sections a landscape file has.
+static const char *const sections_taken[] = { "Landscape", "Layers", "Foliage",
+					      "Heights",   "Paint",  "Copies" };
+
+// Whether `key` of `section` is one this file reads of `read`. `[Foliage]`'s
+// and `[Copies]`' keys are checked where they are read, and so are `[Paint]`'s
+// when there are layers to read them for.
+static bool key_taken(const char *section, const char *key,
+		      const voe_assets_landscape *read)
+{
+	if (strcmp(section, "Landscape") == 0)
+		return strcmp(key, "size") == 0 || strcmp(key, "cells") == 0;
+	if (strcmp(section, "Layers") == 0)
+		return strncmp(key, "grow", 4) == 0 ||
+		       voe_assets_landscape_numbered(key, "layer",
+						     read->layer_count);
+	if (strcmp(section, "Heights") == 0)
+		return voe_assets_landscape_numbered(key, "row", read->cells + 1);
+	if (strcmp(section, "Paint") == 0)
+		return read->layer_count > 0;
+	return true;
+}
+
+// Every section one the format has and each of its keys one a section takes.
+static bool check_strict(const voe_assets_sectioned *doc,
+			 const voe_assets_landscape *read, voe_base_error *error)
+{
+	for (uint32_t s = 0; s < doc->section_count; s++) {
+		const voe_assets_sectioned_section *section = &doc->sections[s];
+		bool known = false;
+
+		for (size_t i = 0;
+		     i < sizeof(sections_taken) / sizeof(sections_taken[0]); i++)
+			known = known || strcmp(section->name, sections_taken[i]) == 0;
+		if (!known) {
+			VOE_BASE_ERROR("assets",
+				       "landscape: line %u: [%s]: a section the "
+				       "format does not have",
+				       section->line, section->name);
+			if (error != NULL)
+				*error = VOE_BASE_ERROR_MALFORMED;
+			return false;
+		}
+		for (uint32_t i = 0; i < section->key_count; i++) {
+			const voe_assets_sectioned_key *key =
+				&doc->keys[section->first_key + i];
+
+			if (!key_taken(section->name, key->name, read))
+				return voe_assets_landscape_refuse_key(key, error);
+		}
+	}
+	return true;
+}
+
+static bool read_landscape(const char *text, size_t size,
+			   voe_base_arena *arena, voe_assets_landscape *out,
+			   voe_base_error *error, bool strict)
 {
 	voe_assets_landscape result = { 0 };
 	voe_assets_sectioned doc;
@@ -325,16 +416,35 @@ bool voe_assets_landscape_read(const char *text, size_t size,
 	}
 	if (result.layer_count > 0) {
 		result.paint = voe_assets_landscape_paint_read(
-			&doc, result.cells, result.layer_count, arena, error);
+			&doc, result.cells, result.layer_count, strict, arena,
+			error);
 		if (result.paint == NULL)
 			return false;
 	}
-	if (!voe_assets_landscape_foliage_read(&doc, text, size, arena, &result,
-					       error))
+	if (!voe_assets_landscape_foliage_read(&doc, text, size, strict, arena,
+					       &result, error))
+		return false;
+	if (strict && !check_strict(&doc, &result, error))
 		return false;
 
 	*out = result;
 	return true;
+}
+
+bool voe_assets_landscape_read(const char *text, size_t size,
+			       voe_base_arena *arena,
+			       voe_assets_landscape *out,
+			       voe_base_error *error)
+{
+	return read_landscape(text, size, arena, out, error, false);
+}
+
+bool voe_assets_landscape_read_strict(const char *text, size_t size,
+				      voe_base_arena *arena,
+				      voe_assets_landscape *out,
+				      voe_base_error *error)
+{
+	return read_landscape(text, size, arena, out, error, true);
 }
 
 void voe_assets_landscape_print(struct voe_assets_landscape_printer *printer,

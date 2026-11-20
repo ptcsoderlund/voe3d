@@ -24,7 +24,7 @@
 //     ... voe_ui_frame_end ...
 //     answer = voe_editor_levels_ask_read(ui, &ask, pointer_down, at);
 //     if (answer == VOE_EDITOR_LEVELS_ASK_MAKE &&
-//         voe_editor_levels_ask_save(&ask, project_folder, scratch)) {
+//         voe_editor_levels_ask_save(&ask, project_folder, scratch, watch)) {
 //             if (voe_editor_levels_ask_swaps_only(&ask))
 //                     ... reload the model, no splash ...
 //             else
@@ -48,6 +48,8 @@
 // distance past 99999.9 m, sticks out of them; measuring the cells last frame,
 // as assets_menu.c does, would lift it.
 #pragma once
+
+#include "disk_watch.h"
 
 #include <3d/model_component.h>
 #include <3d/model_levels.h>
@@ -126,8 +128,10 @@ voe_editor_levels_ask_read(const voe_ui_context *ui, voe_editor_levels_ask *ask,
 bool voe_editor_levels_ask_swaps_only(const voe_editor_levels_ask *ask);
 
 // The `.parts` read (none: an empty one naming no material), its levels set to
-// `ask->levels` and written back. False with a line on stderr when it is there
-// but will not read, or the write fails. `scratch` is rewound before returning.
+// `ask->levels` and written back, the write told to `watch` (disk_watch.h),
+// NULL telling nothing. False with a line on stderr when it is there but will
+// not read, or the write fails. `scratch` is rewound before returning.
 [[nodiscard]] bool voe_editor_levels_ask_save(const voe_editor_levels_ask *ask,
 					      const char *project_folder,
-					      voe_base_arena *scratch);
+					      voe_base_arena *scratch,
+					      voe_editor_disk_watch *watch);

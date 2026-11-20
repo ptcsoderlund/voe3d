@@ -53,9 +53,10 @@
 #include <stdint.h>
 #include <string.h>
 
-// The project's own arena, the world's, the arena a scene read owns (project.h) and the
-// scratch a save's text is built in. Block sizes, not limits.
+// The project's own arena, the world's, the arena a scene read owns (project.h), the
+// scratch a save's text is built in and a taken scene path's. Block sizes, not limits.
 #define PROJECT_ARENA (1u * 1024u * 1024u)
+#define PROJECT_FILE_ARENA 4096u
 #define PROJECT_WORLD_ARENA (4u * 1024u * 1024u)
 #define PROJECT_SCENE_ARENA (1u * 1024u * 1024u)
 #define PROJECT_SAVE_SCRATCH (1u * 1024u * 1024u)
@@ -357,7 +358,8 @@ voe_editor_project *voe_editor_project_new_opened(const char *folder,
 
 // The open prefab's world written to `<folder>/<prefab>`: refused unless it is
 // one tree whose root voe_editor_prefab_refused lets through (0283 point 1).
-static bool prefab_save(voe_editor_project *project, voe_editor_notice *why)
+static bool prefab_save(voe_editor_project *project, voe_editor_disk_watch *watch,
+			voe_editor_notice *why)
 {
 	const voe_ecs_entity *authored = voe_scene_identity_entities(project->world);
 	uint32_t count = voe_scene_identity_count(project->world);
@@ -393,6 +395,8 @@ static bool prefab_save(voe_editor_project *project, voe_editor_notice *why)
 				     text.size, &error)) {
 		voe_editor_notice_from_report(why, path);
 	} else {
+		if (watch != NULL)
+			voe_editor_disk_watch_wrote(watch, path);
 		project->unsaved = false;
 		saved = true;
 	}
@@ -401,7 +405,7 @@ static bool prefab_save(voe_editor_project *project, voe_editor_notice *why)
 }
 
 bool voe_editor_project_save(voe_editor_project *project, const char *folder,
-			     voe_editor_notice *why)
+			     voe_editor_disk_watch *watch, voe_editor_notice *why)
 {
 	voe_base_arena *scratch;
 	voe_base_error error;
@@ -415,7 +419,7 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 			"folder is required for an untitled project and refused for an opened one");
 
 	if (project->prefab[0] != '\0')
-		return prefab_save(project, why);
+		return prefab_save(project, watch, why);
 
 	scratch = voe_base_arena_new(PROJECT_SAVE_SCRATCH);
 
@@ -465,6 +469,8 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 		voe_base_arena_destroy(scratch);
 		return false;
 	}
+	if (watch != NULL)
+		voe_editor_disk_watch_wrote(watch, scene_path);
 
 	if (project->folder == NULL) {
 		const char *project_path = voe_platform_path_join(
@@ -481,6 +487,8 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 			voe_base_arena_destroy(scratch);
 			return false;
 		}
+		if (watch != NULL)
+			voe_editor_disk_watch_wrote(watch, project_path);
 
 		project->folder = target;
 	}
@@ -492,6 +500,7 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 
 bool voe_editor_project_window_set(voe_editor_project *project,
 				   voe_authoring_project_window window,
+				   voe_editor_disk_watch *watch,
 				   voe_editor_notice *why)
 {
 	voe_base_arena *scratch;
@@ -522,10 +531,32 @@ bool voe_editor_project_window_set(voe_editor_project *project,
 					  &error);
 	if (!written)
 		voe_editor_notice_from_report(why, path);
+	else if (watch != NULL)
+		voe_editor_disk_watch_wrote(watch, path);
 	voe_base_arena_destroy(scratch);
 	VOE_BASE_ASSERT(project->file.window.width == window.width,
 			"the window was not kept");
 	return written;
+}
+
+void voe_editor_project_file_take(voe_editor_project *project,
+				  const voe_authoring_project *file)
+{
+	VOE_BASE_ASSERT(project != NULL && file != NULL && file->scene != NULL,
+			"taking no project file, or into no project");
+	project->file.window = file->window;
+	if (strcmp(file->scene, project->file.scene) != 0) {
+		size_t length = strlen(file->scene) + 1;
+
+		if (project->file_arena == NULL)
+			project->file_arena = voe_base_arena_new(PROJECT_FILE_ARENA);
+		voe_base_arena_clear(project->file_arena);
+		project->file.scene = memcpy(
+			voe_base_arena_push(project->file_arena, length),
+			file->scene, length);
+	}
+	VOE_BASE_ASSERT(strcmp(project->file.scene, file->scene) == 0,
+			"the project file's scene path was not taken");
 }
 
 bool voe_editor_project_scene_text(const voe_editor_project *project,
@@ -578,6 +609,30 @@ bool voe_editor_project_scene_set(voe_editor_project *project, const char *text,
 	voe_editor_prefabs_expand(project->world, project->folder,
 				  project->scene_arena, why);
 	return true;
+}
+
+bool voe_editor_project_scene_take(voe_editor_project *project, const char *text,
+				   size_t size, voe_base_arena *scratch,
+				   voe_editor_notice *why)
+{
+	struct voe_base_arena_mark mark;
+	bool taken;
+
+	VOE_BASE_ASSERT(project != NULL && text != NULL,
+			"taking a scene into no project or from no text");
+	VOE_BASE_ASSERT(scratch != NULL && why != NULL,
+			"taking a scene with no scratch or nowhere to say why");
+	mark = voe_base_arena_mark(scratch);
+	voe_base_report_error_clear();
+	taken = voe_authoring_scene_check(text, size, project->world, scratch);
+	voe_base_arena_rewind(scratch, mark);
+	if (!taken)
+		voe_editor_notice_from_report(why, project->prefab[0] != '\0' ?
+							   project->prefab :
+							   project->file.scene);
+	taken = taken && voe_editor_project_scene_set(project, text, size, why);
+	project->unsaved = project->unsaved && !taken;
+	return taken;
 }
 
 bool voe_editor_project_code_set(voe_editor_project *project,
@@ -734,6 +789,8 @@ void voe_editor_project_destroy(voe_editor_project *project)
 	code = project->code;
 	if (project->level_arena != NULL)
 		voe_base_arena_destroy(project->level_arena);
+	if (project->file_arena != NULL)
+		voe_base_arena_destroy(project->file_arena);
 	voe_base_arena_destroy(project->scene_arena);
 	voe_base_arena_destroy(project->world_arena);
 	voe_base_arena_destroy(project->arena);

@@ -3,9 +3,12 @@
 // and read field for field and written again byte for byte; and an unknown
 // shader, a bad number, a cutout outside 0 to 1, a negative emission or
 // strength, a `double_sided` not true or false and an overlong path are
-// refused MALFORMED with `out` left as it was.
+// refused MALFORMED with `out` left as it was. The strict reader refuses as
+// well an unknown key or section, naming the line, takes the retired map keys
+// and reads what the writer writes.
 #include <assets/material.h>
 #include <base/arena.h>
+#include <base/report.h>
 
 #include <testing/test.h>
 
@@ -142,6 +145,75 @@ static void bad_values_are_malformed(void)
 	malformed(text);
 }
 
+// Refused MALFORMED by the strict reader, and `out` left as it was.
+static void strict_malformed(const char *text)
+{
+	voe_assets_material_file out = { .roughness = 7.0f };
+	voe_base_error error = VOE_BASE_OK;
+
+	VOE_TEST_CHECK(!voe_assets_material_read_strict(text, strlen(text), &out,
+							&error));
+	VOE_TEST_CHECK_INT(error, VOE_BASE_ERROR_MALFORMED);
+	VOE_TEST_CHECK(out.roughness == 7.0f && out.repeat == 0.0f);
+}
+
+static void strict_refuses_an_unknown_key(void)
+{
+	const char *const unknown = "[Material]\nshader=lit\nglow=1\n";
+	voe_assets_material_file out;
+	const char *kept;
+
+	voe_base_report_error_clear();
+	strict_malformed(unknown);
+	kept = voe_base_report_error_first();
+	VOE_TEST_CHECK(kept != NULL && strstr(kept, "line 3: glow: ") != NULL);
+	// The lenient reader passes over it.
+	VOE_TEST_CHECK(read_text(unknown, &out, NULL));
+	// A second section, and what the lenient reader refuses.
+	strict_malformed("[Material]\nmetal=1\n[Other]\n");
+	strict_malformed("[Material]\nshader=shiny\n");
+	strict_malformed("[Other]\n");
+}
+
+static void strict_takes_a_retired_map_key(void)
+{
+	const char *const text = "[Material]\ncolour_map=\"a.png\"\n"
+				 "normal_map=\"b.png\"\nroughness_map=\"c.png\"\n";
+	voe_assets_material_file out;
+	const voe_assets_material_file expected = voe_assets_material_default();
+
+	VOE_TEST_CHECK(voe_assets_material_read_strict(text, strlen(text), &out,
+						       NULL));
+	VOE_TEST_CHECK(same(&out, &expected));
+}
+
+static void strict_reads_what_write_writes(voe_base_arena *arena)
+{
+	voe_assets_material_file full = {
+		.shader = VOE_ASSETS_MATERIAL_UNLIT,
+		.colour = { 0.1f, 0.2f, 0.3f },
+		.roughness = 0.25f,
+		.metal = 1.0f,
+		.repeat = 4.0f,
+		.cutout = 0.5f,
+		.double_sided = true,
+		.emission = { 1.0f, 0.5f, 0.0f },
+		.emission_strength = 2.0f,
+	};
+	voe_assets_material_file back = voe_assets_material_default();
+	voe_assets_material_text text;
+
+	snprintf(full.colormap, sizeof full.colormap, "%s", "Assets/brick.png");
+	snprintf(full.normalmap, sizeof full.normalmap, "%s", "Assets/n.png");
+	snprintf(full.ormmap, sizeof full.ormmap, "%s", "Assets/orm.png");
+	snprintf(full.emissionmap, sizeof full.emissionmap, "%s",
+		 "Assets/glow.png");
+	text = voe_assets_material_write(&full, arena);
+	VOE_TEST_CHECK(voe_assets_material_read_strict(text.text, text.size,
+						       &back, NULL));
+	VOE_TEST_CHECK(same(&back, &full));
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(4096);
@@ -149,6 +221,9 @@ int main(void)
 	an_empty_section_reads_the_defaults();
 	a_full_file_round_trips(arena);
 	bad_values_are_malformed();
+	strict_refuses_an_unknown_key();
+	strict_takes_a_retired_map_key();
+	strict_reads_what_write_writes(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

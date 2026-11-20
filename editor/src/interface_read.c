@@ -164,7 +164,7 @@ bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 	if (scene->list_made.generation != 0) {
 		if (voe_editor_prefab_make(session->project, scene->list_made,
 					   scene->assets.shown, arena,
-					   &session->notice))
+					   session->watch, &session->notice))
 			scene->structural++;
 		scene->list_made = (voe_ecs_entity){ 0 };
 	}
@@ -289,7 +289,7 @@ static void voe_editor_interface_covers_read(
 		if (result.changed)
 			(void)voe_editor_project_window_set(
 				session->project, result.window,
-				&session->notice);
+				session->watch, &session->notice);
 	}
 	// A new shape is written at once (models.h) and shown, a refusal said
 	// in the notice.
@@ -302,7 +302,7 @@ static void voe_editor_interface_covers_read(
 		    voe_editor_models_landscape_shape(
 			    models, session->project->folder,
 			    landscape_panel->path, result.size, result.cells,
-			    arena, &session->notice))
+			    arena, session->watch, &session->notice))
 			(void)voe_editor_landscape_panel_show(
 				landscape_panel, landscape_panel->path,
 				result.size, result.cells);

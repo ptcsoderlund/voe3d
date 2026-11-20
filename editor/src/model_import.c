@@ -213,12 +213,18 @@ static bool bytes_written(const char *project_folder, const char *path,
 	return false;
 }
 
+// `text` written as bytes_written writes, and told to `watch` when it was; a
+// picture is not, being no kind the watch looks at.
 static bool text_written(const char *project_folder, const char *path,
 			 voe_assets_material_text text, voe_base_arena *scratch,
-			 voe_editor_notice *why)
+			 voe_editor_disk_watch *watch, voe_editor_notice *why)
 {
-	return bytes_written(project_folder, path, (const uint8_t *)text.text, text.size,
-			     scratch, why);
+	if (!bytes_written(project_folder, path, (const uint8_t *)text.text, text.size,
+			   scratch, why))
+		return false;
+	if (watch != NULL)
+		voe_editor_disk_watch_wrote(watch, path);
+	return true;
 }
 
 // `glb` read from the project and parsed into `model` on scratch, `glb` the
@@ -289,7 +295,8 @@ static voe_assets_levels levels_kept(const char *project_folder, const char *pat
 }
 
 bool voe_editor_model_import(const char *project_folder, const char *glb,
-			     voe_base_arena *scratch, voe_editor_notice *why)
+			     voe_base_arena *scratch, voe_editor_disk_watch *watch,
+			     voe_editor_notice *why)
 {
 	struct voe_base_arena_mark mark;
 	voe_assets_model model;
@@ -308,13 +315,14 @@ bool voe_editor_model_import(const char *project_folder, const char *glb,
 			voe_assets_model_material_values(&model.materials[i]);
 
 		if (!text_written(project_folder, parts.materials[i],
-				  voe_assets_material_write(&values, scratch), scratch, why))
+				  voe_assets_material_write(&values, scratch), scratch,
+				  watch, why))
 			goto rewind;
 	}
 	path = parts_path_of(glb, scratch);
 	parts.levels = levels_kept(project_folder, path, scratch);
 	ok = text_written(project_folder, path, voe_assets_parts_write(&parts, scratch),
-			  scratch, why);
+			  scratch, watch, why);
 rewind:
 	voe_base_arena_rewind(scratch, mark);
 	return ok;
@@ -491,7 +499,7 @@ static void map_set(char *map, uint32_t image, const voe_assets_model *model,
 static bool material_dressed(const char *project_folder, const char *path,
 			     const voe_assets_model *model, uint32_t index,
 			     const struct pictures *pictures, voe_base_arena *scratch,
-			     voe_editor_notice *why)
+			     voe_editor_disk_watch *watch, voe_editor_notice *why)
 {
 	const voe_assets_material *gltf = &model->materials[index];
 	const char *full = voe_platform_path_join(scratch, project_folder, path);
@@ -515,12 +523,12 @@ static bool material_dressed(const char *project_folder, const char *path,
 	if (pictures->orms[index][0] != '\0')
 		memcpy(values.ormmap, pictures->orms[index], VOE_ASSETS_MATERIAL_PATH);
 	return text_written(project_folder, path, voe_assets_material_write(&values, scratch),
-			    scratch, why);
+			    scratch, watch, why);
 }
 
 bool voe_editor_model_import_textures(const char *project_folder, const char *glb,
 				      uint32_t largest, voe_base_arena *scratch,
-				      voe_editor_notice *why)
+				      voe_editor_disk_watch *watch, voe_editor_notice *why)
 {
 	struct voe_base_arena_mark mark;
 	voe_assets_model model;
@@ -544,7 +552,7 @@ bool voe_editor_model_import_textures(const char *project_folder, const char *gl
 	for (uint32_t i = 0; i < count; i++)
 		if (parts.materials[i][0] != '\0' &&
 		    !material_dressed(project_folder, parts.materials[i], &model, i,
-				      &pictures, scratch, why))
+				      &pictures, scratch, watch, why))
 			goto rewind;
 	ok = true;
 rewind:

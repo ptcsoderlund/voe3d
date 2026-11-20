@@ -54,6 +54,9 @@ typedef struct {
 typedef struct {
 	voe_ecs_world *world;
 	voe_base_arena *arena;
+	// Set by voe_authoring_scene_check: a key naming no field and a ranged
+	// value outside its range are refused rather than warned of and taken.
+	bool strict;
 	voe_assets_sectioned doc;
 
 	// One per key, as the sectioned reader numbers them.
@@ -74,6 +77,7 @@ typedef struct {
 } voe_authoring_scratch;
 
 // Reads `size` bytes of scene text into `scratch`, whose world and arena are
-// set and the rest zero. False, reported, when the text is refused.
+// set, `strict` as the caller wants, and the rest zero. False, reported, when
+// the text is refused.
 [[nodiscard]] bool voe_authoring_scratch_read(voe_authoring_scratch *scratch,
 					      const char *text, size_t size);

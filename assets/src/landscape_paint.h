@@ -24,6 +24,16 @@ struct voe_assets_landscape_printer {
 voe_assets_landscape_print(struct voe_assets_landscape_printer *printer,
 			   const char *format, ...);
 
+// Whether `name` is exactly `<stem><n>`, n below `below` with no leading zero.
+// In `landscape.c`.
+bool voe_assets_landscape_numbered(const char *name, const char *stem,
+				   uint32_t below);
+
+// A line on stderr naming `key`'s line and name as one no section takes, and
+// MALFORMED in `error`, which may be NULL. Returns false. In `landscape.c`.
+bool voe_assets_landscape_refuse_key(const voe_assets_sectioned_key *key,
+				     voe_base_error *error);
+
 // Where new index `i` of `cells` falls on a grid of `from_cells`: the index
 // below and how far toward the next. Integer division keeps it exact, so the
 // same count lands on every old point with no fraction and an edge on an edge.
@@ -40,10 +50,11 @@ static inline uint32_t voe_assets_landscape_source_index(uint32_t i,
 
 // The paint of a file with `layer_count` layers, at least one: `[Paint]`'s rows
 // of layers 1 up, or all layer 0 with no `[Paint]`. NULL and a line on stderr
-// for a row missing, of the wrong count or past 255, or a point past 255.
+// for a row missing, of the wrong count or past 255, or a point past 255, and
+// when `strict` for a key not a row of layers 1 up the file has.
 uint8_t *voe_assets_landscape_paint_read(const voe_assets_sectioned *doc,
 					 uint32_t cells, uint32_t layer_count,
-					 voe_base_arena *arena,
+					 bool strict, voe_base_arena *arena,
 					 voe_base_error *error);
 
 // `[Paint]` with a blank line before it, when paint is not NULL and there are

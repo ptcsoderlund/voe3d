@@ -47,3 +47,13 @@ voe_authoring_field_value(voe_authoring_field_refs *refs,
 			  const voe_authoring_site *site,
 			  const voe_base_field_description *field,
 			  const char *value, uint8_t *row);
+
+// Whether `field`'s value, already read into `row`, lies from `range`'s least
+// to its greatest (0498). False, reported naming the range and its unit, when
+// it does not. A range on anything but a FLOAT32 or FLOAT64 of rank 0 is a note
+// a tool ignores (base/describe.h), so such a field passes.
+[[nodiscard]] bool
+voe_authoring_field_in_range(const voe_authoring_site *site,
+			     const voe_base_field_description *field,
+			     const voe_base_field_range *range,
+			     const uint8_t *row);

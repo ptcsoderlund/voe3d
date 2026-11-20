@@ -535,7 +535,8 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 		// is voe_editor_session_browser_do's.
 		if (session->project->folder != NULL)
 			session->saved |= voe_editor_project_save(
-				session->project, NULL, &session->notice);
+				session->project, NULL, session->watch,
+				&session->notice);
 		else
 			session_browser_show(session, browser,
 					     VOE_EDITOR_BROWSER_SAVE);
@@ -626,7 +627,8 @@ static void session_import(voe_editor_session *session, voe_editor_scene *scene,
 	VOE_BASE_ASSERT(models != NULL && source != NULL,
 			"importing with no store or no file");
 	voe_editor_assets_import(&scene->assets, session->project->folder,
-				 source, &session->notice, imported);
+				 source, session->watch, &session->notice,
+				 imported);
 	scratch = voe_base_arena_new(SESSION_SCRATCH);
 	if (session_names_model(imported))
 		voe_editor_levels_ask_open(&session->levels_asking,
@@ -699,7 +701,7 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 		// "is not empty" included, leaves why set by the save and the
 		// browser open on the folder that refused it.
 		if (!voe_editor_project_save(session->project, browser->folder,
-					     &session->notice))
+					     session->watch, &session->notice))
 			return;
 
 		session->saved = true;

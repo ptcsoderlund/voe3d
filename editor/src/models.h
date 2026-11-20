@@ -109,10 +109,12 @@ void voe_editor_models_frame(voe_editor_models *models,
 
 // Every edited landscape written to `<folder>/<path>` and marked saved. False
 // at the first refused write, `why` naming the file; those before it saved.
+// Each one written is told to `watch` (disk_watch.h), NULL telling nothing.
 // `scratch` is rewound.
 [[nodiscard]] bool voe_editor_models_save(voe_editor_models *models,
 					  const char *folder,
 					  voe_base_arena *scratch,
+					  voe_editor_disk_watch *watch,
 					  voe_editor_notice *why);
 
 // Every edited landscape read from `<folder>/<path>` again and loaded over
@@ -210,12 +212,36 @@ void voe_editor_models_rename(voe_editor_models *models, const char *from,
 // side when that differs (0396 point 2): from the store's entry when loaded,
 // else from the file. A loaded entry is marked saved, its edits being in the
 // file now, and loaded again from it at the next update, between frames,
-// since a load may not run inside one. False, `why` naming the file and
-// nothing written, when it will not read or write. `scratch` is rewound.
+// since a load may not run inside one. The file written is told to `watch`,
+// NULL telling nothing. False, `why` naming the file and nothing written, when
+// it will not read or write. `scratch` is rewound.
 [[nodiscard]] bool voe_editor_models_landscape_shape(
 	voe_editor_models *models, const char *folder, const char *path,
 	float size, uint32_t cells, voe_base_arena *scratch,
-	voe_editor_notice *why);
+	voe_editor_disk_watch *watch, voe_editor_notice *why);
+
+// `landscape` taken in as `path`'s (0509 point 2): copied into the store's own
+// memory now, an exact resample at its own cells, and loaded over the entry at
+// the next update, between frames, as _landscape_shape's re-read is; marked
+// edited then when `edited`, so the next Save writes it. A newer take of the
+// same path replaces a waiting one; at most 8 wait, one more left out with a
+// line on stderr. Nothing for a path the store does not hold, or on a
+// different folder. Writes nothing to disk and cooks nothing (0470).
+void voe_editor_models_landscape_take(voe_editor_models *models,
+				      const char *path,
+				      const voe_assets_landscape *landscape,
+				      bool edited);
+
+// The store's landscape at `path`, read-only; NULL when it is not loaded. It
+// changes at an update or an edit, so a caller copies what it keeps.
+const voe_assets_landscape *
+voe_editor_models_landscape_held(const voe_editor_models *models,
+				 const char *path);
+
+// Whether `path`'s loaded landscape is edited since loaded or saved: the
+// store's `edited` flag, false for a path that is no loaded landscape.
+bool voe_editor_models_landscape_edited(const voe_editor_models *models,
+					const char *path);
 
 // The project's materials' table, to edit a row in place.
 voe_editor_materials *voe_editor_models_materials(voe_editor_models *models);

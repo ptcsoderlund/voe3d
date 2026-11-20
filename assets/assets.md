@@ -19,13 +19,14 @@ way out: a decoder takes a buffer and an encoder hands one back, since
   `[Section]` headers and `key=value` lines, handed back as text and never
   interpreted. Its header says why it is layer one of three and why comments
   are `//`.
-- `include/assets/landscape.h` — a `.landscape` file's text to a grid of
-  heights, up to eight material layers, each point's paint weights, the
-  foliage kinds with each kind's look, each layer's growth of each kind and the
-  copies, and back, and a grid resampled bilinearly.
+- `include/assets/landscape.h` — a `.landscape` file's text to heights, up to
+  eight material layers, paint weights, foliage kinds, looks, growth and
+  copies, and back, read strictly when taken in from disk; and a grid
+  resampled bilinearly.
 - `include/assets/material.h` — a `.material` file's text to a shader, its
-  factors, repeat and three map paths, and back. Its header says the defaults
-  and why a missing key reads as one.
+  factors, repeat and three map paths, and back. Its header says the defaults,
+  why a missing key reads as one, and why a file taken in from disk has a
+  strict reader.
 - `include/assets/parts.h` — a `.parts` file's text to the `.material` each
   glTF material of a `.glb` wears and the model's levels, and back. Its header says why the keys are
   indices.

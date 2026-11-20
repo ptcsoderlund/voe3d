@@ -31,10 +31,12 @@ void voe_assets_landscape_quote(const char *path, char *quoted);
 // to the first missing key, each look key missing the default's; then each
 // `grow<l>_<k>`, now that both counts are known; the copies pushed on `arena`,
 // none and NULL with no `[Copies]`. False and a line on stderr for what
-// voe_assets_landscape_read refuses of them; `into` may be partly written.
+// voe_assets_landscape_read refuses of them, and when `strict` for a
+// `[Foliage]` key not a path or look key of a kind below the kind count;
+// `into` may be partly written.
 [[nodiscard]] bool
 voe_assets_landscape_foliage_read(const voe_assets_sectioned *doc,
-				  const char *text, size_t size,
+				  const char *text, size_t size, bool strict,
 				  voe_base_arena *arena,
 				  voe_assets_landscape *into,
 				  voe_base_error *error);

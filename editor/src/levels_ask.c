@@ -425,7 +425,8 @@ bool voe_editor_levels_ask_swaps_only(const voe_editor_levels_ask *ask)
 
 bool voe_editor_levels_ask_save(const voe_editor_levels_ask *ask,
 				const char *project_folder,
-				voe_base_arena *scratch)
+				voe_base_arena *scratch,
+				voe_editor_disk_watch *watch)
 {
 	struct voe_base_arena_mark mark;
 	voe_assets_parts parts = { 0 };
@@ -456,6 +457,8 @@ bool voe_editor_levels_ask_save(const voe_editor_levels_ask *ask,
 				     NULL);
 	if (!ok)
 		fprintf(stderr, "%s: its levels could not be written\n", parts_path);
+	else if (watch != NULL)
+		voe_editor_disk_watch_wrote(watch, full);
 rewind:
 	voe_base_arena_rewind(scratch, mark);
 	return ok;

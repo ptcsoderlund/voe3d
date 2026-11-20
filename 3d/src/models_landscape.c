@@ -6,7 +6,7 @@
 // updating the pyramid, placing again the copies over it and growing the
 // heights' dirty rect, or a paint brush or put growing the paint's; a layer
 // set; the frame writing both kinds of dirt a shared budget at a time; the
-// lookup the draw files ask; the saved mark and the rename, layer and kind
+// lookup the draw files ask; the saved and changed marks and the rename, layer and kind
 // paths following. The foliage calls are models_foliage.c's. A load raises
 // the store's `changes` through keep, and so does every placing again.
 //
@@ -589,6 +589,19 @@ void voe_3d_models_landscape_saved(voe_3d_models *models, const char *path)
 
 	if (index != VOE_3D_MODELS)
 		models->entries[index].edited = false;
+}
+
+// An undo step that puts a whole landscape back (0509 point 2) leaves the
+// store unlike its file with no brush or put to mark it, so it marks the entry
+// itself and the next save writes it.
+void voe_3d_models_landscape_changed(voe_3d_models *models, const char *path)
+{
+	VOE_BASE_ASSERT(models != NULL, "marking changed in no store");
+	VOE_BASE_ASSERT(path != NULL, "marking changed no path");
+	const uint32_t index = voe_3d_models_landscape_index(models, path);
+
+	if (index != VOE_3D_MODELS)
+		models->entries[index].edited = true;
 }
 
 // What follows `from` in `path` when `path` is `from` or under `from/`; NULL

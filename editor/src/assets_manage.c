@@ -249,20 +249,25 @@ static bool make_allowed(voe_editor_session *session, const char *name)
 	return name_allowed(session, name);
 }
 
-// `<folder>/<name>` free and written with `size` bytes of `text`. False with
-// the notice naming why.
+// `<folder>/<name>` free and written with `size` bytes of `text`, the write told
+// to the session's watch. False with the notice naming why.
 static bool file_made(voe_editor_session *session, voe_base_arena *scratch, const char *folder,
 		      const char *name, const char *text, size_t size)
 {
 	const char *path;
+	const char *full;
 
 	VOE_BASE_ASSERT(text != NULL && size > 0, "making a file of no text");
 	if (!name_free(session, scratch, folder, name))
 		return false;
 	path = voe_editor_assets_join(scratch, folder, name);
+	full = on_disk(session, scratch, path);
 	voe_base_report_error_clear();
-	if (voe_platform_file_write(on_disk(session, scratch, path), (const uint8_t *)text, size, NULL))
+	if (voe_platform_file_write(full, (const uint8_t *)text, size, NULL)) {
+		if (session->watch != NULL)
+			voe_editor_disk_watch_wrote(session->watch, full);
 		return true;
+	}
 	voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
 	return false;
 }
@@ -458,7 +463,8 @@ bool voe_editor_assets_move(voe_editor_session *session, voe_editor_scene *scene
 	voe_editor_scene_material_follow(scene, from, to);
 	ok = voe_editor_assets_follow_write(session->project->folder,
 					    project_relative(scratch, from),
-					    project_relative(scratch, to), scratch, &session->notice);
+					    project_relative(scratch, to), scratch, session->watch,
+					    &session->notice);
 	// The first failure is the one said: a write's, else the scene's.
 	if (!scene_set_followed(session, scene, &followed, &why)) {
 		if (ok)
@@ -522,14 +528,21 @@ static const uint8_t *copy_read(voe_editor_session *session, voe_base_arena *scr
 	return bytes;
 }
 
-// `count` bytes written to `path`. False with the notice naming it.
+// `count` bytes written to `path`, the write told to the session's watch. False
+// with the notice naming it.
 static bool copy_written(voe_editor_session *session, voe_base_arena *scratch, const char *path,
 			 const uint8_t *bytes, size_t count)
 {
+	const char *full;
+
 	VOE_BASE_ASSERT(path != NULL && bytes != NULL && count > 0, "writing no copy");
+	full = on_disk(session, scratch, path);
 	voe_base_report_error_clear();
-	if (voe_platform_file_write(on_disk(session, scratch, path), bytes, count, NULL))
+	if (voe_platform_file_write(full, bytes, count, NULL)) {
+		if (session->watch != NULL)
+			voe_editor_disk_watch_wrote(session->watch, full);
 		return true;
+	}
 	voe_editor_notice_from_report(&session->notice, project_relative(scratch, path));
 	return false;
 }
