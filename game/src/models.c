@@ -14,7 +14,8 @@
 // full store ends an update before its next file. The watch adds only the
 // entries but landscapes and materials whose stamp changed, by the batch's
 // own stamp test, so an unchanged store prepares no batch and starts no
-// burst; a reload adds its one path, forced.
+// burst; a reload adds its one path, forced. A tree's path (`.tree`, `#v`),
+// grown by game/src/trees.c, is never gathered, watched or reloaded.
 // Each call's batches cook as its mode says (models_cooked.h): an update
 // stale copies, the game's update missing ones, a watch and a reload none.
 // The update's and the watch's gathering and the dot and water are internal
@@ -34,6 +35,8 @@
 #include <3d/model_component.h>
 #include <3d/model_levels.h>
 #include <3d/water_component.h>
+
+#include <assets/tree.h>
 
 #include <base/assert.h>
 #include <base/error.h>
@@ -136,11 +139,13 @@ static const char *path_at(const voe_ecs_world *world, uint32_t index)
 	return voe_3d_emitter_rows(world)[index - rows].texture;
 }
 
-// Whether `path` is one an update reads: not empty and not in the store.
+// Whether `path` is one an update reads: not empty, no tree's, which
+// game/trees.h grows (0515 point 3), and not in the store.
 static bool unread(const voe_3d_models *models, const char *path)
 {
 	VOE_BASE_ASSERT(path != NULL, "asking after no path");
-	return path[0] != '\0' && voe_3d_models_find(models, path) == NULL;
+	return path[0] != '\0' && !voe_assets_tree_path_is(path) &&
+	       voe_3d_models_find(models, path) == NULL;
 }
 
 // Whether the world's `index`th of `paths` files is the first naming its
@@ -435,7 +440,7 @@ bool voe_game_models_reload(voe_3d_models *models, voe_render_device *device,
 			"no folder, path, scratch or error");
 	*error = VOE_BASE_OK;
 	entry = voe_3d_models_find(models, path);
-	if (entry == NULL)
+	if (entry == NULL || voe_assets_tree_path_is(path))
 		return true;
 	batch = batch_of(&call, folder);
 	voe_game_models_batch_add(batch, entry->path, entry->stamp, true);
@@ -594,8 +599,10 @@ uint32_t voe_game_models_watch_gather(const voe_3d_models *models,
 		bool stamped;
 
 		// A landscape is never re-read by stamp (0379 point 2), nor a
-		// material, which the editor reloads itself (0399 point 7).
+		// material, which the editor reloads itself (0399 point 7), nor
+		// a grown tree, which has no file (0515 point 3).
 		if (entry->landscape == NULL && !entry->material &&
+		    !voe_assets_tree_path_is(entry->path) &&
 		    voe_game_models_stamp_changed(
 			    voe_platform_path_join(scratch, folder, entry->path),
 			    entry->stamp, &stamp, &stamped))

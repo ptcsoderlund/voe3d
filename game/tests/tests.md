@@ -13,4 +13,5 @@
 - `models_cooked.c` — a `.glb`'s and a map's cooked copies, BC7 or BC5: written by the loader's calls, kept when fresh, made again on a change, trusted by the game's, queued, written by the stepped queue, shown as progress, counted stale and cooked by the editor's check; skips without a card.
 - `models_batch.c` — three two-picture `.glb`s cooked in one batch of bursts under a splash match prepare's one at a time, `a_batchs_first_error_is_its_first_failing_file` and `a_dressed_picture_is_a_white_texel`; skips without a card.
 - `compressing.c` — the compressing queue on a headless device against PNGs it writes: a job stepped until its BC7 copy is written at its stamp, a second add replacing the first, clear dropping every job, a missing map writing nothing, a normal map BC5; skips without a card.
+- `trees.c` — a species of three variations grown into a store with four levels each, the same row grown by a job polled and put in three calls, and an update over a landscape whose kind is a tree asking for no file; skips without a card.
 - `glb_build.h` — the hand-built one-triangle `.glb` and the world helpers the four model tests and `frame.c` include.

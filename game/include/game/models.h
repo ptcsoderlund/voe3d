@@ -8,9 +8,9 @@
 // UPDATE reads every path a model row names that the store lacks, the folder
 // (the project's in the editor, the program's in the game, 0266 point 3) joined
 // with it. No stamp or no read keeps it failed at 0; no parse, at its stamp:
-// read once, not once a frame. Empty paths are skipped. Then each emitter's
-// texture as a picture (0298 point 5), each landscape's kinds (0442), a row's
-// too; any emitter, the soft dot at "".
+// read once, not once a frame. Empty paths and trees' (game/trees.h grows
+// them) are skipped. Then each emitter's texture as a picture (0298 point 5),
+// each landscape's kinds (0442), a row's too; any emitter, the soft dot at "".
 //
 // LEVELS (0426 point 2): a `.glb`, any case, loads with its levels file
 // `<folder>/Cache/levels/<path>.levels`, made when missing or stale and
@@ -37,9 +37,9 @@
 // next file, no dot or water; a later call reads on.
 //
 // WATCH, a stamp of time and size asked once a second (0277 point 5), reloads
-// every entry, pictures too, whose stamp differs: a success replaces the
-// parts, a failure keeps them. A failed entry whose file now has a stamp is
-// tried again; a loaded file that has gone is kept failed at 0.
+// every entry but a grown tree's, pictures too, whose stamp differs: a success
+// replaces the parts, a failure keeps them. A failed entry whose file now has
+// a stamp is tried again; a loaded file that has gone is kept failed at 0.
 //
 // MATERIALS come from tables (game/materials.h, 0399 point 7, 0420): each
 // loaded model takes its parts; then each shape's material, part's `wears`
@@ -217,7 +217,8 @@ void voe_game_models_levels_summarise(const char *folder, const char *path,
 //
 // Reads `<folder>/<path>` again when the store holds `path`
 // (`voe_3d_models_find`) and loads it with its levels file whatever its stamp,
-// at the file's stamp; a path it lacks is nothing and true. False, `error`
+// at the file's stamp; a path it lacks, or a tree's, is nothing and true.
+// False, `error`
 // set, when the load failed, the entry kept as the store keeps a failed
 // reload. Between frames; call the materials call after, as after a watch.
 // For the editor's prepare (0431).
