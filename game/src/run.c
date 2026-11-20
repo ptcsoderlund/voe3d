@@ -18,9 +18,10 @@
 //   anything else, nothing is said and no frame counts.
 // - The only file naming the project's cooked C: voe_game_scene_build,
 //   voe_game_prefabs_cooked, voe_game_landscapes_cooked, the landscapes
-//   loaded before the first models, and voe_game_materials_cooked with
+//   loaded before the first models, voe_game_trees_cooked, grown once after
+//   the start's models update, and voe_game_materials_cooked with
 //   voe_game_parts_cooked, loaded after each models update; and the project's
-//   entry points.
+//   entry points. The grown trees stay in the store across restarts.
 // - The loader is called the game's way, update_cooked and materials_cooked:
 //   the game trusts its cooked copies, whose stamps a build changed, and
 //   writes only a missing one (0470 point 5).
@@ -37,6 +38,7 @@
 #include <game/scene.h>
 #include <game/starting.h>
 #include <game/steps.h>
+#include <game/trees.h>
 #include <game/world.h>
 
 #include <3d/bounce_casters.h>
@@ -131,8 +133,8 @@ struct run_start {
 };
 
 // The start's work, on the wait's worker (0370 point 4): the shaders with the
-// game's cache, the world and scene, the shapes, the cooked landscapes and the
-// scene's models, each
+// game's cache, the world and scene, the shapes, the cooked landscapes, the
+// scene's models and the grown trees, each
 // part's log step taken where it ends. False once stopped, or with `failed`
 // set on a failed step. Only the worker's own scratch is used, kept empty.
 static bool run_start_work(void *context, voe_game_progress *progress)
@@ -178,6 +180,11 @@ static bool run_start_work(void *context, voe_game_progress *progress)
 					    start->device, start->folder,
 					    &voe_game_parts_cooked,
 					    start->scratch, progress);
+	// The species before the materials, so their bark and leaf are
+	// gathered with the rest (0515 point 5).
+	(void)voe_game_trees_grow(start->store, start->device,
+				  &voe_game_trees_cooked, start->scratch,
+				  progress);
 	(void)voe_game_models_materials_cooked(
 		start->world, start->store, start->device, start->folder,
 		&voe_game_materials_cooked, &voe_game_parts_cooked,
