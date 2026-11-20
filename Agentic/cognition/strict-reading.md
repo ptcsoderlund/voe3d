@@ -17,5 +17,5 @@ What a strict read of a sectioned file refuses that the lenient read lets pass, 
 
 ## The check
 - The agents' check reads `.prefab` text only as scene text, without the prefab reader's one-tree shape check: a prefab can pass the check and still be refused as a prefab. [observed · accept 115 · 2026-11-20]
-- "`Code/` with no library built" means `Code/` lists a `.c` file; a `Code/` with no `.c` registers no components, so nothing goes unchecked. [assumed · coder 116-17 · 2026-11-20]
-- A built library that will not load is one line with its reason and "the project's own components were not checked"; it is not counted as a refused file. [assumed · coder 116-17 · 2026-11-20]
+- "`Code/` with no library built" means `Code/` lists a `.c` file; a `Code/` with no `.c` registers no components, so nothing goes unchecked. [observed · accept 116 · 2026-11-20]
+- A built library that will not load is one line with its reason and "the project's own components were not checked"; it is not counted as a refused file. [observed · accept 116 · 2026-11-20]
