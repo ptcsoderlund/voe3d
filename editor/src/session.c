@@ -8,6 +8,7 @@
 #include "session.h"
 
 #include "code.h"
+#include "docs.h"
 #include "game_tree.h"
 #include "last_project.h"
 #include "models.h"
@@ -280,6 +281,20 @@ destroy:
 	return result;
 }
 
+// The due Docs written and no longer due; a refusal is the notice.
+static void session_docs_write(voe_editor_session *session)
+{
+	voe_base_arena *scratch = voe_base_arena_new(SESSION_SCRATCH);
+	voe_editor_notice why = { 0 };
+
+	VOE_BASE_ASSERT(scratch != NULL, "no scratch to write the docs in");
+	session->docs_due = false;
+	if (!voe_editor_docs_write(session->project, scratch, &why))
+		session->notice = why;
+	voe_base_arena_destroy(scratch);
+	VOE_BASE_ASSERT(!session->docs_due, "written docs still due");
+}
+
 bool voe_editor_session_step(voe_editor_session *session,
 			     voe_editor_scene *scene)
 {
@@ -290,6 +305,9 @@ bool voe_editor_session_step(voe_editor_session *session,
 	VOE_BASE_ASSERT(session != NULL && session->project != NULL,
 			"stepping a session with no project");
 	VOE_BASE_ASSERT(scene != NULL, "stepping a session with no scene");
+
+	if (session->docs_due)
+		session_docs_write(session);
 
 	if (session->refresh.stage == VOE_EDITOR_REFRESH_IDLE) {
 		// A due refresh waits out a ship: one build at a time.
@@ -322,6 +340,7 @@ bool voe_editor_session_step(voe_editor_session *session,
 	session->play_after = false;
 	session->ship_after = false;
 	swapped = session_code_swap(session, scene);
+	session->docs_due = swapped >= 0;
 	if (swapped >= 0 && play && session->play.stage == VOE_EDITOR_PLAY_IDLE)
 		session_play_start(session);
 	if (swapped >= 0 && ship && session->ship.stage == VOE_EDITOR_SHIP_IDLE)
@@ -706,6 +725,7 @@ void voe_editor_session_browser_do(voe_editor_session *session,
 
 		session->saved = true;
 		session->refresh_due = true;
+		session->docs_due = true;
 		if (!voe_editor_last_project_write(session->project->folder))
 			voe_editor_notice_set(
 				&session->notice,
@@ -759,6 +779,7 @@ void voe_editor_session_load(voe_editor_session *session,
 		return;
 
 	session->refresh_due = true;
+	session->docs_due = true;
 	if (!voe_editor_last_project_write(loaded->folder))
 		voe_editor_notice_set(
 			&session->notice,

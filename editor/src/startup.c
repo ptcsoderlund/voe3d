@@ -78,6 +78,7 @@ bool voe_editor_startup_project(const voe_editor_options *options,
 	// A project with a folder may have code, built and loaded at the
 	// first step (session.h).
 	session->refresh_due = session->project->folder != NULL;
+	session->docs_due = session->refresh_due;
 	return true;
 }
 
