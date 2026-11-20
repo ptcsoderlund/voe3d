@@ -1,6 +1,6 @@
-# 09 — Docs are written on open, Refresh and code reload
+# 19 — Docs are written on open, Refresh and code reload
 folder: editor
-after: 08
+after: 18
 decisions: 0168, 0509, 0511
 read: feature.md
 

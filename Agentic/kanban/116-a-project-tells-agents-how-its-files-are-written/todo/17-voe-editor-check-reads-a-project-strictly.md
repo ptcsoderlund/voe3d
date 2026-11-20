@@ -1,6 +1,6 @@
-# 07 — `voe_editor --check` reads a project strictly
+# 17 — `voe_editor --check` reads a project strictly
 folder: editor
-after: 06
+after: 16
 decisions: 0168, 0509, 0511
 
 ## Change

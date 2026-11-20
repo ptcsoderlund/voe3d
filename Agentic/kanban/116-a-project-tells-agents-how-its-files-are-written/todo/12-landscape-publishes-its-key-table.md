@@ -1,14 +1,14 @@
-# 02 — Landscape publishes its key table
+# 12 — Landscape publishes its key table
 folder: assets
-after: 01
-decisions: 0168, 0511
+after: 11
+decisions: 0168, 0511, 0512
 
 ## Change
 - `assets/include/assets/landscape.h`: declare
-  `const voe_assets_sectioned_key *voe_assets_landscape_keys(uint32_t *count);`. Its comment points to
+  `const voe_assets_documented_key *voe_assets_landscape_keys(uint32_t *count);`. Its comment points to
   the table and says the table holds the same sections and keys the header lists.
 - `assets/src/landscape_keys.c` is new. `landscape.c` keeps its reader unchanged. Write one row
-  (`voe_assets_sectioned_key`, from `assets/sectioned.h`) per key in landscape.h's header:
+  (`voe_assets_documented_key`, from `assets/sectioned.h`) per key in landscape.h's header:
   - [Landscape]: size, cells;
   - [Layers]: layer<N>, grow<L>_<K>;
   - [Foliage]: kind<K>, size<K>, vary, turn, tilt, shadow, blend, blendheight;

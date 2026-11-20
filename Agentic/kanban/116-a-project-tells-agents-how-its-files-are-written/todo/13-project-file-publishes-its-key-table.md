@@ -1,11 +1,11 @@
-# 03 — The project file publishes its key table
+# 13 — The project file publishes its key table
 folder: authoring
-after: 01
-decisions: 0168, 0511
+after: 11
+decisions: 0168, 0511, 0512
 
 ## Change
 - `authoring/include/authoring/project.h`: include `<assets/sectioned.h>`. Declare
-  `const voe_assets_sectioned_key *voe_authoring_project_keys(uint32_t *count);`. The header points to
+  `const voe_assets_documented_key *voe_authoring_project_keys(uint32_t *count);`. The header points to
   the table.
 - `authoring/src/project.c`: add a static table and the function. Its rows:
   - [project] `scene`, required (default "");

@@ -1,14 +1,14 @@
-# 04 — Reference text from descriptions and key tables
+# 14 — Reference text from descriptions and key tables
 folder: authoring
-after: 01, 03
-decisions: 0168, 0498, 0511
+after: 11, 13
+decisions: 0168, 0498, 0511, 0512
 
 ## Change
 - `authoring/include/authoring/reference.h` is new. It declares:
   - `[[nodiscard]] bool voe_authoring_reference_scene(const voe_ecs_world *world,
     voe_base_arena *arena, voe_authoring_text *out);`
   - `[[nodiscard]] bool voe_authoring_reference_keys(const char *title,
-    const voe_assets_sectioned_key *keys, uint32_t count, voe_base_arena *arena,
+    const voe_assets_documented_key *keys, uint32_t count, voe_base_arena *arena,
     voe_authoring_text *out);`
 
   The header comment makes these points:
@@ -46,7 +46,7 @@ decisions: 0168, 0498, 0511
 
 ## Meaning
 - Holds: only scene components have described tables; the other formats are plain structs with
-  ranges in header constants (now in their key tables, cards 01–03).
+  ranges in header constants (now in their key tables, cards 11–13).
 - Holds: a section of an unregistered type passes the scene check.
 
 ## Done when

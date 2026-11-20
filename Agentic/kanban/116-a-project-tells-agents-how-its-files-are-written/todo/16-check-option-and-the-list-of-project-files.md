@@ -1,6 +1,6 @@
-# 06 — The `--check` option and the list of a project's files
+# 16 — The `--check` option and the list of a project's files
 folder: editor
-after: 05
+after: 15
 decisions: 0168, 0509, 0511
 
 ## Change
@@ -18,7 +18,7 @@ decisions: 0168, 0509, 0511
 - `editor/src/src.md`: entries change only if a file's line no longer says what it holds.
 
 `main.c` does not change on this card. With `check` set and nothing acting on it, the editor would open
-as usual; card 07 branches on it.
+as usual; card 17 branches on it.
 
 ## Done when
 `build/debug/editor/voe_editor --check --capture x.png; test $? -eq 2 && grep -q voe_editor_assets_list editor/src/assets_walk.h`

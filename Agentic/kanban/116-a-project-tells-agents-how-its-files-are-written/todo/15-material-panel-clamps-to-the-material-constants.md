@@ -1,6 +1,6 @@
-# 05 — The material panel clamps to the material constants
+# 15 — The material panel clamps to the material constants
 folder: editor
-after: 01
+after: 11
 decisions: 0168, 0511
 
 ## Change

@@ -1,6 +1,6 @@
-# 08 — The editor writes a project's Docs
+# 18 — The editor writes a project's Docs
 folder: editor
-after: 02, 04, 07
+after: 12, 14, 17
 decisions: 0168, 0505, 0509, 0511
 
 ## Change
@@ -41,4 +41,4 @@ decisions: 0168, 0505, 0509, 0511
 
 ## Done when
 `grep -q voe_authoring_reference_scene editor/src/docs.c && ! grep -n 'CLAUDE\.md\|AGENTS\.md' editor/src/docs.c editor/src/docs.h`
-exits 0. Card 09 runs the code.
+exits 0. Card 19 runs the code.
