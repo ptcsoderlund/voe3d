@@ -10,6 +10,10 @@ carries it out.
   components only when its code is built, a line per refused file, a summary and the exit code.
 - `check.c` — the folder found, the code loaded, each listed file handed to its kind's strict reader,
   a prefab's one tree checked, and the lines.
+- `docs.h` — a project's `Docs/`: the editor's three files, the index, the scene's reference and the
+  key tables', each written where its bytes differ, nothing else there touched, untitled none.
+- `docs.c` — Docs/ made, the three texts built in scratch, the engine folders with an include/
+  listed, and each compared and written, the index last.
 - `loading.h` — the start's, a New or Open load's, an import's prepare and the cook before Play and
   Ship works for a splash wait: shaders, shapes and models, the scene and its models, an imported
   model's levels file or every stale cooked copy made on the device, and what the worker owns.
