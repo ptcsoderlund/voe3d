@@ -13,3 +13,4 @@
 - `strict-reading.md` — What a strict read of a sectioned file refuses that the lenient read lets pass, and what the agents' check catches.
 - `proving-cards.md` — What can show a card's done-when is met: what the tests print, and what proves an editor card.
 - `tree-maker.md` — Trees grown from materials and settings: what the sponsor wants of them, how the bark and its moss are made, and what a species shows when opened.
+- `docs-reference.md` — The reference the editor writes into a game project's `Docs/` for agents: when it is written, what a row says, and what it covers.
