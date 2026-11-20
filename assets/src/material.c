@@ -350,3 +350,49 @@ voe_assets_material_write(const voe_assets_material_file *material,
 	print_material(text, size + 1, material, &paths);
 	return (voe_assets_material_text){ .text = text, .size = size };
 }
+
+// One row per key in material.h's list, defaults as voe_assets_material_default
+// writes them. `refused` is true only for cutout, the one range check_ranges
+// holds at both ends.
+static const voe_assets_documented_key documented_keys[] = {
+	{ "Material", "shader", "one of lit, unlit", "lit", 0, 0, "", false,
+	  "The engine shader the material draws with." },
+	{ "Material", "colour", "three linear numbers r g b", "1 1 1", 0, 0, "",
+	  false, "The base colour, linear and not sRGB." },
+	{ "Material", "roughness", "number", "0.5", 0, 1, "", false,
+	  "Surface roughness; read as written, not held to the range." },
+	{ "Material", "metal", "number", "0", 0, 1, "", false,
+	  "Metalness; read as written, not held to the range." },
+	{ "Material", "repeat", "number", "1", VOE_ASSETS_MATERIAL_REPEAT_MIN,
+	  VOE_ASSETS_MATERIAL_REPEAT_MAX, "", false,
+	  "Multiplies the texture coordinates before any map is read." },
+	{ "Material", "colormap", "quoted path", "\"\"", 0, 0, "", false,
+	  "The colour picture, project-relative, \"\" for none." },
+	{ "Material", "normalmap", "quoted path", "\"\"", 0, 0, "", false,
+	  "The normal picture, project-relative, \"\" for none." },
+	{ "Material", "ormmap", "quoted path", "\"\"", 0, 0, "", false,
+	  "One picture: occlusion in red, roughness in green, metal in blue; "
+	  "\"\" for none." },
+	{ "Material", "cutout", "number", "0", 0, 1, "", true,
+	  "A pixel whose colour map alpha is below it is not drawn; 0 draws "
+	  "every pixel." },
+	{ "Material", "double_sided", "true or false", "false", 0, 0, "", false,
+	  "Whether both sides of a face are drawn." },
+	{ "Material", "emission", "three linear numbers r g b, each 0 or more",
+	  "0 0 0", 0, 0, "", false,
+	  "The emitted colour, times emission_strength and emissionmap; a "
+	  "negative channel is refused." },
+	{ "Material", "emission_strength", "number", "1", 0,
+	  VOE_ASSETS_MATERIAL_EMISSION_STRENGTH_MAX, "", false,
+	  "Multiplies emission; a negative value is refused, a large one is "
+	  "not." },
+	{ "Material", "emissionmap", "quoted path", "\"\"", 0, 0, "", false,
+	  "The emission colour picture, project-relative, \"\" for none." },
+};
+
+const voe_assets_documented_key *voe_assets_material_keys(uint32_t *count)
+{
+	VOE_BASE_ASSERT(count != NULL, "counting material keys into nothing");
+	*count = (uint32_t)(sizeof(documented_keys) / sizeof(documented_keys[0]));
+	return documented_keys;
+}

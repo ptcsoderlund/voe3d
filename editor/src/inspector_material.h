@@ -2,8 +2,9 @@
 // `.material` is open (scene.h's `material_open`, 0399 point 8): the file's
 // name as heading, Lit and Unlit with the chosen one lit, Colour and Emission
 // as swatches inside buttons, Strength (the emission's) as a number box clamped
-// 0–1000, Roughness and Metal as sliders 0–1, Repeat as a number box
-// clamped 0.01–1000, Cutout as a slider 0–1, One side and Both sides with the
+// 0–VOE_ASSETS_MATERIAL_EMISSION_STRENGTH_MAX, Roughness and Metal as sliders
+// 0–1, Repeat as a number box clamped VOE_ASSETS_MATERIAL_REPEAT_MIN–_MAX
+// (assets/material.h), Cutout as a slider 0–1, One side and Both sides with the
 // chosen one lit (0420 point 2), and the Colormap, Normalmap, ORMmap and
 // Emissionmap rows, each the map's file name or "None" with × while set. While
 // ORMmap is set, Roughness and Metal are drawn greyed and cannot move, and

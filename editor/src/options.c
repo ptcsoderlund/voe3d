@@ -43,7 +43,7 @@ static const char *number(const char *text, int *out)
 static bool usage(void)
 {
 	fprintf(stderr,
-		"usage: voe_editor [<folder>] [--capture <path> [--size <W>x<H>] [--frames <n>] [--capture-view <path>]]\n");
+		"usage: voe_editor [<folder>] [--capture <path> [--size <W>x<H>] [--frames <n>] [--capture-view <path>]] | voe_editor --check [<folder>]\n");
 	return false;
 }
 
@@ -62,6 +62,7 @@ bool voe_editor_options_read(voe_platform_arguments arguments,
 	out->capture = NULL;
 	out->frames = 2;
 	out->capture_view = NULL;
+	out->check = false;
 
 	// `values[a + 1]` is parsed in full before `a` moves, which the old code
 	// did not need to do inside its `&&` chain.
@@ -93,6 +94,8 @@ bool voe_editor_options_read(voe_platform_arguments arguments,
 			   a + 1 < count) {
 			out->capture_view = values[++a];
 			capture_only = true;
+		} else if (strcmp(values[a], "--check") == 0) {
+			out->check = true;
 		} else if (values[a][0] != '-' && out->folder == NULL) {
 			out->folder = values[a];
 		} else {
@@ -104,6 +107,9 @@ bool voe_editor_options_read(voe_platform_arguments arguments,
 	// --size could mean is one nobody asked for. A frame count or a view
 	// picture with no capture is the same nothing.
 	if (capture_only && out->capture == NULL)
+		return usage();
+	// A check draws nothing, so a picture asked of it is the same mistake.
+	if (out->check && out->capture != NULL)
 		return usage();
 
 	return true;

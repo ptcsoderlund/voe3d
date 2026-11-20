@@ -62,6 +62,10 @@
 #define VOE_ASSETS_LEVELS_SWAP_LEAST 0.1f
 #define VOE_ASSETS_LEVELS_SWAP_MOST 10.0f
 
+// The ends a level's share, in percent of level 0's, lies strictly between.
+#define VOE_ASSETS_LEVELS_SHARE_LEAST 0.0f
+#define VOE_ASSETS_LEVELS_SHARE_MOST 100.0f
+
 typedef struct {
 	// Levels in all, level 0 included: 1 to VOE_ASSETS_LEVELS.
 	uint32_t count;
@@ -101,6 +105,11 @@ typedef struct {
 [[nodiscard]] bool voe_assets_parts_read(const char *text, size_t size,
 					 voe_assets_parts *out,
 					 voe_base_error *error);
+
+// The keys voe_assets_parts_read takes, one row each: `material<N>`, then
+// `count`, `share<N>` and `swap<N>`; the old `strength` and `swap` words are
+// left out. `count` gets the rows. Static, never freed.
+const voe_assets_documented_key *voe_assets_parts_keys(uint32_t *count);
 
 // The text voe_assets_parts_read takes back exactly, one key per entry below
 // `count`, paths quoted, then always `[Levels]` after `[Parts]`;

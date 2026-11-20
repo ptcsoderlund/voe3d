@@ -9,6 +9,15 @@
 //                                         &why))
 //             say(&why);                     // the move stands; why names the file
 //
+//     if (!voe_editor_assets_list(project, arena, &list, &why))
+//             return say(&why);              // a folder that would not list
+//     for (uint32_t i = 0; i < list.count; i++)
+//             check(list.files[i].path);     // "Assets/a.scene", "project.voe3d", ...
+//
+// THE LIST IS THE PROJECT'S FILES: what the watch stamps (ADR-0509) and what
+// `--check` reads (ADR-0511 point 4) are this walk plus a top-level
+// `project.voe3d`, so neither keeps a list of kinds of its own.
+//
 // WHAT IS WALKED: every file under the project folder whose name ends in one of
 // the extensions in assets_walk.c's one list (`.scene`, `.prefab`, `.material`
 // whose maps are paths, 0399 point 9, `.landscape` whose layers are quoted
@@ -79,3 +88,22 @@ void voe_editor_assets_users(const char *project, const char *path,
 						  const char *to, voe_base_arena *scratch,
 						  voe_editor_disk_watch *watch,
 						  voe_editor_notice *why);
+
+// One of the project's files: its project-relative path, `/` between.
+typedef struct {
+	const char *path;
+} voe_editor_assets_file;
+
+// The project's files, sorted by byte order of path; `files` is NULL when
+// `count` is 0.
+typedef struct {
+	const voe_editor_assets_file *files;
+	uint32_t count;
+} voe_editor_assets_files;
+
+// Every walked file, and `project.voe3d` when the project folder holds one,
+// the paths and the array pushed into arena. False with why naming the folder
+// that would not list, and nothing listed.
+[[nodiscard]] bool voe_editor_assets_list(const char *project, voe_base_arena *arena,
+					  voe_editor_assets_files *out,
+					  voe_editor_notice *why);

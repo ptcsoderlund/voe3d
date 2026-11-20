@@ -29,6 +29,12 @@
 // a separator rule, which is a type rule and layer three's. Anyone writing a
 // number parser in this module has started layer two and should stop.
 //
+// A KEY TABLE IS DOCUMENTATION DATA, SO LAYER ONE STILL INTERPRETS NOTHING.
+// A format with a layer-two reader publishes one voe_assets_documented_key per
+// key it reads: text and numbers a person wrote, not a parsed line, which is
+// voe_assets_sectioned_key beside it. Each format reaches its table through a
+// function, never extern data (0284).
+//
 // COMMENTS ARE `//` AND NOT `#`, DELIBERATELY. `#` is what INI and TOML use,
 // and an unquoted hex colour starts with `#` — a theme file is exactly the file
 // most likely to spring that trap. A comment is a line whose first non-blank
@@ -67,6 +73,28 @@ typedef struct {
 	const char *value;
 	uint32_t line;
 } voe_assets_sectioned_key;
+
+// One key a format reads, described for a document written from its reader's
+// own table (0511, 0512); nothing here reads or checks a file by it.
+typedef struct {
+	const char *section;
+	// A literal key, or a pattern such as `layer<N>`.
+	const char *key;
+	// A short phrase: "number", "true or false", "one of lit, unlit".
+	const char *kind;
+	// The default as spelled in the file, "" when the key is required.
+	const char *default_text;
+	// Both 0 for no range.
+	double least;
+	double greatest;
+	// "" for none.
+	const char *unit;
+	// True when the strict read refuses a value outside the range; false
+	// when it clamps or does not look.
+	bool refused;
+	// One line of meaning.
+	const char *says;
+} voe_assets_documented_key;
 
 // One `[Section]`, and the run of keys that followed it. `name` is the text
 // between the brackets, dots and all, and nothing here relates one dotted name

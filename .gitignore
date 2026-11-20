@@ -23,3 +23,7 @@ compile_commands.json
 
 # CTest run outside a build tree
 /check/Testing/
+
+# An example project's Docs/. The editor writes it on every open, and it holds
+# machine-local paths (the editor's own, the engine headers'), so it is never shared.
+/examples/*/Docs/

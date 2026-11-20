@@ -1,7 +1,7 @@
 // The project's scene and prefab texts walked, matched and followed — see
 // assets_walk.h.
 //
-// One walk serves all three calls: a stack of folder levels, each a listing in
+// One walk serves all four calls: a stack of folder levels, each a listing in
 // the caller's arena and the next entry to look at, handing back one walked
 // file's project-relative name at a time. Each file is read after its name is
 // handed back and rewound past once done, so a walk holds its listings and
@@ -16,6 +16,7 @@
 #include <platform/path.h>
 
 #include <ctype.h>
+#include <stdlib.h>
 #include <string.h>
 
 // How many folder levels are walked, the project folder one. Deeper is skipped.
@@ -285,4 +286,80 @@ bool voe_editor_assets_follow_write(const char *project, const char *from, const
 				    voe_editor_notice *why)
 {
 	return follow_all(project, from, to, true, scratch, watch, why);
+}
+
+// One listed name, chained in arena in the order the walk found it; the list's
+// length is not known until the walk ends.
+struct listed {
+	const char *name;
+	struct listed *next;
+};
+
+static struct listed *listed_push(voe_base_arena *arena, struct listed *head, const char *name)
+{
+	struct listed *node = voe_base_arena_push(arena, sizeof *node);
+
+	VOE_BASE_ASSERT(name != NULL && name[0] != '\0', "listing no name");
+	VOE_BASE_ASSERT(node != NULL, "no room for a listed name");
+	*node = (struct listed){ .name = name, .next = head };
+	return node;
+}
+
+static int listed_order(const void *a, const void *b)
+{
+	const voe_editor_assets_file *left = a;
+	const voe_editor_assets_file *right = b;
+
+	VOE_BASE_ASSERT(left->path != NULL && right->path != NULL, "ordering no listed path");
+	return strcmp(left->path, right->path);
+}
+
+// Whether the project folder's own listing, the walk's first, holds the file
+// `project.voe3d`.
+static bool listed_project_file(const struct walk *walk)
+{
+	const voe_platform_folder_listing *top = &walk->stack[0].listing;
+
+	VOE_BASE_ASSERT(walk->depth == 1, "looking for the project file mid-walk");
+	for (uint32_t i = 0; i < top->count; i++) {
+		if (!top->entries[i].folder && strcmp(top->entries[i].name, "project.voe3d") == 0)
+			return true;
+	}
+	return false;
+}
+
+bool voe_editor_assets_list(const char *project, voe_base_arena *arena,
+			    voe_editor_assets_files *out, voe_editor_notice *why)
+{
+	struct walk walk;
+	struct listed *head = NULL;
+	const char *relative = NULL;
+	voe_editor_assets_file *files;
+	enum walk_step step;
+	uint32_t found = 0;
+
+	VOE_BASE_ASSERT(arena != NULL && out != NULL && why != NULL, "listing into nothing");
+	*out = (voe_editor_assets_files){ 0 };
+	if (!walk_start(&walk, project, arena, why))
+		return false;
+	if (listed_project_file(&walk)) {
+		head = listed_push(arena, head, "project.voe3d");
+		found++;
+	}
+	while ((step = walk_next(&walk, arena, &relative, why)) == WALK_FILE) {
+		VOE_BASE_ASSERT(found < UINT32_MAX, "more files than a count holds");
+		head = listed_push(arena, head, relative);
+		found++;
+	}
+	if (step == WALK_FAILED)
+		return false;
+	if (found == 0)
+		return true;
+	files = voe_base_arena_push(arena, found * sizeof *files);
+	VOE_BASE_ASSERT(files != NULL, "no room for the list");
+	for (uint32_t i = found; i > 0; i--, head = head->next)
+		files[i - 1].path = head->name;
+	qsort(files, found, sizeof *files, listed_order);
+	*out = (voe_editor_assets_files){ .files = files, .count = found };
+	return true;
 }

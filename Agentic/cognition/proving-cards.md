@@ -7,3 +7,6 @@ What can show a card's done-when is met: what the tests print, and what proves a
 
 ## The editor
 - The editor has no tests; an editor card is proved by grep and the `--capture` run. [observed · planner 115 · 2026-11-06]
+
+## The analyser
+- The analyser does not report every check-then-use-anyway in tests: authoring's reference test checks `out.text` against NULL, then passes it to `strstr` regardless; left as it is after 116. [observed · planner 116-20 · 2026-11-20]

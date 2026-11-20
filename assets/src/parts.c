@@ -102,7 +102,8 @@ static bool read_section(const voe_assets_sectioned *doc,
 
 static bool share_in_range(float share)
 {
-	return share > 0.0f && share < 100.0f;
+	return share > VOE_ASSETS_LEVELS_SHARE_LEAST &&
+	       share < VOE_ASSETS_LEVELS_SHARE_MOST;
 }
 
 static bool swap_in_range(float swap)
@@ -351,4 +352,29 @@ voe_assets_material_text voe_assets_parts_write(const voe_assets_parts *parts,
 	text = voe_base_arena_push(arena, size + 1);
 	print_parts(text, size + 1, parts);
 	return (voe_assets_material_text){ .text = text, .size = size };
+}
+
+// One row per key the reader takes and the writer writes; a pattern's default
+// is its first index's, and `says` names the rest. Every range is refused.
+static const voe_assets_documented_key documented_keys[] = {
+	{ "Parts", "material<N>", "quoted path", "\"\"", 0, 0, "", false,
+	  "The .material glTF material N wears, N 0 to 31 with no leading "
+	  "zero; \"\" draws with the glTF material itself." },
+	{ "Levels", "count", "whole number", "6", 1, VOE_ASSETS_LEVELS, "", true,
+	  "Levels in all, level 0 included." },
+	{ "Levels", "share<N>", "number", "50", VOE_ASSETS_LEVELS_SHARE_LEAST,
+	  VOE_ASSETS_LEVELS_SHARE_MOST, "%", true,
+	  "Level N's triangles in percent of level 0's, N 1 to 5, strictly "
+	  "inside the range and each below the one before; absent reads 50, "
+	  "25, 12, 6, 3." },
+	{ "Levels", "swap<N>", "number", "1", VOE_ASSETS_LEVELS_SWAP_LEAST,
+	  VOE_ASSETS_LEVELS_SWAP_MOST, "", true,
+	  "Multiplies the distance level N's error allows, N 1 to 5." },
+};
+
+const voe_assets_documented_key *voe_assets_parts_keys(uint32_t *count)
+{
+	VOE_BASE_ASSERT(count != NULL, "counting parts keys into nothing");
+	*count = (uint32_t)(sizeof(documented_keys) / sizeof(documented_keys[0]));
+	return documented_keys;
 }

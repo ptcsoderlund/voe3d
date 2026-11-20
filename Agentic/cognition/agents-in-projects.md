@@ -6,8 +6,5 @@
 ## The format
 - The sectioned format is simple but each section's keys are strict: a light cannot take `texture=`. A reference to the strict types is what lets an agent write files the editor accepts. [intent · tech-lead · 2026-11-06] see 0505
 
-## The reference
-- The editor rewrites `Docs/` on each open, so the reference is true to the editor that last opened the project. [assumed · tech-lead · 2026-11-06] see 0506
-
 ## This repository's agents
 - 0376 and 0251 still bind this repository's own agents: the coin game's levels stay the sponsor's hand; the hill, now outside the repository, he makes with or without agents. The tech-lead's reading of the sponsor's "probably a misinterpretation"; the sponsor did not say it. [assumed · tech-lead · 2026-11-06] see 0505, 0507

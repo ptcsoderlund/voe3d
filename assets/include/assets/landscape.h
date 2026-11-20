@@ -61,6 +61,7 @@
 #pragma once
 
 #include <assets/material.h>
+#include <assets/sectioned.h>
 #include <base/arena.h>
 #include <base/error.h>
 
@@ -224,6 +225,11 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 						    voe_base_arena *arena,
 						    voe_assets_landscape *out,
 						    voe_base_error *error);
+
+// The key table in `src/landscape_keys.c`: the same sections and keys this
+// header lists, one row each in its order, ranges from the constants above.
+// `count` gets the rows. Static, never freed.
+const voe_assets_documented_key *voe_assets_landscape_keys(uint32_t *count);
 
 // The text voe_assets_landscape_read takes, NUL-terminated, `size` not
 // counting the NUL. [Layers] only when there are any, each grow of a kind

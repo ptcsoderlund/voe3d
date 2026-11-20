@@ -44,11 +44,16 @@
 // THE WRITER CANNOT FAIL. It only ever writes a scene path and a window this
 // reader accepts — an editor never hands it anything else — so anything the
 // reader would refuse is the caller's bug, and asserts rather than reported.
+//
+// THE KEYS ARE PUBLISHED AS A TABLE, voe_authoring_project_keys (0511), the
+// window's range and defaults written from the constants below.
 #pragma once
 
+#include <assets/sectioned.h>
 #include <base/arena.h>
 
 #include <stddef.h>
+#include <stdint.h>
 
 // The project file's fixed name, inside the project folder.
 #define VOE_AUTHORING_PROJECT_FILE "project.voe3d"
@@ -89,6 +94,11 @@ typedef struct {
 						     size_t size,
 						     voe_base_arena *arena,
 						     voe_authoring_project *out);
+
+// The keys the readers take, one row each: `[project]` `scene`, then
+// `[window]` `width`, `height` and `fullscreen`; `count` gets the rows.
+// Static, never freed.
+const voe_assets_documented_key *voe_authoring_project_keys(uint32_t *count);
 
 // Writes `project` as project text into `arena`. Always succeeds: the text is
 // `[project]` with `scene = "<scene>"`, `"` and `\` escaped, then a blank line

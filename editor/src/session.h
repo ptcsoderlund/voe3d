@@ -119,6 +119,10 @@ typedef struct voe_editor_session {
 	bool ship_after;
 	// A refresh is to start at the next voe_editor_session_step.
 	bool refresh_due;
+	// The project's Docs (docs.h) are to be written at the next
+	// voe_editor_session_step, which clears it: set beside every
+	// `refresh_due` and by a refresh that built, swapped or not.
+	bool docs_due;
 	// Play, or Ship when `cook_ship`, waits for waits.h's cook before it,
 	// started by voe_editor_session_cooked next frame.
 	bool cook_due;
@@ -186,8 +190,8 @@ bool voe_editor_session_do(voe_editor_session *session, voe_editor_scene *scene,
 			   voe_editor_browser *browser,
 			   voe_editor_command command);
 
-// Once a frame, before the undo take and the world step: a due refresh
-// started if the project has code, a running one polled, and a built library
+// Once a frame, before the undo take and the world step: due Docs written (a
+// failure is the notice), a due refresh started if the project has code, a running one polled, and a built library
 // loaded and swapped in, then Play or Ship if `play_after` or `ship_after` —
 // see the header above. A due refresh waits while a ship runs.
 // True when the world was swapped, so every entity handle outside `scene` is

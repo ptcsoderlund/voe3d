@@ -6,6 +6,14 @@ carries it out.
 
 - `main.c` — opens the project, window and device, starts and loads scenes on a worker behind a
   live splash, and runs the loop until a close goes ahead or the picture is written.
+- `check.h` — `--check`: the project's files read strictly with no window, the project's own
+  components only when its code is built, a line per refused file, a summary and the exit code.
+- `check.c` — the folder found, the code loaded, each listed file handed to its kind's strict reader,
+  a prefab's one tree checked, and the lines.
+- `docs.h` — a project's `Docs/`: the editor's three files, the index, the scene's reference and the
+  key tables', each written where its bytes differ, nothing else there touched, untitled none.
+- `docs.c` — Docs/ made, the three texts built in scratch, the engine folders with an include/
+  listed, and each compared and written, the index last.
 - `loading.h` — the start's, a New or Open load's, an import's prepare and the cook before Play and
   Ship works for a splash wait: shaders, shapes and models, the scene and its models, an imported
   model's levels file or every stale cooked copy made on the device, and what the worker owns.
@@ -73,8 +81,8 @@ carries it out.
   Assets panel's keyboard, Ctrl+D, R, F and F2, the rest a step is recorded at with Ctrl+Z and Ctrl+Y
   on it, and Escape's raw and free edges.
 - `options.h` — the command line, as UTF-8 arguments from `platform`: the folder to open,
-  `--capture`'s path, `--size`'s picture, `--frames`' count and `--capture-view`'s path, or one
-  usage line on stderr.
+  `--capture`'s path, `--size`'s picture, `--frames`' count, `--capture-view`'s path and `--check`,
+  or one usage line on stderr.
 - `options.c` — the argument list walked once, the size parsed as two runs of
   digits with an `x` between, and the one usage line every mistake ends at.
 - `project.h` — the project being worked on: its three arenas, kept sections, project file with its
@@ -265,10 +273,10 @@ carries it out.
   the release and the ghost, the move's target, the drop point, the Inspector's rows, layer and
   kind rows among them, and each swap with its undo step.
 - `assets_walk.h` — the project's `.scene`, `.prefab`, `.material`, `.landscape` and `.parts` texts
-  walked: who names a path before a Delete, and a rename's paths checked before the move and written
-  after it, 128 bytes the room.
+  walked: who names a path before a Delete, a rename's paths checked before the move and written
+  after it, 128 bytes the room, and the sorted list of the project's files the watch and check see.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
-  the match, and the follow with its room check and write.
+  the match, the follow with its room check and write, and the list with `project.voe3d`.
 - `assets_manage.h` — the Assets panel's file commands: a folder, flat landscape or default material
   made, a rename or move followed on disk, in the open scene and in the model store, a duplicate and
   the trash, each refused with a notice and nothing changed.

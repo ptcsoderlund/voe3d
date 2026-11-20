@@ -290,3 +290,33 @@ const char *voe_authoring_project_write(const voe_authoring_project *project,
 	*out_size = size;
 	return text;
 }
+
+// Spells a constant as the text a key table holds.
+#define SPELLED(x) SPELLED_TEXT(x)
+#define SPELLED_TEXT(x) #x
+
+// One row per key the readers take. A width or height out of range is
+// refused by both readers; `scene` and `fullscreen` have no range.
+static const voe_assets_documented_key documented_keys[] = {
+	{ "project", "scene", "quoted path", "", 0, 0, "", false,
+	  "The scene file, relative to the project folder, /-separated, never "
+	  "absolute or climbing out with .." },
+	{ "window", "width", "whole number",
+	  SPELLED(VOE_AUTHORING_PROJECT_WINDOW_DEFAULT_WIDTH),
+	  VOE_AUTHORING_PROJECT_WINDOW_MIN, VOE_AUTHORING_PROJECT_WINDOW_MAX, "",
+	  true, "The game window's width." },
+	{ "window", "height", "whole number",
+	  SPELLED(VOE_AUTHORING_PROJECT_WINDOW_DEFAULT_HEIGHT),
+	  VOE_AUTHORING_PROJECT_WINDOW_MIN, VOE_AUTHORING_PROJECT_WINDOW_MAX, "",
+	  true, "The game window's height." },
+	{ "window", "fullscreen", "true or false", "false", 0, 0, "", false,
+	  "The game fills the screen; width and height are kept for going back "
+	  "to a window." },
+};
+
+const voe_assets_documented_key *voe_authoring_project_keys(uint32_t *count)
+{
+	VOE_BASE_ASSERT(count != NULL, "counting project keys into nothing");
+	*count = (uint32_t)(sizeof(documented_keys) / sizeof(documented_keys[0]));
+	return documented_keys;
+}

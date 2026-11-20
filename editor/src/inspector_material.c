@@ -39,14 +39,13 @@
 #define SWATCH_WIDE 8.0f
 #define SWATCH_HIGH 3.0f
 
-// Repeat's range (0399 point 8), and what a millimetre of drag is worth.
-#define REPEAT_MIN 0.01
-#define REPEAT_MAX 1000.0
+// What a millimetre of drag is worth on Repeat, whose range is assets/material.h's
+// VOE_ASSETS_MATERIAL_REPEAT_MIN.._MAX (0399 point 8).
 #define REPEAT_PER_MM 0.01
 
-// The emission's Strength range (0420 point 2), and a millimetre of drag.
+// The emission's Strength floor (0420 point 2), and a millimetre of drag; its
+// ceiling is VOE_ASSETS_MATERIAL_EMISSION_STRENGTH_MAX.
 #define STRENGTH_MIN 0.0
-#define STRENGTH_MAX 1000.0
 #define STRENGTH_PER_MM 0.05
 
 static const char *const SHADER_NAMES[VOE_EDITOR_MATERIAL_SHADERS] = {
@@ -381,9 +380,10 @@ void voe_editor_inspector_material_read(const voe_ui_context *ui,
 							     0.0f, 1.0f)
 							     .value;
 
-	number_read(ui, controls->repeat, REPEAT_MIN, REPEAT_MAX,
-		    &material->repeat);
-	number_read(ui, controls->strength, STRENGTH_MIN, STRENGTH_MAX,
+	number_read(ui, controls->repeat, VOE_ASSETS_MATERIAL_REPEAT_MIN,
+		    VOE_ASSETS_MATERIAL_REPEAT_MAX, &material->repeat);
+	number_read(ui, controls->strength, STRENGTH_MIN,
+		    VOE_ASSETS_MATERIAL_EMISSION_STRENGTH_MAX,
 		    &material->emission_strength);
 
 	for (uint32_t i = 0; i < VOE_EDITOR_MATERIAL_MAPS; i++)

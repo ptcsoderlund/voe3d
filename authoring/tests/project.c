@@ -3,7 +3,8 @@
 // voe_base_report_error_first() keeps where the file has one, and an unknown
 // key that still loads with a warning. The strict reader refuses that key,
 // naming its line, refuses a window out of range and what the reader refuses,
-// and reads what the writer writes.
+// and reads what the writer writes. The key table's defaults read strictly,
+// and its refused width range is refused past its greatest.
 //
 // A REFUSAL IS CHECKED BY THE CALL RETURNING FALSE, and voe_base_report_error_
 // clear() runs before each one, as base/report.h says a reader must, so the
@@ -19,6 +20,7 @@
 #include <testing/test.h>
 
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
 static void check_text(const char *actual, size_t size, const char *expected)
@@ -259,6 +261,45 @@ static void strict_reads_what_write_writes(void)
 	voe_base_arena_destroy(arena);
 }
 
+// The table's defaults, written under their sections, are what the strict
+// reader takes; a refused range is refused past its greatest.
+static void project_keys_read_strictly(void)
+{
+	uint32_t count = 0;
+	const voe_assets_documented_key *keys = voe_authoring_project_keys(&count);
+	char text[512];
+	int at = snprintf(text, sizeof(text), "[project]\nscene = \"a.scene\"\n");
+	const char *section = "project";
+	const voe_assets_documented_key *width = NULL;
+
+	VOE_TEST_CHECK(count == 4);
+	for (uint32_t i = 0; i < count; i++) {
+		if (strcmp(keys[i].key, "width") == 0)
+			width = &keys[i];
+		if (keys[i].default_text[0] == '\0')
+			continue;
+		if (strcmp(keys[i].section, section) != 0) {
+			section = keys[i].section;
+			at += snprintf(text + at, sizeof(text) - (size_t)at,
+				       "[%s]\n", section);
+		}
+		at += snprintf(text + at, sizeof(text) - (size_t)at, "%s = %s\n",
+			       keys[i].key, keys[i].default_text);
+	}
+	VOE_TEST_CHECK(at > 0 && (size_t)at < sizeof(text));
+	VOE_TEST_CHECK(!refused_by(true, text, NULL));
+
+	VOE_TEST_CHECK(width != NULL);
+	if (width != NULL && width->refused) {
+		char above[128];
+
+		snprintf(above, sizeof(above),
+			 "[project]\nscene = a.scene\n[window]\nwidth = %d\n",
+			 (int)width->greatest + 1);
+		VOE_TEST_CHECK(refused_by(true, above, "line 4"));
+	}
+}
+
 int main(void)
 {
 	test_write_exact_bytes();
@@ -270,5 +311,6 @@ int main(void)
 	strict_refuses_an_unknown_key();
 	strict_refuses_a_window_out_of_range();
 	strict_reads_what_write_writes();
+	project_keys_read_strictly();
 	return voe_test_result();
 }

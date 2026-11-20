@@ -61,6 +61,7 @@
 #include "assets_drag.h"
 #include "browser.h"
 #include "capture.h"
+#include "check.h"
 #include "disk_take.h"
 #include "dock.h"
 #include "frame_breakdown.h"
@@ -297,6 +298,13 @@ int main(int argc, char *argv[])
 		    voe_platform_arguments_read(argc, argv, arena), &options)) {
 		voe_base_arena_destroy(arena);
 		return 2;
+	}
+	// --check READS THE PROJECT AND LEAVES, before any window or device
+	// (check.h); the folder lives in the arena, so it goes after.
+	if (options.check) {
+		status = voe_editor_check(options.folder);
+		voe_base_arena_destroy(arena);
+		return status;
 	}
 
 	// WHICH PROJECT OPENS, BEFORE THE DEVICE DOES (startup.h): an argued

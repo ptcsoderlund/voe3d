@@ -44,3 +44,6 @@ file; the rest hand the writer a world and the reader text held in memory.
   reader, every refusal with the line it names, an unknown key that warns and
   still loads, and the strict reader refusing that key and a window out of
   range, with the line, and reading what the writer writes.
+- `reference.c` — the scene text's light heading and rows, the disc's range and
+  unit, no key the light lacks, and material's key table naming its keys and
+  ranges.
