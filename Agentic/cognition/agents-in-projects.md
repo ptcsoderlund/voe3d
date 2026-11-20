@@ -6,9 +6,6 @@
 ## The format
 - The sectioned format is simple but each section's keys are strict: a light cannot take `texture=`. A reference to the strict types is what lets an agent write files the editor accepts. [intent · tech-lead · 2026-11-06] see 0505
 
-## Outside changes
-- A file with no unsaved changes is taken in silently as one undo step: the tech-lead's choice; the sponsor spoke only of the unsaved case. [assumed · tech-lead · 2026-11-06] see 0506
-
 ## The reference
 - The editor rewrites `Docs/` on each open, so the reference is true to the editor that last opened the project. [assumed · tech-lead · 2026-11-06] see 0506
 
