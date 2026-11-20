@@ -411,8 +411,12 @@ carries it out.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
 - `models.c` — the editor's one model store, filled and watched between frames, its materials'
-  maps watched too, and its landscapes with their foliage, kinds' looks, layers' growth and
-  materials edited, its map queue stepped and the rows naming a written or changed map reloaded.
+  maps watched too, landscapes saved, reverted and taken in, materials edited, its map queue
+  stepped and the rows naming a written or changed map reloaded.
+- `models_store.h` — the store's struct, private to models.c and models_edit.c, with the waiting
+  landscape takes' room.
+- `models_edit.c` — the store's landscape edits: heights, paint, layers, foliage, kinds' looks and
+  layers' growth handed to 3d/models.h, entries renamed, and a landscape's shape found and written.
 - `map_watch.h` — the maps the project's materials name, each one's stamp at the last look, a
   changed one reported once a second so its materials load again; the editor's, not `game`'s.
 - `map_watch.c` — the look's marks, one stamp a map under the folder, a new path noted, a change
