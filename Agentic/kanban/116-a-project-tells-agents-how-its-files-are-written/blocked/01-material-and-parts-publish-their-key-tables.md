@@ -35,3 +35,10 @@ decisions: 0168, 0498, 0511
 
 ## Done when
 `ctest --test-dir build/debug -R '^assets/keys$' --no-tests=error` exits 0.
+
+## Blocked
+`voe_assets_sectioned_key` is already a type in `assets/sectioned.h`: the parsed `key=value` line
+(`name`, `value`, `line`), used in `assets/src` and in `authoring/src/project.c`,
+`authoring/src/scene_read.c` and `theme/src/theme.c`, so the row type cannot take that name. Unblock
+by choosing either a different name for the row type (and amending 0511 and cards 02–04, which name
+it) or renaming the existing line type, which needs cards for `authoring` and `theme`.
