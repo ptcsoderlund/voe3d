@@ -7,6 +7,7 @@
 #include "file_steps.h"
 
 #include <assets/material.h>
+#include <assets/tree.h>
 
 #include <authoring/project.h>
 
@@ -174,6 +175,37 @@ static bool material_same(const struct context *at,
 	return same;
 }
 
+// Whether a `.tree`'s strict read says what its table row holds, the two
+// compared as the text each writes, since the paths' rooms may hold anything
+// past their NUL.
+static bool tree_same(const struct context *at,
+		      const voe_editor_disk_change *change)
+{
+	const voe_editor_trees *trees = voe_editor_models_trees(at->models);
+	const voe_game_tree *row = NULL;
+	struct voe_base_arena_mark mark;
+	voe_assets_tree read;
+	voe_assets_tree_text held;
+	voe_assets_tree_text found;
+	bool same;
+
+	VOE_BASE_ASSERT(change->bytes != NULL, "comparing a change of no bytes");
+	for (uint32_t i = 0; i < trees->count && row == NULL; i++)
+		if (strcmp(trees->rows[i].path, change->path) == 0)
+			row = &trees->rows[i];
+	if (row == NULL ||
+	    !voe_assets_tree_read_strict((const char *)change->bytes,
+					 change->size, &read, NULL))
+		return false;
+	mark = voe_base_arena_mark(at->scratch);
+	held = voe_assets_tree_write(&row->values, at->scratch);
+	found = voe_assets_tree_write(&read, at->scratch);
+	same = held.size == found.size &&
+	       memcmp(held.text, found.text, held.size) == 0;
+	voe_base_arena_rewind(at->scratch, mark);
+	return same;
+}
+
 // Whether project.voe3d's strict read says the scene path and window the
 // project holds.
 static bool project_same(const struct context *at,
@@ -198,13 +230,15 @@ static bool project_same(const struct context *at,
 
 // A file the editor writes at once: the same values settled, else taken by
 // file_steps.h, a closed prefab's world re-finding the selection, an open
-// material refreshed, and a file step from the known copy when there is one.
+// material or species refreshed, and a file step from the known copy when
+// there is one.
 static enum outcome take_file(struct context *at,
 			      const voe_editor_disk_change *change)
 {
 	voe_editor_project *project = at->session->project;
 	const char *path = change->path;
 	bool material = voe_editor_assets_name_ends(path, ".material");
+	bool tree = voe_editor_assets_name_ends(path, ".tree");
 	bool prefab = voe_editor_assets_name_ends(path, ".prefab");
 	struct noted note = { 0 };
 	const uint8_t *known;
@@ -213,6 +247,7 @@ static enum outcome take_file(struct context *at,
 
 	VOE_BASE_ASSERT(project->folder != NULL, "taking a file into no folder");
 	if ((material && material_same(at, change)) ||
+	    (tree && tree_same(at, change)) ||
 	    (strcmp(path, VOE_AUTHORING_PROJECT_FILE) == 0 &&
 	     project_same(at, change)))
 		return TAKEN;
@@ -228,6 +263,9 @@ static enum outcome take_file(struct context *at,
 	if (material)
 		voe_editor_scene_material_refresh(
 			at->scene, voe_editor_models_materials(at->models));
+	if (tree)
+		voe_editor_scene_tree_refresh(at->scene,
+					      voe_editor_models_trees(at->models));
 	known = voe_editor_disk_watch_known(at->session->watch, path,
 					    &known_size);
 	if (known != NULL)

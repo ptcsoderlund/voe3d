@@ -28,7 +28,7 @@
 
 // assets_walk.c's list of walked extensions, and its skipped top-level folders.
 static const char *const watched_extensions[] = { ".scene", ".prefab", ".material",
-						   LANDSCAPE_ENDING, ".parts" };
+						   LANDSCAPE_ENDING, ".parts", ".tree" };
 static const char *const skipped_folders[] = { "Build", "Cache", "Code" };
 
 // A path known: its stamp at the last look, settle or write, and but for a

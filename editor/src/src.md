@@ -278,9 +278,9 @@ carries it out.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
   the release and the ghost, the move's target, the drop point, the Inspector's rows, layer, kind
   and species material rows among them, and each swap with its undo step.
-- `assets_walk.h` — the project's `.scene`, `.prefab`, `.material`, `.landscape` and `.parts` texts
+- `assets_walk.h` — the project's `.scene`, `.prefab`, `.material`, `.landscape`, `.parts` and `.tree` texts
   walked: who names a path before a Delete, a rename's paths checked before the move and written
-  after it, 128 bytes the room, and the sorted list of the project's files the watch and check see.
+  after it, and the sorted list of the project's files the watch and check see.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
   the match, the follow with its room check and write, and the list with `project.voe3d`.
 - `assets_manage.h` — the Assets panel's file commands: a folder, flat landscape, default material
@@ -447,7 +447,8 @@ carries it out.
   step, refused into the notice, left waiting, or one at a time asked, load from disk or keep mine,
   the session's question kept open on the asked path.
 - `disk_take.c` — the dispatch by path, the safety net's compares, the selection re-found around a
-  take that sets the world, the asked path answered, and the question opened, closed and answered.
+  take that sets the world, the open material or species refreshed, the asked path answered, and
+  the question opened, closed and answered.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, the gizmo's mode of three, the reveal of a selection made
   elsewhere and the material or species open in the Inspector.
@@ -482,7 +483,7 @@ carries it out.
 - `file_steps.h` — a file changed on disk taken in by its kind, read strictly, and its undo step:
   a file step's bytes before and after, written at once, or a landscape step's whole copies, left
   unsaved; each its own memory.
-- `file_steps.c` — the material, parts, closed prefab and project file takes, the steps' copies made
+- `file_steps.c` — the material, parts, species, closed prefab and project file takes, the steps' copies made
   and freed, and either side written and taken in, or put into the store.
 - `strokes.h` — one sculpting, paint, foliage, look or grow stroke: a landscape's path, the
   rectangle touched and its heights or weights before and after, the copies added or removed, a
