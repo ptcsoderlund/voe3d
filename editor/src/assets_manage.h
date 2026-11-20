@@ -1,5 +1,5 @@
-// The Assets panel's file commands: make a folder, a landscape or a material,
-// rename or move, duplicate, and send to the trash (ADR-0377 point 3, 0378).
+// The Assets panel's file commands: make a folder, a landscape, a material or a
+// tree, rename or move, duplicate, and send to the trash (ADR-0377 point 3, 0378).
 // The panel's menu, keys and drag call them; nothing here draws.
 //
 //     if (voe_editor_assets_move(session, scene, undo, scratch, "Rocks/a.glb",
@@ -26,10 +26,12 @@
 // flat grid of 256 m and 512 cells written (0379 point 1); its caller lists.
 // Create -> Material's calls material_make so too, `.material` appended and
 // voe_assets_material_default()'s text written (0399 point 1); its caller lists.
+// Create -> Tree asks no name: tree_make writes voe_assets_tree_default()'s text
+// at `Tree.tree`, else the next free `Tree <n>.tree` (0515); its caller lists.
 //
-// THE MATERIALS' AND PARTS' TABLES ARE READ AGAIN (models.h) after every
-// successful material make, move, duplicate and trash (0399 point 7), and the
-// open material refreshed from its row (scene.h); a move follows it first, so
+// THE MATERIALS', PARTS' AND TREES' TABLES ARE READ AGAIN (models.h) after every
+// successful material or tree make, move, duplicate and trash (0399 point 7),
+// and the open material refreshed from its row (scene.h); a move follows it first, so
 // its row is found at its new path, and a trash of it closes it.
 //
 // A `.glb` TAKES ITS `<stem>.parts` ALONG (0420 point 1) when one is beside it:
@@ -83,6 +85,13 @@
 						   voe_editor_models *models,
 						   voe_base_arena *scratch,
 						   const char *folder, const char *name);
+
+// Makes `<folder>/Tree.tree`, else `Tree <n>.tree` for the first n from 2 free up
+// to 99, holding the defaults; the panel is not marked.
+[[nodiscard]] bool voe_editor_assets_tree_make(voe_editor_session *session,
+					       voe_editor_scene *scene,
+					       voe_editor_models *models,
+					       voe_base_arena *scratch, const char *folder);
 
 // Renames or moves `from` to `to`, following every path that names it on disk,
 // in the open scene, in `models` and in the open material, then forgets the

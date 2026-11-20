@@ -3,8 +3,8 @@
 // `.glb`'s row Import textures and Make LODs after them (0403, 0404, 0429, 0433);
 // over the empty part under the rows it holds Create, which opens a submenu
 // beside it holding
-// the kinds a person can make there: Folder, Landscape (0379), then Material
-// (0399). LATER KINDS ADD THEIR ROW TO CREATE'S SUBMENU in assets_menu.c's kind
+// the kinds a person can make there: Folder, Landscape (0379), Material
+// (0399), then Tree (0515). LATER KINDS ADD THEIR ROW TO CREATE'S SUBMENU in assets_menu.c's kind
 // tables and an item here.
 //
 //     voe_editor_assets_menu_open(&menu, at, on_row, glb);  // assets_panel.c
@@ -43,8 +43,8 @@
 // A row's menu: Rename, Duplicate, Delete and, over a `.glb`, Import textures
 // and Make LODs (0429, 0433).
 #define VOE_EDITOR_ASSETS_MENU_ROWS 5
-// Create's submenu: Folder, Landscape and Material.
-#define VOE_EDITOR_ASSETS_MENU_KINDS 3
+// Create's submenu: Folder, Landscape, Material and Tree.
+#define VOE_EDITOR_ASSETS_MENU_KINDS 4
 
 // What a read found fired.
 typedef enum {
@@ -55,6 +55,7 @@ typedef enum {
 	VOE_EDITOR_ASSETS_MENU_FOLDER,
 	VOE_EDITOR_ASSETS_MENU_LANDSCAPE,
 	VOE_EDITOR_ASSETS_MENU_MATERIAL,
+	VOE_EDITOR_ASSETS_MENU_TREE,
 	VOE_EDITOR_ASSETS_MENU_IMPORT_TEXTURES,
 	VOE_EDITOR_ASSETS_MENU_MAKE_LEVELS,
 } voe_editor_assets_menu_item;

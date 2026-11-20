@@ -244,8 +244,8 @@ carries it out.
   name cleaned and made unique, every path checked before the first write, then the materials and
   the parts, or the PNGs shrunk to the largest size by use and the dressed materials, written.
 - `assets_menu.h` — the right button's menu over the Assets panel: Rename, Duplicate and Delete
-  over a row and Import textures and Make LODs over a `.glb`'s, Create with its Folder, Landscape and Material
-  submenu over the empty part, anchored at the pointer.
+  over a row and Import textures and Make LODs over a `.glb`'s, Create with its Folder, Landscape,
+  Material and Tree submenu over the empty part, anchored at the pointer.
 - `assets_menu.c` — the menu's one frame of `ui` calls, the read of its rows with its own closing,
   and where it and the submenu go next frame.
 - `assets_ask.h` — the question Delete asks about the Assets panel's selected row: its name, up to
@@ -277,12 +277,12 @@ carries it out.
   after it, 128 bytes the room, and the sorted list of the project's files the watch and check see.
 - `assets_walk.c` — the one walk as a stack of listings, a file read and rewound past at a time,
   the match, the follow with its room check and write, and the list with `project.voe3d`.
-- `assets_manage.h` — the Assets panel's file commands: a folder, flat landscape or default material
-  made, a rename or move followed on disk, in the open scene and in the model store, a duplicate and
+- `assets_manage.h` — the Assets panel's file commands: a folder, flat landscape, default material
+  or default `Tree.tree` made, a rename or move followed on disk, in the open scene and in the model store, a duplicate and
   the trash, each refused with a notice and nothing changed.
 - `assets_manage.c` — the shared checks, a made file's name and write, the landscape's flat file,
-  the material's defaults, a `.glb`'s `.parts` found, the move's check, move, store rename, write
-  and memory with the undo line forgotten, the next free copy name, and the trash's refusals worded.
+  the material's and tree's defaults, a `.glb`'s `.parts` found, the move's check, move, store
+  rename, write and memory with the undo line forgotten, the next free copy name, the trash's words.
 - `resize.h` — the borders a person drags to size the panels: each side panel's seam, the Assets
   panel's, the views' and the top bar's lower edge, hit-tested before `ui`, the pointer's shape, the
   reached seam for the walk to light, and a double-click setting one size back (ADR-0226).
