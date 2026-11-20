@@ -316,8 +316,8 @@ void voe_editor_undo_material(voe_editor_undo *undo,
 
 bool voe_editor_undo_take(voe_editor_undo *undo, voe_editor_project *project,
 			  voe_editor_scene *scene, voe_editor_models *models,
-			  voe_base_arena *scratch, voe_editor_notice *why,
-			  bool forward)
+			  voe_base_arena *scratch, voe_editor_disk_watch *watch,
+			  voe_editor_notice *why, bool forward)
 {
 	const voe_scene_identity *identity;
 	const voe_editor_undo_state *state;
@@ -364,7 +364,7 @@ bool voe_editor_undo_take(voe_editor_undo *undo, voe_editor_project *project,
 		voe_editor_stroke_apply(stroke, models, forward);
 	if (material != NULL)
 		voe_editor_material_step_apply(material, models, scene,
-					       project->folder, scratch,
+					       project->folder, scratch, watch,
 					       forward);
 
 	if (was_selected)

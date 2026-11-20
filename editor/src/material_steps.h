@@ -5,7 +5,7 @@
 //     step = voe_editor_material_step_new(path, &before, &after);
 //     voe_editor_undo_material(&undo, project, scratch, step); // undo owns it
 //     voe_editor_material_step_apply(step, models, scene, folder, scratch,
-//                                    false);                  // back
+//                                    watch, false);           // back
 //     voe_editor_material_step_destroy(step);
 //
 // A STEP RIDES BESIDE THE SCENE TEXT, NOT IN IT, as a stroke does (strokes.h):
@@ -25,6 +25,7 @@
 // write refused while stepping is said on stderr, the step having no notice.
 #pragma once
 
+#include "disk_watch.h"
 #include "models.h"
 #include "scene.h"
 
@@ -53,19 +54,23 @@ voe_editor_material_step_new(const char *path,
 // Frees the step. NULL is nothing.
 void voe_editor_material_step_destroy(voe_editor_material_step *step);
 
-// `values` written as `<folder>/<path>`'s text through `platform`. False with
+// `values` written as `<folder>/<path>`'s text through `platform`, and the
+// write told to `watch` (disk_watch.h), NULL telling nothing. False with
 // `error` filled when the write is refused. `scratch` is rewound.
 [[nodiscard]] bool
 voe_editor_material_step_write(const char *folder, const char *path,
 			       const voe_assets_material_file *values,
-			       voe_base_arena *scratch, voe_base_error *error);
+			       voe_base_arena *scratch,
+			       voe_editor_disk_watch *watch,
+			       voe_base_error *error);
 
 // `after` when `forward`, `before` otherwise, taken into the table's row,
-// written to `<folder>/<path>`, told to the store (`maps` when a map path
-// differs) and, when the path is the open one, into `scene->material` and its
-// `material_before`. Nothing when the table holds no such row or `folder` is
-// NULL. `scratch` is rewound.
+// written to `<folder>/<path>` and told to `watch` as _write tells it, told to
+// the store (`maps` when a map path differs) and, when the path is the open
+// one, into `scene->material` and its `material_before`. Nothing when the
+// table holds no such row or `folder` is NULL. `scratch` is rewound.
 void voe_editor_material_step_apply(const voe_editor_material_step *step,
 				    voe_editor_models *models,
 				    voe_editor_scene *scene, const char *folder,
-				    voe_base_arena *scratch, bool forward);
+				    voe_base_arena *scratch,
+				    voe_editor_disk_watch *watch, bool forward);

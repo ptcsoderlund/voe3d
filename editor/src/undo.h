@@ -4,7 +4,8 @@
 //     voe_editor_undo_create(&undo, arena);
 //     voe_editor_undo_edited(&undo);              // an edit reached the project
 //     voe_editor_undo_settle(&undo, project, scratch, at_rest);
-//     if (voe_editor_undo_take(&undo, project, scene, models, &why, false))
+//     if (voe_editor_undo_take(&undo, project, scene, models, scratch, watch,
+//                              &why, false))
 //             ...                                 // the world is a step back
 //
 // A STEP IS THE WHOLE SCENE, AS THE TEXT A SAVE WRITES, bounded by rest. An
@@ -160,13 +161,15 @@ void voe_editor_undo_material(voe_editor_undo *undo,
 // the neighbouring state and the selection re-found by its authored id; back
 // from a state with a stroke writes its `before` into `models`, forward onto
 // one its `after`, and a material step is applied the same way
-// (material_steps.h) in `scratch`, which is rewound. False and nothing done
-// when there is no state that way, and false with `why` filled and the line
-// emptied when the text was refused, which leaves the world half-loaded
+// (material_steps.h) in `scratch`, which is rewound, its write told to `watch`
+// (disk_watch.h), NULL telling nothing. False and nothing done when there is no
+// state that way, and false with `why` filled and the line emptied when the
+// text was refused, which leaves the world half-loaded
 // (voe_editor_project_scene_set).
 [[nodiscard]] bool voe_editor_undo_take(voe_editor_undo *undo,
 					voe_editor_project *project,
 					voe_editor_scene *scene,
 					voe_editor_models *models,
 					voe_base_arena *scratch,
+					voe_editor_disk_watch *watch,
 					voe_editor_notice *why, bool forward);

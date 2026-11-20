@@ -180,7 +180,7 @@ static void voe_editor_interface_assets_textures_do(voe_editor_session *session,
 	voe_editor_notice_clear(&session->notice);
 	(void)voe_editor_model_import_textures(
 		folder, voe_editor_assets_join(arena, "Assets", path), largest,
-		arena, &session->notice);
+		arena, session->watch, &session->notice);
 	voe_editor_models_materials_read(models, folder, arena);
 	voe_editor_scene_material_refresh(scene, voe_editor_models_materials(models));
 	voe_editor_assets_list_due(&scene->assets);
@@ -229,7 +229,7 @@ static void voe_editor_interface_assets_levels_answer(
 	if (answer == VOE_EDITOR_LEVELS_ASK_MAKE) {
 		if (session->project->folder != NULL &&
 		    voe_editor_levels_ask_save(ask, session->project->folder,
-					       arena)) {
+					       arena, session->watch)) {
 			snprintf(session->prepare_path,
 				 sizeof session->prepare_path, "%s", ask->path);
 			if (voe_editor_levels_ask_swaps_only(ask)) {

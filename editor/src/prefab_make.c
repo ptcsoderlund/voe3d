@@ -127,7 +127,7 @@ bool voe_editor_prefab_make_refused(const voe_editor_project *project,
 
 bool voe_editor_prefab_make(voe_editor_project *project, voe_ecs_entity root,
 			    const char *shown, voe_base_arena *scratch,
-			    voe_editor_notice *why)
+			    voe_editor_disk_watch *watch, voe_editor_notice *why)
 {
 	struct voe_base_arena_mark mark;
 	const voe_scene_identity *identity;
@@ -161,10 +161,12 @@ bool voe_editor_prefab_make(voe_editor_project *project, voe_ecs_entity root,
 					    text.size, &error)) {
 		voe_editor_notice_set(why, "Could not write %s: %s", path,
 				      voe_base_error_string(error));
-	} else if (!rows_queue(project->world, root, path)) {
-		voe_editor_notice_set(why, "The scene is full.");
 	} else {
-		made = true;
+		if (watch != NULL)
+			voe_editor_disk_watch_wrote(watch, absolute);
+		made = rows_queue(project->world, root, path);
+		if (!made)
+			voe_editor_notice_set(why, "The scene is full.");
 	}
 	voe_base_arena_rewind(scratch, mark);
 	return made;

@@ -164,7 +164,7 @@ bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 	if (scene->list_made.generation != 0) {
 		if (voe_editor_prefab_make(session->project, scene->list_made,
 					   scene->assets.shown, arena,
-					   &session->notice))
+					   session->watch, &session->notice))
 			scene->structural++;
 		scene->list_made = (voe_ecs_entity){ 0 };
 	}

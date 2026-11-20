@@ -4,7 +4,7 @@
 // calls it with the file the browser's IMPORT mode chose:
 //
 //     voe_editor_assets_import(&scene->assets, project->folder, source,
-//                              &session->notice, imported);
+//                              session->watch, &session->notice, imported);
 //
 // READ BEFORE ANYTHING IS MADE, so a source that fails, or is empty, leaves the
 // project as it was; `Assets/` is made only then, when the project has none.
@@ -65,6 +65,7 @@ static bool assets_made(const char *project, voe_base_arena *scratch,
 
 void voe_editor_assets_import(voe_editor_assets *assets,
 			      const char *project_folder, const char *source,
+			      voe_editor_disk_watch *watch,
 			      voe_editor_notice *why,
 			      char imported[VOE_3D_MODEL_PATH])
 {
@@ -129,7 +130,8 @@ void voe_editor_assets_import(voe_editor_assets *assets,
 	// `imported` left "" so no LODs question, prepare or reload reads it
 	// again to say the same (0445 point 4).
 	if (voe_editor_assets_name_ends(source, ".glb") &&
-	    !voe_editor_model_import(project_folder, relative, scratch, why))
+	    !voe_editor_model_import(project_folder, relative, scratch, watch,
+				     why))
 		imported[0] = '\0';
 	voe_editor_assets_relist(assets, project_folder, shown);
 destroy_scratch:

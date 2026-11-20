@@ -627,7 +627,8 @@ static void session_import(voe_editor_session *session, voe_editor_scene *scene,
 	VOE_BASE_ASSERT(models != NULL && source != NULL,
 			"importing with no store or no file");
 	voe_editor_assets_import(&scene->assets, session->project->folder,
-				 source, &session->notice, imported);
+				 source, session->watch, &session->notice,
+				 imported);
 	scratch = voe_base_arena_new(SESSION_SCRATCH);
 	if (session_names_model(imported))
 		voe_editor_levels_ask_open(&session->levels_asking,

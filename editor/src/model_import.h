@@ -5,7 +5,7 @@
 // after the `.glb`'s copy succeeds, interface_assets.c the second:
 //
 //     if (!voe_editor_model_import(project, "Assets/Trees/oak.glb", scratch,
-//                                  &why))
+//                                  watch, &why))
 //             ...                     // why names the file
 //
 // THE NAMES (0420 point 3): `<stem>-<name>.material` beside the `.glb`,
@@ -50,6 +50,7 @@
 // would lift that.
 #pragma once
 
+#include "disk_watch.h"
 #include "notice.h"
 
 #include <base/arena.h>
@@ -59,19 +60,23 @@
 
 // Writes `glb`'s materials and parts beside it, the parts keeping the levels
 // of the one there, `glb` the project-relative
-// `Assets/…` path of a `.glb` already in `<project_folder>/`. True when every
+// `Assets/…` path of a `.glb` already in `<project_folder>/`, each written
+// file told to `watch` (disk_watch.h), NULL telling nothing. True when every
 // file is written; false with `why` set. `scratch` is rewound.
 [[nodiscard]] bool voe_editor_model_import(const char *project_folder,
 					   const char *glb,
 					   voe_base_arena *scratch,
+					   voe_editor_disk_watch *watch,
 					   voe_editor_notice *why);
 
 // Import textures for `glb`, as above: its pictures written beside it and the
-// materials its `.parts` names dressed in them, `largest` the longest side
-// any written picture may have. True when every file is written; false with
-// `why` set. `scratch` is rewound.
+// materials its `.parts` names dressed in them, each `.material` written told
+// to `watch` as above, `largest` the longest side any written picture may
+// have. True when every file is written; false with `why` set. `scratch` is
+// rewound.
 [[nodiscard]] bool voe_editor_model_import_textures(const char *project_folder,
 						    const char *glb,
 						    uint32_t largest,
 						    voe_base_arena *scratch,
+						    voe_editor_disk_watch *watch,
 						    voe_editor_notice *why);

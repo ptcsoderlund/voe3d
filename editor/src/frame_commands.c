@@ -40,7 +40,7 @@ static void voe_editor_frame_commands_material(
 	if (!voe_editor_material_step_write(session->project->folder,
 					    scene->material_open,
 					    &scene->material, commands->scratch,
-					    &error))
+					    session->watch, &error))
 		voe_editor_notice_set(&session->notice, "Could not save %s: %s",
 				      scene->material_open,
 				      voe_base_error_string(error));
@@ -94,7 +94,8 @@ void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 	} else if ((commands->step_back || commands->step_forward) &&
 		   voe_editor_undo_take(commands->undo, session->project,
 					commands->scene, commands->models,
-					commands->scratch, &session->notice,
+					commands->scratch, session->watch,
+					&session->notice,
 					commands->step_forward)) {
 		voe_editor_session_edited(session);
 	}

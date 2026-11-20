@@ -203,11 +203,11 @@ void voe_editor_assets_users(const char *project, const char *path,
 	}
 }
 
-// One walked file followed in scratch, and written when write and it changed.
-// False with why naming it.
+// One walked file followed in scratch, and written when write and it changed,
+// the write told to watch when there is one. False with why naming it.
 static bool follow_one(const struct walk *walk, const char *relative, const char *from,
 		       const char *to, bool write, voe_base_arena *scratch,
-		       voe_editor_notice *why)
+		       voe_editor_disk_watch *watch, voe_editor_notice *why)
 {
 	voe_authoring_paths_followed followed;
 	size_t size = 0;
@@ -231,17 +231,22 @@ static bool follow_one(const struct walk *walk, const char *relative, const char
 	if (!write)
 		return true;
 	voe_base_report_error_clear();
-	if (voe_platform_file_write(voe_platform_path_join(scratch, walk->project, relative),
-				    (const uint8_t *)followed.text.text, followed.text.size, NULL))
-		return true;
-	voe_editor_notice_from_report(why, relative);
-	return false;
+	if (!voe_platform_file_write(voe_platform_path_join(scratch, walk->project, relative),
+				     (const uint8_t *)followed.text.text, followed.text.size,
+				     NULL)) {
+		voe_editor_notice_from_report(why, relative);
+		return false;
+	}
+	if (watch != NULL)
+		voe_editor_disk_watch_wrote(watch, relative);
+	return true;
 }
 
-// Every walked file followed, written when write. scratch is rewound before
-// return.
+// Every walked file followed, written when write and told to watch. scratch is
+// rewound before return.
 static bool follow_all(const char *project, const char *from, const char *to, bool write,
-		       voe_base_arena *scratch, voe_editor_notice *why)
+		       voe_base_arena *scratch, voe_editor_disk_watch *watch,
+		       voe_editor_notice *why)
 {
 	struct voe_base_arena_mark start;
 	struct walk walk;
@@ -257,7 +262,8 @@ static bool follow_all(const char *project, const char *from, const char *to, bo
 		while (ok && (step = walk_next(&walk, scratch, &relative, why)) == WALK_FILE) {
 			struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
 
-			ok = follow_one(&walk, relative, from, to, write, scratch, why);
+			ok = follow_one(&walk, relative, from, to, write, scratch, watch,
+					why);
 			voe_base_arena_rewind(scratch, mark);
 		}
 		ok = ok && step == WALK_END;
@@ -271,11 +277,12 @@ static bool follow_all(const char *project, const char *from, const char *to, bo
 bool voe_editor_assets_follow_check(const char *project, const char *from, const char *to,
 				    voe_base_arena *scratch, voe_editor_notice *why)
 {
-	return follow_all(project, from, to, false, scratch, why);
+	return follow_all(project, from, to, false, scratch, NULL, why);
 }
 
 bool voe_editor_assets_follow_write(const char *project, const char *from, const char *to,
-				    voe_base_arena *scratch, voe_editor_notice *why)
+				    voe_base_arena *scratch, voe_editor_disk_watch *watch,
+				    voe_editor_notice *why)
 {
-	return follow_all(project, from, to, true, scratch, why);
+	return follow_all(project, from, to, true, scratch, watch, why);
 }
