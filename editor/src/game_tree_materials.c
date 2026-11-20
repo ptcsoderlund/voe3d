@@ -2,9 +2,12 @@
 // written as one voe_game_material initializer each in
 // voe_game_materials_cooked (game/materials.h, ADR-0399 point 7), then every
 // `.parts` as one voe_game_model_parts each in voe_game_parts_cooked, named by
-// its `.glb` (0420 point 1). Called by game_tree.c's write; see game_tree.h.
+// its `.glb` (0420 point 1), then every `.tree`, read leniently, as one
+// voe_game_tree each in voe_game_trees_cooked (game/trees.h, 0515 point 5).
+// Called by game_tree.c's write; see game_tree.h.
 //
 //     #include <game/materials.h>
+//     #include <game/trees.h>
 //     #include <stddef.h>
 //
 //     const voe_game_materials voe_game_materials_cooked = {
@@ -28,7 +31,15 @@
 //             1,
 //     };
 //
-// Neither is `{ NULL, 0 }`. Floats are printed `%a`, so the value the game
+//     const voe_game_trees voe_game_trees_cooked = {
+//             (const voe_game_tree[]){
+//                     { "Assets/pine.tree", { .bark = "Assets/bark.material",
+//                       .leaf = "", .height = 0x1.8p+3f, ..., .variations = 4u } },
+//             },
+//             1,
+//     };
+//
+// A table with no files is `{ NULL, 0 }`. Floats are printed `%a`, so the value the game
 // reads is exactly the one the file read gave; the path and map strings are
 // escaped as game_tree.c escapes a C string literal. A file that will not read
 // or parse is refused, naming it.
@@ -44,6 +55,7 @@
 
 #include <assets/material.h>
 #include <assets/parts.h>
+#include <assets/tree.h>
 #include <base/assert.h>
 #include <base/report.h>
 #include <platform/file.h>
@@ -101,6 +113,50 @@ static bool parts_cook(const char *file, voe_base_arena *scratch,
 	VOE_BASE_ASSERT(voe_base_arena_mark(scratch).used == mark.used,
 			"a parts cook kept scratch");
 	return done;
+}
+
+// file read in scratch and parsed leniently into out, scratch rewound. False
+// with why naming file on a refused read or parse.
+static bool tree_cook(const char *file, voe_base_arena *scratch,
+		      voe_assets_tree *out, voe_editor_notice *why)
+{
+	struct voe_base_arena_mark mark = voe_base_arena_mark(scratch);
+	const uint8_t *bytes;
+	size_t size;
+	bool done = false;
+
+	VOE_BASE_ASSERT(file != NULL && out != NULL, "cooking no tree");
+	voe_base_report_error_clear();
+	bytes = voe_platform_file_read(file, scratch, &size, NULL);
+	if (bytes != NULL)
+		done = voe_assets_tree_read((const char *)bytes, size, out, NULL);
+	if (!done)
+		voe_editor_notice_from_report(why, file);
+	voe_base_arena_rewind(scratch, mark);
+	VOE_BASE_ASSERT(voe_base_arena_mark(scratch).used == mark.used,
+			"a tree cook kept scratch");
+	return done;
+}
+
+// One table entry for the species at Assets/path holding t, in arena.
+static const char *tree_entry(voe_base_arena *arena, const char *path,
+			      const voe_assets_tree *t)
+{
+	VOE_BASE_ASSERT(path != NULL && t != NULL, "an entry for no tree");
+	return voe_editor_game_tree_format(
+		arena,
+		"\t\t{ \"Assets/%s\", { .bark = \"%s\", .leaf = \"%s\",\n"
+		"\t\t  .height = %af, .trunk = %af, .crown = %af, .branching = %af,\n"
+		"\t\t  .reach = %af, .angle = %af, .droop = %af, .crooked = %af,\n"
+		"\t\t  .leaf_size = %af, .leaf_density = %af,\n"
+		"\t\t  .variations = %uu } },\n",
+		voe_editor_game_tree_c_string(arena, path),
+		voe_editor_game_tree_c_string(arena, t->bark),
+		voe_editor_game_tree_c_string(arena, t->leaf), (double)t->height,
+		(double)t->trunk, (double)t->crown, (double)t->branching,
+		(double)t->reach, (double)t->angle, (double)t->droop,
+		(double)t->crooked, (double)t->leaf_size, (double)t->leaf_density,
+		t->variations);
 }
 
 // One table entry for the material at Assets/path holding m, in arena.
@@ -236,6 +292,29 @@ static const char *parts_table(const char *assets, voe_base_arena *arena,
 			  "voe_game_model_parts", entries, found.count);
 }
 
+// voe_game_trees_cooked's definition for every `.tree` under assets.
+static const char *trees_table(const char *assets, voe_base_arena *arena,
+			       voe_base_arena *scratch, voe_editor_notice *why)
+{
+	struct voe_editor_game_tree_found found;
+	voe_assets_tree tree;
+	const char *entries = "";
+
+	if (!voe_editor_game_tree_find(assets, ".tree", arena, &found, why))
+		return NULL;
+	for (uint32_t i = 0; i < found.count; i++) {
+		const char *path = found.items[i].path;
+
+		if (!tree_cook(voe_platform_path_join(arena, assets, path), scratch,
+			       &tree, why))
+			return NULL;
+		entries = voe_editor_game_tree_format(arena, "%s%s", entries,
+						      tree_entry(arena, path, &tree));
+	}
+	return table_text(arena, "voe_game_trees", "voe_game_trees_cooked",
+			  "voe_game_tree", entries, found.count);
+}
+
 const char *voe_editor_game_tree_materials_source(const char *folder,
 						  voe_base_arena *arena,
 						  voe_editor_notice *why)
@@ -243,6 +322,7 @@ const char *voe_editor_game_tree_materials_source(const char *folder,
 	const char *assets;
 	const char *materials;
 	const char *parts = NULL;
+	const char *trees = NULL;
 	voe_base_arena *scratch;
 
 	VOE_BASE_ASSERT(folder != NULL && why != NULL, "cooking materials nowhere");
@@ -251,10 +331,14 @@ const char *voe_editor_game_tree_materials_source(const char *folder,
 	materials = materials_table(assets, arena, scratch, why);
 	if (materials != NULL)
 		parts = parts_table(assets, arena, scratch, why);
+	if (parts != NULL)
+		trees = trees_table(assets, arena, scratch, why);
 	voe_base_arena_destroy(scratch);
-	if (parts == NULL)
+	if (trees == NULL)
 		return NULL;
 	return voe_editor_game_tree_format(
-		arena, "#include <game/materials.h>\n#include <stddef.h>\n\n%s\n%s",
-		materials, parts);
+		arena,
+		"#include <game/materials.h>\n#include <game/trees.h>\n"
+		"#include <stddef.h>\n\n%s\n%s\n%s",
+		materials, parts, trees);
 }

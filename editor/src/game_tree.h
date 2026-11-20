@@ -4,8 +4,8 @@
 // hands these lists to platform/process.h.
 //
 // THE LAYOUT. `<project>/Build/game/` holds CMakeLists.txt, main.c, scene.c,
-// prefabs.c, landscapes.c and materials.c, which holds the materials and the
-// models' parts; `<project>/Code/` is the project's own code (0242).
+// prefabs.c, landscapes.c and materials.c, which holds the materials, the
+// models' parts and the trees; `<project>/Code/` is the project's own code.
 // Every configure and build step writes to `<project>/Build/build.log`.
 // Everything generated lives in whole top-level folders git ignores — `Build/`
 // here, `Cache/` for any other generated data — so a project's .gitignore lists
@@ -44,8 +44,9 @@
 // point 7): landscape_<n> with its `Assets/…` path, size and cells, its layers
 // and paint (0402 point 8) and its kinds and copies (0442), when it has them; a
 // material's path and values, floats in hex. materials.c also holds every
-// `.parts` AS SAVED (0420 point 1): its `.glb`'s path and its materials' paths.
-// A bad file is refused.
+// `.parts` AS SAVED (0420 point 1): its `.glb`'s path and its materials' paths,
+// and every `.tree` READ LENIENTLY (0515): its `Assets/…` path, bark and leaf
+// paths, floats in hex, variations. A bad file is refused.
 //
 // THE TOOLS COME FROM THE EDITOR'S OWN BUILD (0237): toolchain.h names the
 // engine source, CMake, the compiler, Ninja, pkg-config, slangc and
@@ -87,7 +88,7 @@ const char *voe_editor_game_tree_landscapes_source(const char *folder,
 						   voe_editor_notice *why);
 
 // materials.c's text for the project at folder (game_tree_materials.c), the
-// materials and the parts, in arena. NULL with why naming the file on one that
+// materials, the parts and the trees, in arena. NULL with why naming the file on one that
 // will not find, read or parse.
 const char *voe_editor_game_tree_materials_source(const char *folder,
 						  voe_base_arena *arena,
