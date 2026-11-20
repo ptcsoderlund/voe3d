@@ -61,6 +61,9 @@ of them is internal to this folder rather than reachable from outside it.
   `landscape.h` lists, ranges from its constants.
 - `material.c` — the material file over the sectioned reader, with a scratch
   arena of its own, and a writer that quotes every path.
+- `tree.c` — the tree species file over the sectioned reader, one table of
+  ranged keys clamped or refused, a writer quoting with the landscape's helper,
+  and the species and variation path helpers.
 - `parts.c` — the parts file over the sectioned reader: each `material<N>` key
   to an index and its path, the optional `[Levels]` section's count,
   shares and swaps, and a writer that quotes every path.

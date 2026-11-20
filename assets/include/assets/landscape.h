@@ -43,10 +43,10 @@
 // [Paint] and NULL paint are all layer 0, so a struct built by hand is valid.
 // A RESAMPLE IS BILINEAR, layers 1-7 rounded and layer 0 given the rest.
 //
-// KINDS ARE QUOTED .glb PATHS, read as layers are. A KIND'S LOOK is `size<k>`
-// (thousandths), `vary<k>` (size ±%), `turn<k>` (±°), `tilt<k>` (% with slope),
-// `shadow<k>=0` (no shadow), `blend<k>=1` and `blendheight<k>` (cm, 0481 point
-// 4), each written only off the default, missing read as it. LAYER l GROWS
+// KINDS ARE QUOTED .glb OR .tree PATHS, read as layers are. A KIND'S LOOK is
+// `size<k>` (thousandths), `vary<k>` (size ±%), `turn<k>` (±°), `tilt<k>`
+// (% with slope), `shadow<k>=0` (no shadow), `blend<k>=1` and `blendheight<k>`
+// (cm, 0481), written only off the default, missing read as it. LAYER l GROWS
 // KIND k at `grow<l>_<k>` tenths of copies per 100 m², written only above 0,
 // THE LAYER ROW'S CHOICE: a row with another material keeps it (0476 point 2).
 // COPY i IS `c<i>=kind x z turn scale lean`, no height: it stands on the ground

@@ -17,6 +17,8 @@ and the questions each header answers, stays on `assets/assets.md`.
   map paths, and back.
 - `model_material.h` — a glTF material as a `.material` file's values, and the
   ORM picture Import textures writes for it; opens no file.
+- `tree.h` — a `.tree` species file's text to its bark and leaf paths and
+  growth settings, and back, and its variation paths `<path>#<v>`.
 - `parts.h` — a `.parts` file's text to the `.material` each glTF material of a
   `.glb` wears, and back.
 - `sound.h` — sounds: 16-bit PCM and 32-bit float WAV decoded to interleaved

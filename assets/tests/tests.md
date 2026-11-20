@@ -41,6 +41,9 @@ belongs to.
   round-tripped field for field and written again byte for byte, each bad
   value refused MALFORMED, and the strict reader refusing an unknown key by its
   line, taking a retired map key and reading what is written.
+- `tree.c` — the species default round-tripped, the lenient reader clamping
+  and defaulting, the strict reader refusing an unknown key, section or range,
+  species and variation paths told, and one key table row per key.
 - `parts.c` — a parts file's entries and levels, shares and swaps included,
   round-tripped and written again byte for byte, defaults read for what is
   absent, and bad input refused MALFORMED.
