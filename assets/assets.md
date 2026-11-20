@@ -2,15 +2,16 @@
 
 Files on the way in (glTF, PNG, JPEG, WAV, sectioned text), and a PNG on the
 way out: a decoder takes a buffer and an encoder hands one back, since
-`platform` owns files (ADR-0023: written, not fetched). Nothing here knows about Vulkan, a scene or an entity.
+`platform` owns files (ADR-0023: written, not fetched). Nothing here knows
+about Vulkan, a scene or an entity.
 
 - `include` — the public headers, in `include/assets/`; each is listed below by path.
 - `src` — the implementation. See `src/src.md`.
 - `tests` — one plain C program per module, found by the build. See `tests/tests.md`.
 - `include/assets/model.h` — `.glb` files, read into vertex attributes,
   materials, pictures decoded or left encoded, and a node tree. Its header says
-  why binary only,
-  why no coordinate is converted, and which failures are malformed.
+  why binary only, why no coordinate is converted, and which failures are
+  malformed.
 - `include/assets/image.h` — pictures, both directions: PNG and JPEG decoded to
   RGBA8, RGBA8 encoded back as a PNG, a picture shrunk to a largest side, its
   mip chain, its BC7 or BC5 blocks and its cooked form. Its header says why
@@ -25,9 +26,8 @@ way out: a decoder takes a buffer and an encoder hands one back, since
   resampled bilinearly; and its key table, `voe_assets_landscape_keys`.
 - `include/assets/material.h` — a `.material` file's text to a shader, its
   factors, repeat and three map paths, and back, and its key table,
-  `voe_assets_material_keys`. Its header says the defaults,
-  why a missing key reads as one, and why a file taken in from disk has a
-  strict reader.
+  `voe_assets_material_keys`. Its header says the defaults, why a missing key
+  reads as one, and why a file taken in from disk has a strict reader.
 - `include/assets/parts.h` — a `.parts` file's text to the `.material` each
   glTF material of a `.glb` wears and the model's levels, and back, and its
   key table, `voe_assets_parts_keys`. Its header says why the keys are

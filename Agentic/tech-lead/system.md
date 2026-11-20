@@ -12,9 +12,9 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **platform** — OS-aware: window, input, pads, files, trash, clock, process, env, sound, bursts.
 - **scene** — transform, parent, prefab, lens, lights, blockers, sky, haze, picture, clouds, fog.
 - **physics** — colliders, overlap and sweep queries, a kinematic body's move; `physics/physics.md`.
-- **assets** — glTF, images, WAV, fonts, landscapes, materials, sectioned text to CPU data; JSON.
+- **assets** — glTF, images, WAV, fonts, landscapes, materials, sectioned text, key tables; JSON.
 - **audio** — the mixer: voices by handle, looped, pitched, placed by the camera, paused; sound row.
-- **authoring** — scene, prefab and project text read, checked strictly, written; paths followed; C.
+- **authoring** — scene, prefab, project text read, checked, written; paths; C; Markdown reference.
 - **render** — Vulkan: card, mips, GPU BC, heights, timing, light, bounce, sky, haze, clouds, fog.
 - **text** — a distance-field glyph atlas, Latin-1 and a few symbols; one mesh per block; Oxanium.
 - **ui** — immediate-mode GUI in millimetres: layout, panels, widgets, folds, overlays, one draw.
@@ -23,7 +23,7 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - **sprite** — a sprite is a plane in the world and hands back a material.
 - **app** — frame loop parts: paced frame, workers, PNGs, headless start, start log, cache, hitches.
 - **game** — a shipped game in its window: world types, 1/60 s steps, code, sound, splash wait.
-- **editor** — top bar, docks, Scene list, Assets, prefabs, views, gizmo, sculpt, Play, disk edits.
+- **editor** — docks, Scene, Assets, prefabs, views, gizmo, sculpt, Play, disk edits, Docs, check.
 - **dev** — the program that shows what the engine can do; a leaf on all but editor and authoring.
 - **testing** — the check macros a test links as `voe::testing`; not a library, not in the map.
 - **examples** — example projects as data, one folder each, no target; each has its own `.md`.
@@ -57,4 +57,4 @@ a new edge is a decision, not a card. The standing rules are decision 0168, name
 - 0442–0445, 0449–0450, 0452–0454, 0469–0471, 0473–0475 — Foliage; import errors; brushes; grown.
 - 0455, 0457, 0458, 0462, 0463, 0465–0467, 0477–0481 — Sizes; hitches; cull; BC; clouds; blend.
 - 0483–0485, 0489, 0490, 0494–0501, 0504 — Effort; GPU BC; workers; maps; ranges; LODs; folds; fog.
-- 0505–0507, 0509 — The editor is AI-neutral; outside changes taken in or asked; the hill outside.
+- 0505–0507, 0509–0511 — AI-neutral editor; outside changes; hill outside; tree maker; Docs; check.

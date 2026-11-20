@@ -135,11 +135,3 @@ Far-future thoughts. Pruned by the secretary when one becomes a decision or a wo
 
 - **No meshlets, no Nanite-style detail** (sponsor, 2026-10-16). Rejected: this engine offers performance and
   neither is performant yet. Do not propose it.
-
-- **A tree maker in the editor** (sponsor, 2026-11-20, thinking aloud). Instead of every tree from Blender, the
-  sponsor models a trunk and a branch or two and the editor grows a species from them — branches placed by rule
-  and seed — into a few variants a foliage kind paints, so the trees vary without a file per version. Made at
-  authoring time, never one unique mesh per placed tree (that loses the one instanced draw per kind, 0442). Long-run
-  pull beyond variety: a tree that knows its trunk and branches can sway per branch in the wind and be chopped
-  into logs (0374). Not standard practice to do in-engine (SpeedTree and Blender's Sapling are separate tools);
-  wanted partly for the fun of it.
