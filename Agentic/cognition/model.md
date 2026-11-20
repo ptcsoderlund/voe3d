@@ -12,3 +12,4 @@
 - `outside-changes.md` — What the editor does when a file of the open project changes on disk: how it notices, how it takes the change in, and what it never takes for one.
 - `strict-reading.md` — What a strict read of a sectioned file refuses that the lenient read lets pass, and what the agents' check catches.
 - `proving-cards.md` — What can show a card's done-when is met: what the tests print, and what proves an editor card.
+- `tree-maker.md` — Trees grown from materials and settings: what the sponsor wants of them, how the bark and its moss are made, and what a species shows when opened.
