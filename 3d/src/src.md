@@ -222,6 +222,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
   copies in one walk, erase and undo by moving the last in, and the replace over a rect.
 - `foliage_grow.c` — the area's grown copies of the remade kinds removed, then each kind's
   lattice cells over it hashed, jittered, kept by the bilinear paint and placed.
+- `tree_grow.c` — the trunk as one limb of equal steps, then each limb's children breadth first,
+  spaced above the crown, turned by the golden angle, drooped and jittered, until the cap.
+- `tree_mesh.c` — each level's bark as tubes of transported rings with a child's collar, and its
+  leaves as every 2^k-th card, rolled about its twig, scaled and bent off the crown's centre.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
 - `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, borders
