@@ -32,3 +32,6 @@ out (ADR-0145); only the reader creates rows (ADR-0152); `platform` owns files.
 - `include/authoring/project.h` — `project.voe3d` read, read strictly and written,
   and its key table, `voe_authoring_project_keys`. Its header says the keys, range
   and defaults, what it refuses, why a strict reader, and why the writer cannot fail.
+- `include/authoring/reference.h` — Markdown reference text for hand-written files,
+  from the registered component descriptions and from a format's key table. Its
+  header says why it is generated and what each text holds.

@@ -47,3 +47,5 @@ and read through the description its own folder registered.
 - `authored.h` — the sort and search by authored id both of them use, and why
   neither is the C library's.
 - `authored.c` — the merge sort and the binary search.
+- `reference.c` — the reference texts. Its header says why two passes, where
+  a missing key's value comes from, and what a table cell escapes.

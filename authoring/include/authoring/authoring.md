@@ -16,3 +16,5 @@ and the questions each header answers, stays on `authoring/authoring.md`.
   looked for before a delete.
 - `project.h` — `project.voe3d` read and written, holding the one key that names
   the project's scene.
+- `reference.h` — Markdown reference text for hand-written files, from the
+  component descriptions and the formats' key tables.
