@@ -6,7 +6,7 @@
 //             return voe_editor_check(options.folder);    // the exit code
 //
 // WHAT IS READ is assets_walk.h's list: every `.scene`, `.prefab`,
-// `.material`, `.landscape` and `.parts` under the folder and its top-level
+// `.material`, `.landscape`, `.parts` and `.tree` under the folder and its top-level
 // `project.voe3d`, each with the strict reader the editor takes that kind in
 // with (ADR-0509 point 3). A prefab is also read into a fresh world and refused
 // unless it is one tree prefabs.h's refusal lets through, as its save is.

@@ -15,6 +15,7 @@
 #include <assets/landscape.h>
 #include <assets/material.h>
 #include <assets/parts.h>
+#include <assets/tree.h>
 
 #include <authoring/project.h>
 #include <authoring/reference.h>
@@ -37,6 +38,7 @@ static const struct {
 	{ "Material files (`.material`)", voe_assets_material_keys },
 	{ "Parts files (`.parts`)", voe_assets_parts_keys },
 	{ "Landscape files (`.landscape`)", voe_assets_landscape_keys },
+	{ "Tree species files (`.tree`)", voe_assets_tree_keys },
 	{ "The project file (`project.voe3d`)", voe_authoring_project_keys },
 };
 
@@ -66,7 +68,7 @@ refused:
 	return false;
 }
 
-// The four key tables' texts joined under one heading.
+// The key tables' texts joined under one heading.
 static const char *files_text(voe_base_arena *arena)
 {
 	const char *out = "# How the asset files and project.voe3d are written\n";
@@ -134,7 +136,8 @@ static const char *index_text(const char *program, const char *folder,
 		"## Which file documents which kind\n\n"
 		"| Files | Documented in |\n|---|---|\n"
 		"| `*.scene`, `*.prefab` | `voe3d-scene.md` |\n"
-		"| `*.material`, `*.parts`, `*.landscape`, `project.voe3d` | "
+		"| `*.material`, `*.parts`, `*.landscape`, `*.tree`, "
+		"`project.voe3d` | "
 		"`voe3d-files.md` |\n\n"
 		"## Whose files these are\n\n"
 		"The `Docs/voe3d*.md` files are the editor's: it rewrites them on "
