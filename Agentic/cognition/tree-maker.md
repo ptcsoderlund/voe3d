@@ -13,7 +13,8 @@
 - Moss and bare wood are placed by rules with noise, not painted by hand, since a variation is regrown whenever its species changes and would lose painting: "lets not do hand painting"; see 0510. [confirmed · tech-lead · 2026-11-20]
 
 ## Its leaves and far levels
-- Leaves are cards of the leaf material; see 0510. [assumed · tech-lead · 2026-11-20]
+- A leaf is a textured plane, a card of the leaf material: "yes, a leaf should be a textured plane"; see 0513. [confirmed · tech-lead · 2026-11-20]
+- Measured speed decides between one card per leaf and cards that gather leaves and twigs: "Whichever gives us best performance"; see 0513. [intent · tech-lead · 2026-11-20]
 
 ## Opening a species
 - Opening a species shows it alone in the view with a stepper through its variations, as opening a prefab does. [assumed · tech-lead · 2026-11-20]
