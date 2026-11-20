@@ -96,8 +96,10 @@ void voe_editor_inspector_tree_forget(voe_editor_inspector_tree *controls)
 {
 	VOE_BASE_ASSERT(controls != NULL, "forgetting no tree section");
 
-	for (uint32_t i = 0; i < VOE_EDITOR_TREE_MATERIALS; i++)
+	for (uint32_t i = 0; i < VOE_EDITOR_TREE_MATERIALS; i++) {
+		controls->materials[i] = VOE_UI_NODE_NONE;
 		controls->clears[i] = VOE_UI_NODE_NONE;
+	}
 	for (uint32_t i = 0; i < VOE_EDITOR_TREE_SLIDERS; i++)
 		controls->sliders[i] = VOE_UI_NODE_NONE;
 	controls->variations = VOE_UI_NODE_NONE;
@@ -144,7 +146,7 @@ static void materials_draw(voe_ui_context *ui,
 	for (uint32_t i = 0; i < VOE_EDITOR_TREE_MATERIALS; i++) {
 		const char *path = i == 0 ? tree->bark : tree->leaf;
 
-		row_open(ui);
+		controls->materials[i] = row_open(ui);
 		voe_ui_label(ui, MATERIAL_NAMES[i]);
 		voe_ui_label(ui, path[0] != '\0' ? path : "None");
 		if (path[0] != '\0')
@@ -282,6 +284,12 @@ void voe_editor_inspector_tree_read(const voe_ui_context *ui,
 							 SLIDERS[i].low,
 							 SLIDERS[i].high)
 							 .value;
+
+	for (uint32_t i = 0; i < VOE_EDITOR_TREE_MATERIALS; i++)
+		scene->tree_controls.materials_seen[i] =
+			controls->materials[i] == VOE_UI_NODE_NONE ?
+				(voe_ui_rect){ 0 } :
+				voe_ui_node_visible(ui, controls->materials[i]);
 
 	for (uint32_t i = 0; i < VOE_EDITOR_TREE_MATERIALS; i++)
 		if (fired(ui, controls->clears[i]))

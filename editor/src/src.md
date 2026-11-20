@@ -272,12 +272,12 @@ carries it out.
   its project-relative path, Load from disk and Keep mine, answered by those two buttons alone.
 - `disk_ask.c` — the open with its line, the panel's one frame of `ui` calls, and the read of its
   two buttons.
-- `assets_drag.h` — a held row from the Assets panel and what its release does: a move over a
-  folder row or Up, a new thing or copy placed in a scene view, or over the Inspector a swap, a
-  shape's material, a filled map, a landscape layer or a foliage kind, an added one open, else nothing.
+- `assets_drag.h` — a held row from the Assets panel and what its release does: a move, a thing
+  placed in a view, or over the Inspector a swap, a shape's material, a filled map, a species' Bark
+  or Leaf, a layer or a foliage kind (`.glb` or `.tree`), an added one open, else nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the move's target, the drop point, the Inspector's rows, layer and
-  kind rows among them, and each swap with its undo step.
+  the release and the ghost, the move's target, the drop point, the Inspector's rows, layer, kind
+  and species material rows among them, and each swap with its undo step.
 - `assets_walk.h` — the project's `.scene`, `.prefab`, `.material`, `.landscape` and `.parts` texts
   walked: who names a path before a Delete, a rename's paths checked before the move and written
   after it, 128 bytes the room, and the sorted list of the project's files the watch and check see.
@@ -365,11 +365,12 @@ carries it out.
   set), Repeat clamped 0.01–1000, Cutout, One side and Both sides, and the four map rows with ×.
 - `inspector_material.c` — the section's one frame of `ui` calls, its nodes forgotten each frame,
   and the read into the shown copy only, a swatch opening the picker on its field's offset.
-- `inspector_tree.h` — the Inspector's tree section for an open species: Bark and Leaf rows with ×,
-  a slider per number key over assets/tree.h's ranges, Variations clamped 1–16, and the ◀ v / count
-  ▶ stepper.
+- `inspector_tree.h` — the Inspector's tree section for an open species: Bark and Leaf rows with ×
+  and their rectangles kept for a drop, a slider per number key over assets/tree.h's ranges,
+  Variations clamped 1–16, and the ◀ v / count ▶ stepper.
 - `inspector_tree.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
-  the read into the shown copy and the stepped variation, which wraps.
+  the read into the shown copy and the stepped variation, which wraps, the material rows' rectangles
+  kept.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
   frame from the types' registered menu paths (ADR-0217, 0221), and each level drawn as a list.
 - `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under

@@ -21,7 +21,9 @@
 //
 // THE READ CHANGES THE SHOWN COPY AND THE STEPPED VARIATION ONLY. Whether the
 // copy now differs from the table's row, what the store does about it, and
-// stepping the world's tree to the variation, are interface_read.c's.
+// stepping the world's tree to the variation, are interface_read.c's. Each
+// material row's rectangle is kept for a `.material` dropped on it, which
+// assets_drag.h reads before the next frame forgets the nodes.
 //
 // Constraints: draw, forget and read are called in one frame's window, read
 // before the frame's arena is rewound; nothing here allocates. Every label the
@@ -48,8 +50,13 @@
 // The section's controls as drawn this frame, VOE_UI_NODE_NONE when not, and
 // the figures beside the sliders, in the number box and between the steps.
 typedef struct {
-	// Each material row's × while its path is set.
+	// Each material row, for a drop on it, and its × while its path is set.
+	voe_ui_node materials[VOE_EDITOR_TREE_MATERIALS];
 	voe_ui_node clears[VOE_EDITOR_TREE_MATERIALS];
+	// Where each material row showed at the last read, for the drop the
+	// next frame (assets_drag.h); no size for one not drawn. Forget keeps
+	// them.
+	voe_ui_rect materials_seen[VOE_EDITOR_TREE_MATERIALS];
 	voe_ui_node sliders[VOE_EDITOR_TREE_SLIDERS];
 	voe_ui_node variations;
 	// The stepper's ◀ and ▶.
@@ -76,7 +83,8 @@ struct voe_editor_scene;
 // After voe_ui_frame_end, on `scene->tree` through `scene->tree_controls`:
 // each drawn slider's value taken, Variations taken rounded and clamped, a
 // fired × empties its path, and a fired ◀ or ▶ steps `scene->tree_variation`
-// one down or up, wrapping within the variations as they now are. Clamping it
-// when Variations falls is scene.h's voe_editor_scene_tree_clamp.
+// one down or up, wrapping within the variations as they now are; each
+// material row's rectangle kept. Clamping the variation when Variations falls
+// is scene.h's voe_editor_scene_tree_clamp.
 void voe_editor_inspector_tree_read(const voe_ui_context *ui,
 				    struct voe_editor_scene *scene);

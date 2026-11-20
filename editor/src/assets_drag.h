@@ -18,12 +18,11 @@
 // - Over a folder row other than the dragged one, or over Up: the row moves
 //   there through voe_editor_assets_move, followed and refused as it says; a
 //   row marked dragged (assets_panel.h) enters no folder on the release.
-// - A `.glb` over the Foliage section's rows of a thing wearing a loaded
-//   landscape (inspector_foliage.h, 0442 point 3): over a kind row, that kind
-//   through voe_editor_models_kind_set; over the add row, a kind added, any
-//   fold kept for its index cleared so its box starts open (folds.h, 0502
-//   point 2); unsaved as a layer drop, no undo step. With sixteen kinds there
-//   is no add row. The kind's model loads at the next update.
+// - A `.glb` or a species' `.tree` (0515 point 3) over the Foliage rows of a
+//   thing wearing a loaded landscape (inspector_foliage.h, 0442 point 3): a
+//   kind row's kind set through voe_editor_models_kind_set, loading next
+//   update; the add row's added, its fold cleared to start open (folds.h, 0502
+//   point 2), none at sixteen kinds; unsaved as a layer drop, no undo step.
 // - A model over a scene view: a new thing named after the file, wearing it,
 //   at the point below, selected, one undo step and unsaved as Add entity is;
 //   over the Inspector while the selected thing has a model, its path replaced
@@ -44,6 +43,8 @@
 //   shape's `material` through voe_3d_shape_submit, one step and unsaved as
 //   the model swap is. A model's parts wear its `.parts` file's (0404), so
 //   over a model it drops nothing.
+// - A `.material` over the open species' Bark or Leaf row (inspector_tree.h):
+//   that path in `scene->tree`, regrown, and at rest written as a tree step.
 // - Anywhere else, or while `blocked`: nothing.
 // The drag starts past VOE_EDITOR_SCENE_DRAG_START (scene_list.h) from the
 // press, so a click opens a prefab or folder and a release before it does
@@ -52,11 +53,10 @@
 // the dragged row itself too, or a folder inside a dragged folder.
 //
 // CONSTRAINTS. The Inspector's rectangle is the dock tree laid out below the
-// bar, and the panel's rows, Up, the Inspector's fields, the map rows, the
-// layer rows and the kind rows are last frame's rectangles, not what `ui`
-// drew, because the frame's nodes are gone by the time this runs. A drop and
-// Ctrl+D on one frame would give two new things one id (entities.h); nothing
-// guards that pair.
+// bar; the panel's rows, Up, and the Inspector's fields and rows are last
+// frame's rectangles, not what `ui` drew, because the frame's nodes are gone
+// by the time this runs. A drop and Ctrl+D on one frame would give two new
+// things one id (entities.h); nothing guards that pair.
 #pragma once
 
 #include "dock.h"
@@ -91,12 +91,13 @@
 // What a drag remembers between frames. Zeroed is no drag.
 typedef struct {
 	bool holding;
-	// Whether the held row is a prefab, a picture or a `.material` rather
-	// than a model, or none of the four, a folder or a file that only
-	// moves.
+	// Whether the held row is a prefab, a picture, a `.material` or a
+	// species' `.tree` rather than a model, or none of the five, a folder
+	// or a file that only moves.
 	bool prefab;
 	bool picture;
 	bool material;
+	bool species;
 	bool moves_only;
 	// The held row's path, `Assets/...` with `/` separators.
 	char path[VOE_EDITOR_ASSETS_DRAG_PATH];

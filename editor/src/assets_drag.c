@@ -31,6 +31,24 @@
 // A move's scratch block, made at the release only; a size, not a limit.
 #define MOVE_SCRATCH (64u * 1024u)
 
+// Whether `path` ends `ending`, a lower-case ending, in any case.
+static bool path_ends(const char *path, const char *ending)
+{
+	size_t length;
+	size_t tail;
+
+	VOE_BASE_ASSERT(path != NULL && ending != NULL,
+			"asking whether no path ends in something");
+	length = strlen(path);
+	tail = strlen(ending);
+	if (length < tail)
+		return false;
+	for (size_t i = 0; i < tail; i++)
+		if (tolower((unsigned char)path[length - tail + i]) != ending[i])
+			return false;
+	return true;
+}
+
 // The held row's path into `drag`, `\` from a joined subfolder made `/`, and
 // its kind. False when it does not fit its kind's row, or the drag's for a
 // row that only moves.
@@ -40,8 +58,13 @@ static bool path_hold(voe_editor_assets_drag *drag,
 	const size_t name = strlen(assets->held);
 	const bool material =
 		name > 9 && strcmp(assets->held + name - 9, ".material") == 0;
+	// As the panel tells a species row (assets_panel.c).
+	const bool species = !assets->held_model && !assets->held_prefab &&
+			     !assets->held_picture &&
+			     path_ends(assets->held, ".tree");
 	size_t room = assets->held_prefab  ? VOE_SCENE_PREFAB_PATH :
 		      assets->held_picture ? VOE_3D_EMITTER_TEXTURE :
+		      species		   ? VOE_ASSETS_LANDSCAPE_KIND_PATH :
 		      assets->held_model || material ? VOE_3D_MODEL_PATH :
 						       sizeof drag->path;
 	int length = assets->shown[0] == '\0' ?
@@ -57,8 +80,9 @@ static bool path_hold(voe_editor_assets_drag *drag,
 	drag->prefab = assets->held_prefab;
 	drag->picture = assets->held_picture;
 	drag->material = material;
+	drag->species = species;
 	drag->moves_only = !assets->held_model && !assets->held_prefab &&
-			   !assets->held_picture && !material;
+			   !assets->held_picture && !material && !species;
 	for (int i = 0; i < length; i++)
 		if (drag->path[i] == '\\')
 			drag->path[i] = '/';
@@ -119,12 +143,14 @@ typedef enum {
 	OUTCOME_PICTURE_ONTO_INSPECTOR,
 	OUTCOME_MATERIAL_ONTO_LAYER,
 	OUTCOME_MATERIAL_ONTO_SHAPE,
+	OUTCOME_MATERIAL_ONTO_TREE,
 	OUTCOME_PICTURE_ONTO_MAP,
 	OUTCOME_MOVE,
 } outcome_kind;
 
 // What a release at a pointer would do, the view and point it lands in, the
-// landscape's layer or the open material's map it fills, a move's path
+// landscape's layer, the open material's map or the open species' material
+// row (bark 0, leaf 1) it fills, a move's path
 // relative to `Assets/`, and, for a prefab over a view while one is open, why
 // nothing, for the notice.
 typedef struct {
@@ -202,6 +228,22 @@ static bool map_row_at(const voe_editor_scene *scene, voe_math_float2 pointer,
 	return false;
 }
 
+// The open species' material row that showed under `pointer`, into `index`.
+static bool tree_row_at(const voe_editor_scene *scene, voe_math_float2 pointer,
+			uint32_t *index)
+{
+	VOE_BASE_ASSERT(scene != NULL && index != NULL, "a tree row of nothing");
+	VOE_BASE_ASSERT(scene->tree_open[0] != '\0',
+			"a tree row with no species open");
+	for (uint32_t i = 0; i < VOE_EDITOR_TREE_MATERIALS; i++)
+		if (voe_editor_inspector_rect_contains(
+			    scene->tree_controls.materials_seen[i], pointer)) {
+			*index = i;
+			return true;
+		}
+	return false;
+}
+
 // The Layers row of the selected thing's loaded grid that showed under
 // `pointer` at the last read, into `index`: a layer's own, or the add row's at
 // the layer count, never past the eighth. False over none, or when the
@@ -228,24 +270,6 @@ static bool layer_row_at(const voe_editor_scene *scene,
 			return true;
 		}
 	return false;
-}
-
-// Whether the held path ends `.glb` in any case: a model row that is no
-// `.landscape`.
-static bool held_glb(const voe_editor_assets_drag *drag)
-{
-	static const char ending[] = ".glb";
-	const size_t length = strlen(drag->path);
-	const size_t tail = sizeof ending - 1;
-
-	VOE_BASE_ASSERT(length < sizeof drag->path, "a held path unterminated");
-	if (length < tail)
-		return false;
-	for (size_t i = 0; i < tail; i++)
-		if (tolower((unsigned char)drag->path[length - tail + i]) !=
-		    ending[i])
-			return false;
-	return true;
 }
 
 // The Foliage row of the selected thing's loaded grid that showed under
@@ -276,10 +300,12 @@ static bool kind_row_at(const voe_editor_scene *scene,
 	return false;
 }
 
-// Over the Inspector: a picture onto the open material's map row, else, while
-// it shows the selected thing and that is no prefab's part, a material onto
-// its grid's Layers row or its shape, never its model, a picture onto its
-// emitter, a `.glb` onto its grid's Foliage row, a model onto its model.
+// Over the Inspector: a picture onto the open material's map row, a material
+// onto the open species' Bark or Leaf row, else, while it shows the selected
+// thing and that is no prefab's part, a material onto its grid's Layers row or
+// its shape, never its model, a picture onto its emitter, a `.glb` (a model row
+// that is no `.landscape`) or a species onto its grid's Foliage row, a model
+// onto its model.
 //
 // THE INSPECTOR DROP REPLACES THE PATH rather than adding a component: an
 // entity has at most one row of a type, so a second model is not a thing to
@@ -303,6 +329,11 @@ static void onto_inspector(const voe_editor_assets_drag *drag,
 			out->kind = OUTCOME_PICTURE_ONTO_MAP;
 		return;
 	}
+	if (scene->tree_open[0] != '\0') {
+		if (drag->material && tree_row_at(scene, pointer, &out->index))
+			out->kind = OUTCOME_MATERIAL_ONTO_TREE;
+		return;
+	}
 	if (drag->prefab ||
 	    voe_editor_inspector_is_part(scene->world, selected, NULL))
 		return;
@@ -314,10 +345,11 @@ static void onto_inspector(const voe_editor_assets_drag *drag,
 	} else if (drag->picture) {
 		if (voe_3d_emitter_get(scene->world, selected) != NULL)
 			out->kind = OUTCOME_PICTURE_ONTO_INSPECTOR;
-	} else if (held_glb(drag) &&
+	} else if ((drag->species || path_ends(drag->path, ".glb")) &&
 		   kind_row_at(scene, store, selected, pointer, &out->index)) {
 		out->kind = OUTCOME_MODEL_ONTO_KIND;
-	} else if (voe_3d_model_get(scene->world, selected) != NULL) {
+	} else if (!drag->species &&
+		   voe_3d_model_get(scene->world, selected) != NULL) {
 		out->kind = OUTCOME_MODEL_ONTO_INSPECTOR;
 	}
 }
@@ -345,7 +377,8 @@ static outcome outcome_at(const voe_editor_assets_drag *drag,
 	else if (drag->moves_only)
 		return out;
 	else if (voe_editor_views_under(views, pointer, &out.view, &out.point)) {
-		if (!drag->prefab && !drag->picture && !drag->material)
+		if (!drag->prefab && !drag->picture && !drag->material &&
+		    !drag->species)
 			out.kind = OUTCOME_MODEL_INTO_VIEW;
 		else if (drag->prefab && session->project->prefab[0] == '\0')
 			out.kind = OUTCOME_PREFAB_INTO_VIEW;
@@ -409,6 +442,18 @@ static void map_fill(voe_assets_material_file *material, uint32_t index,
 	snprintf(maps[index], VOE_ASSETS_MATERIAL_PATH, "%s", path);
 }
 
+// The open species' shown copy with `path` as its bark (0) or leaf (1). Not a
+// scene edit: interface_read.c regrows the species from the copy, and
+// frame_commands.c writes it at rest as one tree step (tree_steps.h).
+static void tree_fill(voe_assets_tree *tree, uint32_t index, const char *path)
+{
+	VOE_BASE_ASSERT(index < VOE_EDITOR_TREE_MATERIALS, "no such material");
+	VOE_BASE_ASSERT(path != NULL && strlen(path) < VOE_ASSETS_TREE_PATH,
+			"a tree material path longer than its room");
+	snprintf(index == 0 ? tree->bark : tree->leaf, VOE_ASSETS_TREE_PATH,
+		 "%s", path);
+}
+
 // The release: into a view, onto the Inspector, or nothing. Whether an edit
 // reached the project; a full queue says so in the notice.
 static void drop(const voe_editor_assets_drag *drag,
@@ -445,6 +490,10 @@ static void drop(const voe_editor_assets_drag *drag,
 	}
 	if (out.kind == OUTCOME_PICTURE_ONTO_MAP) {
 		map_fill(&scene->material, out.index, drag->path);
+		return;
+	}
+	if (out.kind == OUTCOME_MATERIAL_ONTO_TREE) {
+		tree_fill(&scene->tree, out.index, drag->path);
 		return;
 	}
 	// A layer set is no scene edit and no undo step; unsaved as a stroke.
