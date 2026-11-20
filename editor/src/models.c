@@ -17,8 +17,12 @@
 // compressing it (0477 point 5). Between frames the update and the watch load
 // whole (0459 point 3). A landscape taken in from disk waits as a copy in an
 // arena of its own, at most LANDSCAPE_TAKES (models_store.h) at once, and
-// loads at the next update; a bigger count lifts it. The struct is
-// models_store.h's, shared with models_edit.c.
+// loads at the next update; a bigger count lifts it. The species are read
+// with the materials and grown after the watch: whole under a splash, else on
+// the one job a species at a time, a variation put an update. A different
+// folder or a whole grow lets a busy job go by destroying it, waiting out its
+// burst, and making another: the job has no cancel; one would lift that. The
+// struct is models_store.h's, shared with models_edit.c.
 #include "models_store.h"
 
 #include <base/assert.h>
@@ -56,9 +60,15 @@ voe_editor_models *voe_editor_models_new(void)
 	models->materials = calloc(1, sizeof(*models->materials));
 	models->before = calloc(1, sizeof(*models->before));
 	models->parts = calloc(1, sizeof(*models->parts));
+	models->trees = calloc(1, sizeof(*models->trees));
+	models->trees_before = calloc(1, sizeof(*models->trees_before));
 	VOE_BASE_ASSERT(models->materials != NULL && models->before != NULL &&
-				models->parts != NULL,
-			"out of memory making the materials' and parts' tables");
+				models->parts != NULL && models->trees != NULL &&
+				models->trees_before != NULL,
+			"out of memory making the materials', parts' and species' "
+			"tables");
+	models->job = voe_game_trees_job_new();
+	VOE_BASE_ASSERT(models->job != NULL, "made a trees job with none");
 	return models;
 }
 
@@ -79,6 +89,7 @@ void voe_editor_models_destroy(voe_editor_models *models,
 	if (models == NULL)
 		return;
 	VOE_BASE_ASSERT(device != NULL, "clearing models without a device");
+	voe_game_trees_job_destroy(models->job);
 	takes_clear(models);
 	voe_3d_models_clear(models->store, device);
 	voe_3d_models_destroy(models->store);
@@ -86,13 +97,61 @@ void voe_editor_models_destroy(voe_editor_models *models,
 	free(models->materials);
 	free(models->before);
 	free(models->parts);
+	free(models->trees);
+	free(models->trees_before);
 	free(models->folder);
 	free(models->resized);
 	free(models);
 }
 
+// The job let go, its burst waited out, and an idle one made in its place: a
+// store emptied or grown whole has no use for the species it was growing, and
+// the job has no call that drops one.
+static void job_cancel(voe_editor_models *models)
+{
+	VOE_BASE_ASSERT(models != NULL && models->job != NULL,
+			"cancelling no trees job");
+	if (models->growing[0] == '\0')
+		return;
+	voe_game_trees_job_destroy(models->job);
+	models->job = voe_game_trees_job_new();
+	models->growing[0] = '\0';
+	VOE_BASE_ASSERT(models->job != NULL, "made a trees job with none");
+}
+
+// The species read again from `folder`, each row marked that is new, changed,
+// or was marked before the read. A false difference, a padding byte, costs one
+// regrow and no more.
+static void trees_read(voe_editor_models *models, const char *folder,
+		       voe_base_arena *scratch)
+{
+	voe_editor_trees *swap = models->trees_before;
+	voe_editor_trees *trees;
+
+	VOE_BASE_ASSERT(swap != NULL && models->trees != NULL,
+			"reading species into no store");
+	models->trees_before = models->trees;
+	models->trees = swap;
+	trees = models->trees;
+	voe_editor_trees_read(trees, folder, scratch);
+	for (uint32_t i = 0; i < trees->count; i++) {
+		const voe_game_tree *old = voe_editor_trees_find(
+			models->trees_before, trees->rows[i].path);
+
+		trees->regrow[i] =
+			old == NULL ||
+			memcmp(&old->values, &trees->rows[i].values,
+			       sizeof old->values) != 0 ||
+			models->trees_before
+				->regrow[old - models->trees_before->rows];
+	}
+	VOE_BASE_ASSERT(trees->count <= VOE_EDITOR_TREES,
+			"a table past its room");
+}
+
 // Empties the store, keeps a copy of `folder` (NULL for untitled) and reads
-// its materials and parts when it is not the one last read against.
+// its materials, parts and species, every one marked, when it is not the one
+// last read against.
 static void follow_folder(voe_editor_models *models, const char *folder,
 			  voe_render_device *device, voe_base_arena *scratch)
 {
@@ -101,6 +160,7 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 	if (folder != NULL && models->folder != NULL &&
 	    strcmp(folder, models->folder) == 0)
 		return;
+	job_cancel(models);
 	voe_3d_models_clear(models->store, device);
 	voe_game_compressing_clear(models->compressing, device);
 	voe_editor_map_watch_clear(&models->maps);
@@ -120,6 +180,9 @@ static void follow_folder(voe_editor_models *models, const char *folder,
 	}
 	voe_editor_materials_read(models->materials, models->folder, scratch);
 	voe_editor_parts_read(models->parts, models->folder, scratch);
+	// Emptied first, since the read compares against it: every row new.
+	models->trees->count = 0;
+	trees_read(models, models->folder, scratch);
 	VOE_BASE_ASSERT(voe_3d_models_count(models->store) == 0,
 			"a cleared store still holds models");
 }
@@ -135,6 +198,73 @@ static void say_failure(voe_editor_notice *notice,
 	voe_editor_notice_from_report(notice, failures.first != NULL ?
 						      failures.first :
 						      "a model");
+}
+
+// Under a splash every species grown at once, the job let go first, when any
+// row is marked; a project's first update has them all marked. The marks are
+// cleared unless a stop was asked, so a stopped grow is the job's to finish.
+static void trees_grow_whole(voe_editor_models *models,
+			     voe_render_device *device, voe_base_arena *scratch,
+			     voe_game_progress *progress,
+			     voe_editor_notice *notice)
+{
+	voe_editor_trees *trees = models->trees;
+	voe_game_trees table = voe_editor_trees_table(trees);
+	bool marked = false;
+
+	VOE_BASE_ASSERT(progress != NULL, "growing whole outside a splash");
+	VOE_BASE_ASSERT(device != NULL && scratch != NULL && notice != NULL,
+			"growing species without device, scratch or notice");
+	for (uint32_t i = 0; i < trees->count; i++)
+		marked = marked || trees->regrow[i];
+	if (!marked)
+		return;
+	job_cancel(models);
+	voe_base_report_error_clear();
+	say_failure(notice, voe_game_trees_grow(models->store, device, &table,
+						scratch, progress));
+	if (voe_game_progress_stopped(progress))
+		return;
+	for (uint32_t i = 0; i < trees->count; i++)
+		trees->regrow[i] = false;
+}
+
+// Outside a splash, one species at a time (0386): the first marked row started
+// while the job is idle, its mark cleared so a change meanwhile marks it
+// again; once its burst has ended, one variation put an update. A failed put
+// is said in `notice` under the species' path.
+static void trees_grow_step(voe_editor_models *models,
+			    voe_render_device *device,
+			    voe_editor_notice *notice)
+{
+	voe_editor_trees *trees = models->trees;
+	voe_base_error error = VOE_BASE_OK;
+	bool finished;
+
+	VOE_BASE_ASSERT(device != NULL && notice != NULL,
+			"growing a species without device or notice");
+	for (uint32_t i = 0; i < trees->count && models->growing[0] == '\0';
+	     i++) {
+		bool started;
+
+		if (!trees->regrow[i])
+			continue;
+		started = voe_game_trees_job_start(models->job, &trees->rows[i]);
+		VOE_BASE_ASSERT(started, "an idle trees job refused a start");
+		trees->regrow[i] = false;
+		snprintf(models->growing, sizeof models->growing, "%s",
+			 trees->rows[i].path);
+	}
+	if (models->growing[0] == '\0' || !voe_game_trees_job_done(models->job))
+		return;
+	voe_base_report_error_clear();
+	finished = voe_game_trees_job_put(models->job, models->store, device,
+					  &error);
+	if (error != VOE_BASE_OK)
+		say_failure(notice, (voe_game_models_failures){
+					    .count = 1, .first = models->growing });
+	if (finished)
+		models->growing[0] = '\0';
 }
 
 // `path` waits to be loaded again at the next update, once however often it
@@ -259,6 +389,11 @@ void voe_editor_models_update(voe_editor_models *models,
 		for (uint32_t i = 0; i < count; i++)
 			reload_naming(models, changed.paths[i]);
 	}
+	if (progress != NULL)
+		trees_grow_whole(models, device, scratch, progress,
+				 &session->notice);
+	else
+		trees_grow_step(models, device, &session->notice);
 	parts = voe_editor_parts_table(models->parts);
 	voe_base_report_error_clear();
 	// Under a splash a map is compressed inline and shows as progress; the
@@ -538,6 +673,7 @@ void voe_editor_models_materials_read(voe_editor_models *models,
 	models->materials = swap;
 	voe_editor_materials_read(models->materials, folder, scratch);
 	voe_editor_parts_read(models->parts, folder, scratch);
+	trees_read(models, folder, scratch);
 	// A false difference, a padding byte, costs one reload and no more.
 	for (uint32_t i = 0; i < models->materials->count; i++) {
 		const voe_game_material *row = &models->materials->rows[i];
@@ -568,6 +704,33 @@ void voe_editor_models_material_changed(voe_editor_models *models,
 		return;
 	}
 	reload_add(models, path);
+}
+
+void voe_editor_models_tree_changed(voe_editor_models *models,
+				    const char *path,
+				    const voe_assets_tree *values)
+{
+	voe_game_tree *row;
+
+	VOE_BASE_ASSERT(models != NULL && models->trees != NULL &&
+				path != NULL && values != NULL,
+			"no species changed, or in no store");
+	VOE_BASE_ASSERT(values->variations >= VOE_ASSETS_TREE_VARIATIONS_MIN &&
+				values->variations <=
+					VOE_ASSETS_TREE_VARIATIONS_MAX,
+			"a species of 1 to 16 variations");
+	row = voe_editor_trees_find(models->trees, path);
+	if (row == NULL)
+		return;
+	row->values = *values;
+	models->trees->regrow[row - models->trees->rows] = true;
+}
+
+const voe_editor_trees *voe_editor_models_trees(const voe_editor_models *models)
+{
+	VOE_BASE_ASSERT(models != NULL, "the species of no store");
+	VOE_BASE_ASSERT(models->trees != NULL, "a store with no species");
+	return models->trees;
 }
 
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models)

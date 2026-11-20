@@ -10,9 +10,8 @@
 //     voe_editor_pick_read(..., voe_editor_models_store(models), ...);
 //     voe_editor_models_destroy(models, gpu);
 //
-// ONE FOR THE PROGRAM, NOT ONE PER PROJECT. What the store holds lives on the
-// device, which outlives every project: New and Open swap the project and keep
-// the device. So the store is made once beside it and emptied when the
+// ONE FOR THE PROGRAM, NOT ONE PER PROJECT: what it holds lives on the device,
+// which New and Open keep, so it is made once beside it and emptied when the
 // session's folder differs from the one it last read against. An untitled
 // project has no folder, so its model rows draw as nothing until it is saved.
 //
@@ -45,6 +44,12 @@
 // material whose row is new or changed at the next update; an Inspector edit
 // (_material_changed) sets factors live, or waits so for a changed map.
 //
+// THE PROJECT'S TREE SPECIES (0515 point 5) are a table read with them, grown
+// after the watch and before the materials: under a splash all at once when any
+// row is marked, else one species on a burst polled between frames, a variation
+// put an update (0386). A row read anew or changed (_tree_changed) is marked
+// to grow when the job is idle, so a project's first update grows them all.
+//
 // COMPRESSING BETWEEN FRAMES (0477 point 4, 0489): outside a wait a map with
 // no fresh copy is queued, not read, and its material loads with that map
 // empty. Each update after the materials steps the queue once, and a step
@@ -58,6 +63,7 @@
 #include "materials.h"
 #include "parts.h"
 #include "session.h"
+#include "trees.h"
 
 #include <3d/models.h>
 #include <3d/models_foliage.h>
@@ -73,8 +79,9 @@ typedef struct voe_editor_models voe_editor_models;
 // An empty store. Never NULL: running out of memory is an assert.
 voe_editor_models *voe_editor_models_new(void);
 
-// Frees every entry's parts through `device`, then the store. NULL is nothing.
-// Between frames only, before the device is destroyed.
+// Waits out a species still growing, frees every entry's parts through
+// `device`, then the store. NULL is nothing. Between frames only, before the
+// device is destroyed.
 void voe_editor_models_destroy(voe_editor_models *models,
 			       voe_render_device *device);
 
@@ -246,10 +253,11 @@ bool voe_editor_models_landscape_edited(const voe_editor_models *models,
 // The project's materials' table, to edit a row in place.
 voe_editor_materials *voe_editor_models_materials(voe_editor_models *models);
 
-// The materials' and parts' tables read again from `<folder>/Assets/`, NULL
-// emptying them, as after an Assets command; at the next update the store
-// loads what rows name and again every held material the read found new or
-// changed. `scratch` is rewound.
+// The materials', parts' and species' tables read again from
+// `<folder>/Assets/`, NULL emptying them, as after an Assets command; at the
+// next update the store loads what rows name and again every held material the
+// read found new or changed, and marks every species it found new or changed
+// to regrow. `scratch` is rewound.
 void voe_editor_models_materials_read(voe_editor_models *models,
 				      const char *folder,
 				      voe_base_arena *scratch);
@@ -260,6 +268,17 @@ void voe_editor_models_materials_read(voe_editor_models *models,
 // update, between frames. A failed reload is said in the notice.
 void voe_editor_models_material_changed(voe_editor_models *models,
 					const char *path, bool maps);
+
+// `path`'s species row takes `values`, variations 1 to 16, and is marked to
+// regrow: a live drag, an undo step or a take from disk. Nothing for a path
+// the table lacks. Writes no file.
+void voe_editor_models_tree_changed(voe_editor_models *models,
+				    const char *path,
+				    const voe_assets_tree *values);
+
+// The project's species' table, read-only. It changes at a read or a
+// _tree_changed, so a caller copies what it keeps.
+const voe_editor_trees *voe_editor_models_trees(const voe_editor_models *models);
 
 // The store to read, for what draws, picks and outlines.
 const voe_3d_models *voe_editor_models_store(const voe_editor_models *models);

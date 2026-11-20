@@ -401,18 +401,22 @@ carries it out.
   and fog volumes lined, stopping at the first refused pass, shadows and gathers timed, counts kept.
 - `models.h` — the editor's one model store: loaded from the project folder, re-read once a second
   or on asking, emptied on a different project, a broken file in the notice, where landscapes and
-  materials are edited, models given parts, and maps compressed on the GPU between frames.
+  materials are edited, models given parts, species grown, and maps compressed between frames.
 - `materials.h` — the project's `.material` files under Assets/ as game/materials.h's table, read on
   a project and after an Assets command, found by path to edit in place.
 - `materials.c` — the walk, each file read and parsed into the next row or left out on stderr, the
+  table and the scan.
+- `trees.h` — the project's `.tree` files under Assets/ as game/trees.h's table, read leniently
+  when the materials are, found by path to edit in place, each row with the store's regrow mark.
+- `trees.c` — the walk, each file read and parsed into the next row or left out on stderr, the
   table and the scan.
 - `parts.h` — the project's `.parts` files under Assets/ as game/materials.h's parts table, each row
   named by its `.glb`, read when the materials are.
 - `parts.c` — the walk, each file read and parsed into the next row named by its `.glb` or left out
   on stderr, and the table.
 - `models.c` — the editor's one model store, filled and watched between frames, its materials'
-  maps watched too, landscapes saved, reverted and taken in, materials edited, its map queue
-  stepped and the rows naming a written or changed map reloaded.
+  maps watched too, landscapes saved, reverted and taken in, materials edited, species marked and
+  grown, its map queue stepped and the rows naming a written or changed map reloaded.
 - `models_store.h` — the store's struct, private to models.c and models_edit.c, with the waiting
   landscape takes' room.
 - `models_edit.c` — the store's landscape edits: heights, paint, layers, foliage, kinds' looks and
