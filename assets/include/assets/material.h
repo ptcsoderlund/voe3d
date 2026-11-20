@@ -53,13 +53,21 @@
 // glTF material in `model.h`, so one unit can include both headers.
 #pragma once
 
+#include <assets/sectioned.h>
 #include <base/arena.h>
 #include <base/error.h>
 
 #include <stddef.h>
+#include <stdint.h>
 
 // The room of one map path, its NUL included.
 #define VOE_ASSETS_MATERIAL_PATH 128
+
+// The ranges the Inspector clamps to: emission_strength 0 to the first,
+// repeat between the other two. The reader refuses neither top.
+#define VOE_ASSETS_MATERIAL_EMISSION_STRENGTH_MAX 1000.0
+#define VOE_ASSETS_MATERIAL_REPEAT_MIN 0.01
+#define VOE_ASSETS_MATERIAL_REPEAT_MAX 1000.0
 
 typedef enum {
 	VOE_ASSETS_MATERIAL_LIT = 0,
@@ -113,6 +121,10 @@ voe_assets_material_file voe_assets_material_default(void);
 						   size_t size,
 						   voe_assets_material_file *out,
 						   voe_base_error *error);
+
+// The keys the readers take, one row each in the order above, the retired map
+// keys left out; `count` gets the rows. Static, never freed.
+const voe_assets_documented_key *voe_assets_material_keys(uint32_t *count);
 
 // The text voe_assets_material_read takes back exactly, NUL-terminated,
 // `size` not counting the NUL, on `arena`. Floats are printed to nine digits,

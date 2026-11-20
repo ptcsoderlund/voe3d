@@ -44,6 +44,9 @@ belongs to.
 - `parts.c` — a parts file's entries and levels, shares and swaps included,
   round-tripped and written again byte for byte, defaults read for what is
   absent, and bad input refused MALFORMED.
+- `keys.c` — the material and parts key tables against their own readers:
+  each default read, each refused range refused above its top, and no row
+  without a key, kind or meaning.
 - `model.c` — a hand-built `.glb` read back into its arrays, its fields read
   or defaulted, a working file corrupted a byte at a time, each refusal's
   kept line read for its subject, and the encoded read matching the decoded
