@@ -74,7 +74,8 @@ static void check_rows(const voe_assets_documented_key *rows, uint32_t count,
 		VOE_TEST_CHECK(row->says != NULL && row->says[0] != '\0');
 		VOE_TEST_CHECK(row->default_text != NULL && row->unit != NULL);
 		VOE_TEST_CHECK(row->least <= row->greatest);
-		if (row->default_text[0] != '\0' &&
+		if (row->default_text != NULL &&
+		    row->default_text[0] != '\0' &&
 		    !row_reads(row, row->default_text, reads)) {
 			fprintf(stderr, "a default not read: %s=%s\n", row->key,
 				row->default_text);

@@ -36,6 +36,8 @@ static void landscape_keys_ranges(void)
 
 	VOE_TEST_CHECK(size != NULL && cells != NULL && kind_size != NULL &&
 		       blend != NULL);
+	if (size == NULL || cells == NULL || kind_size == NULL || blend == NULL)
+		return;
 	VOE_TEST_CHECK(size->least == VOE_ASSETS_LANDSCAPE_SIZE_MIN &&
 		       size->greatest == VOE_ASSETS_LANDSCAPE_SIZE_MAX);
 	VOE_TEST_CHECK(cells->least == 4 &&
@@ -82,6 +84,8 @@ static void landscape_keys_refused(voe_base_arena *arena)
 	voe_base_error error = VOE_BASE_ERROR_MALFORMED;
 
 	VOE_TEST_CHECK(size != NULL && cells != NULL);
+	if (size == NULL || cells == NULL)
+		return;
 	VOE_TEST_CHECK(grid_reads(arena, size->least, 4, NULL));
 	VOE_TEST_CHECK(grid_reads(arena, size->greatest, 4, NULL));
 	VOE_TEST_CHECK(size->refused);
