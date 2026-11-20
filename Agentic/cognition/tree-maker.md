@@ -10,7 +10,7 @@
 ## The bark
 - Trunk and branches are grown from a bark material and settings, the sponsor's own proposal, so branches look right where they meet the trunk; see 0510. [confirmed · tech-lead · 2026-11-20]
 - Moss is in the first round: "Lets do moss and everything", with patches of bare wood the same way. [confirmed · tech-lead · 2026-11-20]
-- Moss and bare wood are placed by rules with noise, not painted by hand, since a variation is regrown whenever its species changes and would lose painting; the sponsor asked "or paint?" and the tech-lead chose rules; see 0510. [assumed · tech-lead · 2026-11-20]
+- Moss and bare wood are placed by rules with noise, not painted by hand, since a variation is regrown whenever its species changes and would lose painting: "lets not do hand painting"; see 0510. [confirmed · tech-lead · 2026-11-20]
 
 ## Its leaves and far levels
 - Leaves are cards of the leaf material; see 0510. [assumed · tech-lead · 2026-11-20]
