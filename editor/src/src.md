@@ -437,6 +437,11 @@ carries it out.
   own memory beside the undo line's text, and the file written at once.
 - `material_steps.c` — the copy made and freed, the file's write, and the values put back either
   way into the table, file, store and open copy.
+- `file_steps.h` — a file changed on disk taken in by its kind, read strictly, and its undo step:
+  a file step's bytes before and after, written at once, or a landscape step's whole copies, left
+  unsaved; each its own memory.
+- `file_steps.c` — the material, parts, closed prefab and project file takes, the steps' copies made
+  and freed, and either side written and taken in, or put into the store.
 - `strokes.h` — one sculpting, paint, foliage, look or grow stroke: a landscape's path, the
   rectangle touched and its heights or weights before and after, the copies added or removed, a
   kind's look or a layer's growth before and after, its own memory beside the undo line's text.
