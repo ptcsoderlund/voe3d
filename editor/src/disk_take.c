@@ -392,3 +392,42 @@ void voe_editor_disk_take_answer(voe_editor_disk_take *take,
 	// taken or refused; anything else is kept.
 	settle(&at, index, outcome == TAKEN ? TAKEN : UNTAKEN);
 }
+
+// Whether the open question's line names `path`: the path, then the words.
+static bool question_names(const voe_editor_disk_ask *ask, const char *path)
+{
+	size_t length = strlen(path);
+
+	VOE_BASE_ASSERT(ask->open, "reading the line of a closed question");
+	VOE_BASE_ASSERT(length < sizeof(ask->line), "a path longer than a line");
+	return strncmp(ask->line, path, length) == 0 &&
+	       strcmp(ask->line + length, VOE_EDITOR_DISK_ASK_SAID) == 0;
+}
+
+void voe_editor_disk_take_question(voe_editor_disk_take *take,
+				   voe_editor_session *session,
+				   voe_editor_scene *scene,
+				   voe_editor_undo *undo,
+				   voe_editor_models *models,
+				   voe_base_arena *scratch)
+{
+	const char *asking;
+
+	VOE_BASE_ASSERT(take != NULL && session != NULL,
+			"keeping a question with no take or session");
+	if (session->disk_answer != VOE_EDITOR_DISK_ASK_NONE) {
+		voe_editor_disk_take_answer(take, session, scene, undo, models,
+					    scratch,
+					    session->disk_answer ==
+						    VOE_EDITOR_DISK_ASK_LOAD);
+		session->disk_answer = VOE_EDITOR_DISK_ASK_NONE;
+	}
+	asking = voe_editor_disk_take_asking(take);
+	if (asking == NULL && session->disk_asking.open)
+		voe_editor_disk_ask_close(&session->disk_asking);
+	else if (asking != NULL && (!session->disk_asking.open ||
+				    !question_names(&session->disk_asking, asking)))
+		voe_editor_disk_ask_open(&session->disk_asking, asking);
+	VOE_BASE_ASSERT(session->disk_asking.open == (asking != NULL),
+			"the question open on no asked path, or closed on one");
+}

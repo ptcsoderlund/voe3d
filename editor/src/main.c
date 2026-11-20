@@ -51,16 +51,17 @@
 // shaders, kept in `<settings>/voe3d/pipelines_editor.cache`, uploads the
 // shapes and reads the models, or loads the scene and its models; the loop's
 // own waits between frames are waits.h's. A false wait ends the program as a
-// closed window does. The start's steps are timed
-// (app/start_log.h) and written after the first frame to stderr and appended
-// to `<settings>/voe3d/start.log`, stderr only under --capture. Everything
-// lives in one arena made first. Each frame the hitch watch's stretches are
-// marked, the breakdown's timings taken and a stalled frame's `editor: hitch:`
-// line written (frame_hitches.h); edited landscapes are written before the
-// passes, saved with the project and read back on another (models.h).
+// closed window does. The start's steps are timed (app/start_log.h) and written
+// after the first frame to stderr and appended to `<settings>/voe3d/start.log`,
+// stderr only under --capture. Everything lives in one arena made first. Each
+// frame the hitch watch's stretches are marked, the breakdown's timings taken
+// and a stalled frame's `editor: hitch:` line written (frame_hitches.h); edited
+// landscapes are written before the passes, saved with the project and read
+// back on another (models.h). Files changed on disk are disk_take.h's.
 #include "assets_drag.h"
 #include "browser.h"
 #include "capture.h"
+#include "disk_take.h"
 #include "dock.h"
 #include "frame_breakdown.h"
 #include "frame_commands.h"
@@ -106,6 +107,7 @@
 #include <game/starting.h>
 
 #include <platform/arguments.h>
+#include <platform/clock.h>
 #include <platform/folder.h>
 #include <platform/input.h>
 #include <platform/path.h>
@@ -267,6 +269,8 @@ int main(int argc, char *argv[])
 	// `arena` below (undo.h). Beside the scene and the views because the
 	// history is the editor's and never the world's.
 	voe_editor_undo undo = { 0 };
+	// The change on disk being asked about (disk_take.h).
+	voe_editor_disk_take disk_take = { 0 };
 	// The keyboard's commands and the edges they carry to the next frame
 	// (frame_commands.h), pointed at the parts above once they exist.
 	voe_editor_frame_commands commands = { 0 };
@@ -516,6 +520,14 @@ int main(int argc, char *argv[])
 
 		// The history's step, before world_step.h (frame_commands.h).
 		voe_editor_frame_commands_history(&commands);
+		// Files changed on disk, before the world step as a scene take
+		// needs, never while Play runs; the splash waits are done.
+		if (session.play.stage == VOE_EDITOR_PLAY_IDLE)
+			voe_editor_disk_take_step(&disk_take, &session, &scene,
+						  &undo, models, scratch,
+						  voe_platform_clock_now());
+		voe_editor_disk_take_question(&disk_take, &session, &scene,
+					      &undo, models, scratch);
 		voe_editor_frame_hitches_mark(&hitches, "open");
 
 		// The queue applied and every owning system run (world_step.h).

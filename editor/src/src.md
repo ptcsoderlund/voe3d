@@ -415,9 +415,10 @@ carries it out.
 - `disk_watch.c` — the sorted known table, the look's snapshot and walk on its worker, the found
   files taken as noted, let go or held changes, the settle, the told write and the known bytes.
 - `disk_take.h` — the watch's held changes dealt with once a frame by kind: taken in as one undo
-  step, refused into the notice, left waiting, or one at a time asked, load from disk or keep mine.
+  step, refused into the notice, left waiting, or one at a time asked, load from disk or keep mine,
+  the session's question kept open on the asked path.
 - `disk_take.c` — the dispatch by path, the safety net's compares, the selection re-found around a
-  take that sets the world, and the asked path answered.
+  take that sets the world, the asked path answered, and the question opened, closed and answered.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, the gizmo's mode of three, the reveal of a selection made
   elsewhere and the material open in the Inspector.

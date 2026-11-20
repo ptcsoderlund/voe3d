@@ -5,10 +5,8 @@
 //     voe_editor_disk_take take = { 0 };
 //     voe_editor_disk_take_step(&take, session, scene, undo, models, scratch,
 //                               now);                    // once a frame
-//     if (voe_editor_disk_take_asking(&take) != NULL)
-//             ... draw the question, then on its answer ...
-//             voe_editor_disk_take_answer(&take, session, scene, undo, models,
-//                                         scratch, load);
+//     voe_editor_disk_take_question(&take, session, scene, undo, models,
+//                                   scratch);  // the session's question kept
 //
 // EACH KIND BY ITS PATH, as its unsaved state is held (0509 point 2):
 // - the open scene or open prefab is the scene text state: taken by
@@ -84,3 +82,13 @@ void voe_editor_disk_take_answer(voe_editor_disk_take *take,
 				 voe_editor_scene *scene, voe_editor_undo *undo,
 				 voe_editor_models *models,
 				 voe_base_arena *scratch, bool load);
+
+// Once a frame after _step: an answer `session->disk_answer` holds handed to
+// _answer and set back to NONE, then the session's question opened once on the
+// path _asking names, or closed when it names none. `scratch` is rewound.
+void voe_editor_disk_take_question(voe_editor_disk_take *take,
+				   voe_editor_session *session,
+				   voe_editor_scene *scene,
+				   voe_editor_undo *undo,
+				   voe_editor_models *models,
+				   voe_base_arena *scratch);
