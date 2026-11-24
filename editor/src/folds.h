@@ -20,6 +20,11 @@
 // FOLDS ARE THE PERSON'S, NOT THE PROJECT'S: never undone, never unsaved and
 // never in a project, so every project opens with them as they were left.
 //
+// A KIND'S FOLD MOVES WITH ITS KIND (0517 point 5): removing kind k drops its
+// fold and moves each later kind's one index down; returning it moves each
+// fold from k one up, so k shows open. A removal and its undo leave every
+// other kind's fold as it was. Other landscapes and sections are untouched.
+//
 // Constraints: at most VOE_EDITOR_FOLDS folded names; a fold past that, or a
 // line too long or repeated, is dropped and nothing is reported, the thing
 // then reading as open. At most VOE_EDITOR_FOLDS_SHOWN fold buttons a frame;
@@ -81,6 +86,17 @@ void voe_editor_folds_read(const voe_ui_context *ui, voe_editor_folds *folds);
 // Drops `name`, writing the file only if it was there: a new foliage kind
 // starts open (0502 point 2).
 void voe_editor_folds_clear(voe_editor_folds *folds, const char *name);
+
+// Kind `kind` gone from `landscape`: its fold dropped and each later kind's
+// renamed one index down, the file written once if any moved.
+void voe_editor_folds_kind_removed(voe_editor_folds *folds,
+				   const char *landscape, uint32_t kind);
+
+// Kind `kind` back in `landscape`: each fold from `kind` renamed one index up,
+// from the top down, leaving `kind` open; the file written once if any moved.
+// A fold already on the last kind has no index to move to and is dropped.
+void voe_editor_folds_kind_returned(voe_editor_folds *folds,
+				    const char *landscape, uint32_t kind);
 
 // `section <word>` into `out`, which has `room` bytes.
 void voe_editor_folds_section_name(char *out, size_t room, const char *word);

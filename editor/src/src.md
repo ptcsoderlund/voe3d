@@ -115,9 +115,10 @@ carries it out.
   parse, and the root, nodes and floats written through settings.h's keep-other-keys write.
 - `folds.h` — the Inspector sections and foliage kinds a person folded, one `fold <name>` line each
   in `editor_settings` by section word or landscape and kind index (0502, 0503), written when one
-  flips, never undone, and this frame's fold buttons.
+  flips, never undone, a kind's fold moving with its kind, and this frame's fold buttons.
 - `folds.c` — the names kept in order, each fold button's name in the frame's arena, a fired one
-  flipping its name, and the `fold` lines read and written through settings.h's shared calls.
+  flipping its name, a kind's folds renamed down or up, and the `fold` lines read and written
+  through settings.h's shared calls.
 - `themes.h` — Near black and Near white, then one theme per `*.theme` file, the chosen one
   remembered and re-read once a second, each derived at the editor's base text size and spacing.
 - `themes.c` — the folder listed and made, each file read and derived with the one font, the

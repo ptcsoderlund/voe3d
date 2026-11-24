@@ -173,6 +173,71 @@ void voe_editor_folds_clear(voe_editor_folds *folds, const char *name)
 	write_folds(folds);
 }
 
+// Where kind `kind`'s fold of `landscape` is, or folded_count for none.
+static uint32_t find_kind(const voe_editor_folds *folds, const char *landscape,
+			  uint32_t kind)
+{
+	char name[VOE_EDITOR_FOLD_NAME];
+
+	voe_editor_folds_kind_name(name, sizeof name, landscape, kind);
+	return find(folds, name, strlen(name));
+}
+
+void voe_editor_folds_kind_removed(voe_editor_folds *folds,
+				   const char *landscape, uint32_t kind)
+{
+	bool changed = false;
+	uint32_t at;
+	uint32_t k;
+
+	VOE_BASE_ASSERT(folds != NULL && landscape != NULL,
+			"removing a kind's fold from nothing");
+	at = find_kind(folds, landscape, kind);
+	if (at < folds->folded_count) {
+		drop(folds, at);
+		changed = true;
+	}
+	// Upward, so each name's new index was already freed below it.
+	for (k = kind + 1; k < VOE_ASSETS_LANDSCAPE_KINDS; k++) {
+		at = find_kind(folds, landscape, k);
+		if (at == folds->folded_count)
+			continue;
+		voe_editor_folds_kind_name(folds->folded[at], VOE_EDITOR_FOLD_NAME,
+					   landscape, k - 1);
+		changed = true;
+	}
+	if (changed)
+		write_folds(folds);
+}
+
+void voe_editor_folds_kind_returned(voe_editor_folds *folds,
+				    const char *landscape, uint32_t kind)
+{
+	bool changed = false;
+	uint32_t at;
+	uint32_t k;
+
+	VOE_BASE_ASSERT(folds != NULL && landscape != NULL,
+			"returning a kind's fold to nothing");
+	VOE_BASE_ASSERT(kind < VOE_ASSETS_LANDSCAPE_KINDS,
+			"returning a kind no landscape holds");
+	// Downward, so each name's new index was already freed above it.
+	for (k = VOE_ASSETS_LANDSCAPE_KINDS; k-- > kind;) {
+		at = find_kind(folds, landscape, k);
+		if (at == folds->folded_count)
+			continue;
+		if (k + 1 == VOE_ASSETS_LANDSCAPE_KINDS)
+			drop(folds, at);
+		else
+			voe_editor_folds_kind_name(folds->folded[at],
+						   VOE_EDITOR_FOLD_NAME,
+						   landscape, k + 1);
+		changed = true;
+	}
+	if (changed)
+		write_folds(folds);
+}
+
 void voe_editor_folds_section_name(char *out, size_t room, const char *word)
 {
 	int written;
