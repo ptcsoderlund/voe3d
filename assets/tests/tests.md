@@ -38,8 +38,8 @@ belongs to.
 - `landscape_blend.c` — a kind's `blend<k>` and `blendheight<k>` read, written
   only off the default and read back, and each out-of-range value refused.
 - `landscape_kinds.c` — kinds' seeds missing as their index and not written,
-  a set seed written and read back, `seed<k>` clamped or refused, and a new
-  kind's seed.
+  a set seed written and read back, `seed<k>` clamped or refused, a new
+  kind's seed, and a kind removed keeping the later kinds' seeds and copies.
 - `material.c` — an empty section read as the defaults, a full file
   round-tripped field for field and written again byte for byte, each bad
   value refused MALFORMED, and the strict reader refusing an unknown key by its

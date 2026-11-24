@@ -197,6 +197,16 @@ uint32_t voe_assets_landscape_kind_seed(const voe_assets_landscape *landscape,
 // VOE_ASSETS_LANDSCAPE_KINDS, so one is always free.
 uint32_t voe_assets_landscape_seed_new(const voe_assets_landscape *landscape);
 
+// Removes kind `kind` (0516): its path, look, every layer's grows column and
+// its copies go; later kinds move down one with their path, look and growth,
+// and later copies keep their order with their kind lowered by one. Each later
+// kind keeps its seed, made explicit before the move, so its draws stay where
+// they were. The freed last slot is cleared (empty path, zeroed look, no
+// growth) and kind_count lowered. Nothing allocates. Asserts kind below
+// kind_count.
+void voe_assets_landscape_kind_remove(voe_assets_landscape *landscape,
+				      uint32_t kind);
+
 // `from` at the same size and `cells` cells a side, each height and each
 // layer's weight bilinear from `from`'s at the same point of the square, layers
 // 1-7 rounded and layer 0 given the rest; the same count is an exact copy. The

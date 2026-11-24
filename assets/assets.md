@@ -23,7 +23,8 @@ about Vulkan, a scene or an entity.
 - `include/assets/landscape.h` — a `.landscape` file's text to heights, up to
   eight material layers, paint weights, foliage kinds, looks, growth and
   copies, and back, read strictly when taken in from disk; a grid
-  resampled bilinearly; and its key table, `voe_assets_landscape_keys`.
+  resampled bilinearly; a kind's seed, and a kind removed keeping the later
+  kinds' seeds; and its key table, `voe_assets_landscape_keys`.
 - `include/assets/material.h` — a `.material` file's text to a shader, its
   factors, repeat and three map paths, and back, and its key table,
   `voe_assets_material_keys`. Its header says the defaults, why a missing key

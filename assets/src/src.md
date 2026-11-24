@@ -57,8 +57,8 @@ of them is internal to this folder rather than reachable from outside it.
 - `landscape_foliage.c` — `[Foliage]`'s quoted kind paths and looks, `blend<k>`,
   `blendheight<k>` and `seed<k>` among them, `[Layers]`' `grow<l>_<k>` densities and
   `[Copies]`' six numbers a copy, walked once in order, and back out.
-- `landscape_kinds.c` — a foliage kind's seed, and the seed a kind added
-  takes.
+- `landscape_kinds.c` — a foliage kind's seed, the seed a kind added
+  takes, and a kind removed.
 - `landscape_keys.c` — the landscape file's key table, one row per key
   `landscape.h` lists, ranges from its constants.
 - `material.c` — the material file over the sectioned reader, with a scratch
