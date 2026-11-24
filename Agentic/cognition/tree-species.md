@@ -11,7 +11,10 @@ What a `.tree` species file means, how it grows into variations, and how the sto
 - A species with an empty `bark` or `leaf` wears none there. [observed · coder 117-17 · 2026-11-24]
 
 ## The growth
-- Where a branch meets its parent, a collar ring sits where the branch's axis leaves the parent's surface, its radius halfway between the branch's base radius and the parent's surface radius; taken literally, "widened to the parent's surface radius" would skirt every joint as wide as the parent. [assumed · coder 117-02 · 2026-11-20]
+- Branches grown on the trunk looked glued on, not grown out of it: "they are just slapped on the trunk, looks like they are glued to the trunk instead of growing from it"; see 0518. [intent · tech-lead · 2026-11-24]
+- A trunk joint drops the halfway collar for a base that swells into the trunk, bends out from the trunk's direction, and takes the trunk's shading and bark near the joint, with no weld. [confirmed · tech-lead · 2026-11-24] see 0518
+- Only trunk joints change, to save vertices on branches: "I think we want to save a few vertices on branches." [intent · tech-lead · 2026-11-24] see 0518
+- Where a branch meets a branch, twigs too, a collar ring sits where the branch's axis leaves the parent's surface, its radius halfway between the branch's base radius and the parent's surface radius; taken literally, "widened to the parent's surface radius" would skirt every joint as wide as the parent. [assumed · coder 117-02 · 2026-11-20]
 - Bark runs around a limb over whole metres of its base circumference (at least one), so bark texels keep about one size from trunk to twig and the seam tiles. [assumed · coder 117-02 · 2026-11-20]
 - A grown model's own two materials are white placeholders named `bark` and `leaf`; what it wears is the species' own `.material` paths. [assumed · coder 117-02 · 2026-11-20] see 0515
 - The size caps cut breadth first: a tree at every key's maximum (60 m, 20 branches a metre) reaches the cap with trunk and branches alone, no twigs or leaves. [assumed · coder 117-02 · 2026-11-20]
