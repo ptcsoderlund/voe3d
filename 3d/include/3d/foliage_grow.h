@@ -9,7 +9,8 @@
 // THE LATTICE. Kind k's points lie on a lattice from the grid's corner at
 // spacing √(1000 / D) m, D the most tenths of copies per 100 m² any layer
 // grows of k. Each cell's point is jittered inside it, and its keep, scale and
-// turn drawn, from a hash of (k, cell x, cell z). The point is kept where the
+// turn drawn, from a hash of (k's seed, cell x, cell z), the seed
+// voe_assets_landscape_kind_seed's (0517 point 4). The point is kept where the
 // keep draw is under d / D, d each layer's bilinear weight / 255 times its
 // tenths, summed (paint NULL is all layer 0). Scale and turn come from the
 // kind's look as a scatter draws them (3d/foliage.h), lean its tilt % of 255.
@@ -17,11 +18,11 @@
 // share is never above one: a sparser lattice could not reach the thickest
 // layer, and a denser one would make more points to throw away.
 //
-// NO STATE. A point and its draws depend on nothing but the kind, the cell and
-// the paint and grows at it, so a remake over any area gives exactly what a
-// remake of the whole grid gives there: an edit remakes only what it changed,
-// and the game grows the editor's copies from the same file. A copy belongs to
-// an area by its position, in whole millimetres, half-open.
+// NO STATE. A point and its draws depend on nothing but the kind's seed, the
+// cell and the paint and grows at it, so a remake over any area gives exactly
+// what a remake of the whole grid gives there: an edit remakes only what it
+// changed, and the game grows the editor's copies from the same file. A copy
+// belongs to an area by its position, in whole millimetres, half-open.
 //
 // Constraints: a remake walks every grown copy once, then the lattice cells
 // over the area, kind by kind; nothing allocates. `grown` and `placed` have

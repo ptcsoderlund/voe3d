@@ -71,14 +71,16 @@ void voe_3d_models_landscape_put_copies(voe_3d_models *models,
 // Kind `index` of `path`'s grid takes `model`'s path; `index` equal to its
 // kind_count, below VOE_ASSETS_LANDSCAPE_KINDS, adds a kind. Asserts past
 // that and on a path of VOE_ASSETS_LANDSCAPE_KIND_PATH bytes or more. An
-// added kind takes voe_assets_landscape_look_default() and no layer grows it;
-// a replaced kind keeps its look.
+// added kind takes voe_assets_landscape_look_default() with its seed
+// voe_assets_landscape_seed_new's (0517 point 4), and no layer grows it; a
+// replaced kind keeps its look.
 void voe_3d_models_landscape_kind_set(voe_3d_models *models, const char *path,
 				      uint32_t index, const char *model);
 
 // Kind `kind`, below kind_count, of `path`'s grid takes `look`, its ranges
-// asserted as the file's, a blend height 0 or 5-1000 cm (0481 point 4). An
-// equal look, its blend counted, does nothing (0460 point 3); else a
+// asserted as the file's, a blend height 0 or 5-1000 cm (0481 point 4); the
+// kind keeps its own seed whatever `look` holds. An equal look, its blend
+// counted and its seed not, does nothing (0460 point 3); else a
 // new size places that kind's copies again, a new size or spread remakes its
 // grown copies over the grid, and the entry is edited and `changes` raised.
 void voe_3d_models_landscape_look_set(voe_3d_models *models, const char *path,

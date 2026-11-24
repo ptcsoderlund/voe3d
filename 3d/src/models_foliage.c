@@ -122,6 +122,8 @@ void voe_3d_models_landscape_kind_set(voe_3d_models *models, const char *path,
 	memcpy(land->kinds[index], model, strlen(model) + 1);
 	if (index == land->kind_count) {
 		land->looks[index] = voe_assets_landscape_look_default();
+		land->looks[index].seed =
+			(uint8_t)(voe_assets_landscape_seed_new(land) + 1);
 		for (uint32_t l = 0; l < VOE_ASSETS_LANDSCAPE_LAYERS; l++)
 			land->grows[l][index] = 0;
 		land->kind_count++;
@@ -177,6 +179,9 @@ void voe_3d_models_landscape_look_set(voe_3d_models *models, const char *path,
 
 	VOE_BASE_ASSERT(kind < land->kind_count, "a held kind");
 	const voe_assets_landscape_look was = land->looks[kind];
+
+	// The seed is the kind's, never the look's: it keys the kind's draws.
+	look.seed = was.seed;
 	const bool sized = was.size != look.size;
 	const bool spread = was.size_vary != look.size_vary ||
 			    was.turn_vary != look.turn_vary ||

@@ -46,7 +46,8 @@
 // and v along it, 0–1.
 //
 // THE PICK (0513, 0515 point 4) is which variation a foliage copy draws: an
-// integer mix of its kind and its stored x and z in millimetres, modulo the
+// integer mix of its kind's seed (0517 point 4, never the kind's index, so a
+// removal moves no tree) and its stored x and z in millimetres, modulo the
 // species' count, so it is the same across saves and opens and spreads evenly.
 //
 // Constraints: growth stops at VOE_3D_TREE_SEGMENTS segments and
@@ -101,7 +102,8 @@ void voe_3d_tree_mesh(voe_base_arena *arena,
 		      const voe_assets_tree *values, uint32_t variation,
 		      voe_assets_model *out);
 
-// The variation, below `count`, a copy of kind `kind` at (`x_mm`, `z_mm`)
-// draws. Asserts `count` is above 0.
-uint32_t voe_3d_tree_pick(uint32_t kind, int32_t x_mm, int32_t z_mm,
+// The variation, below `count`, a copy at (`x_mm`, `z_mm`) of the kind whose
+// seed is `seed` (voe_assets_landscape_kind_seed) draws. Asserts `count` is
+// above 0.
+uint32_t voe_3d_tree_pick(uint32_t seed, int32_t x_mm, int32_t z_mm,
 			  uint32_t count);

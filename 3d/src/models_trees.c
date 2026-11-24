@@ -1,6 +1,6 @@
 // The model store's grown trees (3d/models.h, 0515 point 3): a variation put
 // wearing its species' bark and leaf, the species entry that holds its
-// variations, and the variation one foliage copy draws.
+// variations, and the variation one foliage copy draws by its kind's seed.
 //
 // A VARIATION IS A `.glb` PUT: models.c's _put at stamp 0, then each part's
 // `wears` set from its glTF source, material 0 the bark and 1 the leaf, and
@@ -104,7 +104,7 @@ bool voe_3d_models_species_set(voe_3d_models *models, const char *path,
 
 const voe_3d_model_entry *
 voe_3d_models_variation(const voe_3d_models *models,
-			const voe_3d_model_entry *entry, uint32_t kind,
+			const voe_3d_model_entry *entry, uint32_t seed,
 			int32_t x_mm, int32_t z_mm)
 {
 	uint32_t index;
@@ -116,7 +116,7 @@ voe_3d_models_variation(const voe_3d_models *models,
 
 	if (entry->variation_count == 0)
 		return entry;
-	index = entry->variations[voe_3d_tree_pick(kind, x_mm, z_mm,
+	index = entry->variations[voe_3d_tree_pick(seed, x_mm, z_mm,
 						   entry->variation_count)];
 	if (index >= models->count || !models->entries[index].loaded)
 		return NULL;

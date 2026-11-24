@@ -152,12 +152,14 @@ static void cell_span(float lo, float hi, float half, float spacing,
 	*end = b <= 0.0f ? 0u : (uint32_t)fminf(b, (float)side);
 }
 
-// Kind `kind`'s kept lattice points in the area appended to the cap.
+// Kind `kind`'s kept lattice points in the area appended to the cap, its
+// cells hashed by its seed (0517 point 4).
 static uint32_t grow_kind(const voe_assets_landscape *landscape, uint32_t kind,
 			  struct area a, voe_assets_landscape_copy *grown,
 			  voe_scene_transform *placed, uint32_t count)
 {
 	const uint16_t most = most_tenths(landscape, kind);
+	const uint64_t seed = voe_assets_landscape_kind_seed(landscape, kind);
 
 	if (most == 0)
 		return count;
@@ -170,7 +172,7 @@ static uint32_t grow_kind(const voe_assets_landscape *landscape, uint32_t kind,
 	cell_span(a.z0, a.z1, half, spacing, side, &z0, &z1);
 	for (uint32_t cz = z0; cz < z1 && count < VOE_3D_FOLIAGE_GROWN; cz++) {
 		for (uint32_t cx = x0; cx < x1; cx++) {
-			uint64_t hash = mix(((uint64_t)kind << 48) ^
+			uint64_t hash = mix((seed << 48) ^
 					    ((uint64_t)cx << 24) ^ cz);
 			const float px = -half + ((float)cx + draw(&hash)) * spacing;
 			const float pz = -half + ((float)cz + draw(&hash)) * spacing;

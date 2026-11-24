@@ -56,8 +56,8 @@
 //
 // GROWN TREES (0515 point 3): variation v of species `path` is entry `path#v`,
 // put by _put_grown wearing its species' bark and leaf, never _parts_set's; the
-// species at `path` is loaded, partless, holding its variations' indices, and
-// _variation picks one per copy by voe_3d_tree_pick. Renames move `path#v` too.
+// species at `path` is loaded, partless, holding its variations' indices;
+// _variation picks by a copy's kind's seed (0517). Renames move `path#v` too.
 #pragma once
 
 #include <3d/landscape.h>
@@ -263,12 +263,13 @@ void voe_3d_models_clear(voe_3d_models *models, voe_render_device *device);
 [[nodiscard]] bool voe_3d_models_species_set(voe_3d_models *models,
 					     const char *path, uint32_t count);
 
-// What a foliage copy of kind `kind` at (`x_mm`, `z_mm`) wearing `entry` draws:
-// `entry` itself unless it is a species, else its variation
-// voe_3d_tree_pick(kind, x_mm, z_mm, count), NULL when that one is not loaded.
+// What a foliage copy at (`x_mm`, `z_mm`) wearing `entry` draws, `seed` its
+// kind's (voe_assets_landscape_kind_seed): `entry` itself unless it is a
+// species, else its variation voe_3d_tree_pick(seed, x_mm, z_mm, count), NULL
+// when that one is not loaded.
 const voe_3d_model_entry *
 voe_3d_models_variation(const voe_3d_models *models,
-			const voe_3d_model_entry *entry, uint32_t kind,
+			const voe_3d_model_entry *entry, uint32_t seed,
 			int32_t x_mm, int32_t z_mm);
 
 // `landscape`'s grid copied into `path`'s entry with its layers and paint (all

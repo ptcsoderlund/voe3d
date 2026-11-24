@@ -201,10 +201,10 @@ again, or to find where a claim that has started failing is written down.
   radius; a seed repeating; erase by kind and undo's put both ways; a copy leaning 45° or upright on
   a slope; a replace following a raised height; a kind's base size. Needs no graphics card.
 - `foliage_grow.c` — a layer's grown density, nothing past the paint, half the tenths half as
-  thick, a remade rect equal to a whole grow, one kind remade alone, and the cap. Needs no
-  graphics card.
+  thick, a remade rect equal to a whole grow, one kind remade alone, a kind grown by its seed,
+  and the cap. Needs no graphics card.
 - `tree_grow.c` — a tree's skeleton by variation, its levels and nodes, the default cards pinned,
-  and the cards' width and roll. Needs no graphics card.
+  the pick pinned by seed, and the cards' width and roll. Needs no graphics card.
 - `model_prepare_grown.c` — a default tree prepared in memory with its four own levels measured,
   their errors rising, and the bounds they give swapping each level in farther. Needs no
   graphics card.

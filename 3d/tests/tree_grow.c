@@ -4,8 +4,9 @@
 // maximum, within the cap, and that tree meshes; each level has fewer triangles than the one
 // before; leaf_density 0 gives no leaf triangles; every vertex lies within a
 // box of `height` about the trunk; and the nodes are tree_LOD0..tree_LOD3.
-// The pick gives the same variation for the same kind and place, and 6
-// variations over a grid of 10 000 copies each take 12 to 22 % of them.
+// The pick gives the same variation for the same seed and place, a seed's
+// picks as its kind's were before seeds (pinned), and 6 variations over a
+// grid of 10 000 copies each take 12 to 22 % of them.
 // The default tree's level-0 cards are pinned as they were before leaf width
 // and roll; at width 0.5 and 2 every card's out edge is that share of its twig
 // edge at every level; at roll 1 a card on a twig past 30° from vertical has a
@@ -299,6 +300,17 @@ static void the_pick_repeats(void)
 	}
 }
 
+// Pinned before the kind became its seed (0517 point 4): seed s picks as kind
+// s did.
+static void the_pick_is_pinned(void)
+{
+	VOE_TEST_CHECK_INT(voe_3d_tree_pick(0, 0, 0, 16), 0);
+	VOE_TEST_CHECK_INT(voe_3d_tree_pick(3, 1733, -911, 6), 2);
+	VOE_TEST_CHECK_INT(voe_3d_tree_pick(7, -50000, 25000, 16), 13);
+	VOE_TEST_CHECK_INT(voe_3d_tree_pick(15, 123456, -654321, 5), 2);
+	VOE_TEST_CHECK_INT(voe_3d_tree_pick(1, 4000, 500, 2), 1);
+}
+
 // A 100 × 100 grid of copies 1.5 m apart, as a planted wood stands.
 static void the_pick_spreads_evenly(void)
 {
@@ -319,6 +331,7 @@ int main(void)
 	voe_base_arena *arena = voe_base_arena_new(ARENA);
 
 	the_pick_repeats();
+	the_pick_is_pinned();
 	the_pick_spreads_evenly();
 
 	a_variation_repeats_and_another_differs(arena);

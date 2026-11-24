@@ -3,8 +3,9 @@
 // grows about 0.04 × 256²; paint on the west half grows nothing past a cell
 // east of it; a second layer at half the tenths on the east half grows about
 // half as thick; a rect remade after a repaint equals a whole grow on the new
-// paint; remaking one kind leaves the other's copies; and a 512 m grid at the
-// most two kinds can grow stops at the cap. Needs no graphics card.
+// paint; remaking one kind leaves the other's copies; a kind seeded 1 grows
+// where kind 1 unseeded does; and a 512 m grid at the most two kinds can grow
+// stops at the cap. Needs no graphics card.
 #include <3d/foliage_grow.h>
 #include <3d/foliage.h>
 #include <3d/landscape.h>
@@ -234,6 +235,33 @@ static void remaking_one_kind_leaves_the_other(voe_base_arena *arena)
 	VOE_TEST_CHECK(!equal_sorted(&g, &before, 1, arena));
 }
 
+// Kind 0 seeded 1 grows where kind 1 unseeded does: the same x and z.
+static void a_kind_grows_by_its_seed(voe_base_arena *arena)
+{
+	struct grown seeded = flat(256.0f, 2, arena);
+	struct grown indexed = flat(256.0f, 2, arena);
+	voe_assets_landscape_copy *a = voe_base_arena_push(
+		arena, sizeof(*a) * VOE_3D_FOLIAGE_GROWN);
+	voe_assets_landscape_copy *b = voe_base_arena_push(
+		arena, sizeof(*b) * VOE_3D_FOLIAGE_GROWN);
+	bool same_places = true;
+	uint32_t n;
+
+	paint_columns(&seeded.land, 0, CELLS + 1, 1);
+	paint_columns(&indexed.land, 0, CELLS + 1, 1);
+	seeded.land.looks[0].seed = 2;
+	seeded.land.grows[1][0] = 40;
+	indexed.land.grows[1][1] = 40;
+	grow(&seeded, whole, 1u);
+	grow(&indexed, whole, 1u << 1);
+	n = sorted(&seeded, 2, a);
+	VOE_TEST_CHECK(n > 1000);
+	VOE_TEST_CHECK_INT(n, sorted(&indexed, 2, b));
+	for (uint32_t i = 0; i < n; i++)
+		same_places &= a[i].x == b[i].x && a[i].z == b[i].z;
+	VOE_TEST_CHECK(same_places);
+}
+
 // Spacing √2 m: about 131000 points a kind, two kinds.
 static void the_count_stops_at_the_cap(voe_base_arena *arena)
 {
@@ -258,6 +286,8 @@ int main(void)
 	a_remade_rect_equals_a_whole_grow(arena);
 	voe_base_arena_clear(arena);
 	remaking_one_kind_leaves_the_other(arena);
+	voe_base_arena_clear(arena);
+	a_kind_grows_by_its_seed(arena);
 	voe_base_arena_clear(arena);
 	the_count_stops_at_the_cap(arena);
 

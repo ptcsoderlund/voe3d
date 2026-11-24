@@ -35,10 +35,10 @@
 // answers a key's second choose in a frame as its first.
 //
 // A ROW'S KINDS ARE FOUND ONCE: each kind's loaded entry, a `.glb` or a species
-// (0515 point 3), whether its look is shadowless (0476 point 6) and its blend
-// height when it blends. A copy draws voe_3d_models_variation of its kind at
-// its own x and z in millimetres, a grown copy's as a painted one's (0515 point
-// 4): the kind's `.glb`, else the species' variation. Each entry a row's copies
+// (0515 point 3), its seed, whether its look is shadowless (0476 point 6) and
+// its blend height when it blends. A copy, grown or painted, draws
+// voe_3d_models_variation of its kind's seed (0517 point 4) at its own x and
+// z: the kind's `.glb`, else the species' variation. Each entry a row's copies
 // draw is found at its first sight, with its parts as worn, a blended one left
 // out (0442 point 5), and its slots: a copy's (level, part, rest, tier) of it is
 // looked up there and only its first sight walks the groups' keys, so a row's
@@ -133,8 +133,10 @@ struct gathering {
 	uint32_t cascade_count;
 	// The first walk's copies not `rest`: seen as `drawn`, else `skipped`.
 	voe_3d_view_counts counts;
-	// This row's kinds: each one's loaded `.glb` or species, NULL for none.
+	// This row's kinds: each one's loaded `.glb` or species, NULL for none,
+	// and its seed, which picks a species' variation.
 	const voe_3d_model_entry *kinds[VOE_ASSETS_LANDSCAPE_KINDS];
+	uint32_t seeds[VOE_ASSETS_LANDSCAPE_KINDS];
 	// The entries this row's copies draw, in first sight's order, and each
 	// kind's among them as indices into `drawn`.
 	struct drawn drawn[VOE_ASSETS_LANDSCAPE_KINDS * VOE_3D_TREE_VARIATIONS];
@@ -235,8 +237,8 @@ static bool drawable(const voe_3d_model_entry *entry)
 	       entry->landscape == NULL;
 }
 
-// Each kind of `grid` found once in `models`: a loaded `.glb` or species,
-// whether `grid`'s look of it is shadowless, and how high it blends, a height
+// Each kind of `grid` found once in `models`: a loaded `.glb` or species, its
+// seed, whether `grid`'s look of it is shadowless, and how high it blends, a height
 // of 0 read as the default (0481 point 4); no entry drawn yet.
 static void find_kinds(const voe_3d_models *models,
 		       const voe_assets_landscape *grid, struct gathering *g)
@@ -257,6 +259,7 @@ static void find_kinds(const voe_3d_models *models,
 				look.blend_height :
 				VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_DEFAULT;
 
+		g->seeds[k] = voe_assets_landscape_kind_seed(grid, k);
 		g->shadowless[k] = look.shadowless;
 		g->reach[k] = look.blends ? (float)height / 100.0f : 0.0f;
 		if (kind != NULL && drawable(kind))
@@ -453,7 +456,8 @@ static void gather_copies(const voe_3d_frame *frame, voe_ecs_entity landscape,
 		if (g->kinds[kind] == NULL)
 			continue;
 		model = voe_3d_models_variation(frame->models, g->kinds[kind],
-						kind, copies[i].x, copies[i].z);
+						g->seeds[kind], copies[i].x,
+						copies[i].z);
 		drawn = model != NULL ?
 				drawn_of(frame->models, g, kind, model) :
 				NO_DRAWN;
