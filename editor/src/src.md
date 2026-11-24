@@ -146,7 +146,7 @@ carries it out.
 - `game_tree_find.c` — the folder check, the stack walk, the case-blind suffix match and the sort.
 - `game_tree_landscapes.c` — landscapes.c's text: every `.landscape` read and cooked in a rewound
   scratch, then voe_game_landscapes_cooked naming each by its `Assets/` path, size, cells, layers,
-  paint, foliage kinds, copies, kinds' looks with their blend and each layer's growth of each kind.
+  paint, foliage kinds, copies, kinds' looks with blend and seed, each layer's growth of each kind.
 - `game_tree_materials.c` — materials.c's text: every `.material`, `.parts` and `.tree` read in a
   rewound scratch, then voe_game_materials_cooked, voe_game_parts_cooked and voe_game_trees_cooked,
   each file's paths and values, floats in hex.

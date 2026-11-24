@@ -15,7 +15,7 @@
 //             "Assets/Pine.glb",
 //     };
 //     static const voe_assets_landscape_look landscape_0_looks[] = {
-//             {2000, 20, 180, 0, false, true, 80},
+//             {2000, 20, 180, 0, false, true, 80, 0},
 //     };
 //     static const uint16_t landscape_0_grows[] = {
 //             0,
@@ -41,10 +41,10 @@
 // paint built in the scratch first. The last six fields are the foliage (0442
 // point 1, 0476 points 1-2): kind paths and count, `NULL, 0` with no kinds;
 // copies and count, `NULL, 0` with none; each kind's look as the grid holds it,
-// NULL with no kinds; and each layer's density of each kind in tenths, layer
-// by layer, NULL when no layer grows any. Kinds are cooked without copies, so
-// Play and a shipped game grow what the editor grows. Paths are escaped as C
-// strings.
+// its seed as stored, NULL with no kinds; and each layer's density of each kind
+// in tenths, layer by layer, NULL when no layer grows any. Kinds are cooked
+// without copies, so Play and a shipped game grow what the editor grows. Paths
+// are escaped as C strings.
 //
 // Each file is read, parsed and cooked in one scratch arena rewound after it,
 // sized in blocks; only the cooked text is copied out. The arrays are joined
@@ -186,11 +186,11 @@ static const char *landscape_foliage_text(const voe_assets_landscape *landscape,
 			scratch, "%s\t\"%s\",\n", kinds,
 			voe_editor_game_tree_c_string(scratch, landscape->kinds[k]));
 		looks = voe_editor_game_tree_format(
-			scratch, "%s\t{%u, %u, %u, %u, %s, %s, %u},\n", looks,
+			scratch, "%s\t{%u, %u, %u, %u, %s, %s, %u, %u},\n", looks,
 			(unsigned)look->size, (unsigned)look->size_vary,
 			(unsigned)look->turn_vary, (unsigned)look->tilt,
 			look->shadowless ? "true" : "false", look->blends ? "true" : "false",
-			(unsigned)look->blend_height);
+			(unsigned)look->blend_height, (unsigned)look->seed);
 	}
 	if (landscape->copy_count > 0) {
 		copies = voe_authoring_landscape_cook_copies(
