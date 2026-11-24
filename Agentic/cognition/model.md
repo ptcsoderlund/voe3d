@@ -12,6 +12,6 @@
 - `outside-changes.md` — What the editor does when a file of the open project changes on disk: how it notices, how it takes the change in, and what it never takes for one.
 - `strict-reading.md` — What a strict read of a sectioned file refuses that the lenient read lets pass, and what the agents' check catches.
 - `proving-cards.md` — What can show a card's done-when is met: what the tests print, and what proves an editor card.
-- `tree-maker.md` — Trees grown from materials and settings: what the sponsor wants of them, how the bark and its moss are made, and what a species shows when opened.
+- `tree-maker.md` — Trees grown from materials and settings: what the sponsor wants of them, how the bark and its moss are made, how its leaf cards look, and what a species shows when opened.
 - `docs-reference.md` — The reference the editor writes into a game project's `Docs/` for agents: when it is written, what a row says, and what it covers.
 - `tree-species.md` — A `.tree` species file: what its settings mean, how it grows into variations, and how the store, the forest, the editor and the game hold and regrow them.
