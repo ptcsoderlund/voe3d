@@ -24,4 +24,6 @@ What the editor writes into a game project's `Docs/` for agents: when it is writ
 ## What it covers
 - A landscape's vary, turn, tilt, shadow, blend and blendheight are per foliage kind, so their rows are `vary<K>` and so on. [observed · coder 116-12 · 2026-11-20]
 - The scene identity type has its own heading like every registered type, saying its keys go under `[N]` and that `[N.voe_scene_identity]` is refused; it has no `id` row. [observed · accept 116 · 2026-11-20]
+- `Docs/` documents the `.tree` species file, in its own table and in the files index. [assumed · coder 117-16 · 2026-11-24]
+- Decision 0512, which 0511 cites for the key table's row type, has no file under the decisions. [observed · coder 117-20 · 2026-11-24]
 - The check command in `Docs/voe3d.md` puts both absolute paths in double quotes, so it runs when copied from a path with spaces such as Windows' Program Files. [observed · accept 116 · 2026-11-20]

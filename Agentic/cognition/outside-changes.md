@@ -7,6 +7,9 @@ What the editor does when a file of the open project changes on disk: how it not
 - A change to `project.voe3d`'s `scene` key does not switch the scene that is open. [observed · accept 115 · 2026-11-20]
 - A changed `[Levels]` in a `.parts` file takes effect at the next Make LODs or project open. [observed · accept 115 · 2026-11-20] see 0470
 - A `.parts` rewritten with the same content is still taken in and still makes an undo step; only materials and `project.voe3d` are compared first and skipped when unchanged. [observed · accept 115 · 2026-11-20]
+- A `.tree` is taken in as a material is: read strictly, its row compared as the text each writes. [assumed · coder 117-15 · 2026-11-24] see 0509
+- A changed `.tree` the trees table lacks (refused at the last read, or new since) is taken and changes nothing. [assumed · coder 117-15 · 2026-11-24]
+- An open species' world is never taken in from disk as a scene; the take is left untaken. [observed · coder 117-11 · 2026-11-20]
 - Taking in a `.material` re-reads the material tables but not the Inspector's open copy; the editor refreshes that copy after each take so the Inspector shows the new values. [observed · accept 115 · 2026-11-20]
 - Taking in the scene or a closed prefab rebuilds the world; the selection survives it, found again by authored id. [observed · accept 115 · 2026-11-20]
 - Changes wait while Play is in any stage but idle, configuring and building included, not only while the game runs. [observed · accept 115 · 2026-11-20] see 0509
@@ -19,6 +22,7 @@ What the editor does when a file of the open project changes on disk: how it not
 
 ## Undo across files
 - Undo or redo to a side of a file step that has no bytes leaves the file as it is and says so; an empty side is never written. [observed · accept 115 · 2026-11-20]
+- Undoing a file step of a `.tree` or `.material` taken from disk changes the table but not the Inspector's open copy, and the editor then writes the stale shown copy back into the table, so what is shown and the file disagree. [observed · coder 117-15 · 2026-11-24]
 - An undo that crosses a file step refused on reading still moves the scene to the state stepped to and counts as done; the refusal is shown, and the redo line is kept. [observed · accept 115 · 2026-11-20]
 
 ## Refused

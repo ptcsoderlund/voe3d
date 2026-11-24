@@ -18,6 +18,16 @@
 
 ## Opening a species
 - Opening a species shows it alone in the view with a stepper through its variations, as opening a prefab does. [assumed · tech-lead · 2026-11-20]
+- Create → Tree in Assets makes the next free name, `Tree.tree`, then `Tree 2.tree` up to `Tree 99.tree` as Duplicate names; past 99 it is refused with a notice. Only an untitled project refuses it, not an open prefab. [assumed · coder 117-09 · 2026-11-20]
+- A `.tree` in Assets opens its species and is no prefab; held, it drops onto Foliage kind rows only, never into a view or onto a model. [assumed · coder 117-14 · 2026-11-20]
+- The species view is lit by the untitled scene's own sun, so the two cannot drift. [assumed · coder 117-11 · 2026-11-20]
+- Save with a species open writes `project.voe3d` and no world; the set-aside level keeps its unsaved flag until Back. [assumed · planner 117 · 2026-11-20]
+- A species opened before its row is read waits closed until the row comes. [assumed · coder 117-12 · 2026-11-20]
+- An open material wins over an open species in the Inspector, being opened by a later explicit click. [assumed · coder 117-12 · 2026-11-20]
+- While a species is open, an Inspector drop does only Bark or Leaf; every other is refused, as with an open material, since the section hides what they would edit. [assumed · coder 117-14 · 2026-11-20]
+- The Variation stepper wraps both ways; a refused step says "The variation could not be shown." [assumed · coder 117-12 · 2026-11-20]
+- Stepping a variation is no edit and records nothing, so an undo that applies the species' step shows again the variation the stepper shows. [assumed · coder 117-13 · 2026-11-20]
+- An editor `--capture` of a project holding a `.tree` under `Assets/` aborted on an assertion that the tree read to no variations, though the file held `variations=3`. [observed · coder 117-16 · 2026-11-24]
 
 ## What it leaves out
 - Wind and chopping are not in 117 or 118. [assumed · tech-lead · 2026-11-20]
