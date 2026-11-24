@@ -45,12 +45,12 @@
 //
 // KINDS ARE QUOTED .glb OR .tree PATHS, read as layers are. A KIND'S LOOK is
 // `size<k>` (thousandths), `vary<k>` (size ±%), `turn<k>` (±°), `tilt<k>`
-// (% with slope), `shadow<k>=0` (no shadow), `blend<k>=1` and `blendheight<k>`
-// (cm, 0481), written only off the default, missing read as it. LAYER l GROWS
-// KIND k at `grow<l>_<k>` tenths of copies per 100 m², written only above 0,
-// THE LAYER ROW'S CHOICE: a row with another material keeps it (0476 point 2).
-// COPY i IS `c<i>=kind x z turn scale lean`, no height: it stands on the ground
-// a sculpt moves. [Copies] IS WALKED ONCE IN ORDER, not 65536 lookups.
+// (% with slope), `shadow<k>=0` (no shadow), `blend<k>=1`, `blendheight<k>`
+// (cm, 0481) and `seed<k>` (0-15, k when missing, 0517), written only off the
+// default, missing read as it. LAYER l GROWS KIND k at `grow<l>_<k>` tenths of
+// copies per 100 m², written only above 0, THE LAYER ROW'S CHOICE: a row with
+// another material keeps it (0476 point 2). COPY i IS `c<i>=kind x z turn
+// scale lean`, no height: it stands on the ground a sculpt moves.
 //
 // A FILE TAKEN IN FROM DISK IS READ STRICTLY (0509 point 3), by a second reader
 // refusing an unknown section or key too: a project still opens with keys
@@ -116,6 +116,9 @@ typedef struct {
 	// How high they blend in centimetres, BLEND_HEIGHT_MIN to
 	// BLEND_HEIGHT_MAX, 0 meaning BLEND_HEIGHT_DEFAULT.
 	uint16_t blend_height;
+	// The seed of the kind's draws plus one, 0 meaning the kind's own index
+	// (0517 point 4); read only through voe_assets_landscape_kind_seed.
+	uint8_t seed;
 } voe_assets_landscape_look;
 
 // One foliage copy, in the order a cooked `{x, z, turn, scale, kind, lean}`
@@ -174,13 +177,25 @@ voe_assets_landscape voe_assets_landscape_flat(float size, uint32_t cells,
 					       voe_base_arena *arena);
 
 // The look a missing key reads as: size 0 (1×), size ±20 %, turn ±180°, tilt
-// 0 %, casting shadows, not blending, blend height 0 (50 cm).
+// 0 %, casting shadows, not blending, blend height 0 (50 cm), seed 0 (the
+// kind's index).
 voe_assets_landscape_look voe_assets_landscape_look_default(void);
 
 // Kind `kind`'s base size as a factor on its copies' scale: looks[kind].size
 // in thousandths, 1 for 0. Asserts kind below VOE_ASSETS_LANDSCAPE_KINDS.
 float voe_assets_landscape_kind_size(const voe_assets_landscape *landscape,
 				     uint32_t kind);
+
+// Kind `kind`'s seed, the key of every draw made for it (0517 point 4):
+// looks[kind].seed minus one, `kind` for 0. Asserts kind below
+// VOE_ASSETS_LANDSCAPE_KINDS.
+uint32_t voe_assets_landscape_kind_seed(const voe_assets_landscape *landscape,
+					uint32_t kind);
+
+// The seed a kind added at `kind_count` takes: `kind_count` when no kind below
+// it has that seed, else the least seed none has. Asserts kind_count below
+// VOE_ASSETS_LANDSCAPE_KINDS, so one is always free.
+uint32_t voe_assets_landscape_seed_new(const voe_assets_landscape *landscape);
 
 // `from` at the same size and `cells` cells a side, each height and each
 // layer's weight bilinear from `from`'s at the same point of the square, layers
@@ -201,7 +216,8 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 // number from KIND_SIZE_MIN to KIND_SIZE_MAX, a spread not a whole number up to
 // its maximum, a `shadow<k>` or `blend<k>` other than 0 or 1, a
 // `blendheight<k>` not a whole number from BLEND_HEIGHT_MIN to
-// BLEND_HEIGHT_MAX, a `grow` key not `grow<l>_<k>`
+// BLEND_HEIGHT_MAX, a `seed<k>` not a whole number (one out of 0-15 is
+// clamped), a `grow` key not `grow<l>_<k>`
 // with l below layer_count and k below kind_count or its density not 1 to
 // GROW_MAX, and a copy key out of order or misnamed, of other than six whole
 // numbers, with a kind not below kind_count, or a turn, scale or lean out of
@@ -219,7 +235,8 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 // As voe_assets_landscape_read, and MALFORMED too for a section other than
 // [Landscape], [Layers], [Foliage], [Heights], [Paint] and [Copies], and for a
 // key no section takes: a layer, kind, look key, row or paint row past the
-// file's counts or misnamed. The line on stderr names the line and the key.
+// file's counts or misnamed, and for a `seed<k>` out of 0-15. The line on
+// stderr names the line and the key.
 [[nodiscard]] bool voe_assets_landscape_read_strict(const char *text,
 						    size_t size,
 						    voe_base_arena *arena,
@@ -237,7 +254,8 @@ const voe_assets_documented_key *voe_assets_landscape_keys(uint32_t *count);
 // not NULL and there are two layers or more, runs of 3 or more as `v*n`;
 // [Foliage] only when there are kinds, a look key only off the default (size
 // neither 0 nor 1000, `shadow<k>=0` only when shadowless, `blend<k>=1` only
-// when blending, `blendheight<k>` neither 0 nor 50), and [Copies] only
+// when blending, `blendheight<k>` neither 0 nor 50, `seed<k>` only when the
+// seed is not k), and [Copies] only
 // when there are copies, one line a copy. Cannot fail; asserts each layer and
 // kind path is NUL-terminated with no line break, each look and grow in range.
 voe_assets_landscape_text

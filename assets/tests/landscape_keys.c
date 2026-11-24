@@ -1,6 +1,6 @@
 // The landscape key table against landscape.h and its strict reader (0511):
-// the rows for `size`, `cells`, `size<K>` and `blendheight<K>` carry the
-// header's constants as least and greatest, and the smallest file the header
+// the rows for `size`, `cells`, `size<K>`, `blendheight<K>` and `seed<K>` carry
+// the header's constants as least and greatest, and the smallest file the header
 // describes, a [Landscape] and cells + 1 rows of [Heights], reads with `size`
 // or `cells` at its row's greatest and is refused above it when the row says
 // refused.
@@ -33,11 +33,16 @@ static void landscape_keys_ranges(void)
 	const voe_assets_documented_key *cells = row_for("cells");
 	const voe_assets_documented_key *kind_size = row_for("size<K>");
 	const voe_assets_documented_key *blend = row_for("blendheight<K>");
+	const voe_assets_documented_key *seed = row_for("seed<K>");
 
 	VOE_TEST_CHECK(size != NULL && cells != NULL && kind_size != NULL &&
-		       blend != NULL);
-	if (size == NULL || cells == NULL || kind_size == NULL || blend == NULL)
+		       blend != NULL && seed != NULL);
+	if (size == NULL || cells == NULL || kind_size == NULL ||
+	    blend == NULL || seed == NULL)
 		return;
+	VOE_TEST_CHECK(seed->least == 0 &&
+		       seed->greatest == VOE_ASSETS_LANDSCAPE_KINDS - 1);
+	VOE_TEST_CHECK_INT(seed->refused, true);
 	VOE_TEST_CHECK(size->least == VOE_ASSETS_LANDSCAPE_SIZE_MIN &&
 		       size->greatest == VOE_ASSETS_LANDSCAPE_SIZE_MAX);
 	VOE_TEST_CHECK(cells->least == 4 &&

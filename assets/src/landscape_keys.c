@@ -4,11 +4,12 @@
 //
 // A RANGE IS THE HEADER'S CONSTANT, in the file's units: metres for `size`,
 // thousandths for a kind's size, centimetres for a blend height, tenths of
-// copies per 100 m² for a grow. `refused` is what landscape.c's strict read
-// does with a value past it; a row with no single range (heights, copies) has
-// none and is not marked. The defaults are spelled as the file spells them and
-// match landscape.h's DEFAULT constants by hand: a string cannot be checked
-// against a number at compile time.
+// copies per 100 m² for a grow, a kind's seed 0 to KINDS - 1. `refused` is what
+// landscape.c's strict read does with a value past it; a row with no single
+// range (heights, copies) has none and is not marked. The defaults are spelled
+// as the file spells them and match landscape.h's DEFAULT constants by hand: a
+// string cannot be checked against a number at compile time. A seed's default
+// is `K`, the kind's own index.
 #include <assets/landscape.h>
 #include <base/assert.h>
 
@@ -48,6 +49,10 @@ static const voe_assets_documented_key documented_keys[] = {
 	  VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MIN,
 	  VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_MAX, "cm", true,
 	  "How high a blending kind K's copies blend with the ground." },
+	{ "Foliage", "seed<K>", "whole number", "K", 0,
+	  VOE_ASSETS_LANDSCAPE_KINDS - 1, "", true,
+	  "The seed of kind K's draws, which it keeps when a kind before it is "
+	  "removed; absent is K." },
 	{ "Heights", "row<R>", "cells + 1 whole numbers", "", 0, 0, "mm", false,
 	  "Row R's heights up from the origin, at z = -size/2 + R*size/cells, "
 	  "value C at x = -size/2 + C*size/cells; every row is required." },
