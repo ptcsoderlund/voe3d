@@ -291,6 +291,11 @@ void voe_editor_inspector_tree_read(const voe_ui_context *ui,
 				(voe_ui_rect){ 0 } :
 				voe_ui_node_visible(ui, controls->materials[i]);
 
+	// No species open: the section was not drawn, and the shown copy is
+	// still the zeroed one with no variations to step through.
+	if (scene->tree_open[0] == '\0')
+		return;
+
 	for (uint32_t i = 0; i < VOE_EDITOR_TREE_MATERIALS; i++)
 		if (fired(ui, controls->clears[i]))
 			material_path(tree, i)[0] = '\0';
