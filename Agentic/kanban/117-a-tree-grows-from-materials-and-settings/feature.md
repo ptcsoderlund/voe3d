@@ -24,6 +24,10 @@ file without them grows as before. And a foliage kind I no longer want — a roc
 a landscape without deleting the landscape: its painted copies go, the other kinds stay as they were, and
 undo brings it back. (0516)
 
+Branches grow out of the trunk instead of looking glued to it: where a branch leaves the trunk it swells into
+it like a real branch, leaves along the trunk before bending out, and the light and bark do not break at the
+joint. Only on the trunk; branches on branches and twigs stay as they are, to save vertices. (0518)
+
 ## Why
 I am about to make the hill's trees. Growing them from settings means I make each species once, every tree in
 the forest varies, and the engine knows each tree's trunk and branches for wind and chopping later.
@@ -56,3 +60,6 @@ the forest varies, and the engine knows each tree's trunk and branches for wind 
 15. In a landscape with a rock kind painted, remove the rock kind in the Foliage section: every rock goes, the
     landscape and the other kinds stay, and the trees are the same trees in the same spots. Undo: the rock
     kind is back with every rock where it was. Redo, save, close and reopen: no rocks.
+16. Open the spruce and the birch and look close at where branches leave the trunk: each branch swells out of
+    the trunk and bends out from it, with no crease in the light and no break in the bark where it goes in.
+    Branches on branches look as before. Fly away: the joints get simpler without popping.
