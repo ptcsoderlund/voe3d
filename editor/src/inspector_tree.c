@@ -57,6 +57,10 @@ static const slider_kind SLIDERS[VOE_EDITOR_TREE_SLIDERS] = {
 	  VOE_ASSETS_TREE_LEAF_SIZE_MAX, "m" },
 	{ "Leaf density", VOE_ASSETS_TREE_LEAF_DENSITY_MIN,
 	  VOE_ASSETS_TREE_LEAF_DENSITY_MAX, "" },
+	{ "Leaf roll", VOE_ASSETS_TREE_LEAF_ROLL_MIN,
+	  VOE_ASSETS_TREE_LEAF_ROLL_MAX, "" },
+	{ "Leaf width", VOE_ASSETS_TREE_LEAF_WIDTH_MIN,
+	  VOE_ASSETS_TREE_LEAF_WIDTH_MAX, "" },
 };
 
 // The number slider `i` writes, in SLIDERS' order.
@@ -66,7 +70,7 @@ static float *slider_value(voe_assets_tree *tree, uint32_t i)
 		&tree->height,	  &tree->trunk,	  &tree->crown,
 		&tree->branching, &tree->reach,	  &tree->angle,
 		&tree->droop,	  &tree->crooked, &tree->leaf_size,
-		&tree->leaf_density
+		&tree->leaf_density, &tree->leaf_roll, &tree->leaf_width
 	};
 
 	VOE_BASE_ASSERT(tree != NULL, "a slider of no tree");

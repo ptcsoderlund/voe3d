@@ -2,8 +2,9 @@
 // is open (scene.h's `tree_open`, 0515 point 6): the file's name as heading,
 // the Bark and Leaf rows, each its `.material` path or "None" with × while
 // set, a slider per number key (Height, Trunk, Crown, Branching, Reach, Angle,
-// Droop, Crooked, Leaf size, Leaf density) over assets/tree.h's _MIN.._MAX with
-// its figure at two decimals and unit (0498 point 3), Variations as a number
+// Droop, Crooked, Leaf size, Leaf density, Leaf roll, Leaf width) over
+// assets/tree.h's _MIN.._MAX with its figure at two decimals and unit (0498
+// point 3), Variations as a number
 // box clamped VOE_ASSETS_TREE_VARIATIONS_MIN–_MAX, and the Variation stepper,
 // ◀ v / count ▶, counting the shown variation from one.
 //
@@ -40,9 +41,9 @@
 // Bark and Leaf: one row each.
 #define VOE_EDITOR_TREE_MATERIALS 2
 
-// Height, Trunk, Crown, Branching, Reach, Angle, Droop, Crooked, Leaf size and
-// Leaf density: one slider each.
-#define VOE_EDITOR_TREE_SLIDERS 10
+// Height, Trunk, Crown, Branching, Reach, Angle, Droop, Crooked, Leaf size,
+// Leaf density, Leaf roll and Leaf width: one slider each.
+#define VOE_EDITOR_TREE_SLIDERS 12
 
 // Room for a shown figure, "v / count" among them.
 #define VOE_EDITOR_TREE_FIGURE 16

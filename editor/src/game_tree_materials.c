@@ -148,15 +148,15 @@ static const char *tree_entry(voe_base_arena *arena, const char *path,
 		"\t\t{ \"Assets/%s\", { .bark = \"%s\", .leaf = \"%s\",\n"
 		"\t\t  .height = %af, .trunk = %af, .crown = %af, .branching = %af,\n"
 		"\t\t  .reach = %af, .angle = %af, .droop = %af, .crooked = %af,\n"
-		"\t\t  .leaf_size = %af, .leaf_density = %af,\n"
-		"\t\t  .variations = %uu } },\n",
+		"\t\t  .leaf_size = %af, .leaf_density = %af, .leaf_roll = %af,\n"
+		"\t\t  .leaf_width = %af, .variations = %uu } },\n",
 		voe_editor_game_tree_c_string(arena, path),
 		voe_editor_game_tree_c_string(arena, t->bark),
 		voe_editor_game_tree_c_string(arena, t->leaf), (double)t->height,
 		(double)t->trunk, (double)t->crown, (double)t->branching,
 		(double)t->reach, (double)t->angle, (double)t->droop,
 		(double)t->crooked, (double)t->leaf_size, (double)t->leaf_density,
-		t->variations);
+		(double)t->leaf_roll, (double)t->leaf_width, t->variations);
 }
 
 // One table entry for the material at Assets/path holding m, in arena.
