@@ -20,6 +20,8 @@
 - The sponsor draws the sprig picture at the card's width-to-length ratio, since the picture stretches over the card; see 0516. [confirmed · tech-lead · 2026-11-24]
 - Whether a spruce's overall shape (a cone, long lower branches, in tiers) can be grown with today's settings is undecided: asked, not answered. [open · tech-lead · 2026-11-24]
 - The sponsor asked whether the leaf could be a single needle instead: "I cant just do one needle and use that as 'leaf' can I?" [intent · tech-lead · 2026-11-24]
+- A leaf card's picture runs u out from the twig and v along it, whichever way the card faces. [observed · coder 117-23 · 2026-11-24]
+- A species' Inspector shows Leaf roll before Leaf width, in the `.tree` file's key order. [assumed · coder 117-24 · 2026-11-24]
 - A leaf's alpha cuts out only when its Leaf `.material` has Cutout above 0; the default 0 is opaque, which is what made the alpha look solid: "cutout fixes it". [confirmed · tech-lead · 2026-11-24]
 
 ## Opening a species
@@ -33,7 +35,6 @@
 - While a species is open, an Inspector drop does only Bark or Leaf; every other is refused, as with an open material, since the section hides what they would edit. [assumed · coder 117-14 · 2026-11-20]
 - The Variation stepper wraps both ways; a refused step says "The variation could not be shown." [assumed · coder 117-12 · 2026-11-20]
 - Stepping a variation is no edit and records nothing, so an undo that applies the species' step shows again the variation the stepper shows. [assumed · coder 117-13 · 2026-11-20]
-- An editor `--capture` of a project holding a `.tree` under `Assets/` aborted on an assertion that the tree read to no variations, though the file held `variations=3`. [observed · coder 117-16 · 2026-11-24]
 
 ## What it leaves out
 - Wind and chopping are not in 117 or 118. [assumed · tech-lead · 2026-11-20]

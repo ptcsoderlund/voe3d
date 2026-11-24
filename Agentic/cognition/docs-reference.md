@@ -6,7 +6,7 @@ What the editor writes into a game project's `Docs/` for agents: when it is writ
 - The editor rewrites `Docs/` on each open, so the reference is true to the editor that last opened the project. [assumed · tech-lead · 2026-11-06] see 0506, 0511
 - `Docs/` is rewritten on open, first Save and a Refresh that builds; a Refresh in a project with no `.c` in `Code/`, or whose build fails, leaves it as it was. [observed · coder 116-19 · 2026-11-20] see 0511
 - A Refresh that builds rewrites `Docs/` even when the library's bytes are unchanged. [observed · accept 116 · 2026-11-20] see 0511
-- `Docs/` is written under `--capture` too, as capture opens the project like a session. [observed · accept 116 · 2026-11-20]
+- `Docs/` is written under `--capture` too, as capture opens the project like a session; `voe_editor --check` does not write it. [observed · coder 117-24 · 2026-11-24]
 - If the engine source folder cannot be listed, nothing in `Docs/` is written and the failure is a notice; Play already depends on that folder. [observed · accept 116 · 2026-11-20]
 - An example project's `Docs/` is kept out of git because it holds machine-local paths. [observed · accept 116 · 2026-11-20] see 0511
 - A `.scene` a user places in `Docs/` is still watched and checked: the project's walk does not skip `Docs/`. [observed · accept 116 · 2026-11-20]

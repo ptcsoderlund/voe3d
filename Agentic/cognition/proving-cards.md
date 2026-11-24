@@ -7,6 +7,7 @@ What can show a card's done-when is met: what the tests print, and what proves a
 
 ## The editor
 - The editor has no tests; an editor card is proved by grep and the `--capture` run. [observed · planner 115 · 2026-11-06]
+- On this WSL machine an editor `--capture` aborts on a Vulkan validation error, a storage buffer range of 346977280 past the device's limit of 134217728, after `Docs/` is written. [observed · coder 117-24 · 2026-11-24]
 - No coder runs Play or the game: a how-to-test that needs a person in the editor and a running game is seen by no agent, only the build and the folder's checks, as with 117's card 18. [observed · coder 117-18 · 2026-11-24]
 
 ## The analyser

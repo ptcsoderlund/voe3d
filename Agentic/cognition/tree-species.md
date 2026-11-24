@@ -48,4 +48,5 @@ What a `.tree` species file means, how it grows into variations, and how the sto
 - The game's model store is never emptied by an update or a restart, so species grown at start stay held the whole run and nothing regrows them. [observed · coder 117-18 · 2026-11-24]
 - The game grows its species once, at start between the models update and the materials, not after each models update, since every grow regrows and reuploads every variation. [assumed · coder 117-18 · 2026-11-24] see 0515
 - A shipped game reads its species from a cooked trees table beside the materials. [observed · coder 117-17 · 2026-11-24]
+- The game tree cook writes a species' values by name, so a `.tree` key the cook omits is 0 in Play and Ship, not its default. [observed · planner 117-21 · 2026-11-24]
 - A `.tree` that will not read leniently refuses the whole cook, naming the file, as a bad `.material` or `.parts` does. [assumed · coder 117-17 · 2026-11-24]
