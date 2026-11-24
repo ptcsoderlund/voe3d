@@ -228,7 +228,8 @@ here is included from outside the folder — `include/3d/` is the whole public s
   spaced above the crown, turned by the golden angle, drooped and jittered, until the cap; and
   the pick's integer mix.
 - `tree_mesh.c` — each level's bark as tubes of transported rings with a child's collar, and its
-  leaves as every 2^k-th card, rolled about its twig, scaled and bent off the crown's centre.
+  leaves as every 2^k-th card, its width a share of its length, rolled about its twig and pulled
+  toward level, scaled and bent off the crown's centre.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
 - `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, borders

@@ -31,14 +31,19 @@
 // primitive (material 0) and a leaf primitive (material 1, empty without
 // leaves). Level 0 has every limb as a tube and every leaf card. At level k ≥ 1
 // twigs are no longer tubes, tube sides and lengthwise segments halve each
-// level down to 3 and 1, and every 2^k-th card is kept, scaled by √(2^k) about
-// its centre. Tubes have smooth normals, u around the tube in whole metres of
-// the limb's base circumference (at least 1) and v along it in metres. A child
-// tube adds a collar ring where it leaves its parent's surface, its radius
-// halfway from its own to the parent's there, so the joint flares. A card is
-// one quad `leaf_size` across, its inner edge on a twig, rolled at random
-// about it, `leaf_density` per twig, its normals bent away from the crown's
-// centre (the mean of the cards' centres), uv 0–1.
+// level down to 3 and 1, and every 2^k-th card is kept, both its edges scaled
+// by √(2^k) about its centre, so its width to length holds. Tubes have smooth
+// normals, u around the tube in whole metres of the limb's base circumference
+// (at least 1) and v along it in metres. A child tube adds a collar ring where
+// it leaves its parent's surface, its radius halfway from its own to the
+// parent's there, so the joint flares. A card is one quad hinged on a twig,
+// `leaf_size` long along it and `leaf_width` × `leaf_size` wide out from it,
+// `leaf_density` per twig. Its random roll about the twig is turned by
+// `leaf_roll` × a fade toward the nearer of the two rolls whose out edge lies
+// level (0517); the fade is min(1, sine of the twig from vertical / sin 15°),
+// so a vertical twig keeps its random roll. Its normals are bent away from the
+// crown's centre (the mean of the cards' centres); u runs out from the twig
+// and v along it, 0–1.
 //
 // THE PICK (0513, 0515 point 4) is which variation a foliage copy draws: an
 // integer mix of its kind and its stored x and z in millimetres, modulo the

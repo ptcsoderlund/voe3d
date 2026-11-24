@@ -29,6 +29,8 @@
 #define MOST_RINGS (MOST_STEPS + 2)
 // Where on a twig, as a share of its length, its cards start.
 #define LEAF_START 0.2f
+// sin 15°: a twig nearer vertical than this pulls its cards less toward flat.
+#define FLAT_FADE 0.258819045f
 
 static const uint32_t limb_sides[ORDERS] = { 12, 8, 4 };
 
@@ -295,7 +297,30 @@ static voe_assets_primitive bark(voe_base_arena *arena,
 	return primitive_of(b, 0);
 }
 
-// The cards of every twig into `out`, up to the cap; how many.
+// `roll` about unit `along`, from `u` toward `w`, turned by `pull` × a fade
+// toward the nearer of the two rolls whose out edge lies level (0517 point 2).
+// The fade is min(1, sine of `along` from vertical / sin 15°), so a vertical
+// twig, with no level direction, keeps its roll and nothing jumps near it.
+static float flattened(voe_math_float3 along, voe_math_float3 u,
+		       voe_math_float3 w, float roll, float pull)
+{
+	const voe_math_float3 level = voe_math_float3_cross(
+		along, (voe_math_float3){ 0.0f, 1.0f, 0.0f });
+	const float turn =
+		pull * fminf(1.0f, voe_math_float3_length(level) / FLAT_FADE);
+	float flat;
+
+	VOE_BASE_ASSERT(pull >= 0.0f && pull <= 1.0f, "a roll pull of 0 to 1");
+	if (turn <= 0.0f)
+		return roll;
+	flat = atan2f(voe_math_float3_dot(level, w),
+		      voe_math_float3_dot(level, u));
+	// The turn to `flat` or `flat` + π, whichever is nearer: within ±π/2.
+	return roll + turn * remainderf(flat - roll, 0.5f * TAU);
+}
+
+// The cards of every twig into `out`, up to the cap; how many. A card's
+// `along` lies on its twig and `across` points out from it.
 static uint32_t place_cards(const voe_3d_tree_skeleton *s,
 			    const voe_assets_tree *values, uint32_t variation,
 			    card *out)
@@ -319,10 +344,11 @@ static uint32_t place_cards(const voe_3d_tree_skeleton *s,
 			const voe_3d_tree_segment on = s->segments[i + j];
 			const voe_math_float3 along = voe_math_float3_normalize(
 				voe_math_float3_sub(on.end, on.start));
-			const float roll = TAU * draw(&seed);
+			float roll = TAU * draw(&seed);
 			voe_math_float3 u, w, across;
 
 			around(along, &u, &w);
+			roll = flattened(along, u, w, roll, values->leaf_roll);
 			across = voe_math_float3_add(
 				voe_math_float3_scale(u, cosf(roll)),
 				voe_math_float3_scale(w, sinf(roll)));
@@ -332,7 +358,8 @@ static uint32_t place_cards(const voe_3d_tree_skeleton *s,
 							     t - (float)j),
 					voe_math_float3_scale(
 						across,
-						0.5f * values->leaf_size)),
+						0.5f * values->leaf_width *
+							values->leaf_size)),
 				.across = across,
 				.along = along,
 			};
@@ -341,9 +368,10 @@ static uint32_t place_cards(const voe_3d_tree_skeleton *s,
 	return n;
 }
 
-// `c` as a quad `half` × 2 across, facing away from `crown`, each corner's
-// normal bent away from it.
-static void put_card(build *b, card c, float half, voe_math_float3 crown)
+// `c` as a quad 2 × `half.x` along `across` and 2 × `half.y` along `along`,
+// facing away from `crown`, each corner's normal bent away from it.
+static void put_card(build *b, card c, voe_math_float2 half,
+		     voe_math_float3 crown)
 {
 	static const float signs[2][4][2] = {
 		{ { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } },
@@ -360,8 +388,8 @@ static void put_card(build *b, card c, float half, voe_math_float3 crown)
 		const voe_math_float3 p = voe_math_float3_add(
 			c.centre,
 			voe_math_float3_add(
-				voe_math_float3_scale(c.across, sa * half),
-				voe_math_float3_scale(c.along, sl * half)));
+				voe_math_float3_scale(c.across, sa * half.x),
+				voe_math_float3_scale(c.along, sl * half.y)));
 		const voe_math_float3 out = voe_math_float3_sub(p, crown);
 		const float far = voe_math_float3_length(out);
 		const voe_math_float3 bent =
@@ -386,14 +414,16 @@ static void put_card(build *b, card c, float half, voe_math_float3 crown)
 	}
 }
 
-// Every 2^level-th card, scaled by √(2^level) about its centre.
+// Every 2^level-th card, both edges scaled by √(2^level) about its centre, so
+// its width to length holds.
 static voe_assets_primitive leaves(voe_base_arena *arena, const card *cards,
-				   uint32_t count, float size,
+				   uint32_t count, const voe_assets_tree *values,
 				   voe_math_float3 crown, uint32_t level)
 {
 	const uint32_t every = 1u << level;
 	const uint32_t kept = (count + every - 1) / every;
-	const float half = 0.5f * size * sqrtf((float)every);
+	const float length = 0.5f * values->leaf_size * sqrtf((float)every);
+	const voe_math_float2 half = { values->leaf_width * length, length };
 	build b = build_of(arena, kept * 4, kept * 6);
 
 	for (uint32_t i = 0; i < count; i += every)
@@ -458,8 +488,8 @@ void voe_3d_tree_mesh(voe_base_arena *arena,
 	crown = crown_of(cards, card_count);
 	for (uint32_t k = 0; k < VOE_3D_TREE_LEVELS; k++) {
 		primitives[2 * k] = bark(arena, skeleton, k);
-		primitives[2 * k + 1] = leaves(arena, cards, card_count,
-					       values->leaf_size, crown, k);
+		primitives[2 * k + 1] =
+			leaves(arena, cards, card_count, values, crown, k);
 		meshes[k] = (voe_assets_mesh){ 2 * k, 2 };
 		nodes[k] = (voe_assets_node){
 			.local = voe_math_float4x4_identity(),

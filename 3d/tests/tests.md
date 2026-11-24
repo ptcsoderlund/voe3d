@@ -203,9 +203,8 @@ again, or to find where a claim that has started failing is written down.
 - `foliage_grow.c` — a layer's grown density, nothing past the paint, half the tenths half as
   thick, a remade rect equal to a whole grow, one kind remade alone, and the cap. Needs no
   graphics card.
-- `tree_grow.c` — a tree's skeleton repeating by variation, children starting on their parents at
-  the defaults and at every maximum, fewer triangles each level, no leaves at density 0, every
-  vertex in a box about the trunk, and the levels' node names. Needs no graphics card.
+- `tree_grow.c` — a tree's skeleton by variation, its levels and nodes, the default cards pinned,
+  and the cards' width and roll. Needs no graphics card.
 - `model_prepare_grown.c` — a default tree prepared in memory with its four own levels measured,
   their errors rising, and the bounds they give swapping each level in farther. Needs no
   graphics card.

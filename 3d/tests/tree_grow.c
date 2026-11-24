@@ -6,6 +6,11 @@
 // box of `height` about the trunk; and the nodes are tree_LOD0..tree_LOD3.
 // The pick gives the same variation for the same kind and place, and 6
 // variations over a grid of 10 000 copies each take 12 to 22 % of them.
+// The default tree's level-0 cards are pinned as they were before leaf width
+// and roll; at width 0.5 and 2 every card's out edge is that share of its twig
+// edge at every level; at roll 1 a card on a twig past 30° from vertical has a
+// level out edge, and the out edges point both ways across their twigs.
+// A card's edges are read by its uvs: u runs out from the twig, v along it.
 // Needs no graphics card.
 #include <3d/tree_grow.h>
 #include <assets/model.h>
@@ -22,6 +27,11 @@
 #include <string.h>
 
 #define ARENA (16 * 1024 * 1024)
+// The default tree's level-0 leaf primitive at variation 0 before 0517.
+#define PIN_VERTICES 6672
+#define PIN_X 105.268517f
+#define PIN_Y 46325.7344f
+#define PIN_Z -820.926208f
 
 static bool same_skeleton(voe_3d_tree_skeleton a, voe_3d_tree_skeleton b)
 {
@@ -183,6 +193,101 @@ static void the_nodes_are_named_by_level(voe_base_arena *arena)
 	}
 }
 
+// The default tree's level-0 cards as they were before width and roll, so
+// roll 0 and width 1 grow exactly today's tree.
+static void the_default_cards_are_pinned(voe_base_arena *arena)
+{
+	const voe_assets_tree values = voe_assets_tree_default();
+	const voe_math_float3 pinned = { PIN_X, PIN_Y, PIN_Z };
+	voe_3d_tree_skeleton s;
+	voe_assets_model m;
+	voe_assets_primitive leaf;
+	voe_math_float3 sum = { 0 };
+
+	voe_3d_tree_grow(arena, &values, 0, &s);
+	voe_3d_tree_mesh(arena, &s, &values, 0, &m);
+	leaf = m.primitives[1];
+	for (uint32_t v = 0; v < leaf.vertex_count; v++)
+		sum = voe_math_float3_add(sum, leaf.positions[v]);
+	VOE_TEST_CHECK_INT(leaf.vertex_count, PIN_VERTICES);
+	VOE_TEST_CHECK(voe_math_float3_length(voe_math_float3_sub(sum, pinned)) <=
+		       1e-4f * voe_math_float3_length(pinned));
+}
+
+// Card `c` of `leaf`: its edge out from the twig and its edge along it.
+static void card_edges(voe_assets_primitive leaf, uint32_t c,
+		       voe_math_float3 *out, voe_math_float3 *twig)
+{
+	voe_math_float3 at[2][2] = { 0 };
+
+	for (uint32_t v = 4 * c; v < 4 * c + 4; v++)
+		at[leaf.uvs[v].x > 0.5f][leaf.uvs[v].y > 0.5f] =
+			leaf.positions[v];
+	*out = voe_math_float3_sub(at[1][0], at[0][0]);
+	*twig = voe_math_float3_sub(at[0][1], at[0][0]);
+}
+
+static voe_assets_model grown_with(voe_base_arena *arena, float roll,
+				   float width)
+{
+	voe_assets_tree values = voe_assets_tree_default();
+
+	values.leaf_roll = roll;
+	values.leaf_width = width;
+	return grown(&values, arena);
+}
+
+static void a_card_keeps_its_width_at_every_level(voe_base_arena *arena)
+{
+	static const float widths[2] = { 0.5f, 2.0f };
+
+	for (uint32_t i = 0; i < 2; i++) {
+		const voe_assets_model m = grown_with(arena, 0.0f, widths[i]);
+
+		for (uint32_t k = 0; k < VOE_3D_TREE_LEVELS; k++) {
+			const voe_assets_primitive leaf = m.primitives[2 * k + 1];
+			bool held = leaf.vertex_count > 0;
+
+			for (uint32_t c = 0; c < leaf.vertex_count / 4; c++) {
+				voe_math_float3 out, twig;
+				float share;
+
+				card_edges(leaf, c, &out, &twig);
+				share = voe_math_float3_length(out) /
+					voe_math_float3_length(twig);
+				held &= fabsf(share - widths[i]) <=
+					1e-4f * widths[i];
+			}
+			VOE_TEST_CHECK(held);
+		}
+	}
+}
+
+// Past 30° from vertical a card lies level; across all, both sides are used.
+static void roll_one_lays_cards_level_on_both_sides(voe_base_arena *arena)
+{
+	const voe_assets_model m = grown_with(arena, 1.0f, 0.5f);
+	const voe_assets_primitive leaf = m.primitives[1];
+	const voe_math_float3 up = { 0.0f, 1.0f, 0.0f };
+	uint32_t sides[2] = { 0 }, slanted = 0;
+	bool level = true;
+
+	for (uint32_t c = 0; c < leaf.vertex_count / 4; c++) {
+		voe_math_float3 out, twig, side;
+
+		card_edges(leaf, c, &out, &twig);
+		side = voe_math_float3_cross(voe_math_float3_normalize(twig), up);
+		if (voe_math_float3_length(side) <= 0.5f)
+			continue;
+		slanted++;
+		level &= fabsf(out.y) <= 1e-3f * voe_math_float3_length(out);
+		sides[voe_math_float3_dot(out, side) > 0.0f]++;
+	}
+	VOE_TEST_CHECK(slanted > 0);
+	VOE_TEST_CHECK(level);
+	VOE_TEST_CHECK(sides[0] > 0 && sides[1] > 0);
+}
+
 static void the_pick_repeats(void)
 {
 	for (int32_t i = -50; i < 50; i++) {
@@ -227,6 +332,12 @@ int main(void)
 	every_vertex_in_a_box_about_the_trunk(arena);
 	voe_base_arena_clear(arena);
 	the_nodes_are_named_by_level(arena);
+	voe_base_arena_clear(arena);
+	the_default_cards_are_pinned(arena);
+	voe_base_arena_clear(arena);
+	a_card_keeps_its_width_at_every_level(arena);
+	voe_base_arena_clear(arena);
+	roll_one_lays_cards_level_on_both_sides(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
