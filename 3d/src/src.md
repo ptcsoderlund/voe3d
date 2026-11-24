@@ -230,6 +230,10 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `tree_mesh.c` — each level's bark as tubes of transported rings with a child's collar, and its
   leaves as every 2^k-th card, its width a share of its length, rolled about its twig and pulled
   toward level, scaled and bent off the crown's centre.
+- `tree_joint.h` — a trunk joint's J, E and ellipse from the skeleton and its collar's rings on
+  a level's stretch, and why chords, why J is set back, the unwrapped uv and the far levels; internal.
+- `tree_joint.c` — J0 by bisection, the set-back J, each base vertex snapped onto its facet with
+  the trunk's u read from J's angle, and the chords blended by one smoothstep weight.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
 - `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, borders
