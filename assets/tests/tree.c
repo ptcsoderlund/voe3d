@@ -3,7 +3,8 @@
 // defaulting a missing key and passing over an unknown one; the strict reader
 // refusing an unknown key, an unknown section and an out-of-range value,
 // naming each; `path_is` on species, variation and other paths; a variation
-// path made or refused for its room; and one key table row per key.
+// path made or refused for its room; and one key table row per key. Leaf roll
+// and width: absent, clamped, refused and round-tripped.
 #include <assets/tree.h>
 #include <base/arena.h>
 #include <base/report.h>
@@ -21,6 +22,7 @@ static bool same(const voe_assets_tree *a, const voe_assets_tree *b)
 	       a->droop == b->droop && a->crooked == b->crooked &&
 	       a->leaf_size == b->leaf_size &&
 	       a->leaf_density == b->leaf_density &&
+	       a->leaf_roll == b->leaf_roll && a->leaf_width == b->leaf_width &&
 	       a->variations == b->variations;
 }
 
@@ -112,6 +114,35 @@ static void strict_refuses(void)
 	refused("[Leaves]\n", false, "[Tree]: no such section");
 }
 
+// A file without the keys reads roll 0 and width 1; the lenient reader clamps
+// them, the strict one refuses them, and written values come back.
+static void leaf_roll_and_width(voe_base_arena *arena)
+{
+	const char *const wide = "[Tree]\nleaf_roll=2\nleaf_width=0\n";
+	voe_assets_tree tree = voe_assets_tree_default();
+	voe_assets_tree back;
+	voe_assets_tree_text text;
+
+	VOE_TEST_CHECK(voe_assets_tree_read("[Tree]\nheight=12\n", 17, &back,
+					    NULL));
+	VOE_TEST_CHECK(back.leaf_roll == 0.0f && back.leaf_width == 1.0f);
+
+	VOE_TEST_CHECK(voe_assets_tree_read(wide, strlen(wide), &back, NULL));
+	VOE_TEST_CHECK(back.leaf_roll == 1.0f);
+	VOE_TEST_CHECK(back.leaf_width == 0.1f);
+
+	refused("[Tree]\nleaf_roll=2\n", true, "leaf_roll: outside 0 to 1");
+	refused("[Tree]\nleaf_width=0\n", true, "leaf_width: outside 0.1 to 4");
+
+	tree.leaf_roll = 0.5f;
+	tree.leaf_width = 2.5f;
+	text = voe_assets_tree_write(&tree, arena);
+	VOE_TEST_CHECK(voe_assets_tree_read_strict(text.text, text.size, &back,
+						   NULL));
+	VOE_TEST_CHECK(back.leaf_roll == 0.5f && back.leaf_width == 2.5f);
+	VOE_TEST_CHECK(same(&back, &tree));
+}
+
 static void paths_are_told(void)
 {
 	char out[16] = "kept";
@@ -141,7 +172,7 @@ static void one_row_per_key(void)
 		"bark",	   "leaf",    "height",	   "trunk",
 		"crown",   "branching", "reach",   "angle",
 		"droop",   "crooked", "leaf_size", "leaf_density",
-		"variations",
+		"leaf_roll", "leaf_width", "variations",
 	};
 	uint32_t count = 0;
 	const voe_assets_documented_key *rows = voe_assets_tree_keys(&count);
@@ -166,6 +197,7 @@ int main(void)
 	the_default_round_trips(arena);
 	lenient_clamps_and_defaults();
 	strict_refuses();
+	leaf_roll_and_width(arena);
 	paths_are_told();
 	one_row_per_key();
 

@@ -73,6 +73,7 @@ static const struct ranged_key ranged_keys[] = {
 	RANGED(reach, REACH),		  RANGED(angle, ANGLE),
 	RANGED(droop, DROOP),		  RANGED(crooked, CROOKED),
 	RANGED(leaf_size, LEAF_SIZE),	  RANGED(leaf_density, LEAF_DENSITY),
+	RANGED(leaf_roll, LEAF_ROLL),	  RANGED(leaf_width, LEAF_WIDTH),
 };
 
 static bool read_path(const voe_assets_sectioned *doc, uint32_t section,
@@ -207,6 +208,8 @@ voe_assets_tree voe_assets_tree_default(void)
 		.crooked = VOE_ASSETS_TREE_CROOKED_DEFAULT,
 		.leaf_size = VOE_ASSETS_TREE_LEAF_SIZE_DEFAULT,
 		.leaf_density = VOE_ASSETS_TREE_LEAF_DENSITY_DEFAULT,
+		.leaf_roll = VOE_ASSETS_TREE_LEAF_ROLL_DEFAULT,
+		.leaf_width = VOE_ASSETS_TREE_LEAF_WIDTH_DEFAULT,
 		.variations = VOE_ASSETS_TREE_VARIATIONS_DEFAULT,
 	};
 }
@@ -256,12 +259,13 @@ static size_t print_tree(char *buffer, size_t room, const voe_assets_tree *tree,
 		"[Tree]\nbark=%s\nleaf=%s\nheight=%.9g\ntrunk=%.9g\n"
 		"crown=%.9g\nbranching=%.9g\nreach=%.9g\nangle=%.9g\n"
 		"droop=%.9g\ncrooked=%.9g\nleaf_size=%.9g\nleaf_density=%.9g\n"
-		"variations=%u\n",
+		"leaf_roll=%.9g\nleaf_width=%.9g\nvariations=%u\n",
 		bark, leaf, (double)tree->height, (double)tree->trunk,
 		(double)tree->crown, (double)tree->branching,
 		(double)tree->reach, (double)tree->angle, (double)tree->droop,
 		(double)tree->crooked, (double)tree->leaf_size,
-		(double)tree->leaf_density, tree->variations);
+		(double)tree->leaf_density, (double)tree->leaf_roll,
+		(double)tree->leaf_width, tree->variations);
 
 	VOE_BASE_ASSERT(written > 0, "printing a tree failed");
 	VOE_BASE_ASSERT(buffer == NULL || (size_t)written < room,
@@ -371,6 +375,12 @@ static const voe_assets_documented_key documented_keys[] = {
 	{ "Tree", "leaf_density", "number", "12",
 	  VOE_ASSETS_TREE_LEAF_DENSITY_MIN, VOE_ASSETS_TREE_LEAF_DENSITY_MAX, "",
 	  true, "Leaf cards per twig." },
+	{ "Tree", "leaf_roll", "number", "0", VOE_ASSETS_TREE_LEAF_ROLL_MIN,
+	  VOE_ASSETS_TREE_LEAF_ROLL_MAX, "", true,
+	  "How far a card is turned toward its twig's level plane; 1 lies flat." },
+	{ "Tree", "leaf_width", "number", "1", VOE_ASSETS_TREE_LEAF_WIDTH_MIN,
+	  VOE_ASSETS_TREE_LEAF_WIDTH_MAX, "", true,
+	  "A card's width out from its twig, as a share of leaf_size." },
 	{ "Tree", "variations", "whole number", "4",
 	  VOE_ASSETS_TREE_VARIATIONS_MIN, VOE_ASSETS_TREE_VARIATIONS_MAX, "",
 	  true, "How many different trees the species grows." },

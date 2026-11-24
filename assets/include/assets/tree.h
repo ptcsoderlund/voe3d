@@ -15,6 +15,8 @@
 //     crooked=0.2
 //     leaf_size=0.3
 //     leaf_density=12
+//     leaf_roll=0
+//     leaf_width=1
 //     variations=4
 //
 // THIS FILE IS ALL A SPECIES KEEPS ON DISK (0510): every variation is grown
@@ -29,6 +31,12 @@
 // card; `leaf_density` cards per twig; `variations` how many trees are grown.
 // The ranges and defaults are the constants below, which the Inspector and the
 // key table share.
+//
+// A CARD IS HINGED ON ITS TWIG (0517 point 1): its edge along the twig is
+// `leaf_size`, its edge out from the twig `leaf_width` × `leaf_size`.
+// `leaf_roll` pulls each card's random roll toward the twig's level plane, 0
+// not at all, 1 flat. A file without either key reads roll 0 and width 1, and
+// grows as before.
 //
 // A MISSING KEY READS ITS DEFAULT, A VALUE OUT OF RANGE IS CLAMPED AND AN
 // UNKNOWN KEY IS PASSED OVER, as a material file's are, so a project still
@@ -86,6 +94,12 @@
 #define VOE_ASSETS_TREE_LEAF_DENSITY_MIN 0.0f
 #define VOE_ASSETS_TREE_LEAF_DENSITY_MAX 64.0f
 #define VOE_ASSETS_TREE_LEAF_DENSITY_DEFAULT 12.0f
+#define VOE_ASSETS_TREE_LEAF_ROLL_MIN 0.0f
+#define VOE_ASSETS_TREE_LEAF_ROLL_MAX 1.0f
+#define VOE_ASSETS_TREE_LEAF_ROLL_DEFAULT 0.0f
+#define VOE_ASSETS_TREE_LEAF_WIDTH_MIN 0.1f
+#define VOE_ASSETS_TREE_LEAF_WIDTH_MAX 4.0f
+#define VOE_ASSETS_TREE_LEAF_WIDTH_DEFAULT 1.0f
 #define VOE_ASSETS_TREE_VARIATIONS_MIN 1u
 #define VOE_ASSETS_TREE_VARIATIONS_MAX 16u
 #define VOE_ASSETS_TREE_VARIATIONS_DEFAULT 4u
@@ -113,6 +127,10 @@ typedef struct {
 	float leaf_size;
 	// Cards per twig.
 	float leaf_density;
+	// How far a card is pulled toward its twig's level plane, 0 to 1.
+	float leaf_roll;
+	// A card's width out from its twig as a share of `leaf_size`.
+	float leaf_width;
 	uint32_t variations;
 } voe_assets_tree;
 
