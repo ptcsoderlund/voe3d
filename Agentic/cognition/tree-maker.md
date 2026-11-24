@@ -16,7 +16,9 @@
 - A leaf is a textured plane, a card of the leaf material: "yes, a leaf should be a textured plane"; see 0513. [confirmed · tech-lead · 2026-11-20]
 - Measured speed decides between one card per leaf and cards that gather leaves and twigs: "Whichever gives us best performance"; see 0513. [intent · tech-lead · 2026-11-20]
 - The sponsor is making a spruce, its leaf texture a small spruce branch, not one leaf: "I am doing a spruce so i have small branches as 'leaves'". [intent · tech-lead · 2026-11-24]
-- Leaf cards pointing in every direction look wrong for a spruce branch: "This might fit leaves but maybe not spruce branch". [intent · tech-lead · 2026-11-24]
+- Leaf cards pointing in every direction look wrong for a spruce branch: "This might fit leaves but maybe not spruce branch"; see 0516. [intent · tech-lead · 2026-11-24]
+- The sponsor draws the sprig picture at the card's width-to-length ratio, since the picture stretches over the card; see 0516. [confirmed · tech-lead · 2026-11-24]
+- Whether a spruce's overall shape (a cone, long lower branches, in tiers) can be grown with today's settings is undecided: asked, not answered. [open · tech-lead · 2026-11-24]
 - The sponsor asked whether the leaf could be a single needle instead: "I cant just do one needle and use that as 'leaf' can I?" [intent · tech-lead · 2026-11-24]
 - A leaf's alpha cuts out only when its Leaf `.material` has Cutout above 0; the default 0 is opaque, which is what made the alpha look solid: "cutout fixes it". [confirmed · tech-lead · 2026-11-24]
 
