@@ -17,6 +17,13 @@ with it. Far trees get simpler calmly, as models do (106), and the forest stays 
 ordinary kind beside the grown ones. The species file is taken in when it changes on disk (115) and
 described in `Docs/` (116). (0510)
 
+A spruce has a small branch on each leaf card, and those lie flat in layers along its branches rather than
+fanning out around the twig. So a species also has a leaf roll, from the random roll leaves get today to
+lying flat, and a leaf width, so a card can be narrower or wider than long to fit the sprig I drew. A species
+file without them grows as before. And a foliage kind I no longer want — a rock I added — can be removed from
+a landscape without deleting the landscape: its painted copies go, the other kinds stay as they were, and
+undo brings it back. (0516)
+
 ## Why
 I am about to make the hill's trees. Growing them from settings means I make each species once, every tree in
 the forest varies, and the engine knows each tree's trunk and branches for wind and chopping later.
@@ -40,3 +47,12 @@ the forest varies, and the engine knows each tree's trunk and branches for wind 
 11. Look in `Assets/`: the species are small files, no tree meshes beside them. Edit the spruce's file by hand
     in a text editor while the editor is open: the spruces change. `Docs/` describes the species file.
 12. Press Play, then ship: the forest looks the same in both.
+13. Open the spruce and set leaf roll to 1: the sprigs lie flat in layers along each branch, not fanned around
+    it. Drag it back to 0: as before. Drag leaf width: the cards get narrower or wider and the sprig is no
+    longer squashed; leaf size still sets their length. Fly away: the far trees keep the flat layers and the
+    sprigs' shape, without popping.
+14. A species file made before these settings existed looks exactly as it did. Edit leaf roll in the file by
+    hand: the spruces change. `Docs/` describes both settings.
+15. In a landscape with a rock kind painted, remove the rock kind in the Foliage section: every rock goes, the
+    landscape and the other kinds stay, and the trees are the same trees in the same spots. Undo: the rock
+    kind is back with every rock where it was. Redo, save, close and reopen: no rocks.
