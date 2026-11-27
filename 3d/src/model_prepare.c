@@ -1,9 +1,7 @@
 // A read `.glb` prepared for the store's put (3d/model_prepare.h): level 0
 // baked, the file's own levels baked or its levels file read and checked, the
 // CPU shape built and the sphere measured, all on the caller's arena. models.c
-// puts what this makes; models_levels.c uploads its levels. A grown model
-// shares all but the file: its own levels are measured here instead, both ways
-// against level 0 (3d/src/measure.h), as a levels file measures a `.glb`'s.
+// puts what this makes; models_levels.c uploads its levels.
 //
 // OWN LEVELS ARE BAKED IN ORDER UNTIL ONE MATCHES NO PART: it would draw
 // nothing, and the levels after it are farther still, so they are not baked.
@@ -17,7 +15,6 @@
 //
 // NOTHING HERE IS SHARED: no device, no store, no static state, so it runs on
 // any thread with an arena of its own.
-#include "measure.h"
 #include "model_bake.h"
 #include "models_store.h"
 
@@ -140,92 +137,37 @@ static bool fits(const voe_3d_model_levels *read, const voe_3d_model_bake *bake)
 	return true;
 }
 
-// What both entry points share: level 0 and the own levels baked, the shape
-// built and the sphere measured; no levels file read and nothing measured.
-static voe_3d_model_prepared *prepare_baked(voe_base_arena *arena,
-					    const voe_assets_model *model,
-					    voe_base_error *error)
-{
-	voe_3d_model_prepared *prepared;
-	uint32_t own;
-
-	VOE_BASE_ASSERT(arena != NULL, "preparing a model with no arena");
-	VOE_BASE_ASSERT(model != NULL, "preparing no model");
-
-	prepared = voe_base_arena_push(arena, sizeof(*prepared));
-	prepared->model = model;
-	if (!voe_3d_model_bake_create(arena, model, 0, &prepared->bake, error))
-		return NULL;
-	own = voe_3d_model_bake_levels(model);
-	if (own > 1) {
-		prepared->own = true;
-		if (!bake_own(arena, model, own, prepared, error))
-			return NULL;
-	}
-	build_shape(arena, &prepared->bake, &prepared->shape);
-	measure_sphere(prepared);
-	return prepared;
-}
-
 const voe_3d_model_prepared *
 voe_3d_model_prepare(voe_base_arena *arena, const voe_assets_model *model,
 		     const uint8_t *glb, size_t glb_size, const uint8_t *levels,
 		     size_t levels_size, voe_base_error *error)
 {
 	voe_3d_model_prepared *prepared;
+	uint32_t own;
 	bool fresh;
 
+	VOE_BASE_ASSERT(arena != NULL, "preparing a model with no arena");
 	VOE_BASE_ASSERT(model != NULL && glb != NULL,
 			"preparing no model or no file");
 
-	prepared = prepare_baked(arena, model, error);
-	if (prepared == NULL)
+	prepared = voe_base_arena_push(arena, sizeof(*prepared));
+	prepared->model = model;
+	if (!voe_3d_model_bake_create(arena, model, 0, &prepared->bake, error))
 		return NULL;
+	own = voe_3d_model_bake_levels(model);
 	fresh = levels != NULL &&
 		voe_3d_model_levels_read(arena, levels, levels_size, glb,
 					 glb_size, &prepared->read);
-	if (prepared->own)
+	if (own > 1) {
+		prepared->own = true;
 		prepared->measured = fresh && prepared->read.own &&
-				     prepared->read.level_count ==
-					     voe_3d_model_bake_levels(model);
-	else
+				     prepared->read.level_count == own;
+		if (!bake_own(arena, model, own, prepared, error))
+			return NULL;
+	} else {
 		prepared->made = fresh && fits(&prepared->read, &prepared->bake);
-	return prepared;
-}
-
-// Each own level's error measured both ways against level 0, kept as an own
-// levels file's measures with every swap 1, as the default parts would give.
-static void measure_own(voe_base_arena *arena, voe_3d_model_prepared *prepared)
-{
-	voe_3d_model_levels *read = &prepared->read;
-
-	VOE_BASE_ASSERT(prepared->own && prepared->own_count >= 1,
-			"measuring the levels of a model with none");
-
-	read->own = true;
-	read->level_count = prepared->own_count;
-	read->part_count = 0;
-	read->errors[0] = 0.0f;
-	for (uint32_t k = 0; k < VOE_3D_MODEL_LEVELS; k++)
-		read->swaps[k] = 1.0f;
-	for (uint32_t k = 1; k < prepared->own_count; k++)
-		read->errors[k] = voe_3d_measure_apart(arena, &prepared->bake,
-						       &prepared->own_levels[k]);
-	prepared->measured = true;
-
-	VOE_BASE_ASSERT(read->level_count <= VOE_3D_MODEL_LEVELS,
-			"measured past the levels");
-}
-
-const voe_3d_model_prepared *
-voe_3d_model_prepare_grown(voe_base_arena *arena, const voe_assets_model *model,
-			   voe_base_error *error)
-{
-	voe_3d_model_prepared *prepared = prepare_baked(arena, model, error);
-
-	if (prepared != NULL && prepared->own)
-		measure_own(arena, prepared);
-	VOE_BASE_ASSERT(prepared == NULL || !prepared->made,
-			"a grown model with made levels");
+	}
+	build_shape(arena, &prepared->bake, &prepared->shape);
+	measure_sphere(prepared);
 	return prepared;
 }

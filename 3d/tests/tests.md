@@ -52,8 +52,7 @@ again, or to find where a claim that has started failing is written down.
   draws 3 m away, one without levels draws whole, and a memory's swap dissolves unless fading,
   settles, and swaps back only 10% nearer. Skips without a card.
 - `draw_foliage.c` — that copies gather into groups, none without row, kind or room, grown ones
-  among them, shadowless ones seen, blending with their ground, and a species' variations. Skips
-  without a card.
+  among them, shadowless ones seen, and blending with their ground. Skips without a card.
 - `draw_foliage_view.c` — that copies change the picture and shadow, are laid then shaded by the
   camera, and count skipped yet shadow behind it. Skips without a card.
 - `draw_foliage_lods.c` — that a copy dissolves a swap through a memory and keeps no memory unseen.
@@ -212,13 +211,6 @@ again, or to find where a claim that has started failing is written down.
 - `foliage_grow.c` — a layer's grown density, nothing past the paint, half the tenths half as
   thick, a remade rect equal to a whole grow, one kind remade alone, a kind grown by its seed,
   and the cap. Needs no graphics card.
-- `tree_grow.c` — a tree's skeleton by variation, its levels and nodes, the default cards pinned,
-  the pick pinned by seed, and the cards' width and roll. Needs no graphics card.
-- `tree_joint.c` — a trunk joint's base ring on the faceted trunk with its normal and uv, no ring
-  inside it, the plain ring at E, θ/2 out of J and no u jump across the seam. Needs no graphics card.
-- `model_prepare_grown.c` — a default tree prepared in memory with its four own levels measured,
-  their errors rising, and the bounds they give swapping each level in farther. Needs no
-  graphics card.
 - `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
   once, neighbours within a level, within capacity, bounding their heights; an update equal to a
   fresh build and the pyramid's box. Needs no graphics card.

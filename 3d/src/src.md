@@ -193,7 +193,7 @@ here is included from outside the folder — `include/3d/` is the whole public s
   store's files share.
 - `model_prepare.c` — a read `.glb` prepared off the device: level 0 and own levels baked until
   one matches no part, or a levels file read and checked against the bake, the shape built and
-  the sphere measured; a grown model alike, its own levels measured against level 0.
+  the sphere measured.
 - `model_cooked.c` — a prepared `.glb` measured then written as one run of 16-aligned sections,
   each picture mipped by its first use, and read back pointing into the bytes, every count, range
   and index checked.
@@ -206,8 +206,6 @@ here is included from outside the folder — `include/3d/` is the whole public s
 - `models_foliage.c` — the store's foliage calls: a loaded landscape's grid and placed transforms
   handed to foliage.c, a kind's look, its blend counted, or a layer's growth set remaking that
   kind's copies, the entry marked edited and the store's count raised on a change.
-- `models_trees.c` — a grown variation put wearing its species' bark and leaf by source, a
-  species kept partless with its `path#v` entries' indices, and the variation a copy draws.
 - `models_material.c` — a `.material`'s four maps, decoded by the load under each map's name as
   the subject or already by the caller, put mipped with its record, cutout, emission and sides
   and its twin as one part with no geometry; the set marking it and the frame rewriting both records.
@@ -224,16 +222,6 @@ here is included from outside the folder — `include/3d/` is the whole public s
   copies in one walk, erase and undo by moving the last in, and the replace over a rect.
 - `foliage_grow.c` — the area's grown copies of the remade kinds removed, then each kind's
   lattice cells over it hashed, jittered, kept by the bilinear paint and placed.
-- `tree_grow.c` — the trunk as one limb of equal steps, then each limb's children breadth first,
-  spaced above the crown, turned by the golden angle, drooped and jittered, until the cap; and
-  the pick's integer mix.
-- `tree_mesh.c` — each level's bark as tubes of transported rings with a child's collar, and its
-  leaves as every 2^k-th card, its width a share of its length, rolled about its twig and pulled
-  toward level, scaled and bent off the crown's centre.
-- `tree_joint.h` — a trunk joint's J, E and ellipse from the skeleton and its collar's rings on
-  a level's stretch, and why chords, why J is set back, the unwrapped uv and the far levels; internal.
-- `tree_joint.c` — J0 by bisection, the set-back J, each base vertex snapped onto its facet with
-  the trunk's u read from J's angle, and the chords blended by one smoothstep weight.
 - `landscape_lod.c` — the min/max pyramid built and updated over a rect, its root's box, and the
   selection splitting nodes coarse to fine by the eye's distance within a capacity.
 - `simplify.h` — a part's triangles made fewer by half-edge collapse under quadric error, borders

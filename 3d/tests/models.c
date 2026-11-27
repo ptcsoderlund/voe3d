@@ -30,23 +30,15 @@
 // the store in the frame the centre pixel is not the background; without it,
 // and with the thing hidden, it is.
 //
-// GROWN TREES (0515 point 3) get a device and store of their own, roomy enough
-// for a tree's levels: a variation put wears the bark and leaf paths by source
-// and _parts_set leaves them; a species returns the variation the pick names,
-// none for one not put, and any other entry itself; a rename moves `#0`.
-//
 // IT SKIPS WHEN THERE IS NO GRAPHICS CARD, because a load uploads.
 #include <3d/draw_system.h>
 #include <3d/material_component.h>
 #include <3d/mesh_component.h>
 #include <3d/model_component.h>
-#include <3d/model_prepare.h>
 #include <3d/models.h>
 #include <3d/panel_component.h>
-#include <3d/tree_grow.h>
 #include <assets/image.h>
 #include <assets/model.h>
-#include <assets/tree.h>
 #include <base/arena.h>
 #include <base/error.h>
 #include <base/report.h>
@@ -68,8 +60,6 @@
 #include "model_data.inc"
 
 #define SCRATCH (4 * 1024 * 1024)
-// A grown tree and its prepare.
-#define GROWN (64 * 1024 * 1024)
 #define SIDE 64
 #define TOLERANCE 1e-5f
 
@@ -573,123 +563,6 @@ static void check_drawn(voe_3d_models *models, voe_render_device *device)
 	voe_base_arena_destroy(arena);
 }
 
-// A grown tree's variations put at `Trees/a.tree#0` and `#1`, in a store and
-// on a device of their own, roomy enough for a tree's levels.
-static void check_grown(voe_base_arena *arena, voe_platform_size size)
-{
-	static const voe_render_capacities ROOM = {
-		.vertices = 1 << 16,
-		.indices = 1 << 17,
-		.geometries = 64,
-		.objects = 8,
-		.shadings = 64,
-		.passes = 1,
-	};
-	const voe_assets_tree values = voe_assets_tree_default();
-	voe_base_arena *grow = voe_base_arena_new(GROWN);
-	voe_assets_model *tree = voe_base_arena_push(grow, sizeof(*tree));
-	voe_base_error error = VOE_BASE_OK;
-	const voe_3d_model_prepared *prepared;
-	const voe_3d_model_entry *entry, *species, *drawn;
-	voe_3d_tree_skeleton skeleton;
-	voe_render_device *device;
-	voe_3d_models *models;
-	voe_assets_parts parts = { .count = 2 };
-	uint32_t v, x;
-
-	device = voe_render_device_new_headless(arena, size, ROOM, &error);
-	VOE_TEST_CHECK(device != NULL);
-	if (device == NULL) {
-		voe_base_arena_destroy(grow);
-		return;
-	}
-	models = voe_3d_models_new();
-	voe_3d_tree_grow(grow, &values, 0, &skeleton);
-	voe_3d_tree_mesh(grow, &skeleton, &values, 0, tree);
-	prepared = voe_3d_model_prepare_grown(grow, tree, &error);
-	VOE_TEST_CHECK(prepared != NULL);
-	if (prepared == NULL)
-		goto done;
-
-	// ---- each part wears the bark or the leaf by its source
-	VOE_TEST_CHECK(voe_3d_models_put_grown(models, device, "Trees/a.tree#0",
-					       prepared, "Trees/bark.material",
-					       "Trees/leaf.material", &error));
-	VOE_TEST_CHECK(voe_3d_models_put_grown(models, device, "Trees/a.tree#1",
-					       prepared, "Trees/bark.material",
-					       "Trees/leaf.material", &error));
-	entry = voe_3d_models_find(models, "Trees/a.tree#0");
-	VOE_TEST_CHECK(entry != NULL && entry->loaded && entry->grown);
-	if (entry == NULL)
-		goto done;
-	VOE_TEST_CHECK(entry->stamp == 0 && entry->part_count == 2);
-	for (uint32_t p = 0; p < entry->part_count; p++)
-		VOE_TEST_CHECK(strcmp(entry->parts[p].wears,
-				      entry->parts[p].source == 0 ?
-					      "Trees/bark.material" :
-					      "Trees/leaf.material") == 0);
-
-	// ---- _parts_set leaves a grown entry alone
-	snprintf(parts.materials[0], sizeof parts.materials[0], "%s",
-		 "Assets/zero.material");
-	voe_3d_models_parts_set(models, "Trees/a.tree#0", &parts);
-	voe_3d_models_parts_set(models, "Trees/a.tree#0", NULL);
-	for (uint32_t p = 0; p < entry->part_count; p++)
-		VOE_TEST_CHECK(strstr(entry->parts[p].wears, "Trees/") ==
-			       entry->parts[p].wears);
-
-	// ---- a species of two returns its variations; any other entry itself
-	VOE_TEST_CHECK(voe_3d_models_species_set(models, "Trees/a.tree", 2));
-	species = voe_3d_models_find(models, "Trees/a.tree");
-	VOE_TEST_CHECK(species != NULL && species->loaded &&
-		       species->part_count == 0 && !species->grown);
-	if (species == NULL)
-		goto done;
-	for (x = 0; x < 20; x++) {
-		char path[32];
-
-		v = voe_3d_tree_pick(1, (int32_t)x * 1000, 500, 2);
-		snprintf(path, sizeof path, "Trees/a.tree#%u", v);
-		VOE_TEST_CHECK(voe_3d_models_variation(models, species, 1,
-						       (int32_t)x * 1000,
-						       500) ==
-			       voe_3d_models_find(models, path));
-	}
-	VOE_TEST_CHECK(voe_3d_models_variation(models, entry, 1, 0, 0) ==
-		       entry);
-
-	// ---- a variation not put is none
-	VOE_TEST_CHECK(voe_3d_models_species_set(models, "Trees/c.tree", 3));
-	species = voe_3d_models_find(models, "Trees/c.tree");
-	for (x = 0; species != NULL &&
-		    voe_3d_tree_pick(1, (int32_t)x * 1000, 0, 3) != 2;
-	     x++)
-		;
-	VOE_TEST_CHECK(species != NULL &&
-		       voe_3d_models_variation(models, species, 1,
-					       (int32_t)x * 1000, 0) == NULL);
-
-	// ---- a rename moves `a.tree#0` with `a.tree`, its variations following
-	voe_3d_models_rename(models, "Trees/a.tree", "Trees/b.tree");
-	VOE_TEST_CHECK(voe_3d_models_find(models, "Trees/a.tree#0") == NULL);
-	drawn = voe_3d_models_find(models, "Trees/b.tree#0");
-	VOE_TEST_CHECK(drawn == entry);
-	species = voe_3d_models_find(models, "Trees/b.tree");
-	VOE_TEST_CHECK(species != NULL &&
-		       voe_3d_models_variation(models, species, 1, 0, 500) ==
-			       voe_3d_models_find(
-				       models,
-				       voe_3d_tree_pick(1, 0, 500, 2) == 0 ?
-					       "Trees/b.tree#0" :
-					       "Trees/b.tree#1"));
-
-done:
-	voe_3d_models_clear(models, device);
-	voe_3d_models_destroy(models);
-	voe_render_device_destroy(device);
-	voe_base_arena_destroy(grow);
-}
-
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(SCRATCH);
@@ -793,10 +666,6 @@ int main(void)
 
 	voe_3d_models_destroy(models);
 	voe_render_device_destroy(device);
-
-	// ---- grown trees, on a device of their own
-	check_grown(arena, size);
-
 	voe_base_arena_destroy(arena);
 	return voe_test_result();
 }

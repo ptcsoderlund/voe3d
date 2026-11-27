@@ -59,15 +59,15 @@
 #define FOREST "Assets/forest.landscape"
 #define COPIES 3
 
-// The model's parts, twice for 16's variations, and the landscape's grid, both
-// with their twins, or the sphere's levels in their place; the ground's nodes
-// and the groups drawn into the view and four cascades.
+// The model's parts and the landscape's grid, both with their twins, or the
+// sphere's levels in their place; the ground's nodes and the groups drawn into
+// the view and four cascades.
 static const voe_render_capacities CAPACITIES = {
 	.vertices = 33 * 33 + 6 + 32 * 1024,
 	.indices = 32 * 32 * 6 + 6 + 128 * 1024,
-	.geometries = 8 + VOE_3D_MODEL_LEVELS,
+	.geometries = 4 + VOE_3D_MODEL_LEVELS,
 	.objects = (1 + VOE_RENDER_SHADOW_CASCADES) * 64,
-	.shadings = 16,
+	.shadings = 8,
 	.passes = 1 + VOE_RENDER_SHADOW_CASCADES,
 	.shadow_size = VOE_3D_SHADOW_TEXELS,
 	.heights_texels = VOE_3D_LANDSCAPE_WRITE_TEXELS,
