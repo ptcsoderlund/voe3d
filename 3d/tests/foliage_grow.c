@@ -1,10 +1,10 @@
 // The grown foliage of 3d/foliage_grow.h on a flat 256 m grid of 64 cells
-// with two kinds: a layer growing 4 copies per 100 m² over the whole grid
+// with two groups of one glb: a layer growing 4 copies per 100 m² over the whole grid
 // grows about 0.04 × 256²; paint on the west half grows nothing past a cell
 // east of it; a second layer at half the tenths on the east half grows about
 // half as thick; a rect remade after a repaint equals a whole grow on the new
-// paint; remaking one kind leaves the other's copies; a kind seeded 1 grows
-// where kind 1 unseeded does; and a 512 m grid at the most two kinds can grow
+// paint; remaking one group leaves the other's copies; a group seeded 1 grows
+// where group 1 unseeded does; and a 512 m grid at the most two groups grow
 // stops at the cap. Needs no graphics card.
 #include <3d/foliage_grow.h>
 #include <3d/foliage.h>
@@ -39,9 +39,12 @@ static struct grown flat(float size, uint32_t layers, voe_base_arena *arena)
 	};
 
 	out.land.layer_count = layers;
-	out.land.kind_count = 2;
-	out.land.looks[0] = voe_assets_landscape_look_default();
-	out.land.looks[1] = voe_assets_landscape_look_default();
+	out.land.group_count = 2;
+	for (uint32_t k = 0; k < 2; k++) {
+		out.land.groups[k].glb_count = 1;
+		out.land.groups[k].looks[0] =
+			voe_assets_landscape_look_default();
+	}
 	out.land.paint = voe_base_arena_push(arena, (size_t)2 * n * n * 4);
 	memset(out.land.paint, 0, (size_t)2 * n * n * 4);
 	for (uint32_t i = 0; i < n * n; i++)
@@ -84,8 +87,8 @@ static int by_kind_x_z(const void *pa, const void *pb)
 {
 	const voe_assets_landscape_copy *a = pa, *b = pb;
 
-	if (a->kind != b->kind)
-		return a->kind < b->kind ? -1 : 1;
+	if (a->group != b->group)
+		return a->group < b->group ? -1 : 1;
 	if (a->x != b->x)
 		return a->x < b->x ? -1 : 1;
 	return a->z < b->z ? -1 : a->z > b->z;
@@ -94,7 +97,7 @@ static int by_kind_x_z(const void *pa, const void *pb)
 static bool same(voe_assets_landscape_copy a, voe_assets_landscape_copy b)
 {
 	return a.x == b.x && a.z == b.z && a.turn == b.turn &&
-	       a.scale == b.scale && a.kind == b.kind && a.lean == b.lean;
+	       a.scale == b.scale && a.group == b.group && a.lean == b.lean;
 }
 
 // Kind `kind`'s copies, or every kind's for kind 2, copied to `out` sorted;
@@ -105,7 +108,7 @@ static uint32_t sorted(const struct grown *g, uint32_t kind,
 	uint32_t n = 0;
 
 	for (uint32_t i = 0; i < g->count; i++)
-		if (kind == 2 || g->copies[i].kind == kind)
+		if (kind == 2 || g->copies[i].group == kind)
 			out[n++] = g->copies[i];
 	qsort(out, n, sizeof(*out), by_kind_x_z);
 	return n;
@@ -249,7 +252,7 @@ static void a_kind_grows_by_its_seed(voe_base_arena *arena)
 
 	paint_columns(&seeded.land, 0, CELLS + 1, 1);
 	paint_columns(&indexed.land, 0, CELLS + 1, 1);
-	seeded.land.looks[0].seed = 2;
+	seeded.land.groups[0].seed = 2;
 	seeded.land.grows[1][0] = 40;
 	indexed.land.grows[1][1] = 40;
 	grow(&seeded, whole, 1u);

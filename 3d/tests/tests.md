@@ -107,7 +107,7 @@ again, or to find where a claim that has started failing is written down.
   a whole relight and removal. Skips without a card.
 - `bounce_pacing.c` — that an eye flying 0.15 m a frame opens one capture pass a frame and fits
   that room every frame, then settles once still. Skips without a card.
-- `bounce_foliage.c` — that a kind set relights the bounce, an erase does too, and the relit sun
+- `bounce_foliage.c` — that a glb set relights the bounce, an erase does too, and the relit sun
   maps draw a whole multiple of the foliage groups more with copies than without. Skips without a
   card.
 - `bounce_world.inc` — the bounce tests' harness: the floor, sun and placed box, the reference at
@@ -195,7 +195,7 @@ again, or to find where a claim that has started failing is written down.
 - `models_landscape.c` — a `.landscape` loaded as one part on the grid, its brushes, puts,
   layers and renames written within a frame's budget, and marked changed. Skips without a card.
 - `models_landscape_foliage.c` — a landscape's foliage placed, kept standing by a sculpt,
-  scattered, erased, put back, kinds set, sized and renamed, and grown by its layers. Skips without
+  scattered, erased, put back, glbs set, sized and renamed, and grown by its layers. Skips without
   a card.
 - `models_landscape_store.inc` — the store's landscape tests' harness: the capacities, the empty
   rect, one frame of writes and the device.
@@ -206,10 +206,10 @@ again, or to find where a claim that has started failing is written down.
   painting a layer: the sum kept, the radius held and a light stroke stopping at its strength.
   Needs no graphics card.
 - `foliage.c` — a held scatter stamp filling to about its density, spaced, picked and within its
-  radius; a seed repeating; erase by kind and undo's put both ways; a copy leaning 45° or upright on
-  a slope; a replace following a raised height; a kind's base size. Needs no graphics card.
+  radius; a seed repeating; erase by group and undo's put both ways; a copy leaning 45° or upright on
+  a slope; a replace following a raised height; a copy sized by its picked glb. No card.
 - `foliage_grow.c` — a layer's grown density, nothing past the paint, half the tenths half as
-  thick, a remade rect equal to a whole grow, one kind remade alone, a kind grown by its seed,
+  thick, a remade rect equal to a whole grow, one group remade alone, a group grown by its seed,
   and the cap. Needs no graphics card.
 - `landscape_lod.c` — on 2048 cells of hills, eyes on a lattice choosing nodes that cover the square
   once, neighbours within a level, within capacity, bounding their heights; an update equal to a

@@ -53,30 +53,30 @@ static float draw(uint64_t *seed)
 	return (float)(x >> 40) * 0x1p-24f;
 }
 
-// The picked kinds the landscape has.
-static uint32_t held_kinds(const voe_assets_landscape *landscape,
-			   uint32_t picked)
+// The picked groups the landscape has.
+static uint32_t held_groups(const voe_assets_landscape *landscape,
+			    uint32_t picked)
 {
-	VOE_BASE_ASSERT(landscape->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
-			"at most 16 kinds");
-	const uint32_t mask = (1u << landscape->kind_count) - 1u;
+	VOE_BASE_ASSERT(landscape->group_count <= VOE_ASSETS_LANDSCAPE_GROUPS,
+			"at most 16 groups");
+	const uint32_t mask = (1u << landscape->group_count) - 1u;
 
 	return picked & mask;
 }
 
-// The kind at `share` (0..1) along the set bits of `kinds`, which has one.
-static uint8_t nth_kind(uint32_t kinds, float share)
+// The group at `share` (0..1) along the set bits of `groups`, which has one.
+static uint8_t nth_group(uint32_t groups, float share)
 {
 	uint32_t count = 0;
 
-	for (uint32_t k = 0; k < VOE_ASSETS_LANDSCAPE_KINDS; k++)
-		count += (kinds >> k) & 1u;
-	VOE_BASE_ASSERT(count > 0, "a picked kind");
+	for (uint32_t k = 0; k < VOE_ASSETS_LANDSCAPE_GROUPS; k++)
+		count += (groups >> k) & 1u;
+	VOE_BASE_ASSERT(count > 0, "a picked group");
 	uint32_t index = (uint32_t)(share * (float)count);
 
 	index = index < count ? index : count - 1;
-	for (uint32_t k = 0; k < VOE_ASSETS_LANDSCAPE_KINDS; k++) {
-		if (!((kinds >> k) & 1u))
+	for (uint32_t k = 0; k < VOE_ASSETS_LANDSCAPE_GROUPS; k++) {
+		if (!((groups >> k) & 1u))
 			continue;
 		if (index == 0)
 			return (uint8_t)k;
@@ -113,8 +113,11 @@ voe_scene_transform voe_3d_foliage_place(const voe_assets_landscape *landscape,
 		(voe_math_float3){ -slope_x, 1.0f, -slope_z });
 	// +Y × normal: the axis that takes up toward the normal.
 	const voe_math_float3 axis = { normal.z, 0.0f, -normal.x };
-	const float scale = voe_assets_landscape_kind_size(landscape, copy.kind) *
-			    ((float)copy.scale * 0.001f);
+	const uint32_t glb =
+		voe_assets_landscape_glb_pick(landscape, copy.group, copy.x, copy.z);
+	const float scale =
+		voe_assets_landscape_glb_size(landscape, copy.group, glb) *
+		((float)copy.scale * 0.001f);
 	voe_math_quat rotation = voe_math_quat_from_axis_angle(
 		(voe_math_float3){ 0.0f, 1.0f, 0.0f },
 		(float)copy.turn / TURN_UNITS * TWO_PI);
@@ -134,26 +137,31 @@ voe_scene_transform voe_3d_foliage_place(const voe_assets_landscape *landscape,
 
 // One try: a point uniform in the disc and its copy, refused already when it
 // is off the square or its weight does not beat a draw. Six draws always; the
-// kind is drawn before its spreads are read from its look.
+// group is drawn, then its spreads read from the look of the glb the point
+// picks (0521 point 3).
 static struct foliage_try try_point(const voe_assets_landscape *landscape,
 				    const voe_3d_foliage_brush *brush, float x,
-				    float z, uint32_t kinds, uint64_t *seed)
+				    float z, uint32_t groups, uint64_t *seed)
 {
 	const float reach = brush->radius * sqrtf(draw(seed));
 	const float angle = TWO_PI * draw(seed);
 	const float beat = draw(seed);
-	const uint8_t kind = nth_kind(kinds, draw(seed));
+	const uint8_t group = nth_group(groups, draw(seed));
 	const float size = draw(seed);
 	const float turn = draw(seed);
-	const voe_assets_landscape_look look = landscape->looks[kind];
+	const float px = x + reach * cosf(angle);
+	const float pz = z + reach * sinf(angle);
+	const int32_t x_mm = (int32_t)lroundf(px * 1000.0f);
+	const int32_t z_mm = (int32_t)lroundf(pz * 1000.0f);
+	const voe_assets_landscape_look look =
+		landscape->groups[group].looks[voe_assets_landscape_glb_pick(
+			landscape, group, x_mm, z_mm)];
 
 	VOE_BASE_ASSERT(look.size_vary <= VOE_ASSETS_LANDSCAPE_SIZE_VARY_MAX &&
 				look.turn_vary <=
 					VOE_ASSETS_LANDSCAPE_TURN_VARY_MAX &&
 				look.tilt <= VOE_ASSETS_LANDSCAPE_TILT_MAX,
-			"a kind's spreads in range");
-	const float px = x + reach * cosf(angle);
-	const float pz = z + reach * sinf(angle);
+			"a glb's spreads in range");
 	const float half = 0.5f * landscape->size;
 	const float scale =
 		(1.0f + (float)look.size_vary / 100.0f * (2.0f * size - 1.0f)) *
@@ -165,12 +173,12 @@ static struct foliage_try try_point(const voe_assets_landscape *landscape,
 		voe_3d_brush_weight(brush->radius, brush->softness, reach);
 	struct foliage_try out = {
 		.copy = {
-			.x = (int32_t)lroundf(px * 1000.0f),
-			.z = (int32_t)lroundf(pz * 1000.0f),
+			.x = x_mm,
+			.z = z_mm,
 			.turn = (uint16_t)(uint32_t)units,
 			.scale = (uint16_t)lroundf(
 				fminf(fmaxf(scale, 1.0f), 65535.0f)),
-			.kind = kind,
+			.group = group,
 			.lean = (uint8_t)lroundf(lean),
 		},
 	};
@@ -206,7 +214,7 @@ static void append(voe_assets_landscape *landscape, voe_scene_transform *placed,
 {
 	VOE_BASE_ASSERT(landscape->copy_count < VOE_ASSETS_LANDSCAPE_COPIES,
 			"room for a copy");
-	VOE_BASE_ASSERT(copy.kind < landscape->kind_count, "a held kind");
+	VOE_BASE_ASSERT(copy.group < landscape->group_count, "a held group");
 	landscape->copies[landscape->copy_count] = copy;
 	if (placed)
 		placed[landscape->copy_count] = voe_3d_foliage_place(landscape, copy);
@@ -226,7 +234,7 @@ uint32_t voe_3d_foliage_scatter(voe_assets_landscape *landscape,
 	VOE_BASE_ASSERT(brush->radius > 0.0f && brush->density > 0.0f &&
 				seconds >= 0.0f,
 			"a radius, a density and time not running backwards");
-	const uint32_t kinds = held_kinds(landscape, brush->picked);
+	const uint32_t groups = held_groups(landscape, brush->picked);
 	const float s = fminf(seconds, LONGEST_SECONDS);
 	const float wanted = ceilf(brush->density / 100.0f * 3.14159265f *
 				   brush->radius * brush->radius *
@@ -237,10 +245,10 @@ uint32_t voe_3d_foliage_scatter(voe_assets_landscape *landscape,
 	struct foliage_try tries[VOE_3D_FOLIAGE_TRIES];
 	uint32_t kept = 0;
 
-	if (kinds == 0)
+	if (groups == 0)
 		return 0;
 	for (uint32_t t = 0; t < count; t++)
-		tries[t] = try_point(landscape, brush, x, z, kinds, seed);
+		tries[t] = try_point(landscape, brush, x, z, groups, seed);
 	refuse_near_copies(landscape, tries, count, x, z,
 			   brush->radius + spacing, spacing);
 	for (uint32_t t = 0; t < count; t++) {
@@ -283,7 +291,7 @@ uint32_t voe_3d_foliage_erase(voe_assets_landscape *landscape,
 	VOE_BASE_ASSERT(landscape && landscape->copies && brush,
 			"a landscape with its copies and a brush");
 	VOE_BASE_ASSERT(removed || room == 0, "room for what is removed");
-	const uint32_t kinds = held_kinds(landscape, brush->picked);
+	const uint32_t groups = held_groups(landscape, brush->picked);
 	const float radius_squared = brush->radius * brush->radius;
 	uint32_t taken = 0;
 
@@ -292,7 +300,7 @@ uint32_t voe_3d_foliage_erase(voe_assets_landscape *landscape,
 		const float dx = metres(copy.x) - x;
 		const float dz = metres(copy.z) - z;
 
-		if (!((kinds >> copy.kind) & 1u) ||
+		if (!((groups >> copy.group) & 1u) ||
 		    dx * dx + dz * dz > radius_squared)
 			continue;
 		removed[taken++] = copy;
@@ -304,7 +312,7 @@ uint32_t voe_3d_foliage_erase(voe_assets_landscape *landscape,
 static bool same_copy(voe_assets_landscape_copy a, voe_assets_landscape_copy b)
 {
 	return a.x == b.x && a.z == b.z && a.turn == b.turn &&
-	       a.scale == b.scale && a.kind == b.kind && a.lean == b.lean;
+	       a.scale == b.scale && a.group == b.group && a.lean == b.lean;
 }
 
 void voe_3d_foliage_put(voe_assets_landscape *landscape,

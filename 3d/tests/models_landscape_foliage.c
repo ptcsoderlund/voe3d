@@ -1,10 +1,10 @@
-// The model store's foliage on a landscape. A forest of one kind and two
+// The model store's foliage on a landscape. A forest of one group and two
 // copies: each placed on the ground, a raise under copy 0 lifting it alone and
 // a put of the old heights setting it back; a scatter adding placed copies and
-// marking the entry edited; an erase put back by undo's put; a kind set adding
-// a second at size 0; a rename following a kind. A kind's base size at 2×
+// marking the entry edited; an erase put back by undo's put; a glb set adding
+// a second at size 0; a rename following a group. A group's glb's base size at 2×
 // doubling its copies' scales and back at 0 restoring them; a file with
-// size0=2000 loading its copies at twice scale. Two layers, rock growing kind
+// size0=2000 loading its copies at twice scale. Two layers, rock growing group
 // 0: grown copies only on rock; a rock stamp adding some and its undo's paint
 // put taking them back; rock's growth to 0 and back; an erase leaving them; a
 // shadowless look relighting.
@@ -22,7 +22,7 @@
 #define SIZED_FOREST "Woods/Sized.landscape"
 #define GROWN "Woods/Grown.landscape"
 
-// The forest's text: 8 cells, kind 0 PINE at base size `size0`, size ±20 %,
+// The forest's text: 8 cells, group 0 PINE at glb's base size `size0`, size ±20 %,
 // turn ±172° and tilt 0 %, copy 0 at the
 // centre and copy 1 at (6, 6) m, loaded at `path` through _load as a file is.
 static const voe_3d_model_entry *load_forest(voe_3d_models *models,
@@ -39,11 +39,13 @@ static const voe_3d_model_entry *load_forest(voe_3d_models *models,
 	voe_assets_landscape_text text;
 	const voe_3d_model_entry *entry;
 
-	snprintf(land.kinds[0], sizeof(land.kinds[0]), "%s", PINE);
-	land.kind_count = 1;
-	land.looks[0] = voe_assets_landscape_look_default();
-	land.looks[0].size = size0;
-	land.looks[0].turn_vary = 172;
+	snprintf(land.groups[0].glbs[0], sizeof(land.groups[0].glbs[0]), "%s",
+		 PINE);
+	land.groups[0].glb_count = 1;
+	land.group_count = 1;
+	land.groups[0].looks[0] = voe_assets_landscape_look_default();
+	land.groups[0].looks[0].size = size0;
+	land.groups[0].looks[0].turn_vary = 172;
 	land.copies = copies;
 	land.copy_count = 2;
 	text = voe_assets_landscape_write(&land, arena);
@@ -55,7 +57,7 @@ static const voe_3d_model_entry *load_forest(voe_3d_models *models,
 		VOE_TEST_CHECK(false);
 		return NULL;
 	}
-	VOE_TEST_CHECK_INT(entry->landscape->kind_count, 1);
+	VOE_TEST_CHECK_INT(entry->landscape->group_count, 1);
 	VOE_TEST_CHECK_INT(entry->landscape->copy_count, 2);
 	VOE_TEST_CHECK(entry->landscape->copies != copies);
 	return entry;
@@ -132,11 +134,11 @@ static void scaled_alike(voe_scene_transform a, voe_scene_transform b,
 		       b.rotation.w == a.rotation.w);
 }
 
-// Kind 0's look of `entry` at base size `size`, the rest kept.
+// Group 0's glb 0's look of `entry` at base size `size`, the rest kept.
 static voe_assets_landscape_look sized(const voe_3d_model_entry *entry,
 				       uint16_t size)
 {
-	voe_assets_landscape_look look = entry->landscape->looks[0];
+	voe_assets_landscape_look look = entry->landscape->groups[0].looks[0];
 
 	look.size = size;
 	return look;
@@ -144,7 +146,7 @@ static voe_assets_landscape_look sized(const voe_3d_model_entry *entry,
 
 // Kind 0 at 2× doubles both copies' scales and marks the forest edited; the
 // same look again changes nothing; back to 0 gives the first transforms.
-static void a_kind_size_places_its_copies_again(voe_3d_models *models)
+static void a_glb_size_places_its_copies_again(voe_3d_models *models)
 {
 	const voe_3d_model_entry *entry = voe_3d_models_find(models, FOREST);
 	const voe_scene_transform *placed;
@@ -158,12 +160,12 @@ static void a_kind_size_places_its_copies_again(voe_3d_models *models)
 	if (placed == NULL || entry->landscape->copy_count != 2)
 		return;
 	memcpy(first, placed, sizeof(first));
-	voe_3d_models_landscape_look_set(models, "Woods/none.landscape", 0,
+	voe_3d_models_landscape_look_set(models, "Woods/none.landscape", 0, 0,
 					 sized(entry, 2000));
 	voe_3d_models_landscape_saved(models, FOREST);
 	changes = models->changes;
-	voe_3d_models_landscape_look_set(models, FOREST, 0, sized(entry, 2000));
-	VOE_TEST_CHECK_INT(entry->landscape->looks[0].size, 2000);
+	voe_3d_models_landscape_look_set(models, FOREST, 0, 0, sized(entry, 2000));
+	VOE_TEST_CHECK_INT(entry->landscape->groups[0].looks[0].size, 2000);
 	VOE_TEST_CHECK(entry->edited);
 	VOE_TEST_CHECK(models->changes > changes);
 	scaled_alike(first[0], placed[0], 2.0f);
@@ -171,11 +173,11 @@ static void a_kind_size_places_its_copies_again(voe_3d_models *models)
 
 	voe_3d_models_landscape_saved(models, FOREST);
 	changes = models->changes;
-	voe_3d_models_landscape_look_set(models, FOREST, 0, sized(entry, 2000));
+	voe_3d_models_landscape_look_set(models, FOREST, 0, 0, sized(entry, 2000));
 	VOE_TEST_CHECK(!entry->edited);
 	VOE_TEST_CHECK_INT(models->changes, changes);
 
-	voe_3d_models_landscape_look_set(models, FOREST, 0, sized(entry, 0));
+	voe_3d_models_landscape_look_set(models, FOREST, 0, 0, sized(entry, 0));
 	VOE_TEST_CHECK(entry->edited);
 	scaled_alike(first[0], placed[0], 1.0f);
 	scaled_alike(first[1], placed[1], 1.0f);
@@ -197,7 +199,7 @@ static void a_sized_file_loads_its_copies_scaled(voe_3d_models *models,
 	VOE_TEST_CHECK(placed != NULL);
 	if (placed == NULL)
 		return;
-	VOE_TEST_CHECK_INT(entry->landscape->looks[0].size, 2000);
+	VOE_TEST_CHECK_INT(entry->landscape->groups[0].looks[0].size, 2000);
 	VOE_TEST_CHECK_FLOAT(placed[0].scale.x, 2.0f, 1e-6f);
 	VOE_TEST_CHECK_FLOAT(placed[1].scale.x, 3.0f, 1e-6f);
 	on_the_ground(models, entry, 1);
@@ -240,7 +242,7 @@ static void scatter_erase_and_put_back(voe_3d_models *models)
 	on_the_ground(models, entry, entry->landscape->copy_count - 1);
 }
 
-static void kinds_are_set_and_renamed(voe_3d_models *models)
+static void glbs_are_set_and_renamed(voe_3d_models *models)
 {
 	const voe_3d_model_entry *entry = voe_3d_models_find(models, FOREST);
 
@@ -251,20 +253,21 @@ static void kinds_are_set_and_renamed(voe_3d_models *models)
 					       models, "Land/bad.landscape")) ==
 		       NULL);
 	voe_3d_models_landscape_saved(models, FOREST);
-	voe_3d_models_landscape_kind_set(models, FOREST, 1, FIR);
-	VOE_TEST_CHECK_INT(entry->landscape->kind_count, 2);
-	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[1], FIR) == 0);
-	VOE_TEST_CHECK_INT(entry->landscape->looks[1].size, 0);
-	VOE_TEST_CHECK_INT(entry->landscape->looks[1].turn_vary,
+	VOE_TEST_CHECK(voe_3d_models_landscape_glb_set(models, FOREST, 1, 0, FIR));
+	VOE_TEST_CHECK_INT(entry->landscape->group_count, 2);
+	VOE_TEST_CHECK(strcmp(entry->landscape->groups[1].glbs[0], FIR) == 0);
+	VOE_TEST_CHECK_INT(entry->landscape->groups[1].looks[0].size, 0);
+	VOE_TEST_CHECK_INT(entry->landscape->groups[1].looks[0].turn_vary,
 			   VOE_ASSETS_LANDSCAPE_TURN_VARY_DEFAULT);
 	VOE_TEST_CHECK_INT(entry->landscape->grows[0][1], 0);
 	VOE_TEST_CHECK(entry->edited);
 	voe_3d_models_rename(models, "Trees", "Forest");
-	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[0], MOVED_PINE) == 0);
-	VOE_TEST_CHECK(strcmp(entry->landscape->kinds[1], FIR) == 0);
+	VOE_TEST_CHECK(strcmp(entry->landscape->groups[0].glbs[0], MOVED_PINE) ==
+		       0);
+	VOE_TEST_CHECK(strcmp(entry->landscape->groups[1].glbs[0], FIR) == 0);
 }
 
-// 64 m of 8 cells, a cell 8 m: layers GRASS and ROCK, layer 1 growing kind 0
+// 64 m of 8 cells, a cell 8 m: layers GRASS and ROCK, layer 1 growing group 0
 // PINE at 40 tenths, the points of columns 0 to 3 all layer 1, so rock fades
 // out between x = −8 m and 0. Loaded with no file copies.
 static const voe_3d_model_entry *load_grown(voe_3d_models *models,
@@ -283,9 +286,11 @@ static const voe_3d_model_entry *load_grown(voe_3d_models *models,
 	snprintf(land.layers[0], sizeof(land.layers[0]), "%s", GRASS);
 	snprintf(land.layers[1], sizeof(land.layers[1]), "%s", ROCK);
 	land.layer_count = 2;
-	snprintf(land.kinds[0], sizeof(land.kinds[0]), "%s", PINE);
-	land.kind_count = 1;
-	land.looks[0] = voe_assets_landscape_look_default();
+	snprintf(land.groups[0].glbs[0], sizeof(land.groups[0].glbs[0]), "%s",
+		 PINE);
+	land.groups[0].glb_count = 1;
+	land.group_count = 1;
+	land.groups[0].looks[0] = voe_assets_landscape_look_default();
 	land.grows[1][0] = 40;
 	VOE_TEST_CHECK(voe_3d_models_load_landscape(models, device, GROWN, 1,
 						    &land, &error));
@@ -314,7 +319,7 @@ static uint32_t grown_only_on_rock(voe_3d_models *models,
 	VOE_TEST_CHECK(entry->landscape->copy_count == 0);
 	for (uint32_t i = 0; i < grown.count; i++) {
 		VOE_TEST_CHECK(grown.copies[i].x < 0);
-		VOE_TEST_CHECK_INT(grown.copies[i].kind, 0);
+		VOE_TEST_CHECK_INT(grown.copies[i].group, 0);
 		VOE_TEST_CHECK_FLOAT((float)grown.placed[i].position.x,
 				     (float)grown.copies[i].x * 0.001f, 1e-4f);
 	}
@@ -354,7 +359,7 @@ static void a_paint_stamp_grows_and_its_undo_takes_back(
 }
 
 // Rock growing none leaves none, back at 40 the first count; an erase of
-// kind 0 leaves them; a look changing only `shadowless` relights and keeps
+// group 0 leaves them; a look changing only `shadowless` relights and keeps
 // them.
 static void the_material_owns_its_growth(voe_3d_models *models,
 					 const voe_3d_model_entry *entry,
@@ -364,7 +369,7 @@ static void the_material_owns_its_growth(voe_3d_models *models,
 					     .density = 4.0f,
 					     .picked = 1u };
 	voe_assets_landscape_copy removed[4];
-	voe_assets_landscape_look look = entry->landscape->looks[0];
+	voe_assets_landscape_look look = entry->landscape->groups[0].looks[0];
 	uint32_t changes;
 
 	voe_3d_models_landscape_saved(models, GROWN);
@@ -383,17 +388,17 @@ static void the_material_owns_its_growth(voe_3d_models *models,
 	voe_3d_models_landscape_saved(models, GROWN);
 	changes = models->changes;
 	look.shadowless = true;
-	voe_3d_models_landscape_look_set(models, GROWN, 0, look);
-	VOE_TEST_CHECK(entry->landscape->looks[0].shadowless);
+	voe_3d_models_landscape_look_set(models, GROWN, 0, 0, look);
+	VOE_TEST_CHECK(entry->landscape->groups[0].looks[0].shadowless);
 	VOE_TEST_CHECK(models->changes > changes);
 	VOE_TEST_CHECK(entry->edited);
 	VOE_TEST_CHECK_INT(grown_count(models, entry), first);
 	changes = models->changes;
-	voe_3d_models_landscape_look_set(models, GROWN, 0, look);
+	voe_3d_models_landscape_look_set(models, GROWN, 0, 0, look);
 	VOE_TEST_CHECK_INT(models->changes, changes);
 }
 
-static void layers_grow_their_kinds(voe_3d_models *models,
+static void layers_grow_their_groups(voe_3d_models *models,
 				    voe_render_device *device,
 				    voe_base_arena *arena)
 {
@@ -430,11 +435,11 @@ int main(void)
 				 (const uint8_t *)"nope", 4, &error);
 
 	a_sculpt_keeps_copies_standing(models, device, arena);
-	a_kind_size_places_its_copies_again(models);
+	a_glb_size_places_its_copies_again(models);
 	scatter_erase_and_put_back(models);
-	kinds_are_set_and_renamed(models);
+	glbs_are_set_and_renamed(models);
 	a_sized_file_loads_its_copies_scaled(models, device, arena);
-	layers_grow_their_kinds(models, device, arena);
+	layers_grow_their_groups(models, device, arena);
 
 	voe_3d_models_clear(models, device);
 	voe_3d_models_destroy(models);

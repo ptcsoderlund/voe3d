@@ -34,10 +34,10 @@
 // left out past VOE_3D_FOLIAGE_GROUPS the second leaves out too; the memory
 // answers a key's second choose in a frame as its first.
 //
-// A ROW'S KINDS ARE FOUND ONCE: each kind's loaded `.glb`, each of its parts as
-// worn, a blended one left out (0442 point 5), its seed (0517 point 4),
-// whether its look is shadowless (0476 point 6) and its blend height when it
-// blends. A copy's
+// A ROW'S KINDS ARE FOUND ONCE: a kind is a group drawn as its first glb, that
+// glb's loaded `.glb`, each of its parts as worn, a blended one left out (0442
+// point 5), the group's seed (0517 point 4), whether the glb's look is
+// shadowless (0476 point 6) and its blend height when it blends. A copy's
 // (kind, level, part, rest) is looked up in a per-row table and only its first
 // sight walks the groups' keys, so a row's copies cost no search.
 //
@@ -106,20 +106,20 @@ struct gathering {
 	// This row's kinds: each one's loaded `.glb`, NULL for none, and each of
 	// its parts as worn, NULL for a blended one, and its seed, which keys a
 	// group's pick (0520).
-	const voe_3d_model_entry *kinds[VOE_ASSETS_LANDSCAPE_KINDS];
-	const voe_3d_model_part *worn[VOE_ASSETS_LANDSCAPE_KINDS]
+	const voe_3d_model_entry *kinds[VOE_ASSETS_LANDSCAPE_GROUPS];
+	const voe_3d_model_part *worn[VOE_ASSETS_LANDSCAPE_GROUPS]
 				     [VOE_3D_MODEL_PARTS];
-	uint32_t seeds[VOE_ASSETS_LANDSCAPE_KINDS];
+	uint32_t seeds[VOE_ASSETS_LANDSCAPE_GROUPS];
 	// This row's look of each kind is shadowless.
-	bool shadowless[VOE_ASSETS_LANDSCAPE_KINDS];
+	bool shadowless[VOE_ASSETS_LANDSCAPE_GROUPS];
 	// The frame's painted grounds, and this row's among them, NULL for none.
 	struct voe_3d_grounds grounds;
 	const struct voe_3d_ground *ground;
 	// This row's look of each kind blends this high, metres; 0 it does not.
-	float reach[VOE_ASSETS_LANDSCAPE_KINDS];
+	float reach[VOE_ASSETS_LANDSCAPE_GROUPS];
 	// This row's group of each (kind, level, part, rest, tier): index plus
 	// one, SLOT_UNSEEN or SLOT_LEFT_OUT.
-	uint16_t slots[VOE_ASSETS_LANDSCAPE_KINDS][VOE_3D_MODEL_LEVELS]
+	uint16_t slots[VOE_ASSETS_LANDSCAPE_GROUPS][VOE_3D_MODEL_LEVELS]
 		      [VOE_3D_MODEL_PARTS][2][3];
 };
 
@@ -193,27 +193,28 @@ static voe_render_instance instance_of(voe_math_float4x4 matrix)
 	return instance;
 }
 
-// Each kind of `grid` found once in `models`: a loaded `.glb`, each of its
+// Each group of `grid` found once in `models` as its first glb, the kind drawn
+// until a copy draws the glb it picks: a loaded `.glb`, each of its
 // parts as it wears it, its record's alpha mode the same at every level, its
 // seed, whether `grid`'s look of it is shadowless, and how high it blends, a height
 // of 0 read as the default (0481 point 4).
 static void find_kinds(const voe_3d_models *models,
 		       const voe_assets_landscape *grid, struct gathering *g)
 {
-	VOE_BASE_ASSERT(grid->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
-			"a landscape with more kinds than it holds");
+	VOE_BASE_ASSERT(grid->group_count <= VOE_ASSETS_LANDSCAPE_GROUPS,
+			"a landscape with more groups than it holds");
 	memset(g->kinds, 0, sizeof(g->kinds));
 	memset(g->worn, 0, sizeof(g->worn));
-	for (uint32_t k = 0; k < grid->kind_count; k++) {
+	for (uint32_t k = 0; k < grid->group_count; k++) {
 		const voe_3d_model_entry *kind =
-			voe_3d_models_find(models, grid->kinds[k]);
-		const voe_assets_landscape_look look = grid->looks[k];
+			voe_3d_models_find(models, grid->groups[k].glbs[0]);
+		const voe_assets_landscape_look look = grid->groups[k].looks[0];
 		const uint32_t height =
 			look.blend_height != 0 ?
 				look.blend_height :
 				VOE_ASSETS_LANDSCAPE_BLEND_HEIGHT_DEFAULT;
 
-		g->seeds[k] = voe_assets_landscape_kind_seed(grid, k);
+		g->seeds[k] = voe_assets_landscape_group_seed(grid, k);
 		g->shadowless[k] = look.shadowless;
 		g->reach[k] = look.blends ? (float)height / 100.0f : 0.0f;
 		if (kind == NULL || !kind->loaded || kind->picture ||
@@ -328,26 +329,26 @@ level_of(const voe_3d_frame *frame, voe_ecs_entity landscape,
 	if (tier != VOE_3D_FOLIAGE_UNSEEN)
 		return voe_3d_lods_kept_choose(
 			frame->lods,
-			voe_3d_lods_kept_copy_key(landscape, copy->kind, copy->x,
+			voe_3d_lods_kept_copy_key(landscape, copy->group, copy->x,
 						  copy->z),
 			model, at, frame->eye, &frame->view);
 	level = voe_3d_model_level(model, at, frame->eye, &frame->view);
 	return (voe_3d_model_level_choice){ level, level, 1.0f };
 }
 
-// The `count` copies at `copies` of a grid of `kind_count` kinds on the row of
+// The `count` copies at `copies` of a grid of `group_count` groups on the row of
 // `landscape`, each placed by `placed` under the row's `where`. A shadowless
 // kind's copy not seen is counted skipped and left out.
 static void gather_copies(const voe_3d_frame *frame, voe_ecs_entity landscape,
 			  voe_scene_transform where,
 			  const voe_assets_landscape_copy *copies,
 			  const voe_scene_transform *placed, uint32_t count,
-			  uint32_t kind_count, struct gathering *g)
+			  uint32_t group_count, struct gathering *g)
 {
 	VOE_BASE_ASSERT(count == 0 || (copies != NULL && placed != NULL),
 			"copies with no placed transforms");
 	for (uint32_t i = 0; i < count; i++) {
-		const uint32_t kind = copies[i].kind;
+		const uint32_t kind = copies[i].group;
 		voe_scene_transform at;
 		voe_math_float4x4 place;
 		voe_3d_model_level_choice choice;
@@ -355,7 +356,7 @@ static void gather_copies(const voe_3d_frame *frame, voe_ecs_entity landscape,
 		voe_render_instance instance = { 0 };
 		bool dissolving;
 
-		VOE_BASE_ASSERT(kind < kind_count, "a copy of no kind");
+		VOE_BASE_ASSERT(kind < group_count, "a copy of no group");
 		if (g->kinds[kind] == NULL)
 			continue;
 		at = voe_scene_transform_compose(where, placed[i]);
@@ -404,9 +405,9 @@ static void gather_row(const voe_3d_frame *frame, uint32_t row,
 	memset(g->slots, 0, sizeof(g->slots));
 	gather_copies(frame, landscape, where, grid->copies,
 		      voe_3d_models_landscape_placed(frame->models, land),
-		      grid->copy_count, grid->kind_count, g);
+		      grid->copy_count, grid->group_count, g);
 	gather_copies(frame, landscape, where, grown.copies, grown.placed,
-		      grown.count, grid->kind_count, g);
+		      grown.count, grid->group_count, g);
 }
 
 // The landscape rows draw_system.c's landscape walk draws solid: not off,

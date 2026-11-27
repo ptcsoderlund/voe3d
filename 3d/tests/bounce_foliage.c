@@ -1,6 +1,6 @@
 // The bounce sun maps draw the foliage, and a foliage change relights (0450,
 // 0451). The world of 3d/tests/draw_foliage.c: a camera 5 m up looking down on
-// a model row wearing an 8-cell flat landscape whose kind 0 is the hand-built
+// a model row wearing an 8-cell flat landscape whose group 0 is the hand-built
 // `.glb` of model_data.inc, three copies near the centre; here its sun shines
 // straight down, casting and bouncing 1, and the frame keeps a casters memory.
 // Each frame gathers the foliage, then the shadows call; its draws are read by
@@ -14,10 +14,10 @@
 // Full and probing frames alternate until a probing one is true, within BOUND
 // pairs, then FADE full frames more.
 //
-// 1. A kind set naming kind 0's own path makes the next frame draw d1 more
+// 1. A glb set naming group 0's own path makes the next frame draw d1 more
 //    than the settled one: the store's count relit every volume.
 // 2. Settled again, erasing one copy makes the next frame draw more.
-// 3. The rest erased and settled, the same kind set draws d2 more. d1 − d2,
+// 3. The rest erased and settled, the same glb set draws d2 more. d1 − d2,
 //    the sun maps' foliage, is a positive whole multiple of the first frame's
 //    groups not `rest`.
 //
@@ -158,7 +158,7 @@ static voe_ecs_world *a_world(voe_base_arena *arena)
 	return world;
 }
 
-// A store holding FOREST, 16 m of 8 cells naming KIND as kind 0 with three
+// A store holding FOREST, 16 m of 8 cells naming KIND as group 0's glb with three
 // copies, and KIND itself.
 static voe_3d_models *a_store(voe_render_device *device, voe_base_arena *arena)
 {
@@ -172,8 +172,11 @@ static voe_3d_models *a_store(voe_render_device *device, voe_base_arena *arena)
 	voe_base_error error = VOE_BASE_OK;
 	voe_assets_landscape_text text;
 
-	snprintf(land.kinds[0], sizeof(land.kinds[0]), "%s", KIND);
-	land.kind_count = 1;
+	snprintf(land.groups[0].glbs[0], sizeof(land.groups[0].glbs[0]), "%s",
+		 KIND);
+	land.groups[0].glb_count = 1;
+	land.groups[0].looks[0] = voe_assets_landscape_look_default();
+	land.group_count = 1;
 	land.copies = copies;
 	land.copy_count = COPIES;
 	text = voe_assets_landscape_write(&land, arena);
@@ -252,22 +255,23 @@ static bool settles(const struct bed *bed)
 	return false;
 }
 
-// The settled frame's draws and the next's after a kind set naming kind 0's
-// own path; their difference.
-static uint32_t a_kind_set_relights(const struct bed *bed)
+// The settled frame's draws and the next's after a glb set naming group 0's
+// glb 0's own path; their difference.
+static uint32_t a_glb_set_relights(const struct bed *bed)
 {
 	uint32_t settled, relit;
 
 	VOE_TEST_CHECK(settles(bed));
 	settled = draws_of_a_frame(bed);
-	voe_3d_models_landscape_kind_set(bed->models, FOREST, 0, KIND);
+	VOE_TEST_CHECK(
+		voe_3d_models_landscape_glb_set(bed->models, FOREST, 0, 0, KIND));
 	relit = draws_of_a_frame(bed);
-	printf("kind set: settled %u draws, relit %u\n", settled, relit);
+	printf("glb set: settled %u draws, relit %u\n", settled, relit);
 	VOE_TEST_CHECK(relit > settled);
 	return relit > settled ? relit - settled : 0;
 }
 
-// The copies of kind 0 within `radius` of (x, z) erased; how many.
+// The copies of group 0 within `radius` of (x, z) erased; how many.
 static uint32_t erase(const struct bed *bed, float x, float z, float radius)
 {
 	const voe_3d_foliage_brush brush = { .radius = radius,
@@ -306,7 +310,7 @@ int main(void)
 	VOE_TEST_CHECK(groups > 0);
 
 	// 1.
-	d1 = a_kind_set_relights(&bed);
+	d1 = a_glb_set_relights(&bed);
 
 	// 2.
 	VOE_TEST_CHECK(settles(&bed));
@@ -318,7 +322,7 @@ int main(void)
 
 	// 3.
 	VOE_TEST_CHECK_INT(erase(&bed, 0.0f, 0.0f, 8.0f), COPIES - 1);
-	d2 = a_kind_set_relights(&bed);
+	d2 = a_glb_set_relights(&bed);
 	printf("d1 %u, d2 %u, groups %u\n", d1, d2, groups);
 	VOE_TEST_CHECK(d1 > d2);
 	VOE_TEST_CHECK(groups > 0 && (d1 - d2) % groups == 0);

@@ -137,7 +137,7 @@ static bool groups_blend(voe_render_device *device, voe_base_arena *arena,
 	voe_3d_frame frame;
 	bool all = true;
 
-	voe_3d_models_landscape_look_set(models, FOREST, 0, look);
+	voe_3d_models_landscape_look_set(models, FOREST, 0, 0, look);
 	VOE_TEST_CHECK(gather(world, device, arena, models, &frame));
 	VOE_TEST_CHECK(frame.foliage_count > 0);
 	for (uint32_t i = 0; i < frame.foliage_count; i++) {

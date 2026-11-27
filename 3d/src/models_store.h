@@ -14,7 +14,7 @@
 // VOE_3D_FOLIAGE_GROWN each; they are never the file's.
 //
 // THE STORE COUNTS ITS CHANGES (0451 point 3): `changes` rises whenever an
-// entry is put loaded, replaced or cleared, a foliage copy or kind changes, or
+// entry is put loaded, replaced or cleared, a foliage copy, group or glb changes, or
 // copies are placed again over changed heights; it only rises, and wraps. The
 // bounce hands it to every begin as `shade`, so a change the stale spheres do
 // not mark, a forest erased, still relights the probes (draw_bounce.c).
@@ -122,13 +122,13 @@ bool voe_3d_models_terrain_of(const voe_3d_models *models,
 // `path`'s index, or VOE_3D_MODELS when the store does not hold it.
 uint32_t voe_3d_models_index(const voe_3d_models *models, const char *path);
 
-// The grown copies of kinds `kinds` (bit k) of `land` remade over `rect` into
+// The grown copies of groups `groups` (bit k) of `land` remade over `rect` into
 // `held`, as voe_3d_foliage_grow; reaching the cap said once on stderr for
-// `path`. Whether they may have changed: false only when no remade kind grows
+// `path`. Whether they may have changed: false only when no remade group grows
 // and none was removed.
 bool voe_3d_models_regrow(const voe_assets_landscape *land, entry_held *held,
 			  const char *path, voe_3d_landscape_rect rect,
-			  uint32_t kinds);
+			  uint32_t groups);
 
 // `path`'s index when it is a loaded landscape, else VOE_3D_MODELS.
 uint32_t voe_3d_models_landscape_index(const voe_3d_models *models,

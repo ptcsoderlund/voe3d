@@ -1,18 +1,18 @@
 // The model store's landscapes (3d/models.h; 0379 points 2 and 6, 0396 points
 // 3 and 5, 0402 points 1, 3 and 4, 0442 points 1 and 2): a grid copied into its
-// entry with its layers, paint, kinds and copies, every copy placed, uploaded
+// entry with its layers, paint, groups and copies, every copy placed, uploaded
 // as a heights texture and two paint textures and built into a min/max
 // pyramid, worn as one part on the store's shared grid; a brush or a put
 // updating the pyramid, placing again the copies over it and growing the
 // heights' dirty rect, or a paint brush or put growing the paint's; a layer
 // set; the frame writing both kinds of dirt a shared budget at a time; the
-// lookup the draw files ask; the saved and changed marks and the rename, layer and kind
+// lookup the draw files ask; the saved and changed marks and the rename, layer and glb
 // paths following. The foliage calls are models_foliage.c's. A load raises
 // the store's `changes` through keep, and so does every placing again.
 //
-// GROWN COPIES (3d/foliage_grow.h, 0476 point 4) are made for every kind over
+// GROWN COPIES (3d/foliage_grow.h, 0476 point 4) are made for every group over
 // the whole grid at a load, after the file's copies are placed, and remade for
-// every kind over the rect a paint or height stamp or put changes, so they
+// every group over the rect a paint or height stamp or put changes, so they
 // follow the paint and stand on the new heights. A remake that may have
 // changed them raises `changes`; reaching VOE_3D_FOLIAGE_GROWN is said once
 // on stderr per entry.
@@ -22,11 +22,11 @@
 // stroke is held, the puts for an undo step, the layer set for a dropped
 // material, the rename for a moved file.
 //
-// Constraints: an entry's dirt is one rect a kind, so two stamps far apart
+// Constraints: an entry's dirt is one rect a kind of dirt, so two stamps far apart
 // write all the points between them; a list of rects would lift it. The frame
 // writes whole rows of the rect, the first entries first, so one big put can
 // hold another landscape's dirt back a few frames. The frame, the rename and
-// the lookup walk every entry. A layer or kind path that would not fit renamed
+// the lookup walk every entry. A layer or glb path that would not fit renamed
 // is kept. A landscape holds room for every copy it may have, the file's and
 // the grown, about 8 MB. A remake over a stamp's rect walks every grown copy.
 #include "models_store.h"
@@ -69,7 +69,7 @@ static voe_3d_material ground(void)
 	};
 }
 
-// `from`'s grid copied onto `memory`, its layers, kinds and kind sizes
+// `from`'s grid copied onto `memory`, its layers, groups and glbs' looks
 // carried by the struct's copy and its
 // paint owned, every point all layer 0 when `from` has none; its copies owned
 // with room for the cap, so a scatter never grows them.
@@ -224,12 +224,12 @@ bool voe_3d_models_load_landscape(voe_3d_models *models,
 			"loading a landscape of 1 to the most cells");
 	VOE_BASE_ASSERT(landscape->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS,
 			"loading a landscape of at most eight layers");
-	VOE_BASE_ASSERT(landscape->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS &&
+	VOE_BASE_ASSERT(landscape->group_count <= VOE_ASSETS_LANDSCAPE_GROUPS &&
 				landscape->copy_count <=
 					VOE_ASSETS_LANDSCAPE_COPIES &&
 				(landscape->copies != NULL ||
 				 landscape->copy_count == 0),
-			"loading a landscape of at most the kinds and copies");
+			"loading a landscape of at most the groups and copies");
 	const uint32_t n = landscape->cells + 1;
 
 	if (!voe_3d_models_room(models, path, error))
@@ -313,14 +313,14 @@ static void grow(voe_3d_landscape_rect *dirty, voe_3d_landscape_rect changed)
 	dirty->z1 = changed.z1 > dirty->z1 ? changed.z1 : dirty->z1;
 }
 
-// Whether any kind in `kinds` is grown by one of `land`'s layers.
-static bool any_grows(const voe_assets_landscape *land, uint32_t kinds)
+// Whether any group in `groups` is grown by one of `land`'s layers.
+static bool any_grows(const voe_assets_landscape *land, uint32_t groups)
 {
 	VOE_BASE_ASSERT(land->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS &&
-				land->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
-			"at most the layers and kinds");
-	for (uint32_t k = 0; k < land->kind_count; k++) {
-		if (((kinds >> k) & 1u) == 0)
+				land->group_count <= VOE_ASSETS_LANDSCAPE_GROUPS,
+			"at most the layers and groups");
+	for (uint32_t k = 0; k < land->group_count; k++) {
+		if (((groups >> k) & 1u) == 0)
 			continue;
 		for (uint32_t l = 0; l < land->layer_count; l++)
 			if (land->grows[l][k] > 0)
@@ -331,7 +331,7 @@ static bool any_grows(const voe_assets_landscape *land, uint32_t kinds)
 
 bool voe_3d_models_regrow(const voe_assets_landscape *land, entry_held *held,
 			  const char *path, voe_3d_landscape_rect rect,
-			  uint32_t kinds)
+			  uint32_t groups)
 {
 	VOE_BASE_ASSERT(land != NULL && held != NULL && path != NULL,
 			"a remake needs a landscape, its held room and a path");
@@ -339,7 +339,7 @@ bool voe_3d_models_regrow(const voe_assets_landscape *land, entry_held *held,
 			"a landscape's grown room held at its load");
 	const uint32_t before = held->grown_count;
 
-	held->grown_count = voe_3d_foliage_grow(land, rect, kinds, held->grown,
+	held->grown_count = voe_3d_foliage_grow(land, rect, groups, held->grown,
 						held->grown_placed, before);
 	if (held->grown_count >= VOE_3D_FOLIAGE_GROWN && !held->grown_full) {
 		VOE_BASE_ERROR("3d", "%s grows more than %u copies; the rest are "
@@ -347,7 +347,7 @@ bool voe_3d_models_regrow(const voe_assets_landscape *land, entry_held *held,
 			       path, (unsigned)VOE_3D_FOLIAGE_GROWN);
 		held->grown_full = true;
 	}
-	return held->grown_count != before || any_grows(land, kinds);
+	return held->grown_count != before || any_grows(land, groups);
 }
 
 // The heights `changed` refreshed in the pyramid, the copies over them placed
@@ -638,20 +638,21 @@ static void rename_path(char *path, size_t room, const char *from,
 	memcpy(path, to, to_length);
 }
 
-// `land`'s layer and kind paths under `from` take `to` in its place.
+// `land`'s layer and glb paths under `from` take `to` in its place.
 static void rename_paths(voe_assets_landscape *land, const char *from,
 			 const char *to)
 {
 	VOE_BASE_ASSERT(land->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS,
 			"at most eight layers");
-	VOE_BASE_ASSERT(land->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
-			"at most sixteen kinds");
+	VOE_BASE_ASSERT(land->group_count <= VOE_ASSETS_LANDSCAPE_GROUPS,
+			"at most sixteen groups");
 	for (uint32_t k = 0; k < land->layer_count; k++)
 		rename_path(land->layers[k], VOE_ASSETS_MATERIAL_PATH, from,
 			    to);
-	for (uint32_t k = 0; k < land->kind_count; k++)
-		rename_path(land->kinds[k], VOE_ASSETS_LANDSCAPE_KIND_PATH, from,
-			    to);
+	for (uint32_t g = 0; g < land->group_count; g++)
+		for (uint32_t j = 0; j < land->groups[g].glb_count; j++)
+			rename_path(land->groups[g].glbs[j],
+				    VOE_ASSETS_LANDSCAPE_GLB_PATH, from, to);
 }
 
 void voe_3d_models_rename(voe_3d_models *models, const char *from,

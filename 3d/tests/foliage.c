@@ -1,10 +1,11 @@
 // The foliage arithmetic of 3d/foliage.h on a flat 16-cell 64 m grid with two
-// kinds and room for the cap: a held scatter stamp filling to about its
-// density and stopping, spaced, of the picked kind and within its radius; a
-// seed giving the same copies twice; erase by kind and undo's put both ways; a
-// copy leaning on a 45° plane or standing upright; _replace following a
-// raised height; a kind's base size scaling its copy; and a stamp's scale,
-// turn and lean drawn from each copy's kind's look. Needs no graphics card.
+// groups of one glb and room for the cap: a held scatter stamp filling to
+// about its density and stopping, spaced, of the picked group and within its
+// radius; a seed giving the same copies twice; erase by group and undo's put
+// both ways; a copy leaning on a 45° plane or standing upright; _replace
+// following a raised height; a glb's base size scaling its copy; a stamp's
+// scale, turn and lean drawn from each copy's glb's look; and a group of two
+// glbs, each copy sized by the glb it picks live. Needs no graphics card.
 #include <3d/foliage.h>
 #include <3d/landscape.h>
 #include <assets/landscape.h>
@@ -31,10 +32,13 @@ static struct grown flat_with_room(voe_base_arena *arena)
 		.land = voe_assets_landscape_flat(64.0f, 16, arena),
 	};
 
-	out.land.kind_count = 2;
+	out.land.group_count = 2;
 	// Size ±20 %, turn ±180°, tilt 0 %.
-	out.land.looks[0] = voe_assets_landscape_look_default();
-	out.land.looks[1] = voe_assets_landscape_look_default();
+	for (uint32_t k = 0; k < 2; k++) {
+		out.land.groups[k].glb_count = 1;
+		out.land.groups[k].looks[0] =
+			voe_assets_landscape_look_default();
+	}
 	out.land.copies = voe_base_arena_push(
 		arena, sizeof(voe_assets_landscape_copy) *
 			       VOE_ASSETS_LANDSCAPE_COPIES);
@@ -71,7 +75,7 @@ static uint32_t hold(struct grown *g, uint64_t seed)
 static bool same(voe_assets_landscape_copy a, voe_assets_landscape_copy b)
 {
 	return a.x == b.x && a.z == b.z && a.turn == b.turn &&
-	       a.scale == b.scale && a.kind == b.kind && a.lean == b.lean;
+	       a.scale == b.scale && a.group == b.group && a.lean == b.lean;
 }
 
 // Spacing 0.84·√(100 / 4) = 4.2 m; about 4 a 100 m² over the 314 m² disc.
@@ -88,7 +92,7 @@ static void a_held_scatter_fills_to_the_density(voe_base_arena *arena)
 		const voe_assets_landscape_copy c = g.land.copies[i];
 		const float x = (float)c.x * 0.001f, z = (float)c.z * 0.001f;
 
-		kind_one_within &= c.kind == 1 && x * x + z * z <= 100.001f;
+		kind_one_within &= c.group == 1 && x * x + z * z <= 100.001f;
 		placed &= g.placed[i].position.x == (double)x &&
 			  g.placed[i].scale.x == (float)c.scale * 0.001f;
 		for (uint32_t j = 0; j < i; j++) {
@@ -136,7 +140,7 @@ static void erase_and_put_by_value(voe_base_arena *arena)
 						0.0f, removed, 64),
 			   count);
 	VOE_TEST_CHECK_INT(g.land.copy_count, 0);
-	VOE_TEST_CHECK(count == 0 || removed[0].kind == 1);
+	VOE_TEST_CHECK(count == 0 || removed[0].group == 1);
 	voe_3d_foliage_put(&g.land, g.placed, removed, count, true);
 	VOE_TEST_CHECK_INT(g.land.copy_count, count);
 	VOE_TEST_CHECK(count == 0 || same(g.land.copies[0], removed[0]));
@@ -205,8 +209,8 @@ static void a_kinds_base_size_scales_its_copies(voe_base_arena *arena)
 						  .turn = 9000, .scale = 1200 };
 	voe_assets_landscape_copy big = small;
 
-	big.kind = 1;
-	g.land.looks[1].size = 2000;
+	big.group = 1;
+	g.land.groups[1].looks[0].size = 2000;
 	const voe_scene_transform a = voe_3d_foliage_place(&g.land, small);
 	const voe_scene_transform b = voe_3d_foliage_place(&g.land, big);
 
@@ -234,15 +238,15 @@ static void a_copy_spreads_as_its_kind_says(voe_base_arena *arena)
 	bool fixed = true, differ = false;
 	uint16_t first = 0;
 
-	g.land.looks[0].size_vary = 0;
-	g.land.looks[0].turn_vary = 0;
-	g.land.looks[0].tilt = 100;
+	g.land.groups[0].looks[0].size_vary = 0;
+	g.land.groups[0].looks[0].turn_vary = 0;
+	g.land.groups[0].looks[0].tilt = 100;
 	both.picked = 3u;
 	(void)hold_with(&g, &both, 0x9e3779b97f4a7c15u);
 	for (uint32_t i = 0; i < g.land.copy_count; i++) {
 		const voe_assets_landscape_copy c = g.land.copies[i];
 
-		if (c.kind == 0) {
+		if (c.group == 0) {
 			zeros++;
 			fixed &= c.scale == 1000 && c.turn == 0 && c.lean == 255;
 			continue;
@@ -257,6 +261,48 @@ static void a_copy_spreads_as_its_kind_says(voe_base_arena *arena)
 	VOE_TEST_CHECK(differ);
 }
 
+// Group 0 of two glbs at base sizes 1 and 2, equal shares, painted: each copy
+// placed at its picked glb's size times its scale, both glbs picked; glb 1
+// raised to 3, placing every copy again moves only the copies picking glb 1.
+static void a_copy_takes_its_picked_glbs_size(voe_base_arena *arena)
+{
+	struct grown g = flat_with_room(arena);
+	voe_3d_foliage_brush zero = kind_one;
+	uint32_t picks[2] = { 0, 0 };
+	bool sized = true, kept = true;
+
+	zero.picked = 1u;
+	g.land.groups[0].glb_count = 2;
+	g.land.groups[0].looks[1] = voe_assets_landscape_look_default();
+	g.land.groups[0].looks[0].size = 1000;
+	g.land.groups[0].looks[1].size = 2000;
+	(void)hold_with(&g, &zero, 0x9e3779b97f4a7c15u);
+	for (uint32_t i = 0; i < g.land.copy_count; i++) {
+		const voe_assets_landscape_copy c = g.land.copies[i];
+		const uint32_t glb =
+			voe_assets_landscape_glb_pick(&g.land, 0, c.x, c.z);
+		const float want = (glb == 0 ? 1.0f : 2.0f) *
+				   ((float)c.scale * 0.001f);
+
+		picks[glb]++;
+		sized &= fabsf(g.placed[i].scale.x - want) <= 1e-6f * want;
+	}
+	g.land.groups[0].looks[1].size = 3000;
+	for (uint32_t i = 0; i < g.land.copy_count; i++) {
+		const voe_assets_landscape_copy c = g.land.copies[i];
+		const float was = g.placed[i].scale.x;
+		const float now = voe_3d_foliage_place(&g.land, c).scale.x;
+
+		if (voe_assets_landscape_glb_pick(&g.land, 0, c.x, c.z) == 0)
+			kept &= now == was;
+		else
+			kept &= fabsf(now - 1.5f * was) <= 1e-5f * now;
+	}
+	VOE_TEST_CHECK(picks[0] > 0 && picks[1] > 0);
+	VOE_TEST_CHECK(sized);
+	VOE_TEST_CHECK(kept);
+}
+
 int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(ARENA);
@@ -268,6 +314,7 @@ int main(void)
 	replace_follows_a_raised_height(arena);
 	a_kinds_base_size_scales_its_copies(arena);
 	a_copy_spreads_as_its_kind_says(arena);
+	a_copy_takes_its_picked_glbs_size(arena);
 
 	voe_base_arena_destroy(arena);
 	return voe_test_result();

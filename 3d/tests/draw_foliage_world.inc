@@ -6,13 +6,13 @@
 // for them.
 //
 // THE WORLD (0442 point 5): a camera 5 m up looks straight down on a model row
-// wearing an 8-cell flat landscape whose kind 0 is the hand-built `.glb` of
+// wearing an 8-cell flat landscape whose group 0 is the hand-built `.glb` of
 // model_data.inc, loaded as 3d/tests/draw_model_fade.c loads it, with three
 // copies near the centre. A casting sun shines along (-1, -1, -0.5), and no
 // fill lights its shadow. a_world_from takes another camera and sun.
 //
-// THE STORE: FOREST names KIND as kind 0 with the first `count` of the three
-// copies. Growing, its one layer grows kind 0 at 50 tenths per 100 m², a copy
+// THE STORE: FOREST names KIND as group 0 with the first `count` of the three
+// copies. Growing, its one layer grows group 0 at 50 tenths per 100 m², a copy
 // every 5 m, beside the three (0476 points 5 and 6), and its look may be
 // shadowless.
 //
@@ -144,9 +144,9 @@ static voe_ecs_world *a_world_from(voe_base_arena *arena, voe_ecs_entity *land,
 		(voe_math_float3){ -1.0f, -1.0f, -0.5f });
 }
 
-// A store holding FOREST, 16 m of 8 cells naming KIND as kind 0 with the first
+// A store holding FOREST, 16 m of 8 cells naming KIND as group 0 with the first
 // `count` of three copies, and, with `kind`, KIND itself. With `grow`, one
-// layer grows kind 0 at 50 tenths and its look is `shadowless`.
+// layer grows group 0 at 50 tenths and its look is `shadowless`.
 static voe_3d_models *a_store_growing(voe_render_device *device,
 				      voe_base_arena *arena, bool kind,
 				      uint32_t count, bool grow,
@@ -162,11 +162,13 @@ static voe_3d_models *a_store_growing(voe_render_device *device,
 	voe_base_error error = VOE_BASE_OK;
 	voe_assets_landscape_text text;
 
-	snprintf(land.kinds[0], sizeof(land.kinds[0]), "%s", KIND);
-	land.kind_count = 1;
+	snprintf(land.groups[0].glbs[0], sizeof(land.groups[0].glbs[0]), "%s",
+		 KIND);
+	land.groups[0].glb_count = 1;
+	land.group_count = 1;
 	land.copies = copies;
 	land.copy_count = count;
-	land.looks[0].shadowless = shadowless;
+	land.groups[0].looks[0].shadowless = shadowless;
 	if (grow) {
 		snprintf(land.layers[0], sizeof(land.layers[0]), "%s",
 			 "Assets/grass.material");

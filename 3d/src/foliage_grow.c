@@ -1,8 +1,8 @@
 // The grown foliage of 3d/foliage_grow.h: the area's copies of the remade
-// kinds removed, then each kind's lattice cells over the area hashed, jittered,
-// kept by the paint and placed.
+// groups removed, then each group's lattice cells over the area hashed,
+// jittered, kept by the paint and placed.
 //
-// Used by the model store when a load, a stamp, an undo or a kind's setting
+// Used by the model store when a load, a stamp, an undo or a group's setting
 // asks for a remake. Positions are whole millimetres; a copy's metres are its
 // millimetres / 1000 divided, not multiplied, so a point on a grid line in
 // millimetres is on it in metres and its bilinear weight is exact.
@@ -10,7 +10,7 @@
 // Constraints: the lattice cells walked are those over the area plus one each
 // side, so a point rounded across a cell's edge is still found; a whole-grid
 // remake at 50 copies per 100 m² on the largest grid walks about 3·10⁷ cells
-// a kind, which a coarser lattice for the far part of a grid would lift.
+// a group, which a coarser lattice for the far part of a grid would lift.
 #include <3d/foliage_grow.h>
 
 #include <3d/foliage.h>
@@ -83,42 +83,46 @@ static float layer_weight(const voe_assets_landscape *landscape, uint32_t layer,
 	return (1.0f - t) * top + t * bottom;
 }
 
-// d: the tenths of kind `kind` at (x, z), each layer's weight / 255 times its
-// grows, summed.
-static float tenths_at(const voe_assets_landscape *landscape, uint32_t kind,
+// d: the tenths of group `group` at (x, z), each layer's weight / 255 times
+// its grows, summed.
+static float tenths_at(const voe_assets_landscape *landscape, uint32_t group,
 		       float x, float z)
 {
 	float sum = 0.0f;
 
 	for (uint32_t l = 0; l < landscape->layer_count; l++)
-		if (landscape->grows[l][kind] > 0)
+		if (landscape->grows[l][group] > 0)
 			sum += layer_weight(landscape, l, x, z) / 255.0f *
-			       (float)landscape->grows[l][kind];
+			       (float)landscape->grows[l][group];
 	return sum;
 }
 
-// D: the most tenths any layer grows of kind `kind`, 0 for none.
+// D: the most tenths any layer grows of group `group`, 0 for none.
 static uint16_t most_tenths(const voe_assets_landscape *landscape,
-			    uint32_t kind)
+			    uint32_t group)
 {
 	uint16_t most = 0;
 
 	VOE_BASE_ASSERT(landscape->layer_count <= VOE_ASSETS_LANDSCAPE_LAYERS,
 			"at most 8 layers");
 	for (uint32_t l = 0; l < landscape->layer_count; l++)
-		if (landscape->grows[l][kind] > most)
-			most = landscape->grows[l][kind];
+		if (landscape->grows[l][group] > most)
+			most = landscape->grows[l][group];
 	VOE_BASE_ASSERT(most <= VOE_ASSETS_LANDSCAPE_GROW_MAX, "a grow in range");
 	return most;
 }
 
 // The copy at a cell's point, its scale and turn drawn from `hash` as a
-// scatter draws them from its kind's look.
+// scatter draws them from the look of the glb its millimetres pick.
 static voe_assets_landscape_copy copy_at(const voe_assets_landscape *landscape,
-					 uint32_t kind, float x, float z,
+					 uint32_t group, float x, float z,
 					 uint64_t *hash)
 {
-	const voe_assets_landscape_look look = landscape->looks[kind];
+	const int32_t x_mm = (int32_t)lroundf(x * 1000.0f);
+	const int32_t z_mm = (int32_t)lroundf(z * 1000.0f);
+	const voe_assets_landscape_look look =
+		landscape->groups[group].looks[voe_assets_landscape_glb_pick(
+			landscape, group, x_mm, z_mm)];
 	const float size = draw(hash);
 	const float turn = draw(hash);
 	const float scale =
@@ -129,13 +133,13 @@ static voe_assets_landscape_copy copy_at(const voe_assets_landscape *landscape,
 
 	VOE_BASE_ASSERT(look.size_vary <= VOE_ASSETS_LANDSCAPE_SIZE_VARY_MAX &&
 				look.tilt <= VOE_ASSETS_LANDSCAPE_TILT_MAX,
-			"a kind's spreads in range");
+			"a glb's spreads in range");
 	return (voe_assets_landscape_copy){
-		.x = (int32_t)lroundf(x * 1000.0f),
-		.z = (int32_t)lroundf(z * 1000.0f),
+		.x = x_mm,
+		.z = z_mm,
 		.turn = (uint16_t)(uint32_t)units,
 		.scale = (uint16_t)lroundf(fminf(fmaxf(scale, 1.0f), 65535.0f)),
-		.kind = (uint8_t)kind,
+		.group = (uint8_t)group,
 		.lean = (uint8_t)lroundf((float)look.tilt / 100.0f * 255.0f),
 	};
 }
@@ -152,14 +156,15 @@ static void cell_span(float lo, float hi, float half, float spacing,
 	*end = b <= 0.0f ? 0u : (uint32_t)fminf(b, (float)side);
 }
 
-// Kind `kind`'s kept lattice points in the area appended to the cap, its
+// Group `group`'s kept lattice points in the area appended to the cap, its
 // cells hashed by its seed (0517 point 4).
-static uint32_t grow_kind(const voe_assets_landscape *landscape, uint32_t kind,
-			  struct area a, voe_assets_landscape_copy *grown,
-			  voe_scene_transform *placed, uint32_t count)
+static uint32_t grow_group(const voe_assets_landscape *landscape,
+			   uint32_t group, struct area a,
+			   voe_assets_landscape_copy *grown,
+			   voe_scene_transform *placed, uint32_t count)
 {
-	const uint16_t most = most_tenths(landscape, kind);
-	const uint64_t seed = voe_assets_landscape_kind_seed(landscape, kind);
+	const uint16_t most = most_tenths(landscape, group);
+	const uint64_t seed = voe_assets_landscape_group_seed(landscape, group);
 
 	if (most == 0)
 		return count;
@@ -178,12 +183,12 @@ static uint32_t grow_kind(const voe_assets_landscape *landscape, uint32_t kind,
 			const float pz = -half + ((float)cz + draw(&hash)) * spacing;
 			const float keep = draw(&hash);
 			const voe_assets_landscape_copy copy =
-				copy_at(landscape, kind, px, pz, &hash);
+				copy_at(landscape, group, px, pz, &hash);
 			const float x = metres(copy.x), z = metres(copy.z);
 
 			if (!inside(a, x, z) || x < -half || x >= half ||
 			    z < -half || z >= half ||
-			    keep * (float)most >= tenths_at(landscape, kind, x, z))
+			    keep * (float)most >= tenths_at(landscape, group, x, z))
 				continue;
 			if (count >= VOE_3D_FOLIAGE_GROWN)
 				break;
@@ -196,15 +201,15 @@ static uint32_t grow_kind(const voe_assets_landscape *landscape, uint32_t kind,
 }
 
 uint32_t voe_3d_foliage_grow(const voe_assets_landscape *landscape,
-			     voe_3d_landscape_rect rect, uint32_t kinds,
+			     voe_3d_landscape_rect rect, uint32_t groups,
 			     voe_assets_landscape_copy *grown,
 			     voe_scene_transform *placed, uint32_t count)
 {
 	VOE_BASE_ASSERT(landscape && landscape->heights && grown && placed,
 			"a landscape and room for its grown copies");
 	VOE_BASE_ASSERT(count <= VOE_3D_FOLIAGE_GROWN &&
-				landscape->kind_count <= VOE_ASSETS_LANDSCAPE_KINDS,
-			"a count and kinds within their caps");
+				landscape->group_count <= VOE_ASSETS_LANDSCAPE_GROUPS,
+			"a count and groups within their caps");
 	if (rect.x0 >= rect.x1 || rect.z0 >= rect.z1)
 		return count;
 	const float half = 0.5f * landscape->size;
@@ -215,21 +220,21 @@ uint32_t voe_3d_foliage_grow(const voe_assets_landscape *landscape,
 		.x1 = -half + (float)rect.x1 * cell,
 		.z1 = -half + (float)rect.z1 * cell,
 	};
-	const uint32_t held = kinds & ((1u << landscape->kind_count) - 1u);
+	const uint32_t held = groups & ((1u << landscape->group_count) - 1u);
 
 	// From the last down, so the copy moved in has been looked at already.
 	for (uint32_t i = count; i > 0; i--) {
 		const voe_assets_landscape_copy copy = grown[i - 1];
 
-		if (!((held >> copy.kind) & 1u) ||
+		if (!((held >> copy.group) & 1u) ||
 		    !inside(a, metres(copy.x), metres(copy.z)))
 			continue;
 		count--;
 		grown[i - 1] = grown[count];
 		placed[i - 1] = placed[count];
 	}
-	for (uint32_t k = 0; k < landscape->kind_count; k++)
+	for (uint32_t k = 0; k < landscape->group_count; k++)
 		if ((held >> k) & 1u)
-			count = grow_kind(landscape, k, a, grown, placed, count);
+			count = grow_group(landscape, k, a, grown, placed, count);
 	return count;
 }

@@ -13,17 +13,22 @@
 // PLACED ON THE GROUND (0442 point 2): a copy stands at (x, height(x, z), z)
 // in the grid's own space, its up tilted from +Y toward the ground's normal
 // (central differences one cell apart) by lean / 255, then turned about +Y,
-// then scaled uniformly by its kind's base size times its own scale (0460
+// then scaled uniformly by its glb's base size times its own scale (0460
 // point 3). No height is stored, so `placed` is the caller's
 // cache, one transform per copy in step with `copies`, and _replace keeps it
 // true after a sculpt.
+//
+// A COPY IS OF A GROUP, ITS GLB PICKED LIVE (0520, 0521 point 3): its glb is
+// voe_assets_landscape_glb_pick's at its x and z, so a share or a glb added
+// changes which glb a painted copy wears and its base size, while its turn,
+// scale and lean stay as drawn.
 //
 // A SCATTER STAMP (0442 point 3) tries ceil(density / 100 · πr² · min(1, 4s))
 // points uniform in the disc, s clamped to 0.1, at most VOE_3D_FOLIAGE_TRIES.
 // A point is kept where the brush's soft weight beats a random draw, it lies
 // on the square, and no copy, old or kept this stamp, is within the spacing
-// 0.84 · √(100 / density) m. Kind uniform among the picked, then from that
-// kind's look (0476 point 1): scale 1 ± its size_vary %, turn ± its
+// 0.84 · √(100 / density) m. Group uniform among the picked, then from the
+// look of the glb the point picks (0476 point 1): scale 1 ± its size_vary %, turn ± its
 // turn_vary °, lean its tilt % of 255; all from a xorshift64 the caller keeps.
 //
 // THE SPACING IS WHY A HELD BRUSH STOPS. Discs of the spacing packed at random
@@ -58,7 +63,8 @@ typedef struct {
 	float softness;
 	// Copies per 100 m², above 0.
 	float density;
-	// Bit k: kind k; kinds at or past the landscape's kind_count are ignored.
+	// Bit k: group k; groups at or past the landscape's group_count are
+	// ignored.
 	uint32_t picked;
 } voe_3d_foliage_brush;
 
@@ -76,7 +82,7 @@ uint32_t voe_3d_foliage_scatter(voe_assets_landscape *landscape,
 				float z, float seconds, uint64_t *seed,
 				voe_assets_landscape_copy *added);
 
-// Every copy of a picked kind within the radius of (x, z), at most `room`,
+// Every copy of a picked group within the radius of (x, z), at most `room`,
 // removed by moving the last into its place (`placed` alike, when not NULL)
 // and written to `removed`; how many.
 uint32_t voe_3d_foliage_erase(voe_assets_landscape *landscape,
