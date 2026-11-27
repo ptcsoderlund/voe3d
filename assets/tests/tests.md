@@ -32,9 +32,12 @@ belongs to.
   limits.
 - `sectioned.c` — the principal's sketch read back as its text, one test
   per decision the format left open, and every shape of broken line.
-- `landscape.c` — grids, heights, layers, paint, foliage and kinds' base sizes
-  round-tripped and resampled, each refusal with its category, and the strict
-  reader refusing what the lenient one passes over and reading what is written.
+- `landscape.c` — grids, heights, layers and paint round-tripped and
+  resampled, and each refusal with its category.
+- `landscape_foliage.c` — kinds, their base sizes and looks, layers' grows and
+  copies round-tripped and resampled, each refusal with its category, and the
+  strict reader refusing what the lenient one passes over and reading what is
+  written.
 - `landscape_blend.c` — a kind's `blend<k>` and `blendheight<k>` read, written
   only off the default and read back, and each out-of-range value refused.
 - `landscape_kinds.c` — kinds' seeds missing as their index and not written,
