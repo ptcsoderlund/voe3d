@@ -51,9 +51,15 @@ again, or to find where a claim that has started failing is written down.
 - `draw_levels.c` — that a levelled sphere 400 m away draws under a quarter of the triangles it
   draws 3 m away, one without levels draws whole, and a memory's swap dissolves unless fading,
   settles, and swaps back only 10% nearer. Skips without a card.
-- `draw_foliage.c` — that copies gather into groups, none without row, kind or room, shadow,
-  count skipped yet shadow behind the camera, blend with their ground, dissolve a swap through a
-  memory, keep no memory unseen, and are laid then shaded by the camera. Skips without a card.
+- `draw_foliage.c` — that copies gather into groups, none without row, kind or room, grown ones
+  among them, shadowless ones seen, blending with their ground, and a species' variations. Skips
+  without a card.
+- `draw_foliage_view.c` — that copies change the picture and shadow, are laid then shaded by the
+  camera, and count skipped yet shadow behind it. Skips without a card.
+- `draw_foliage_lods.c` — that a copy dissolves a swap through a memory and keeps no memory unseen.
+  Skips without a card.
+- `draw_foliage_world.inc` — the foliage draw tests' harness: the world, the store, a gathering
+  frame, a model's opaque parts and the device.
 - `draw_switched_off.c` — that a sphere on a child draws as no model row does when the child or
   its parent is off, and whole again when both are back on. Skips without a graphics card.
 - `draw_terrain.c` — that a 4096 m landscape seen level from 2 m up draws its far ridge and ground
@@ -188,9 +194,12 @@ again, or to find where a claim that has started failing is written down.
   none leaked across reloads and clears, pools below level 0, a prepare then a put, and 17
   materials refused. Skips without a card.
 - `models_landscape.c` — a `.landscape` loaded as one part on the grid, its brushes, puts,
-  layers and renames written within a frame's budget, marked changed, and its foliage placed, kept
-  standing by a sculpt, scattered, erased, put back, kinds set, sized and renamed. Skips without a
-  card.
+  layers and renames written within a frame's budget, and marked changed. Skips without a card.
+- `models_landscape_foliage.c` — a landscape's foliage placed, kept standing by a sculpt,
+  scattered, erased, put back, kinds set, sized and renamed, and grown by its layers. Skips without
+  a card.
+- `models_landscape_store.inc` — the store's landscape tests' harness: the capacities, the empty
+  rect, one frame of writes and the device.
 - `models_material.c` — a `.material` with four maps loaded as one part and its values, a set
   written by a frame, a decoded put alike, a mipped map's and a BC7 and BC5 map's put, a
   non-picture map MALFORMED, and a rename. Skips without a card.
