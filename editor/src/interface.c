@@ -296,13 +296,6 @@ bool voe_editor_interface_draw(voe_render_device *gpu, voe_ui_context *ui,
 		voe_editor_inspector_foliage_forget(&scene->sculpt);
 		voe_editor_inspector_brush_forget(&scene->sculpt);
 		voe_editor_inspector_material_forget(&scene->material_controls);
-		voe_editor_inspector_tree_forget(&scene->tree_controls);
-		voe_editor_scene_tree_follow(
-			scene,
-			voe_editor_project_species_is(session->project) ?
-				session->project->prefab :
-				NULL,
-			voe_editor_models_trees(models));
 
 		// ONE COLUMN IS THIS FRAME'S ROOT, AND THE BAR AND THE TREE ARE
 		// ITS TWO CHILDREN. voe_ui_frame_begin requires the very first

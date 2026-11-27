@@ -230,8 +230,7 @@ static bool project_same(const struct context *at,
 
 // A file the editor writes at once: the same values settled, else taken by
 // file_steps.h, a closed prefab's world re-finding the selection, an open
-// material or species refreshed, and a file step from the known copy when
-// there is one.
+// material refreshed, and a file step from the known copy when there is one.
 static enum outcome take_file(struct context *at,
 			      const voe_editor_disk_change *change)
 {
@@ -263,9 +262,6 @@ static enum outcome take_file(struct context *at,
 	if (material)
 		voe_editor_scene_material_refresh(
 			at->scene, voe_editor_models_materials(at->models));
-	if (tree)
-		voe_editor_scene_tree_refresh(at->scene,
-					      voe_editor_models_trees(at->models));
 	known = voe_editor_disk_watch_known(at->session->watch, path,
 					    &known_size);
 	if (known != NULL)

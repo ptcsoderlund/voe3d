@@ -5,8 +5,7 @@
 // control becomes is inspector_edit.c's. A thing wearing a landscape gets the
 // Sculpt section and, its grid loaded, Layers and Foliage, then Brush while a
 // brush is chosen; a loaded model, Level. While a material is open its section
-// (inspector_material.h) is drawn in place of the entity's; else, while a
-// species is open, its tree section (inspector_tree.h).
+// (inspector_material.h) is drawn in place of the entity's.
 //
 // IT IS DRIVEN BY base/describe.h AND BY NOTHING ELSE. There is no table in here
 // mapping a component to a layout, and adding one would be the thing the
@@ -379,10 +378,7 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 			       const voe_editor_views *views,
 			       const char *material_open,
 			       const voe_assets_material_file *material,
-			       voe_editor_inspector_material *controls,
-			       const char *tree_open, const voe_assets_tree *tree,
-			       uint32_t tree_variation,
-			       voe_editor_inspector_tree *tree_controls)
+			       voe_editor_inspector_material *controls)
 {
 	uint32_t types;
 	voe_ecs_entity root = { 0 };
@@ -401,20 +397,11 @@ void voe_editor_inspector_draw(voe_ui_context *ui,
 	VOE_BASE_ASSERT(material_open != NULL && material != NULL &&
 				controls != NULL,
 			"drawing an inspector with no material slot");
-	VOE_BASE_ASSERT(tree_open != NULL && tree != NULL &&
-				tree_controls != NULL,
-			"drawing an inspector with no tree slot");
 
 	// An open material in place of the entity, which stays unrecorded.
 	if (material_open[0] != '\0') {
 		voe_editor_inspector_material_draw(ui, controls, material_open,
 						   material);
-		return;
-	}
-	// An open species, likewise.
-	if (tree_open[0] != '\0') {
-		voe_editor_inspector_tree_draw(ui, tree_controls, tree_open, tree,
-					       tree_variation);
 		return;
 	}
 

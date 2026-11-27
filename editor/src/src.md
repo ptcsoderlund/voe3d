@@ -87,16 +87,14 @@ carries it out.
   digits with an `x` between, and the one usage line every mistake ends at.
 - `project.h` — the project being worked on: its three arenas, kept sections, project file with its
   game window, code, folder and unsaved flag (ADR-0164), where its worlds are made, its scene as
-  text or read back and expanded, the new-code swap, and a prefab or species opened in its place.
+  text or read back and expanded, the new-code swap, and a prefab opened with the level set aside.
 - `project.c` — opening, making and saving a project, the game window set and written at once, the
   scene written out as text and read back into the same world or a new one, each read expanded,
   and the untitled scene's cube, light and camera.
-- `project_prefab.h` — the open prefab's save and the untitled scene's light, private to the
-  project files: the save Save hands a prefab to, the light the species view stands as its sun.
+- `project_prefab.h` — the open prefab's save, private to the two project files, which
+  voe_editor_project_save hands a save to while a prefab is open.
 - `project_prefab.c` — a prefab opened with the level set aside as text, saved as one tree, and
   Back reading the level in again.
-- `project_species.c` — a `.tree` species opened in the level's place as a prefab is, its world a
-  sun and one model row wearing a variation, the variation stepped, and whether one is open.
 - `last_project.h` — the one remembered folder at
   `<settings>/voe3d/last_project`. Its header says why a first start is not a
   failure worth reporting.
@@ -274,11 +272,11 @@ carries it out.
 - `disk_ask.c` — the open with its line, the panel's one frame of `ui` calls, and the read of its
   two buttons.
 - `assets_drag.h` — a held row from the Assets panel and what its release does: a move, a thing
-  placed in a view, or over the Inspector a swap, a shape's material, a filled map, a species' Bark
-  or Leaf, a layer or a foliage kind (`.glb` or `.tree`), an added one open, else nothing.
+  placed in a view, or over the Inspector a swap, a shape's material, a filled map, a layer
+  or a foliage kind (`.glb` or `.tree`), an added one open, else nothing.
 - `assets_drag.c` — the drag started from the panel's held row, the one outcome at a pointer for
-  the release and the ghost, the move's target, the drop point, the Inspector's rows, layer, kind
-  and species material rows among them, and each swap with its undo step.
+  the release and the ghost, the move's target, the drop point, the Inspector's rows, layer
+  and kind rows among them, and each swap with its undo step.
 - `assets_walk.h` — the project's `.scene`, `.prefab`, `.material`, `.landscape`, `.parts` and `.tree` texts
   walked: who names a path before a Delete, a rename's paths checked before the move and written
   after it, and the sorted list of the project's files the watch and check see.
@@ -313,7 +311,7 @@ carries it out.
   answered, Make's asking the prepare or, for swaps alone, a reload, Import's importing at its size.
 - `interface_read.h` — the rest of that read: the Inspector, colour picker and Scene list first,
   then the ×, Panels list, top bar, browser, Preferences, Project and Landscape.
-- `interface_read.c` — the Inspector's reads, an edited material or species handed to the store,
+- `interface_read.c` — the Inspector's reads, an edited material handed to its row and the store,
   the picker's submit (a material's into the field its offset names), the drop's prefab, the reveal,
   the panels' toggles, the bar's or browser's commands, the covers' reads and Preferences'.
 - `inspector.h` — what the selected entity is made of, the controls that change it, and the struct
@@ -321,8 +319,8 @@ carries it out.
   draws that list and reads what was picked from it; a part is shown, never edited; sections fold.
 - `inspector.c` — the Enabled row's button, the Duplicate and Delete row, each described
   component's folding section with its heading and Remove, then "Needs" line and fields, Add
-  component, its menu and open list, a part read-only, a landscape's sections, or a material's or
-  species' instead.
+  component, its menu and open list, a part read-only, a landscape's sections, or a material's
+  instead.
 - `inspector_rows.h` — one described field's row: its name and the control its kind gets, a list of
   strings a text field per string, a ranged real a slider with its figure, labels when it cannot be
   edited.
@@ -366,12 +364,6 @@ carries it out.
   set), Repeat clamped 0.01–1000, Cutout, One side and Both sides, and the four map rows with ×.
 - `inspector_material.c` — the section's one frame of `ui` calls, its nodes forgotten each frame,
   and the read into the shown copy only, a swatch opening the picker on its field's offset.
-- `inspector_tree.h` — the Inspector's tree section for an open species: Bark and Leaf rows with ×
-  and their rectangles kept for a drop, a slider per number key over assets/tree.h's ranges,
-  Variations clamped 1–16, and the ◀ v / count ▶ stepper.
-- `inspector_tree.c` — the section's one frame of `ui` calls, its nodes forgotten each frame, and
-  the read into the shown copy and the stepped variation, which wraps, the material rows' rectangles
-  kept.
 - `add_menu.h` — the entries Add component offers one entity, a tree of groups and types built each
   frame from the types' registered menu paths (ADR-0217, 0221), and each level drawn as a list.
 - `add_menu.c` — each offered type's path split on `/` and trimmed, its groups found or made under
@@ -448,13 +440,13 @@ carries it out.
   step, refused into the notice, left waiting, or one at a time asked, load from disk or keep mine,
   the session's question kept open on the asked path.
 - `disk_take.c` — the dispatch by path, the safety net's compares, the selection re-found around a
-  take that sets the world, the open material or species refreshed, the asked path answered, and
+  take that sets the world, the open material refreshed, the asked path answered, and
   the question opened, closed and answered.
 - `scene.h` — the project's world and selection, and the Scene panel and Inspector state built on
   them: rows, folds, drag, picker, the gizmo's mode of three, the reveal of a selection made
-  elsewhere and the material or species open in the Inspector.
-- `scene.c` — the selection and its targets, the open material's close, follow and refresh, the
-  open tree's follow, refresh and clamp, Delete, Duplicate and the Inspector's switch, and the Scene panel's rows, asked after the frame
+  elsewhere and the material open in the Inspector.
+- `scene.c` — the selection and its targets, the open material's close, follow and refresh,
+  Delete, Duplicate and the Inspector's switch, and the Scene panel's rows, asked after the frame
   has ended.
 - `pick.h` — a left click in a scene view selects what is under the pointer, every placed thing on
   its mesh or its marker, a marker before a mesh, and a click on nothing clears the selection; the
@@ -468,7 +460,7 @@ carries it out.
   from the view's own camera, measured from the press in world space, its world value snapped,
   and submitted as a whole transform, a child's written back relative to its parent.
 - `undo.h` — the line of whole-scene texts that Ctrl+Z and Ctrl+Y step through (ADR-0204), a state
-  carrying a sculpting stroke, material or species edit, or file or landscape taken in from disk
+  carrying a sculpting stroke, material edit, or file or landscape taken in from disk
   beside its text, with the level's line set aside while a prefab is open.
 - `undo.c` — the states pushed once, the two lines swapped, a settled edit's compare and a reveal's
   amend, each kind of step pushed, what could have been redone thrown away
@@ -477,10 +469,6 @@ carries it out.
   own memory beside the undo line's text, and the file written at once.
 - `material_steps.c` — the copy made and freed, the file's write, and the values put back either
   way into the table, file, store and open copy.
-- `tree_steps.h` — one species edit: a `.tree`'s path and its values before and after, its own
-  memory beside the undo line's text, and the file written at once.
-- `tree_steps.c` — the copy made and freed, the file's write, and the values put back either way
-  into the table, file and open copy.
 - `file_steps.h` — a file changed on disk taken in by its kind, read strictly, and its undo step:
   a file step's bytes before and after, written at once, or a landscape step's whole copies, left
   unsaved; each its own memory.

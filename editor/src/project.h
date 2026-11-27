@@ -44,11 +44,7 @@
 // flag, in an arena of its own. Text, because Back reads it through scene_set,
 // so every copy is expanded from the prefab files as they are then. Save writes
 // the world to `<folder>/<prefab>` alone. code_set swaps only the world, so a
-// Refresh keeps both the open prefab and the set-aside level. A SPECIES RIDES
-// IT (0515 point 6): `prefab` holds the `.tree` path and the world is the
-// untitled scene's sun and one model row wearing a variation, `<path>#<v>`.
-// Its edits write the species file at once, so Save writes no world then,
-// only project.voe3d, and the open file's disk take is not scene_take's.
+// Refresh keeps both the open prefab and the set-aside level.
 #pragma once
 
 #include "code.h"
@@ -71,7 +67,6 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
 // The room a project's world has for drawn entities is
 // VOE_GAME_WORLD_MAX_DRAWN, which lives in game/world.h beside the world every
@@ -139,9 +134,8 @@ voe_render_light voe_editor_project_preview_light(void);
 // nothing written; true clears project->unsaved and, for an untitled project,
 // sets project->folder to folder. With a prefab open it writes the prefab,
 // refusing a world without exactly one entity with no parent, or one that
-// voe_editor_prefab_refused (prefabs.h) refuses; with a species open, only
-// project.voe3d. Each file written is told to `watch` (disk_watch.h) at once;
-// NULL tells nothing.
+// voe_editor_prefab_refused (prefabs.h) refuses. Each file written is told to
+// `watch` (disk_watch.h) at once; NULL tells nothing.
 [[nodiscard]] bool voe_editor_project_save(voe_editor_project *project,
 					   const char *folder,
 					   voe_editor_disk_watch *watch,
@@ -198,8 +192,7 @@ void voe_editor_project_file_take(voe_editor_project *project,
 // world in `scratch`, rewound, then set as _scene_set sets it, unsaved false.
 // False with why from the report naming the file, the world as it was since
 // the check comes first; or false as _scene_set's refusal, half-loaded only by
-// running out of room. Writes nothing to disk and cooks nothing (0470). False
-// with nothing done while a species is open: its file is no scene text.
+// running out of room. Writes nothing to disk and cooks nothing (0470).
 [[nodiscard]] bool voe_editor_project_scene_take(voe_editor_project *project,
 						 const char *text, size_t size,
 						 voe_base_arena *scratch,
@@ -229,26 +222,6 @@ void voe_editor_project_file_take(voe_editor_project *project,
 // when the level's text will not read, the prefab still counted open.
 [[nodiscard]] bool voe_editor_project_prefab_back(voe_editor_project *project,
 						  voe_editor_notice *why);
-
-// Opens the species `path`, a `.tree` under the folder whose file is not read
-// here, in the level's place as _prefab_open does: the level set aside as text, `prefab` set to path, the
-// world emptied to the untitled scene's sun and one model row at the origin
-// wearing `<path>#<variation>`, unsaved false. Needs a folder and no prefab
-// open. False with why when the path will not fit, or the level will not
-// write as text; the level is then as it was. Back is _prefab_back.
-[[nodiscard]] bool voe_editor_project_species_open(voe_editor_project *project,
-						   const char *path,
-						   uint32_t variation,
-						   voe_editor_notice *why);
-
-// The open species' model row made to wear `<prefab>#<v>`, through the model's
-// intent, so it lands at the next model system run. Needs a species open.
-// False when the row is gone, the path will not fit or the queue is full.
-[[nodiscard]] bool voe_editor_project_species_variation(voe_editor_project *project,
-							uint32_t v);
-
-// Whether the open prefab is a species: `prefab` ends `.tree`.
-bool voe_editor_project_species_is(const voe_editor_project *project);
 
 // A fresh world in arena, made as every one of project's is: game/world.h's
 // types, then project's code's own when it has code. Never NULL.

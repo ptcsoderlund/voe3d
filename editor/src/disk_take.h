@@ -17,8 +17,8 @@
 //   refused is the notice; one the store does not hold is settled;
 // - a `.material`, `.parts`, `.tree`, closed `.prefab` or project.voe3d, never
 //   unsaved since the editor writes them at once, is never asked:
-//   voe_editor_file_take, the open material or species refreshed from its
-//   row, and a file step from the watch's known copy when it has one;
+//   voe_editor_file_take, the open material refreshed from its row, and a
+//   file step from the watch's known copy when it has one;
 // - any other `.scene` is settled, nothing taken: only the open one is held.
 // A refusal (0506 point 2) is said in the session's notice, file, line, key
 // and why, and settled untaken, the last good state kept.

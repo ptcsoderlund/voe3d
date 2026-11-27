@@ -1,7 +1,7 @@
 // The Assets panel's listing with the selected row kept, its one frame of `ui`
 // calls with the naming's field, and the read of its rows, the selection and
-// `keyboard`, the field's request, a fired prefab, species, landscape or
-// material row's path and Up afterwards,
+// `keyboard`, the field's request, a fired prefab, landscape or material row's
+// path and Up afterwards,
 // with the rectangles the right button's menu and the drag are read from, and
 // the listing calls Import's copy (assets_import.c) shares.
 // See the header for the arena, the once a second and what a missing
@@ -517,7 +517,6 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 		voe_editor_assets_row *row = &assets->rows[i];
 		bool held = row->node != VOE_UI_NODE_NONE &&
 			    voe_ui_button_action(ui, row->node).held;
-		bool species;
 
 		if (held) {
 			assets->selected = row->name;
@@ -531,15 +530,11 @@ bool voe_editor_assets_clicks_read(const voe_ui_context *ui,
 		    row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
 			entered = row->name;
-		// A species opens as a prefab does (0515 point 6), but is no
-		// prefab row: it is not dragged into the scene.
-		species = !row->folder && name_ends(row->name, ".tree");
-		if ((row->prefab || species || row->landscape ||
-		     row->material) &&
+		if ((row->prefab || row->landscape || row->material) &&
 		    !dragged && row->node != VOE_UI_NODE_NONE &&
 		    voe_ui_button_action(ui, row->node).fired)
 			opened_set(assets, row->name,
-				   row->prefab || species ? assets->opened :
+				   row->prefab    ? assets->opened :
 				   row->landscape ? assets->landscape_opened :
 						    assets->material_opened);
 		row->seen = seen(ui, row->node);

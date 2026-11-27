@@ -43,8 +43,6 @@
 //   shape's `material` through voe_3d_shape_submit, one step and unsaved as
 //   the model swap is. A model's parts wear its `.parts` file's (0404), so
 //   over a model it drops nothing.
-// - A `.material` over the open species' Bark or Leaf row (inspector_tree.h):
-//   that path in `scene->tree`, regrown, and at rest written as a tree step.
 // - Anywhere else, or while `blocked`: nothing.
 // The drag starts past VOE_EDITOR_SCENE_DRAG_START (scene_list.h) from the
 // press, so a click opens a prefab or folder and a release before it does

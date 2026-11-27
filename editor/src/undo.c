@@ -1,6 +1,6 @@
 // The states pushed once, the two lines swapped, the compare a settled edit
 // makes against the state the world is, a settled reveal's amend of that
-// state, a stroke, material, tree, file or landscape step pushed beside a copy of
+// state, a stroke, material, file or landscape step pushed beside a copy of
 // the text, every dropped state's freed, and the step a take moves by,
 // applying whichever of those it steps over.
 // See the header for what a step is, what bounds it, where in the frame a take
@@ -36,7 +36,6 @@ static void voe_editor_undo_bare(voe_editor_undo_state *states, uint32_t index)
 			"baring a state of no line or past it");
 	states[index].stroke = NULL;
 	states[index].material = NULL;
-	states[index].tree = NULL;
 	states[index].file = NULL;
 	states[index].landscape = NULL;
 }
@@ -53,7 +52,6 @@ static void voe_editor_undo_drop(voe_editor_undo_state *states, uint32_t from,
 	for (uint32_t i = from; i < to; i++) {
 		voe_editor_stroke_destroy(states[i].stroke);
 		voe_editor_material_step_destroy(states[i].material);
-		voe_editor_tree_step_destroy(states[i].tree);
 		voe_editor_file_step_destroy(states[i].file);
 		voe_editor_landscape_step_destroy(states[i].landscape);
 		voe_editor_undo_bare(states, i);
@@ -330,19 +328,6 @@ void voe_editor_undo_material(voe_editor_undo *undo,
 		state->material = step;
 }
 
-void voe_editor_undo_tree(voe_editor_undo *undo, voe_editor_project *project,
-			  voe_base_arena *scratch, voe_editor_tree_step *step)
-{
-	voe_editor_undo_state *state;
-
-	VOE_BASE_ASSERT(step != NULL, "recording no tree step");
-	state = voe_editor_undo_beside(undo, project, scratch);
-	if (state == NULL)
-		voe_editor_tree_step_destroy(step);
-	else
-		state->tree = step;
-}
-
 void voe_editor_undo_file(voe_editor_undo *undo, voe_editor_project *project,
 			  voe_base_arena *scratch, voe_editor_file_step *step)
 {
@@ -390,22 +375,6 @@ static void voe_editor_undo_apply(const voe_editor_undo_state *carried,
 		voe_editor_material_step_apply(carried->material, models, scene,
 					       project->folder, scratch, watch,
 					       forward);
-	// The text just set may wear another variation than the one shown, so
-	// the species is stepped to it again, clamped below the Variations put
-	// back; a refusal is said as a stepper's is (interface_read.c).
-	if (carried->tree != NULL) {
-		voe_editor_tree_step_apply(carried->tree, models, scene,
-					   project->folder, scratch, watch,
-					   forward);
-		if (voe_editor_project_species_is(project) &&
-		    scene->tree_open[0] != '\0') {
-			(void)voe_editor_scene_tree_clamp(scene);
-			if (!voe_editor_project_species_variation(
-				    project, scene->tree_variation))
-				voe_editor_notice_set(
-					why, "The variation could not be shown.");
-		}
-	}
 	// A refusal leaves the world at the state stepped to: its text is
 	// already read, and the file's notice in `why` is what is left to say.
 	if (carried->file != NULL)

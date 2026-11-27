@@ -13,8 +13,6 @@
 #include "last_project.h"
 #include "models.h"
 
-#include <assets/tree.h>
-
 #include <base/arena.h>
 #include <base/assert.h>
 #include <base/report.h>
@@ -605,13 +603,8 @@ void voe_editor_session_prefab_open(voe_editor_session *session,
 				      "A prefab is open — Back to the level first");
 		return;
 	}
-	// A species rides the prefab's set-aside (0515 point 6), at its first
-	// variation.
-	if (voe_assets_tree_path_is(path) ?
-		    !voe_editor_project_species_open(session->project, path, 0,
-						     &session->notice) :
-		    !voe_editor_project_prefab_open(session->project, path,
-						    &session->notice))
+	if (!voe_editor_project_prefab_open(session->project, path,
+					    &session->notice))
 		return;
 	// A Play or Ship waiting on a refresh would cook the prefab as the
 	// level, which is what refusing them while one is open prevents.
@@ -665,7 +658,6 @@ static void session_import(voe_editor_session *session, voe_editor_scene *scene,
 	voe_base_arena_destroy(scratch);
 	voe_editor_scene_material_refresh(scene,
 					  voe_editor_models_materials(models));
-	voe_editor_scene_tree_refresh(scene, voe_editor_models_trees(models));
 }
 
 void voe_editor_session_browser_do(voe_editor_session *session,

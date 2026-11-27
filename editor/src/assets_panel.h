@@ -24,7 +24,7 @@
 // which moves it onto a folder row or Up (0377 point 3) and places a MODEL
 // (`.glb`, or `.landscape` worn as one, 0379 point 2), PREFAB (`.prefab`) or
 // PICTURE (`.png`, `.jpg`, `.jpeg`) row, in any case, or makes it a texture
-// (0270, 0283, 0298). A prefab or `.tree` row pressed and
+// (0270, 0283, 0298). A prefab row pressed and
 // released on the row fires: its project-relative path, `/` between, is left
 // in `opened` for the caller to read and clear; one too long for it is not. A
 // `.landscape` row fires so into `landscape_opened`, a `.material` row into

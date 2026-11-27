@@ -163,34 +163,12 @@ static void add_camera(voe_ecs_world *world, uint64_t id)
 			"a project's camera table is too small for its camera");
 }
 
-void voe_editor_project_sun_add(voe_ecs_world *world, uint64_t id)
-{
-	voe_ecs_entity light;
-
-	VOE_BASE_ASSERT(world != NULL && id != 0, "a light in no world or with no id");
-	light = identified(world, id, "Light");
-	// THE LIGHT'S TRANSFORM TURNS IT (ADR-0273): its rotation is the
-	// direction it shines. A directional light lights the same from
-	// anywhere, so its position only places the marker a person sees.
-	VOE_BASE_ASSERT(
-		voe_scene_transform_add(
-			world, light,
-			(voe_scene_transform){
-				.position = { 0.0, LIGHT_HEIGHT, 0.0 },
-				.rotation = voe_scene_light_facing(
-					(voe_math_float3){ LIGHT_X, LIGHT_Y,
-							   LIGHT_Z }),
-				.scale = { 1.0f, 1.0f, 1.0f } }),
-		"a project's transform table is too small for its light");
-	VOE_BASE_ASSERT(voe_scene_light_add(world, light, untitled_light),
-			"a project's light table is too small for its light");
-}
-
 // Builds the untitled scene's three entities — `Cube`, the `Light` that
 // shows it and the `Camera` — into world. See project.h on why this is here and not scene.c.
 static void build_untitled(voe_ecs_world *world)
 {
 	voe_ecs_entity cube = identified(world, 1, "Cube");
+	voe_ecs_entity light;
 
 	VOE_BASE_ASSERT(
 		voe_scene_transform_add(
@@ -209,7 +187,24 @@ static void build_untitled(voe_ecs_world *world)
 						 .cast_shadows = true }),
 		"a project's shape table is too small for its own untitled scene");
 
-	voe_editor_project_sun_add(world, 2);
+	// THE LIGHT'S TRANSFORM TURNS IT (ADR-0273): its rotation is the
+	// direction it shines. A directional light lights the same from
+	// anywhere, so its position only places the marker a person sees.
+	light = identified(world, 2, "Light");
+	VOE_BASE_ASSERT(
+		voe_scene_transform_add(
+			world, light,
+			(voe_scene_transform){
+				.position = { 0.0, LIGHT_HEIGHT, 0.0 },
+				.rotation = voe_scene_light_facing(
+					(voe_math_float3){ LIGHT_X, LIGHT_Y,
+							   LIGHT_Z }),
+				.scale = { 1.0f, 1.0f, 1.0f } }),
+		"a project's transform table is too small for its own untitled scene");
+	VOE_BASE_ASSERT(
+		voe_scene_light_add(world, light, untitled_light),
+		"a project's light table is too small for its own untitled scene");
+
 	add_camera(world, 3);
 
 	VOE_BASE_ASSERT(voe_scene_identity_count(world) == 3,
@@ -375,15 +370,6 @@ bool voe_editor_project_save(voe_editor_project *project, const char *folder,
 	VOE_BASE_ASSERT((project->folder == NULL) == (folder != NULL),
 			"folder is required for an untitled project and refused for an opened one");
 
-	// A species' edits write its file at once (0515 point 6): its world is
-	// only a view, so only the project file is written.
-	if (voe_editor_project_species_is(project)) {
-		if (!voe_editor_project_window_set(project, project->file.window,
-						   watch, why))
-			return false;
-		project->unsaved = false;
-		return true;
-	}
 	if (project->prefab[0] != '\0')
 		return voe_editor_project_prefab_save(project, watch, why);
 
@@ -588,9 +574,6 @@ bool voe_editor_project_scene_take(voe_editor_project *project, const char *text
 			"taking a scene into no project or from no text");
 	VOE_BASE_ASSERT(scratch != NULL && why != NULL,
 			"taking a scene with no scratch or nowhere to say why");
-	// A species' file is no scene text, and its take is not this one.
-	if (voe_editor_project_species_is(project))
-		return false;
 	mark = voe_base_arena_mark(scratch);
 	voe_base_report_error_clear();
 	taken = voe_authoring_scene_check(text, size, project->world, scratch);

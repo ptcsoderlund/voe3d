@@ -16,9 +16,7 @@
 // inspector.h's voe_editor_inspector_colour_submit at once, so the shape
 // changes live, or, for the open material, into its shown copy; an `outside`
 // press closes it. So is the open material's section: an edit the table's row
-// takes, and the store told (models.h). And the open species' section: an
-// edit goes to the store at once, so the tree regrows as it is dragged, and a
-// stepped or clamped variation steps the world's tree (project.h).
+// takes, and the store told (models.h).
 //
 // THE SCENE LIST'S DROP IS CARRIED OUT HERE, through scene_list.h's
 // voe_editor_scene_list_drop, after the rows' clicks. Released over the Assets
@@ -42,7 +40,6 @@
 #include "inspector_material.h"
 #include "inspector_place.h"
 #include "inspector_sculpt.h"
-#include "inspector_tree.h"
 #include "notice.h"
 #include "panels.h"
 #include "panels_menu.h"
@@ -120,43 +117,6 @@ static void voe_editor_interface_material_read(const voe_ui_context *ui,
 			"a row that did not take the shown material");
 }
 
-// The open species' section read into the shown copy; when that now differs
-// from the table's row, the store takes it and regrows it (models.h). A
-// variation stepped, or clamped below a fallen Variations, steps the world's
-// tree; a refusal is said in `notice`.
-static void voe_editor_interface_tree_read(const voe_ui_context *ui,
-					   voe_editor_scene *scene,
-					   voe_editor_models *models,
-					   voe_editor_project *project,
-					   voe_editor_notice *notice)
-{
-	const voe_game_tree *row = NULL;
-	const voe_editor_trees *trees;
-	uint32_t was = scene->tree_variation;
-
-	VOE_BASE_ASSERT(ui != NULL && scene != NULL && models != NULL,
-			"reading a tree with no frame, scene or store");
-	VOE_BASE_ASSERT(project != NULL && notice != NULL,
-			"reading a tree with no project or notice");
-	voe_editor_inspector_tree_read(ui, scene);
-	if (scene->tree_open[0] == '\0' ||
-	    !voe_editor_project_species_is(project))
-		return;
-	trees = voe_editor_models_trees(models);
-	for (uint32_t i = 0; i < trees->count && row == NULL; i++)
-		if (strcmp(trees->rows[i].path, scene->tree_open) == 0)
-			row = &trees->rows[i];
-	if (row != NULL &&
-	    memcmp(&row->values, &scene->tree, sizeof scene->tree) != 0)
-		voe_editor_models_tree_changed(models, scene->tree_open,
-					       &scene->tree);
-	if ((voe_editor_scene_tree_clamp(scene) ||
-	     scene->tree_variation != was) &&
-	    !voe_editor_project_species_variation(project,
-						  scene->tree_variation))
-		voe_editor_notice_set(notice, "The variation could not be shown.");
-}
-
 // The edits go first, and which order they are in is a fact and not a taste:
 // a click read here can move the selection, and the controls were drawn for
 // whatever was selected when the frame was built. The inspector keeps that
@@ -192,8 +152,6 @@ bool voe_editor_interface_scene_read(voe_ui_context *ui, voe_base_arena *arena,
 	voe_editor_inspector_foliage_read(ui, &scene->sculpt);
 	voe_editor_inspector_brush_read(ui, &scene->sculpt);
 	voe_editor_interface_material_read(ui, scene, models);
-	voe_editor_interface_tree_read(ui, scene, models, session->project,
-				       &session->notice);
 	if (!voe_editor_scene_clicks_read(scene, ui))
 		voe_editor_notice_set(&session->notice, "The scene is full.");
 	over_assets = voe_editor_dock_over_panel(

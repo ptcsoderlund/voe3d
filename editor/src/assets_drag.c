@@ -143,14 +143,12 @@ typedef enum {
 	OUTCOME_PICTURE_ONTO_INSPECTOR,
 	OUTCOME_MATERIAL_ONTO_LAYER,
 	OUTCOME_MATERIAL_ONTO_SHAPE,
-	OUTCOME_MATERIAL_ONTO_TREE,
 	OUTCOME_PICTURE_ONTO_MAP,
 	OUTCOME_MOVE,
 } outcome_kind;
 
 // What a release at a pointer would do, the view and point it lands in, the
-// landscape's layer, the open material's map or the open species' material
-// row (bark 0, leaf 1) it fills, a move's path
+// landscape's layer or the open material's map it fills, a move's path
 // relative to `Assets/`, and, for a prefab over a view while one is open, why
 // nothing, for the notice.
 typedef struct {
@@ -228,22 +226,6 @@ static bool map_row_at(const voe_editor_scene *scene, voe_math_float2 pointer,
 	return false;
 }
 
-// The open species' material row that showed under `pointer`, into `index`.
-static bool tree_row_at(const voe_editor_scene *scene, voe_math_float2 pointer,
-			uint32_t *index)
-{
-	VOE_BASE_ASSERT(scene != NULL && index != NULL, "a tree row of nothing");
-	VOE_BASE_ASSERT(scene->tree_open[0] != '\0',
-			"a tree row with no species open");
-	for (uint32_t i = 0; i < VOE_EDITOR_TREE_MATERIALS; i++)
-		if (voe_editor_inspector_rect_contains(
-			    scene->tree_controls.materials_seen[i], pointer)) {
-			*index = i;
-			return true;
-		}
-	return false;
-}
-
 // The Layers row of the selected thing's loaded grid that showed under
 // `pointer` at the last read, into `index`: a layer's own, or the add row's at
 // the layer count, never past the eighth. False over none, or when the
@@ -300,9 +282,8 @@ static bool kind_row_at(const voe_editor_scene *scene,
 	return false;
 }
 
-// Over the Inspector: a picture onto the open material's map row, a material
-// onto the open species' Bark or Leaf row, else, while it shows the selected
-// thing and that is no prefab's part, a material onto its grid's Layers row or
+// Over the Inspector: a picture onto the open material's map row, else, while
+// it shows the selected thing and that is no prefab's part, a material onto its grid's Layers row or
 // its shape, never its model, a picture onto its emitter, a `.glb` (a model row
 // that is no `.landscape`) or a species onto its grid's Foliage row, a model
 // onto its model.
@@ -327,11 +308,6 @@ static void onto_inspector(const voe_editor_assets_drag *drag,
 	if (scene->material_open[0] != '\0') {
 		if (drag->picture && map_row_at(scene, pointer, &out->index))
 			out->kind = OUTCOME_PICTURE_ONTO_MAP;
-		return;
-	}
-	if (scene->tree_open[0] != '\0') {
-		if (drag->material && tree_row_at(scene, pointer, &out->index))
-			out->kind = OUTCOME_MATERIAL_ONTO_TREE;
 		return;
 	}
 	if (drag->prefab ||
@@ -442,18 +418,6 @@ static void map_fill(voe_assets_material_file *material, uint32_t index,
 	snprintf(maps[index], VOE_ASSETS_MATERIAL_PATH, "%s", path);
 }
 
-// The open species' shown copy with `path` as its bark (0) or leaf (1). Not a
-// scene edit: interface_read.c regrows the species from the copy, and
-// frame_commands.c writes it at rest as one tree step (tree_steps.h).
-static void tree_fill(voe_assets_tree *tree, uint32_t index, const char *path)
-{
-	VOE_BASE_ASSERT(index < VOE_EDITOR_TREE_MATERIALS, "no such material");
-	VOE_BASE_ASSERT(path != NULL && strlen(path) < VOE_ASSETS_TREE_PATH,
-			"a tree material path longer than its room");
-	snprintf(index == 0 ? tree->bark : tree->leaf, VOE_ASSETS_TREE_PATH,
-		 "%s", path);
-}
-
 // The release: into a view, onto the Inspector, or nothing. Whether an edit
 // reached the project; a full queue says so in the notice.
 static void drop(const voe_editor_assets_drag *drag,
@@ -490,10 +454,6 @@ static void drop(const voe_editor_assets_drag *drag,
 	}
 	if (out.kind == OUTCOME_PICTURE_ONTO_MAP) {
 		map_fill(&scene->material, out.index, drag->path);
-		return;
-	}
-	if (out.kind == OUTCOME_MATERIAL_ONTO_TREE) {
-		tree_fill(&scene->tree, out.index, drag->path);
 		return;
 	}
 	// A layer set is no scene edit and no undo step; unsaved as a stroke.

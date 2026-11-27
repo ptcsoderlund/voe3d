@@ -1,7 +1,6 @@
 // The three per-frame command stretches of main.c's loop, in the order main.c
-// calls them: the history's step (an open material's or species' edit written
-// and pushed at rest first, a different project closing the open material), the
-// keyboard's read and acts (F2's rename and an asset's Delete question among
+// calls them: the history's step (an open material's edit written and pushed at
+// rest first, a different project closing the open material), the keyboard's read and acts (F2's rename and an asset's Delete question among
 // them, the Assets panel's keyboard a guard, `ui`'s keyboard fed, Escape
 // closing that question first, choosing no brush after the lists and hiding
 // the Landscape panel with the Project panel), and the acts that wait for the
@@ -56,40 +55,6 @@ static void voe_editor_frame_commands_material(
 			"a settled material still differs from its file");
 }
 
-// AN EDIT TO THE OPEN SPECIES SETTLES AT REST (0515 point 6), as the open
-// material's does: its file written, a refusal said in the notice, and one
-// tree step pushed. The table already holds the dragged values
-// (interface_read.c), so only the file and the line are left.
-static void voe_editor_frame_commands_tree(voe_editor_frame_commands *commands)
-{
-	voe_editor_session *session = commands->session;
-	voe_editor_scene *scene = commands->scene;
-	voe_base_error error = VOE_BASE_OK;
-
-	VOE_BASE_ASSERT(scene != NULL && commands->scratch != NULL,
-			"settling a species with no scene or scratch");
-	if (!commands->at_rest || session->replaced ||
-	    session->project->folder == NULL || scene->tree_open[0] == '\0' ||
-	    memcmp(&scene->tree, &scene->tree_before, sizeof scene->tree) == 0)
-		return;
-	if (!voe_editor_tree_step_write(session->project->folder,
-					scene->tree_open, &scene->tree,
-					commands->scratch, session->watch,
-					&error))
-		voe_editor_notice_set(&session->notice, "Could not save %s: %s",
-				      scene->tree_open,
-				      voe_base_error_string(error));
-	voe_editor_undo_tree(commands->undo, session->project,
-			     commands->scratch,
-			     voe_editor_tree_step_new(scene->tree_open,
-						      &scene->tree_before,
-						      &scene->tree));
-	scene->tree_before = scene->tree;
-	VOE_BASE_ASSERT(memcmp(&scene->tree, &scene->tree_before,
-			       sizeof scene->tree) == 0,
-			"a settled species still differs from its file");
-}
-
 void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 {
 	VOE_BASE_ASSERT(commands != NULL, "a history step for no commands");
@@ -98,7 +63,6 @@ void voe_editor_frame_commands_history(voe_editor_frame_commands *commands)
 	voe_editor_session *session = commands->session;
 
 	voe_editor_frame_commands_material(commands);
-	voe_editor_frame_commands_tree(commands);
 
 	// A DIFFERENT PROJECT EMPTIES THE HISTORY, AND OTHERWISE LAST
 	// FRAME'S CTRL+Z OR CTRL+Y IS TAKEN HERE — before world_step.h,
