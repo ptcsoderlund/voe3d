@@ -16,4 +16,3 @@ The public headers, one entry each.
 - `landscapes.h` — the cooked landscape table a game loads into its model store, each entry with its layer paths and paint and its foliage kinds, copies, kinds' looks and layers' growth, defined by a project's cooked `landscapes.c`.
 - `compressing.h` — the queue of up to sixteen material maps compressed between frames on the owner's thread, a budget a step, each written as its copy when its blocks are made (0477).
 - `materials.h` — the material table of path and values and the parts table of `.glb` path and `.parts` values a game loads into its model store, both defined by a project's cooked `materials.c`; the editor builds its own.
-- `trees.h` — the tree species table of `.tree` path and values, defined by a project's cooked `materials.c`, grown into the model store: all at start on one burst, or one species between frames by a job, a variation put a call.
