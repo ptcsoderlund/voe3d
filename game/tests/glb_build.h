@@ -1,8 +1,9 @@
 // The hand-built `.glb` the model tests load: a one-triangle file, its JSON
 // and BIN chunks packed by hand, the packer itself for a test's own mesh, and
 // the world helpers that put a thing at the origin wearing a path. Included
-// once by each of tests/models.c, tests/models_levels.c,
-// tests/models_cooked.c, tests/models_batch.c and tests/frame.c.
+// once by each of tests/models.c, tests/models_landscapes.c,
+// tests/models_materials.c, tests/models_levels.c, tests/models_cooked.c,
+// tests/models_batch.c and tests/frame.c.
 //
 // IT IS A HEADER AND NOT A .c, because every tests/*.c is built as a program of
 // its own: a shared .c would be a test with no main(). Every function is
