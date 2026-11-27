@@ -1,65 +1,47 @@
-# 117 — A tree grows from materials and settings
+# 117 — Foliage groups
 
 ## What
-I make a tree species in the Assets panel. It is a small file of settings, not a model: the editor grows its
-trunk and branches from a bark material and its leaves from a leaf material. In the Inspector I set how tall
-it grows, how thick the trunk is, how its branches split, how far they reach, their angle and droop, how
-crooked it all is, the leaf material, leaf size and how dense the leaves are, and how many variations the
-species has. Each variation is a different tree of the same species; together they are a pool. Branches meet
-their parent cleanly. Opening a species shows it alone in the view, where I step through its variations
-while I tune it.
+The tree maker is gone (0520): my trees come from Blender as glbs, materials baked to PBR, and are painted
+as foliage like any model. Instead of a foliage kind, a landscape has foliage groups, up to 16. A group holds
+one or more glbs, each with its own LODs as any model has. The group is what I paint and what a material
+grows: each painted spot takes one of the group's glbs, the same every time the project opens, so I paint a
+stretch of hillside once with three spruces and a bush instead of once per model.
 
-A species is one foliage kind in the Landscape panel: painting it, each tree takes one of its variations at
-random, the same every time the project opens, with the size, turn and tilt the brush already gives. A
-material can grow it as it grows any kind. When I change the species, the trees I already painted change
-with it. Far trees get simpler calmly, as models do (106), and the forest stays within its frame budget
-(114). Nothing but the species file is kept on disk for the trees. A tree I modelled in Blender is still an
-ordinary kind beside the grown ones. The species file is taken in when it changes on disk (115) and
-described in `Docs/` (116). (0510)
+Each glb in a group has the settings a kind has today — cast shadows, base size, size, turn and tilt
+scatter, blend with ground and its height — and a share, how often it is picked against the others, equal
+to begin with. A group is painted at one density; things spaced alike go in one group.
 
-A spruce has a small branch on each leaf card, and those lie flat in layers along its branches rather than
-fanning out around the twig. So a species also has a leaf roll, from the random roll leaves get today to
-lying flat, and a leaf width, so a card can be narrower or wider than long to fit the sprig I drew. A species
-file without them grows as before. And a foliage kind I no longer want — a rock I added — can be removed from
-a landscape without deleting the landscape: its painted copies go, the other kinds stay as they were, and
-undo brings it back. (0516)
+I can remove a glb from a group: its spots are taken by the group's other glbs. I can remove a whole group
+from a landscape without deleting the landscape: its copies go, the other groups stay as they were. Each is
+one undo step. A project saved with kinds opens with each kind as a group of one glb, everything where it
+was. The landscape file is taken in when it changes on disk (115) and `Docs/` describes groups (116).
 
-Branches grow out of the trunk instead of looking glued to it: where a branch leaves the trunk it swells into
-it like a real branch, leaves along the trunk before bending out, and the light and bark do not break at the
-joint. Only on the trunk; branches on branches and twigs stay as they are, to save vertices. (0518)
+Nothing of the tree maker is left: no tree species file, no Create tree, no species view, no tree settings.
 
 ## Why
-I am about to make the hill's trees. Growing them from settings means I make each species once, every tree in
-the forest varies, and the engine knows each tree's trunk and branches for wind and chopping later.
+I am about to make the hill's trees in Blender. A group lets one stroke lay down a forest that varies,
+without a kind per model and without painting the same slope once for each.
 
 ## How to test
-1. In Assets, create a spruce species. Give it a bark material and a needle-leaf material. Open it: a tree
-   stands in the view.
-2. Drag each setting in turn — height, trunk thickness, branching, reach, angle, droop, crookedness, leaf size,
-   leaf density. The tree changes as I drag, without a hitch. Where a branch leaves the trunk it looks joined,
-   not stuck on.
-3. Set variations to 6 and step through them: six spruces, clearly kin, clearly not copies. Set it to 1: one.
-4. Make a birch from the same two kinds of material and different settings. It reads as a different tree.
-5. In the Landscape panel add both species as kinds and paint a stretch of hillside. Look along it: I cannot
-   pick out repeats.
-6. Close and reopen the project: every tree is the same variation in the same spot as before.
-7. Change the spruce's droop. Every spruce already painted droops more; the birches are untouched.
-8. Let a ground material grow the birch by itself. Birches come up on it.
-9. Fly away from the forest: trees get simpler without popping, and the frame cost of the forest stays under
-   114's budget. Turn shadows on for the kind: the trees cast them.
-10. Paint a tree I modelled in Blender beside them: it works as before.
-11. Look in `Assets/`: the species are small files, no tree meshes beside them. Edit the spruce's file by hand
-    in a text editor while the editor is open: the spruces change. `Docs/` describes the species file.
-12. Press Play, then ship: the forest looks the same in both.
-13. Open the spruce and set leaf roll to 1: the sprigs lie flat in layers along each branch, not fanned around
-    it. Drag it back to 0: as before. Drag leaf width: the cards get narrower or wider and the sprig is no
-    longer squashed; leaf size still sets their length. Fly away: the far trees keep the flat layers and the
-    sprigs' shape, without popping.
-14. A species file made before these settings existed looks exactly as it did. Edit leaf roll in the file by
-    hand: the spruces change. `Docs/` describes both settings.
-15. In a landscape with a rock kind painted, remove the rock kind in the Foliage section: every rock goes, the
-    landscape and the other kinds stay, and the trees are the same trees in the same spots. Undo: the rock
-    kind is back with every rock where it was. Redo, save, close and reopen: no rocks.
-16. Open the spruce and the birch and look close at where branches leave the trunk: each branch swells out of
-    the trunk and bends out from it, with no crease in the light and no break in the bark where it goes in.
-    Branches on branches look as before. Fly away: the joints get simpler without popping.
+1. Open the hill as it is today. Every kind is now a group holding its one glb; every tree, rock and tuft
+   stands where it stood and looks the same.
+2. Make a group and drag three spruce glbs and a bush glb into it. Paint a stretch of hillside: all four
+   mix, and looking along it I cannot pick out repeats.
+3. Set one spruce's share to 3: it comes up about three times as often as each of the others. Set it to 0:
+   it no longer comes up.
+4. Turn shadows off on the bush alone, raise one spruce's base size, set tilt with slope on the bush: only
+   that glb's copies change.
+5. Close and reopen the project: every spot has the same glb as before.
+6. Let a ground material grow the group: the same mix comes up on it.
+7. Remove one spruce from the group: its spruces go and the other glbs fill their spots. Undo: it is back
+   as it was.
+8. Remove a whole group with the cross on its title: every copy goes, the other groups keep the same trees
+   in the same spots. Undo: the group is back with every copy where it was. Redo, save, close and reopen:
+   it is gone.
+9. Add groups up to 16: a seventeenth is refused.
+10. Fly away from the forest: each glb swaps to its own LODs without popping, and the frame cost stays under
+    114's budget. The spruces cast shadows.
+11. Edit a share in the landscape file by hand while the editor is open: the hillside changes. `Docs/`
+    describes groups and their glbs' settings.
+12. Assets has no Create tree, the Inspector no tree section, `Docs/` no species file.
+13. Press Play, then ship: the forest looks the same in both.
