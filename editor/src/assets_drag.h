@@ -18,8 +18,8 @@
 // - Over a folder row other than the dragged one, or over Up: the row moves
 //   there through voe_editor_assets_move, followed and refused as it says; a
 //   row marked dragged (assets_panel.h) enters no folder on the release.
-// - A `.glb` or a species' `.tree` (0515 point 3) over the Foliage rows of a
-//   thing wearing a loaded landscape (inspector_foliage.h, 0442 point 3): a
+// - A `.glb` over the Foliage rows of a thing wearing a loaded landscape
+//   (inspector_foliage.h, 0442 point 3): a
 //   kind row's kind set through voe_editor_models_kind_set, loading next
 //   update; the add row's added, its fold cleared to start open (folds.h, 0502
 //   point 2), none at sixteen kinds; unsaved as a layer drop, no undo step.
@@ -89,13 +89,12 @@
 // What a drag remembers between frames. Zeroed is no drag.
 typedef struct {
 	bool holding;
-	// Whether the held row is a prefab, a picture, a `.material` or a
-	// species' `.tree` rather than a model, or none of the five, a folder
-	// or a file that only moves.
+	// Whether the held row is a prefab, a picture or a `.material` rather
+	// than a model, or none of the four, a folder or a file that only
+	// moves.
 	bool prefab;
 	bool picture;
 	bool material;
-	bool species;
 	bool moves_only;
 	// The held row's path, `Assets/...` with `/` separators.
 	char path[VOE_EDITOR_ASSETS_DRAG_PATH];

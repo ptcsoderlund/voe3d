@@ -1,4 +1,4 @@
-// A changed file taken in by its kind, a species by its row, and the file and landscape steps made
+// A changed file taken in by its kind, and the file and landscape steps made
 // with their own copies, freed, and applied either way. See file_steps.h for
 // why each holds what it does and why it is its own memory.
 #include "file_steps.h"
@@ -7,7 +7,6 @@
 
 #include <assets/material.h>
 #include <assets/parts.h>
-#include <assets/tree.h>
 
 #include <authoring/project.h>
 #include <authoring/scene_read.h>
@@ -52,21 +51,6 @@ static bool take_material(voe_editor_project *project,
 		return false;
 	}
 	voe_editor_models_materials_read(models, project->folder, scratch);
-	return true;
-}
-
-// A `.tree` read strictly, then its row takes the values and regrows.
-static bool take_tree(voe_editor_models *models, const char *path,
-		      const char *bytes, size_t size, voe_editor_notice *why)
-{
-	voe_assets_tree values;
-
-	VOE_BASE_ASSERT(models != NULL, "taking a species into no store");
-	if (!voe_assets_tree_read_strict(bytes, size, &values, NULL)) {
-		voe_editor_notice_from_report(why, path);
-		return false;
-	}
-	voe_editor_models_tree_changed(models, path, &values);
 	return true;
 }
 
@@ -137,8 +121,6 @@ bool voe_editor_file_take(voe_editor_project *project,
 	    voe_editor_assets_name_ends(path, ".parts"))
 		return take_material(project, models, path, bytes, size,
 				     scratch, why);
-	if (voe_editor_assets_name_ends(path, ".tree"))
-		return take_tree(models, path, bytes, size, why);
 	if (voe_editor_assets_name_ends(path, ".prefab"))
 		return take_prefab(project, path, bytes, size, scratch, why);
 	VOE_BASE_ASSERT(strcmp(path, VOE_AUTHORING_PROJECT_FILE) == 0,

@@ -13,7 +13,6 @@
 #include <assets/landscape.h>
 #include <assets/material.h>
 #include <assets/parts.h>
-#include <assets/tree.h>
 
 #include <authoring/project.h>
 #include <authoring/scene_read.h>
@@ -131,10 +130,6 @@ static bool file_takes(const char *path, const char *text, size_t size,
 	if (voe_editor_assets_name_ends(path, ".parts"))
 		return voe_assets_parts_read(
 			text, size, voe_base_arena_push(arena, sizeof(voe_assets_parts)),
-			NULL);
-	if (voe_editor_assets_name_ends(path, ".tree"))
-		return voe_assets_tree_read_strict(
-			text, size, voe_base_arena_push(arena, sizeof(voe_assets_tree)),
 			NULL);
 	VOE_BASE_ASSERT(strcmp(path, VOE_AUTHORING_PROJECT_FILE) == 0,
 			"checking a file of a kind the list does not hold");

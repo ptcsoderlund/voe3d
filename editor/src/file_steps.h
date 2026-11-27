@@ -13,8 +13,7 @@
 //     voe_editor_file_step_destroy(step);
 //
 // THE KINDS TAKEN: a `.material` and a `.parts` read strictly and the tables
-// read again; a `.tree` read strictly and its values handed to
-// voe_editor_models_tree_changed, a row the table lacks taking nothing; a `.prefab` that is not open checked strictly and the world's own
+// read again; a `.prefab` that is not open checked strictly and the world's own
 // text set again so its copies expand from the new file; `project.voe3d` read
 // strictly and its values taken. The open scene or prefab is a scene text
 // state, a landscape its own step, any other kind the caller's bug.

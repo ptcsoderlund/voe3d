@@ -58,13 +58,8 @@ static bool path_hold(voe_editor_assets_drag *drag,
 	const size_t name = strlen(assets->held);
 	const bool material =
 		name > 9 && strcmp(assets->held + name - 9, ".material") == 0;
-	// As the panel tells a species row (assets_panel.c).
-	const bool species = !assets->held_model && !assets->held_prefab &&
-			     !assets->held_picture &&
-			     path_ends(assets->held, ".tree");
 	size_t room = assets->held_prefab  ? VOE_SCENE_PREFAB_PATH :
 		      assets->held_picture ? VOE_3D_EMITTER_TEXTURE :
-		      species		   ? VOE_ASSETS_LANDSCAPE_KIND_PATH :
 		      assets->held_model || material ? VOE_3D_MODEL_PATH :
 						       sizeof drag->path;
 	int length = assets->shown[0] == '\0' ?
@@ -80,9 +75,8 @@ static bool path_hold(voe_editor_assets_drag *drag,
 	drag->prefab = assets->held_prefab;
 	drag->picture = assets->held_picture;
 	drag->material = material;
-	drag->species = species;
 	drag->moves_only = !assets->held_model && !assets->held_prefab &&
-			   !assets->held_picture && !material && !species;
+			   !assets->held_picture && !material;
 	for (int i = 0; i < length; i++)
 		if (drag->path[i] == '\\')
 			drag->path[i] = '/';
@@ -285,8 +279,7 @@ static bool kind_row_at(const voe_editor_scene *scene,
 // Over the Inspector: a picture onto the open material's map row, else, while
 // it shows the selected thing and that is no prefab's part, a material onto its grid's Layers row or
 // its shape, never its model, a picture onto its emitter, a `.glb` (a model row
-// that is no `.landscape`) or a species onto its grid's Foliage row, a model
-// onto its model.
+// that is no `.landscape`) onto its grid's Foliage row, a model onto its model.
 //
 // THE INSPECTOR DROP REPLACES THE PATH rather than adding a component: an
 // entity has at most one row of a type, so a second model is not a thing to
@@ -321,11 +314,10 @@ static void onto_inspector(const voe_editor_assets_drag *drag,
 	} else if (drag->picture) {
 		if (voe_3d_emitter_get(scene->world, selected) != NULL)
 			out->kind = OUTCOME_PICTURE_ONTO_INSPECTOR;
-	} else if ((drag->species || path_ends(drag->path, ".glb")) &&
+	} else if (path_ends(drag->path, ".glb") &&
 		   kind_row_at(scene, store, selected, pointer, &out->index)) {
 		out->kind = OUTCOME_MODEL_ONTO_KIND;
-	} else if (!drag->species &&
-		   voe_3d_model_get(scene->world, selected) != NULL) {
+	} else if (voe_3d_model_get(scene->world, selected) != NULL) {
 		out->kind = OUTCOME_MODEL_ONTO_INSPECTOR;
 	}
 }
@@ -353,8 +345,7 @@ static outcome outcome_at(const voe_editor_assets_drag *drag,
 	else if (drag->moves_only)
 		return out;
 	else if (voe_editor_views_under(views, pointer, &out.view, &out.point)) {
-		if (!drag->prefab && !drag->picture && !drag->material &&
-		    !drag->species)
+		if (!drag->prefab && !drag->picture && !drag->material)
 			out.kind = OUTCOME_MODEL_INTO_VIEW;
 		else if (drag->prefab && session->project->prefab[0] == '\0')
 			out.kind = OUTCOME_PREFAB_INTO_VIEW;

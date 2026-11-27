@@ -9,8 +9,8 @@
 //
 //   - `voe3d-scene.md`, authoring/reference.h's scene text for the project's
 //     world, its own components included when its code is loaded;
-//   - `voe3d-files.md`, the material, parts, landscape, tree species and
-//     project key tables' texts, joined in that order;
+//   - `voe3d-files.md`, the material, parts, landscape and project key tables'
+//     texts, joined in that order;
 //   - `voe3d.md`, the index: which kind is documented where, that the editor
 //     rewrites its own three and leaves every other file in Docs/ to the user,
 //     that a file changed on disk is taken in (0509), the check command written

@@ -12,7 +12,7 @@
 //     voe_editor_disk_watch_destroy(watch);
 //
 // WHAT IS WATCHED: every file assets_walk.h walks (`.scene`, `.prefab`,
-// `.material`, `.landscape`, `.parts`, `.tree`, any case; hidden entries and the
+// `.material`, `.landscape`, `.parts`, any case; hidden entries and the
 // top-level Build, Cache and Code skipped) and the top-level project.voe3d.
 // Each known path keeps its stamp and, but for a landscape, its bytes: a file
 // step's before (0509 point 2). The first look in a folder notes every file

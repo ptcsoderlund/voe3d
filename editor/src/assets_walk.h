@@ -1,5 +1,5 @@
 // The project's text files that name an asset path (scenes, prefabs,
-// materials, landscapes, models' parts and species): walked to follow a rename or a
+// materials, landscapes and models' parts): walked to follow a rename or a
 // move, and asked who uses a path before a Delete (ADR-0378 point 1).
 //
 //     if (!voe_editor_assets_follow_check(project, from, to, scratch, &why))
@@ -22,8 +22,7 @@
 // the extensions in assets_walk.c's one list (`.scene`, `.prefab`, `.material`
 // whose maps are paths, 0399 point 9, `.landscape` whose layers are quoted
 // paths, 0402 point 1, `.parts` whose materials are, 0420 point 1, so a renamed
-// `.material` never undresses a model, `.tree` whose bark and leaf are, 0515
-// point 1, nor a species; a later own kind adds its own), any
+// `.material` never undresses a model; a later own kind adds its own), any
 // case. Hidden entries are skipped, and so are the top-level `Build`, `Cache`
 // and `Code` folders. C code is never walked: a bare
 // name in C, such as a spawner's prefab name, is the code's to change (ADR-0377

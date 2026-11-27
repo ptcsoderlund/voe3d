@@ -28,11 +28,11 @@ static const voe_editor_assets_menu_item ROW_ITEMS[VOE_EDITOR_ASSETS_MENU_ROWS] 
 // Create's kinds, in the order the submenu lists them; a later kind adds its
 // name and item here (0377 point 2).
 static const char *const KIND_NAMES[VOE_EDITOR_ASSETS_MENU_KINDS] = {
-	"Folder", "Landscape", "Material", "Tree"
+	"Folder", "Landscape", "Material"
 };
 static const voe_editor_assets_menu_item KIND_ITEMS[VOE_EDITOR_ASSETS_MENU_KINDS] = {
 	VOE_EDITOR_ASSETS_MENU_FOLDER, VOE_EDITOR_ASSETS_MENU_LANDSCAPE,
-	VOE_EDITOR_ASSETS_MENU_MATERIAL, VOE_EDITOR_ASSETS_MENU_TREE
+	VOE_EDITOR_ASSETS_MENU_MATERIAL
 };
 static const char *const CREATE_NAME[1] = { "Create" };
 

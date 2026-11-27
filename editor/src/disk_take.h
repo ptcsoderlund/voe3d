@@ -15,7 +15,7 @@
 // - a `.landscape` the store holds is a landscape step from the held one,
 //   taken unedited; asked while the store marks it edited; one the watch
 //   refused is the notice; one the store does not hold is settled;
-// - a `.material`, `.parts`, `.tree`, closed `.prefab` or project.voe3d, never
+// - a `.material`, `.parts`, closed `.prefab` or project.voe3d, never
 //   unsaved since the editor writes them at once, is never asked:
 //   voe_editor_file_take, the open material refreshed from its row, and a
 //   file step from the watch's known copy when it has one;
@@ -31,7 +31,7 @@
 //
 // THE SAFETY NET under the told writes (0509 point 1): before taking, a change
 // whose content says what the editor already holds, the scene's text, the
-// materials or species table's row or the project file's values, is settled without a
+// materials table's row or the project file's values, is settled without a
 // step. A change the editor wrote over since it was found is settled untaken:
 // the disk holds mine.
 //

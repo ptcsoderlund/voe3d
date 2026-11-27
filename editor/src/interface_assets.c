@@ -13,8 +13,7 @@
 //
 // THE ASSETS PANEL'S RIGHT-BUTTON MENU (assets_menu.h) is drawn by interface.c
 // after the panels list and read here after the panel: Rename, Delete, Folder,
-// Landscape and Material begin on the panel, Duplicate and Tree go through
-// assets_manage.h, Tree in the shown folder.
+// Landscape and Material begin on the panel, Duplicate goes through assets_manage.h.
 // Import textures asks a largest size first (textures_ask.h), drawn by
 // interface.c and read here after the levels one: Import runs model_import.h at
 // that size, the tables read again after, and Cancel writes nothing.
@@ -302,12 +301,6 @@ static void voe_editor_interface_assets_menu_do(voe_editor_session *session,
 		voe_editor_assets_landscape_begin(&scene->assets);
 	else if (item == VOE_EDITOR_ASSETS_MENU_MATERIAL)
 		voe_editor_assets_material_begin(&scene->assets);
-	// A false has said why in the notice.
-	else if (item == VOE_EDITOR_ASSETS_MENU_TREE &&
-		 voe_editor_assets_tree_make(session, scene, models, arena,
-					     scene->assets.shown != NULL ?
-						     scene->assets.shown : ""))
-		voe_editor_assets_list_due(&scene->assets);
 	else if (item == VOE_EDITOR_ASSETS_MENU_DUPLICATE &&
 		 voe_editor_assets_selected_path(&scene->assets, path,
 						 sizeof path))

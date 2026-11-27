@@ -10,7 +10,6 @@
 
 #include <assets/landscape.h>
 #include <assets/material.h>
-#include <assets/tree.h>
 #include <authoring/paths.h>
 #include <base/assert.h>
 #include <base/report.h>
@@ -30,8 +29,6 @@
 #define LANDSCAPE_ENDING ".landscape"
 #define MATERIAL_ENDING ".material"
 #define PARTS_ENDING ".parts"
-// The name Create -> Tree tries first.
-#define TREE_NAME "Tree.tree"
 
 // A path relative to `Assets/` cut at its last `/`: the folder ("" at
 // `Assets/`), in scratch, and the name, pointing into the path.
@@ -327,44 +324,6 @@ bool voe_editor_assets_material_make(voe_editor_session *session, voe_editor_sce
 	text = voe_assets_material_write(&defaults, scratch);
 	ok = file_made(session, scratch, folder, file_named(scratch, name, MATERIAL_ENDING),
 		       text.text, text.size);
-	voe_base_arena_rewind(scratch, mark);
-	if (ok)
-		materials_read(session, scene, models, scratch);
-	return ok;
-}
-
-static const char *duplicate_name(voe_base_arena *scratch,
-				  const voe_platform_folder_listing *listing, const char *name);
-
-bool voe_editor_assets_tree_make(voe_editor_session *session, voe_editor_scene *scene,
-				 voe_editor_models *models, voe_base_arena *scratch,
-				 const char *folder)
-{
-	struct voe_base_arena_mark mark;
-	voe_assets_tree defaults = voe_assets_tree_default();
-	voe_platform_folder_listing listing;
-	voe_assets_tree_text text;
-	const char *name = TREE_NAME;
-	bool ok = false;
-
-	VOE_BASE_ASSERT(session != NULL && session->project != NULL, "a tree with no project");
-	VOE_BASE_ASSERT(scene != NULL && models != NULL && scratch != NULL && folder != NULL,
-			"making no tree");
-	if (!make_allowed(session, name))
-		return false;
-	mark = voe_base_arena_mark(scratch);
-	if (!folder_listed(session, scratch, folder, &listing))
-		goto rewind;
-	if (entry_named(&listing, name) != NULL)
-		name = duplicate_name(scratch, &listing, name);
-	if (name == NULL) {
-		voe_editor_notice_set(&session->notice, "%s has no free %s name up to %d",
-				      project_relative(scratch, folder), TREE_NAME, DUPLICATE_LAST);
-		goto rewind;
-	}
-	text = voe_assets_tree_write(&defaults, scratch);
-	ok = file_made(session, scratch, folder, name, text.text, text.size);
-rewind:
 	voe_base_arena_rewind(scratch, mark);
 	if (ok)
 		materials_read(session, scene, models, scratch);
