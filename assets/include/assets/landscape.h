@@ -219,6 +219,40 @@ uint32_t voe_assets_landscape_seed_new(const voe_assets_landscape *landscape);
 void voe_assets_landscape_group_remove(voe_assets_landscape *landscape,
 				       uint32_t group);
 
+// The glb of group `group` a copy at x and z in mm draws as (0521 point 3): a
+// hash of the group's seed and the position, modulo the shares' total, walked
+// over the glbs in order; all shares 0 pick as all 1. LIVE, NOTHING STORED: a
+// share or glb edit reaches copies already painted. Asserts group below
+// group_count holding a glb.
+uint32_t voe_assets_landscape_glb_pick(const voe_assets_landscape *landscape,
+				       uint32_t group, int32_t x_mm,
+				       int32_t z_mm);
+
+// A new group at group_count holding `path` with the default look and the seed
+// voe_assets_landscape_seed_new gives. False, nothing changed, at
+// VOE_ASSETS_LANDSCAPE_GROUPS. Asserts `path` not empty and shorter than
+// VOE_ASSETS_LANDSCAPE_GLB_PATH, as the three below do.
+bool voe_assets_landscape_group_add(voe_assets_landscape *landscape,
+				    const char *path);
+
+// Appends `path` to group `group` with the default look. False, nothing
+// changed, at VOE_ASSETS_LANDSCAPE_GROUP_GLBS or when the group holds `path`
+// (0521 point 4). Asserts group below group_count.
+bool voe_assets_landscape_glb_add(voe_assets_landscape *landscape,
+				  uint32_t group, const char *path);
+
+// Replaces glb `glb`'s path, keeping its look. False, nothing changed, when
+// another glb of the group holds `path`. Asserts glb below the group's count.
+bool voe_assets_landscape_glb_set(voe_assets_landscape *landscape,
+				  uint32_t group, uint32_t glb,
+				  const char *path);
+
+// Removes glb `glb` of group `group`: later glbs move down one with their
+// looks and the freed last slot is zeroed. The copies stay, their pick being
+// live. Asserts the group holds more than one glb.
+void voe_assets_landscape_glb_remove(voe_assets_landscape *landscape,
+				     uint32_t group, uint32_t glb);
+
 // `from` at the same size and `cells` cells a side, each height and each
 // layer's weight bilinear from `from`'s at the same point of the square, layers
 // 1-7 rounded and layer 0 given the rest; the same count is an exact copy. The

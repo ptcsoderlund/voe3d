@@ -44,6 +44,9 @@ belongs to.
   refused, a new group's seed, a group removed keeping the later groups' seeds
   and copies, the old spelling read as one-glb groups, glbs and shares
   round-tripped, and both spellings, a share of 11 or a path twice refused.
+- `landscape_pick.c` — the glb a copy picks by its group's shares, as the old
+  tree pick for equal shares, spread by share and the same twice; and a
+  group's glbs added, replaced and removed, refused at the caps and repeats.
 - `material.c` — an empty section read as the defaults, a full file
   round-tripped field for field and written again byte for byte, each bad
   value refused MALFORMED, and the strict reader refusing an unknown key by its

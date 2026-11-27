@@ -59,7 +59,8 @@ of them is internal to this folder rather than reachable from outside it.
   as one-glb groups, `[Layers]`' `grow<l>_<g>` densities and `[Copies]`' six
   numbers a copy, and back out in the group spelling.
 - `landscape_groups.c` — a glb's base size, a foliage group's seed, the seed a
-  group added takes, and a group removed.
+  group added takes, a group added or removed, the glb a copy picks by share,
+  and a group's glbs added, replaced and removed.
 - `landscape_keys.c` — the landscape file's key table, one row per key
   `landscape.h` lists, ranges from its constants.
 - `material.c` — the material file over the sectioned reader, with a scratch

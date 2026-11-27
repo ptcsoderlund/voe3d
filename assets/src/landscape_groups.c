@@ -1,7 +1,20 @@
 // A landscape's foliage groups as a set: a glb's base size, each group's seed,
-// the seed a group added takes, and a group removed (0516, 0517 point 4, 0520).
-// Called by whatever keys a draw by a group (the grown lattice's hash, the glb
-// pick), sizes a copy by its glb, and by the editor adding or removing a group.
+// the seed a group added takes, a group added or removed, the glb a copy picks
+// and a group's glbs added, replaced and removed (0516, 0517 point 4, 0520,
+// 0521). Called by whatever keys a draw by a group (the grown lattice's hash,
+// the glb pick), sizes a copy by its glb, and by the editor's group edits.
+//
+// THE PICK IS LIVE (0521 point 3): a hash of the group's seed and the copy's x
+// and z in mm, modulo the shares' total, walked over the glbs in order. Nothing
+// of it is stored, so a share edit, a glb added or one removed reaches copies
+// already painted; one glb picks 0, equal shares pick as the old `% count`
+// did, and all shares 0 pick as all 1. A glb removed leaves the copies be.
+//
+// AN EDIT IS REFUSED, returning false with nothing changed (0521 point 4): a
+// group added at VOE_ASSETS_LANDSCAPE_GROUPS, a glb added at
+// VOE_ASSETS_LANDSCAPE_GROUP_GLBS or with a path its group holds, a path
+// replaced with one another glb of its group holds. A path too long to keep is
+// the caller's to refuse: it is asserted.
 //
 // A REMOVAL DROPS THE GROUP'S GLBS, LOOKS, SEED, EVERY LAYER'S GROWTH OF IT AND
 // ITS COPIES; later groups move down one with their own, their copies keep
@@ -104,4 +117,155 @@ void voe_assets_landscape_group_remove(voe_assets_landscape *landscape,
 		landscape->copies[kept++] = copy;
 	}
 	landscape->copy_count = kept;
+}
+
+// The hash 3d's `voe_3d_tree_pick` used (7e86cb12), so equal shares pick as
+// its `% count` did.
+static uint64_t pick_hash(uint32_t seed, int32_t x_mm, int32_t z_mm)
+{
+	uint64_t h = (uint64_t)seed * 0x9E3779B97F4A7C15ull ^
+		     (uint64_t)(uint32_t)x_mm * 0xC2B2AE3D27D4EB4Full ^
+		     (uint64_t)(uint32_t)z_mm * 0x165667B19E3779F9ull;
+
+	h = (h ^ (h >> 33)) * 0xFF51AFD7ED558CCDull;
+	h = (h ^ (h >> 33)) * 0xC4CEB9FE1A85EC53ull;
+	h ^= h >> 33;
+	return h;
+}
+
+uint32_t voe_assets_landscape_glb_pick(const voe_assets_landscape *landscape,
+				       uint32_t group, int32_t x_mm,
+				       int32_t z_mm)
+{
+	VOE_BASE_ASSERT(landscape != NULL, "a glb picked in no landscape");
+	VOE_BASE_ASSERT(group < landscape->group_count &&
+				landscape->groups[group].glb_count > 0 &&
+				landscape->groups[group].glb_count <=
+					VOE_ASSETS_LANDSCAPE_GROUP_GLBS,
+			"a glb picked in a group with none");
+
+	const voe_assets_landscape_group *g = &landscape->groups[group];
+	uint32_t total = 0;
+	uint64_t left;
+
+	for (uint32_t j = 0; j < g->glb_count; j++)
+		total += g->looks[j].share;
+	left = pick_hash(voe_assets_landscape_group_seed(landscape, group),
+			 x_mm, z_mm) %
+	       (total == 0 ? g->glb_count : total);
+	for (uint32_t j = 0; j < g->glb_count; j++) {
+		const uint32_t share = total == 0 ? 1 : g->looks[j].share;
+
+		if (left < share)
+			return j;
+		left -= share;
+	}
+	VOE_BASE_ASSERT(false, "a pick past the group's shares");
+	return 0;
+}
+
+// The glb of `group` holding `path`, or its glb_count when none does.
+static uint32_t glb_holding(const voe_assets_landscape_group *group,
+			    const char *path)
+{
+	uint32_t j = 0;
+
+	VOE_BASE_ASSERT(group->glb_count <= VOE_ASSETS_LANDSCAPE_GROUP_GLBS,
+			"a group past the most glbs it holds");
+	while (j < group->glb_count && strcmp(group->glbs[j], path) != 0)
+		j++;
+	return j;
+}
+
+// `path` into glb `glb` of `group`, asserted to fit.
+static void glb_path_set(voe_assets_landscape_group *group, uint32_t glb,
+			 const char *path)
+{
+	const size_t length = strlen(path);
+
+	VOE_BASE_ASSERT(length > 0 && length < VOE_ASSETS_LANDSCAPE_GLB_PATH,
+			"a glb path empty or past the room for one");
+	memcpy(group->glbs[glb], path, length + 1);
+}
+
+bool voe_assets_landscape_group_add(voe_assets_landscape *landscape,
+				    const char *path)
+{
+	VOE_BASE_ASSERT(landscape != NULL && path != NULL,
+			"a group added to no landscape or of no path");
+	if (landscape->group_count >= VOE_ASSETS_LANDSCAPE_GROUPS)
+		return false;
+
+	const uint32_t g = landscape->group_count;
+	const uint32_t seed = voe_assets_landscape_seed_new(landscape);
+	voe_assets_landscape_group *group = &landscape->groups[g];
+
+	memset(group, 0, sizeof(*group));
+	glb_path_set(group, 0, path);
+	group->looks[0] = voe_assets_landscape_look_default();
+	group->glb_count = 1;
+	group->seed = seed == g ? 0 : (uint8_t)(seed + 1);
+	landscape->group_count = g + 1;
+	return true;
+}
+
+bool voe_assets_landscape_glb_add(voe_assets_landscape *landscape,
+				  uint32_t group, const char *path)
+{
+	VOE_BASE_ASSERT(landscape != NULL && path != NULL,
+			"a glb added to no landscape or of no path");
+	VOE_BASE_ASSERT(group < landscape->group_count,
+			"a glb added past the landscape's groups");
+
+	voe_assets_landscape_group *g = &landscape->groups[group];
+
+	if (g->glb_count >= VOE_ASSETS_LANDSCAPE_GROUP_GLBS ||
+	    glb_holding(g, path) < g->glb_count)
+		return false;
+	glb_path_set(g, g->glb_count, path);
+	g->looks[g->glb_count] = voe_assets_landscape_look_default();
+	g->glb_count++;
+	return true;
+}
+
+bool voe_assets_landscape_glb_set(voe_assets_landscape *landscape,
+				  uint32_t group, uint32_t glb,
+				  const char *path)
+{
+	VOE_BASE_ASSERT(landscape != NULL && path != NULL,
+			"a glb replaced in no landscape or by no path");
+	VOE_BASE_ASSERT(group < landscape->group_count &&
+				glb < landscape->groups[group].glb_count,
+			"a glb replaced past its group's glbs");
+
+	voe_assets_landscape_group *g = &landscape->groups[group];
+	const uint32_t holder = glb_holding(g, path);
+
+	if (holder < g->glb_count && holder != glb)
+		return false;
+	glb_path_set(g, glb, path);
+	return true;
+}
+
+void voe_assets_landscape_glb_remove(voe_assets_landscape *landscape,
+				     uint32_t group, uint32_t glb)
+{
+	VOE_BASE_ASSERT(landscape != NULL, "a glb removed from no landscape");
+	VOE_BASE_ASSERT(group < landscape->group_count &&
+				landscape->groups[group].glb_count > 1 &&
+				landscape->groups[group].glb_count <=
+					VOE_ASSETS_LANDSCAPE_GROUP_GLBS &&
+				glb < landscape->groups[group].glb_count,
+			"a glb removed past its group's or from a group of one");
+
+	voe_assets_landscape_group *g = &landscape->groups[group];
+	const uint32_t last = g->glb_count - 1;
+
+	for (uint32_t j = glb; j < last; j++) {
+		memcpy(g->glbs[j], g->glbs[j + 1], sizeof(g->glbs[j]));
+		g->looks[j] = g->looks[j + 1];
+	}
+	memset(g->glbs[last], 0, sizeof(g->glbs[last]));
+	memset(&g->looks[last], 0, sizeof(g->looks[last]));
+	g->glb_count = last;
 }
