@@ -29,9 +29,6 @@ about Vulkan, a scene or an entity.
   factors, repeat and three map paths, and back, and its key table,
   `voe_assets_material_keys`. Its header says the defaults, why a missing key
   reads as one, and why a file taken in from disk has a strict reader.
-- `include/assets/tree.h` — a `.tree` species file's text to its bark and
-  leaf paths and growth settings, and back, clamped or read strictly; its
-  variation paths `<path>#<v>`; and its key table, `voe_assets_tree_keys`.
 - `include/assets/parts.h` — a `.parts` file's text to the `.material` each
   glTF material of a `.glb` wears and the model's levels, and back, and its
   key table, `voe_assets_parts_keys`. Its header says why the keys are

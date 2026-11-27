@@ -43,7 +43,7 @@
 // [Paint] and NULL paint are all layer 0, so a struct built by hand is valid.
 // A RESAMPLE IS BILINEAR, layers 1-7 rounded and layer 0 given the rest.
 //
-// KINDS ARE QUOTED .glb OR .tree PATHS, read as layers are. A KIND'S LOOK is
+// KINDS ARE QUOTED .glb PATHS, read as layers are. A KIND'S LOOK is
 // `size<k>` (thousandths), `vary<k>` (size ±%), `turn<k>` (±°), `tilt<k>`
 // (% with slope), `shadow<k>=0` (no shadow), `blend<k>=1`, `blendheight<k>`
 // (cm, 0481) and `seed<k>` (0-15, k when missing, 0517), written only off the
