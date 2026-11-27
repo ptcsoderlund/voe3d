@@ -53,12 +53,13 @@ of them is internal to this folder rather than reachable from outside it.
   back out, and resampled per weight.
 - `landscape_foliage.h` — the foliage's and the layers' grows' read and print,
   internal to this folder, with the quote helpers `landscape.c` shares with it;
-  a look's keys run `size` to `shadow`, `blend` and `blendheight`.
-- `landscape_foliage.c` — `[Foliage]`'s quoted kind paths and looks, `blend<k>`,
-  `blendheight<k>` and `seed<k>` among them, `[Layers]`' `grow<l>_<k>` densities and
-  `[Copies]`' six numbers a copy, walked once in order, and back out.
-- `landscape_kinds.c` — a foliage kind's seed, the seed a kind added
-  takes, and a kind removed.
+  a look's keys run `size` to `shadow`, `blend`, `blendheight` and `share`.
+- `landscape_foliage.c` — `[Foliage]`'s groups of quoted `glb<g>_<j>` paths,
+  each glb's look and each group's `seed<g>`, the old `kind<k>` spelling read
+  as one-glb groups, `[Layers]`' `grow<l>_<g>` densities and `[Copies]`' six
+  numbers a copy, and back out in the group spelling.
+- `landscape_groups.c` — a glb's base size, a foliage group's seed, the seed a
+  group added takes, and a group removed.
 - `landscape_keys.c` — the landscape file's key table, one row per key
   `landscape.h` lists, ranges from its constants.
 - `material.c` — the material file over the sectioned reader, with a scratch

@@ -34,15 +34,16 @@ belongs to.
   per decision the format left open, and every shape of broken line.
 - `landscape.c` — grids, heights, layers and paint round-tripped and
   resampled, and each refusal with its category.
-- `landscape_foliage.c` — kinds, their base sizes and looks, layers' grows and
+- `landscape_foliage.c` — groups, their glbs' sizes and looks, layers' grows and
   copies round-tripped and resampled, each refusal with its category, and the
   strict reader refusing what the lenient one passes over and reading what is
   written.
-- `landscape_blend.c` — a kind's `blend<k>` and `blendheight<k>` read, written
-  only off the default and read back, and each out-of-range value refused.
-- `landscape_kinds.c` — kinds' seeds missing as their index and not written,
-  a set seed written and read back, `seed<k>` clamped or refused, a new
-  kind's seed, and a kind removed keeping the later kinds' seeds and copies.
+- `landscape_blend.c` — a glb's `blend` and `blendheight` read, written only
+  off the default and read back, and each out-of-range value refused.
+- `landscape_groups.c` — groups' seeds as their index, set, clamped or
+  refused, a new group's seed, a group removed keeping the later groups' seeds
+  and copies, the old spelling read as one-glb groups, glbs and shares
+  round-tripped, and both spellings, a share of 11 or a path twice refused.
 - `material.c` — an empty section read as the defaults, a full file
   round-tripped field for field and written again byte for byte, each bad
   value refused MALFORMED, and the strict reader refusing an unknown key by its

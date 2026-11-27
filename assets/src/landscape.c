@@ -7,9 +7,9 @@
 // 2048-cell file is about two million string compares. That is tens of
 // milliseconds; an index from row number to key would lift it.
 //
-// A LAYER'S OR KIND'S QUOTES ARE CHECKED IN THE TEXT. The sectioned reader
+// A LAYER'S OR GLB'S QUOTES ARE CHECKED IN THE TEXT. The sectioned reader
 // strips them and does not say, so the key's line is found by counting line
-// breaks from the start: 24 scans at most, each ending at `[Layers]` or
+// breaks from the start: 136 scans at most, each ending at `[Layers]` or
 // `[Foliage]`, which the writer puts before the heights. A reader that kept
 // whether a value was quoted would lift it.
 //
@@ -273,10 +273,9 @@ voe_assets_landscape_resample(const voe_assets_landscape *from, uint32_t cells,
 	memcpy(to.layers, from->layers, sizeof(to.layers));
 	to.layer_count = from->layer_count;
 	to.paint = voe_assets_landscape_paint_resample(from, cells, arena);
-	memcpy(to.kinds, from->kinds, sizeof(to.kinds));
-	memcpy(to.looks, from->looks, sizeof(to.looks));
+	memcpy(to.groups, from->groups, sizeof(to.groups));
 	memcpy(to.grows, from->grows, sizeof(to.grows));
-	to.kind_count = from->kind_count;
+	to.group_count = from->group_count;
 	if (from->copy_count > 0) {
 		const size_t bytes = (size_t)from->copy_count * sizeof(*to.copies);
 
@@ -469,9 +468,9 @@ void voe_assets_landscape_quote(const char *path, char *quoted)
 	size_t at = 0;
 
 	VOE_BASE_ASSERT(memchr(path, '\0', VOE_ASSETS_MATERIAL_PATH) != NULL,
-			"a layer or kind path not NUL-terminated in its room");
+			"a layer or glb path not NUL-terminated in its room");
 	VOE_BASE_ASSERT(strpbrk(path, "\r\n") == NULL,
-			"a layer or kind path with a line break");
+			"a layer or glb path with a line break");
 	quoted[at++] = '"';
 	for (size_t i = 0; path[i] != '\0'; i++) {
 		if (path[i] == '"' || path[i] == '\\')
@@ -503,7 +502,7 @@ static void print_landscape(struct voe_assets_landscape_printer *printer,
 	voe_assets_landscape_grows_print(printer, landscape);
 	if (landscape->layer_count > 0)
 		voe_assets_landscape_print(printer, "\n");
-	voe_assets_landscape_kinds_print(printer, landscape);
+	voe_assets_landscape_groups_print(printer, landscape);
 	voe_assets_landscape_print(printer, "[Heights]\n");
 	for (uint32_t row = 0; row <= cells; row++) {
 		const float *heights =

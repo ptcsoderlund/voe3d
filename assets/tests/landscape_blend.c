@@ -1,6 +1,7 @@
-// A kind's blend with the ground (0481 point 4): a kind with `blend0=1` and
-// `blendheight0=120` reads as blending at 120 cm, and a kind with neither as
-// not blending at 0; written, the text has exactly those two blend keys and
+// A glb's blend with the ground (0481 point 4): a kind with `blend0=1` and
+// `blendheight0=120`, in the old spelling, reads as a group whose glb blends
+// at 120 cm, and a kind with neither as not blending at 0; written, the text
+// has exactly those two blend keys, as `blend0_0` and `blendheight0_0`, and
 // reads back equal field by field; `blend0=2`, `blendheight0=4` and
 // `blendheight0=1001` are each refused MALFORMED; and the default look, written,
 // has neither key.
@@ -50,7 +51,7 @@ static size_t occurrences(const char *text, const char *needle)
 	return count;
 }
 
-static void a_blending_kind_round_trips(voe_base_arena *arena)
+static void a_blending_glb_round_trips(voe_base_arena *arena)
 {
 	voe_assets_landscape out;
 	voe_assets_landscape back;
@@ -58,21 +59,21 @@ static void a_blending_kind_round_trips(voe_base_arena *arena)
 
 	VOE_TEST_CHECK(read_kinds(arena, "blend0=1\nblendheight0=120\n", &out,
 				  NULL));
-	VOE_TEST_CHECK_INT(out.kind_count, 2);
-	VOE_TEST_CHECK(out.looks[0].blends);
-	VOE_TEST_CHECK_INT(out.looks[0].blend_height, 120);
-	VOE_TEST_CHECK(!out.looks[1].blends);
-	VOE_TEST_CHECK_INT(out.looks[1].blend_height, 0);
+	VOE_TEST_CHECK_INT(out.group_count, 2);
+	VOE_TEST_CHECK(out.groups[0].looks[0].blends);
+	VOE_TEST_CHECK_INT(out.groups[0].looks[0].blend_height, 120);
+	VOE_TEST_CHECK(!out.groups[1].looks[0].blends);
+	VOE_TEST_CHECK_INT(out.groups[1].looks[0].blend_height, 0);
 
 	written = voe_assets_landscape_write(&out, arena);
 	VOE_TEST_CHECK_INT(occurrences(written.text, "blend"), 2);
-	VOE_TEST_CHECK_INT(occurrences(written.text, "blend0=1\n"), 1);
-	VOE_TEST_CHECK_INT(occurrences(written.text, "blendheight0=120\n"), 1);
+	VOE_TEST_CHECK_INT(occurrences(written.text, "blend0_0=1\n"), 1);
+	VOE_TEST_CHECK_INT(occurrences(written.text, "blendheight0_0=120\n"), 1);
 	VOE_TEST_CHECK(voe_assets_landscape_read(written.text, written.size,
 						 arena, &back, NULL));
-	VOE_TEST_CHECK_INT(back.kind_count, 2);
-	VOE_TEST_CHECK(same_look(back.looks[0], out.looks[0]));
-	VOE_TEST_CHECK(same_look(back.looks[1], out.looks[1]));
+	VOE_TEST_CHECK_INT(back.group_count, 2);
+	VOE_TEST_CHECK(same_look(back.groups[0].looks[0], out.groups[0].looks[0]));
+	VOE_TEST_CHECK(same_look(back.groups[1].looks[0], out.groups[1].looks[0]));
 }
 
 static void bad_blends_are_malformed(voe_base_arena *arena)
@@ -99,11 +100,12 @@ static void the_default_look_writes_no_blend(voe_base_arena *arena)
 
 	VOE_TEST_CHECK(!fallback.blends);
 	VOE_TEST_CHECK_INT(fallback.blend_height, 0);
-	memcpy(grid.kinds[0], "a.glb", sizeof("a.glb"));
-	grid.kind_count = 1;
-	grid.looks[0] = fallback;
+	memcpy(grid.groups[0].glbs[0], "a.glb", sizeof("a.glb"));
+	grid.groups[0].glb_count = 1;
+	grid.group_count = 1;
+	grid.groups[0].looks[0] = fallback;
 	written = voe_assets_landscape_write(&grid, arena);
-	VOE_TEST_CHECK(strstr(written.text, "kind0=\"a.glb\"\n") != NULL);
+	VOE_TEST_CHECK(strstr(written.text, "glb0_0=\"a.glb\"\n") != NULL);
 	VOE_TEST_CHECK(strstr(written.text, "blend") == NULL);
 }
 
@@ -111,7 +113,7 @@ int main(void)
 {
 	voe_base_arena *arena = voe_base_arena_new(1024 * 1024);
 
-	a_blending_kind_round_trips(arena);
+	a_blending_glb_round_trips(arena);
 	bad_blends_are_malformed(arena);
 	the_default_look_writes_no_blend(arena);
 
