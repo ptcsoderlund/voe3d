@@ -1,8 +1,16 @@
-# Foliage kind
+# Foliage group
 
-## What names a kind
+A landscape's foliage group, which replaces the foliage kind (0520): several glbs painted and grown as one. Until groups are built, today's kind is a one-glb group and the lines below about kinds hold for it.
+
+## What a group is for
+- A group exists only to spare repainting one surface with different foliage: "a group is only so i dont have to repaint same surface with different foliage kinds/instances"; see 0520. [intent · tech-lead · 2026-11-27]
+- A group has one density, so glbs of very different size belong in different groups: "Super large and small flowers should maybe not be in the same group"; see 0520. [intent · tech-lead · 2026-11-27]
+- Settings are per glb because a group holds few glbs and it is cheap: "I can imagine its not many glb's in a group so per glb should be fine"; see 0520. [intent · tech-lead · 2026-11-27]
+
+## Its glbs
+- Each glb's share, how often a copy picks it, is equal by default; the tech-lead's proposal, taken with the per-glb answer; see 0520. [assumed · tech-lead · 2026-11-27]
+- A glb removed from a group leaves its spots to the group's other glbs, which may then stand in other spots; the tech-lead's call, not put to the sponsor. [assumed · tech-lead · 2026-11-27]
 - Nothing in `.landscape` or the Foliage section stops two kinds of one landscape naming the same `.glb`, so a model path does not name a kind uniquely. [observed · planner-108 · 2026-10-30]
-- A landscape holds at most 16 kinds. [observed · coder-108-04 · 2026-10-30]
 - The editor adds a kind by an Assets drop, with no undo step. [observed · planner-108 · 2026-10-30]
 
 ## Its box
@@ -11,6 +19,7 @@
 - A folded kind's look is not refreshed, which is safe only while nothing reads it when folded. [observed · coder-108-06 · 2026-10-30]
 
 ## Its seed
+- A foliage copy keeps x and z as whole millimetres, so a pick hashed from them is stable across save and reopen. [observed · planner 117 · 2026-11-20]
 - A `seed<k>` equal to its kind's index means the same as no seed, so two looks meaning one seed compare equal; see 0517. [assumed · coder 117-25 · 2026-11-24]
 - The lenient read clamps a whole-number `seed<k>` outside 0–15; one that is not a whole number is refused as malformed by both reads, as every look key's text is. [assumed · coder 117-25 · 2026-11-24]
 - Every other landscape look key out of range is refused by the lenient read too; only `seed<k>` clamps. [observed · coder 117-25 · 2026-11-24]
