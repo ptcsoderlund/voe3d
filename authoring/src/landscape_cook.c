@@ -82,7 +82,7 @@ voe_authoring_landscape_cook_copies(const voe_assets_landscape *landscape,
 
 		voe_authoring_cook_putf(&c, "\t{%d, %d, %u, %u, %u, %u},\n",
 					(int)k->x, (int)k->z, (unsigned)k->turn,
-					(unsigned)k->scale, (unsigned)k->kind,
+					(unsigned)k->scale, (unsigned)k->group,
 					(unsigned)k->lean);
 	}
 	voe_authoring_cook_put(&c, "};\n");

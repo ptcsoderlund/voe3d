@@ -115,9 +115,9 @@ static void test_cook_copies_writes_each_copy_in_order(void)
 	voe_assets_landscape land = voe_assets_landscape_flat(256.0f, 4, arena);
 	voe_assets_landscape_copy copies[2] = {
 		{ .x = 1500, .z = 32000, .turn = 16384, .scale = 1000,
-		  .kind = 0, .lean = 0 },
+		  .group = 0, .lean = 0 },
 		{ .x = -64000, .z = -250, .turn = 65535, .scale = 1200,
-		  .kind = 1, .lean = 255 },
+		  .group = 1, .lean = 255 },
 	};
 
 	land.copies = copies;
